@@ -15,11 +15,25 @@
       --muted: #555;
       --border: #eee;
     }
+    @font-face {
+      font-family: 'NotoKufiArabic';
+      src: url('assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf') format('truetype');
+      font-weight: 100 900;
+      font-style: normal;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Amiri';
+      src: url('assets/fonts/Amiri/Amiri-Regular.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
     * { box-sizing: border-box; }
     html, body { height: 100%; }
     body {
-      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial,
-                   "Noto Kufi Arabic", "Amiri", sans-serif;
+      font-family: 'NotoKufiArabic', system-ui, -apple-system, "Segoe UI", Tahoma, Arial,
+                   "Amiri", sans-serif;
       margin: 0; background: var(--bg); color: var(--ink);
     }
     header { background: var(--brand); color: var(--brand-ink); padding: 16px; }
@@ -37,6 +51,9 @@
     a:hover { text-decoration: underline; }
     .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
     .badge { background: #f1e6ee; color: #4c1238; padding: 4px 8px; border-radius: 999px; font-size: 0.78rem; }
+    details { background: #faf7f9; border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; padding: 8px 12px; }
+    summary { cursor: pointer; font-weight: 700; color: #4c1238; }
+    .meta { color: var(--muted); font-size: 0.85rem; }
     footer { max-width: 980px; margin: 0 auto 24px; color: var(--muted); font-size: 0.9rem; padding: 0 12px; }
   </style>
 </head>
@@ -62,17 +79,25 @@
     <section>
       <h2>المحتوى المتاح</h2>
       <!-- AUTO_LIST_START -->
-      <ul>
-        <li><a href="DOC/Strategic_Plan_Shahania_2025_RTL.html" target="_blank" rel="noopener">DOC/Strategic_Plan_Shahania_2025_RTL.html</a></li>
-        <li><a href="DOC/Unified_Maroon_RTL.html" target="_blank" rel="noopener">DOC/Unified_Maroon_RTL.html</a></li>
-        <li><a href="assets/img/favicon.ico" target="_blank" rel="noopener">assets/img/favicon.ico</a></li>
-        <li><a href="assets/img/logo.png" target="_blank" rel="noopener">assets/img/logo.png</a></li>
-        <li><a href="assets/img/QATAR_Flag.png" target="_blank" rel="noopener">assets/img/QATAR_Flag.png</a></li>
-        <li><a href="assets/img/school_name.png" target="_blank" rel="noopener">assets/img/school_name.png</a></li>
-        <li><a href="DOC/school_DATA/schasual.xlsx" target="_blank" rel="noopener">DOC/school_DATA/schasual.xlsx</a></li>
-        <li><a href="DOC/school_DATA/students_03.xlsx" target="_blank" rel="noopener">DOC/school_DATA/students_03.xlsx</a></li>
-        <li><a href="DOC/school_DATA/stuff_03.xlsx" target="_blank" rel="noopener">DOC/school_DATA/stuff_03.xlsx</a></li>
-      </ul>
+      <details open>
+        <summary>assets</summary>
+        <ul>
+          <li><a href="assets/img/favicon.ico" target="_blank" rel="noopener">assets/img/favicon.ico</a> <span class="meta">— حجم: 17.6 KB • آخر تعديل: 2025-10-01 20:38</span></li>
+          <li><a href="assets/img/logo.png" target="_blank" rel="noopener">assets/img/logo.png</a> <span class="meta">— حجم: 1010.1 KB • آخر تعديل: 2025-10-01 20:38</span></li>
+          <li><a href="assets/img/QATAR_Flag.png" target="_blank" rel="noopener">assets/img/QATAR_Flag.png</a> <span class="meta">— حجم: 28.5 KB • آخر تعديل: 2025-10-01 20:38</span></li>
+          <li><a href="assets/img/school_name.png" target="_blank" rel="noopener">assets/img/school_name.png</a> <span class="meta">— حجم: 85.0 KB • آخر تعديل: 2025-10-01 20:38</span></li>
+        </ul>
+      </details>
+      <details open>
+        <summary>DOC</summary>
+        <ul>
+          <li><a href="DOC/Strategic_Plan_Shahania_2025_RTL.html" target="_blank" rel="noopener">DOC/Strategic_Plan_Shahania_2025_RTL.html</a> <span class="meta">— حجم: 20.7 KB • آخر تعديل: 2025-09-30 15:52</span></li>
+          <li><a href="DOC/Unified_Maroon_RTL.html" target="_blank" rel="noopener">DOC/Unified_Maroon_RTL.html</a> <span class="meta">— حجم: 66.7 KB • آخر تعديل: 2025-10-01 20:42</span></li>
+          <li><a href="DOC/school_DATA/schasual.xlsx" target="_blank" rel="noopener">DOC/school_DATA/schasual.xlsx</a> <span class="meta">— حجم: 3.4 MB • آخر تعديل: 2025-09-28 18:11</span></li>
+          <li><a href="DOC/school_DATA/students_03.xlsx" target="_blank" rel="noopener">DOC/school_DATA/students_03.xlsx</a> <span class="meta">— حجم: 58.3 KB • آخر تعديل: 2025-09-27 11:16</span></li>
+          <li><a href="DOC/school_DATA/stuff_03.xlsx" target="_blank" rel="noopener">DOC/school_DATA/stuff_03.xlsx</a> <span class="meta">— حجم: 26.7 KB • آخر تعديل: 2025-09-25 18:53</span></li>
+        </ul>
+      </details>
       <!-- AUTO_LIST_END -->
     </section>
   </main>

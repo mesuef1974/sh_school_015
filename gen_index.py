@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, re, html
+import os, re, html, datetime
 from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -32,6 +32,20 @@ def web_href(path: str) -> str:
     return "/".join(quote(part) for part in rel.split("/"))
 
 
+def human_size(num: int) -> str:
+    for unit in ["بايت", "KB", "MB", "GB"]:
+        if num < 1024.0 or unit == "GB":
+            if unit == "بايت":
+                return f"{num} {unit}"
+            return f"{num:.1f} {unit}"
+        num /= 1024.0
+
+
+def fmt_time(ts: float) -> str:
+    dt = datetime.datetime.fromtimestamp(ts)
+    return dt.strftime("%Y-%m-%d %H:%M")
+
+
 def collect_files():
     items = []
     for base, dirs, files in os.walk(ROOT):
@@ -50,15 +64,48 @@ def collect_files():
     return items
 
 
-def render_list(paths):
-    li = []
+def group_by_top(paths):
+    groups = {}
     for p in paths:
-        href = web_href(p)
-        text = html.escape(rel_web_path(p))
-        li.append(f'        <li><a href="{href}" target="_blank" rel="noopener">{text}</a></li>')
-    if not li:
-        li = ['        <li>لا توجد ملفات متاحة للعرض حاليًا.</li>']
-    return "\n".join(li)
+        rel = rel_web_path(p)
+        top = rel.split("/", 1)[0] if "/" in rel else "(الجذر)"
+        groups.setdefault(top, []).append(p)
+    # Sort groups by name, keeping (الجذر) first
+    ordered = {}
+    if "(الجذر)" in groups:
+        ordered["(الجذر)"] = groups.pop("(الجذر)")
+    for k in sorted(groups.keys(), key=lambda x: x.lower()):
+        ordered[k] = groups[k]
+    return ordered
+
+
+def render_list(paths):
+    groups = group_by_top(paths)
+    blocks = []
+    if not paths:
+        return "        <p>لا توجد ملفات متاحة للعرض حاليًا.</p>"
+    for group, files in groups.items():
+        items_html = []
+        for p in files:
+            href = web_href(p)
+            text = html.escape(rel_web_path(p))
+            st = os.stat(p)
+            size = human_size(st.st_size)
+            mtime = fmt_time(st.st_mtime)
+            items_html.append(
+                f'          <li><a href="{href}" target="_blank" rel="noopener">{text}</a>'
+                f' <span class="meta">— حجم: {size} • آخر تعديل: {mtime}</span></li>'
+            )
+        block = [
+            f'      <details open>',
+            f'        <summary>{html.escape(group)}</summary>',
+            f'        <ul>',
+            "\n".join(items_html),
+            f'        </ul>',
+            f'      </details>'
+        ]
+        blocks.append("\n".join(block))
+    return "\n".join(blocks)
 
 
 def update_index(rendered: str):
@@ -67,7 +114,7 @@ def update_index(rendered: str):
     with open(INDEX, "r", encoding="utf-8") as f:
         html_text = f.read()
     pattern = re.compile(r"(<!--\s*AUTO_LIST_START\s*-->)(.*?)(<!--\s*AUTO_LIST_END\s*-->)", re.S)
-    replacement = r"\1\n      <ul>\n" + rendered + "\n      </ul>\n      " + r"\3"
+    replacement = r"\1\n" + rendered + "\n      " + r"\3"
     new_html, count = pattern.subn(replacement, html_text, count=1)
     if count == 0:
         raise SystemExit("Markers not found in index.html")
