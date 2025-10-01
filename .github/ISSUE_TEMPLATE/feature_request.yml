@@ -1,0 +1,32 @@
+name: طلب ميزة جديدة
+description: اقترح ميزة أو تحسينًا للمنصة
+labels: [enhancement]
+title: "[FEAT] وصف مختصر للميزة"
+body:
+  - type: textarea
+    id: motivation
+    attributes:
+      label: الدافع
+      description: لماذا نحتاج هذه الميزة؟ وما المشكلة التي تحلها؟
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: المقترح
+      description: كيف تتصور الحل؟ هل توجد بدائل؟
+      placeholder: وصف قصير مع أمثلة إن أمكن
+  - type: input
+    id: impact
+    attributes:
+      label: التأثير المتوقع
+      placeholder: من سيستفيد؟ ما حجم التأثير؟
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: قائمة التحقق
+      options:
+        - label: قرأت الإرشادات في CONTRIBUTING.md
+          required: true
+        - label: وصفت المعايير وقابلية القياس عند الإمكان
+          required: false

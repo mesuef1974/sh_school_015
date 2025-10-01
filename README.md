@@ -1,5 +1,10 @@
 # منصة الوثائق - sh_school_015
 
+[![CI](https://github.com/mesuef1974/sh_school_015/actions/workflows/python-ci.yml/badge.svg)](https://github.com/mesuef1974/sh_school_015/actions/workflows/python-ci.yml)
+[![Links](https://github.com/mesuef1974/sh_school_015/actions/workflows/links-validate.yml/badge.svg)](https://github.com/mesuef1974/sh_school_015/actions/workflows/links-validate.yml)
+[![CodeQL](https://github.com/mesuef1974/sh_school_015/actions/workflows/codeql.yml/badge.svg)](https://github.com/mesuef1974/sh_school_015/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 بوابة بسيطة باللغة العربية (RTL) تعرض كل الوثائق والملفات المتوفرة داخل هذا المستودع، مع توليد تلقائي للقائمة وروابط مباشرة. تم تضمين تحسينات على الواجهة لإظهار حجم الملف وتاريخ آخر تعديل مع تجميع المحتوى حسب المجلدات.
 
 ## المتطلبات
@@ -68,3 +73,12 @@
 
 # English (brief)
 Simple Arabic RTL landing page that auto-lists repository documents with direct links. Run `python gen_index.py` to regenerate the list between AUTO_LIST markers in `index.html`. Items are grouped by top-level folder and show file size and last modified timestamp. Fonts are embedded via `@font-face`. For deployment, enable GitHub Pages from the root of the main branch.
+
+## معايير وممارسات احترافية
+- قوالب قضايا (Issues) وطلبات السحب (Pull Requests) بالعربية ضمن `.github`.
+- آليات CI تلقائية:
+  - Python CI: تنسيق (Black) وفحص أسلوبي (Flake8) وفحص المولّد `gen_index.py --check`.
+  - Links Validator: فحص الروابط في README وملفات HTML أسبوعيًا وعند كل تغيير.
+  - CodeQL: تحليل أمني أساسي للشفرة (Python).
+- حوكمة المستودع: `CODEOWNERS`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, وترخيص `LICENSE`.
+- أدوات مطورين: `requirements-dev.txt` وتهيئة `pre-commit` اختيارية.

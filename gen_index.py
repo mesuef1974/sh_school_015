@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, re, html, datetime
+import os, re, html, datetime, argparse
 from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -123,8 +123,32 @@ def update_index(rendered: str):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Generate or check index.html content list.")
+    parser.add_argument("--check", action="store_true", help="Check rendering only; do not modify index.html. Exit non-zero on problems.")
+    parser.add_argument("--write", action="store_true", help="Force writing index.html (default behavior if no flags).")
+    args = parser.parse_args()
+
     files = collect_files()
     content = render_list(files)
+
+    if args.check and not args.write:
+        # Validate markers exist and rendering succeeded
+        if not os.path.exists(INDEX):
+            print("index.html not found.")
+            raise SystemExit(2)
+        with open(INDEX, "r", encoding="utf-8") as f:
+            html_text = f.read()
+        if "AUTO_LIST_START" not in html_text or "AUTO_LIST_END" not in html_text:
+            print("Markers not found in index.html")
+            raise SystemExit(3)
+        # Basic sanity: ensure content is not empty text (allow empty repo message)
+        if not content.strip():
+            print("Rendered content is empty.")
+            raise SystemExit(4)
+        print(f"Check passed. {len(files)} items would be listed.")
+        return
+
+    # Default: write changes
     update_index(content)
     print(f"Updated index.html with {len(files)} items.")
 

@@ -1,0 +1,52 @@
+name: بلاغ عن خطأ
+description: الإبلاغ عن عطل أو سلوك غير متوقع في المنصة
+labels: [bug]
+title: "[BUG] وصف مختصر للخلل"
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: الوصف
+      description: صف المشكلة بإيجاز واضح.
+      placeholder: ما الذي يحدث؟ وما المتوقع أن يحدث؟
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: خطوات إعادة المشكلة
+      description: اذكر الخطوات التي تؤدي لظهور المشكلة.
+      placeholder: |
+        1. اذهب إلى ...
+        2. اضغط على ...
+        3. لاحظ ...
+  - type: input
+    id: expected
+    attributes:
+      label: السلوك المتوقع
+  - type: input
+    id: actual
+    attributes:
+      label: السلوك الحالي
+  - type: textarea
+    id: evidence
+    attributes:
+      label: لقطات شاشة/روابط/ملفات
+  - type: dropdown
+    id: area
+    attributes:
+      label: النطاق المتأثر
+      options:
+        - واجهة المستخدم
+        - الوثائق/الروابط
+        - سكربت التوليد gen_index.py
+        - أخرى
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: قائمة التحقق
+      options:
+        - label: قرأت الإرشادات في CONTRIBUTING.md
+          required: true
+        - label: بحثت في القضايا المفتوحة سابقًا
+          required: true
