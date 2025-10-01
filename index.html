@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>منصة الوثائق</title>
+  <link rel="icon" href="assets/img/favicon.ico">
+  <style>
+    :root {
+      --brand: #6b184e;
+      --brand-ink: #ffffff;
+      --bg: #f7f7f9;
+      --card: #ffffff;
+      --ink: #222;
+      --muted: #555;
+      --border: #eee;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Tahoma, Arial,
+                   "Noto Kufi Arabic", "Amiri", sans-serif;
+      margin: 0; background: var(--bg); color: var(--ink);
+    }
+    header { background: var(--brand); color: var(--brand-ink); padding: 16px; }
+    header .brand { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    header img { height: 40px; }
+    header h1 { margin: 0; font-size: 1.25rem; font-weight: 700; }
+    main { max-width: 980px; margin: 24px auto; background: var(--card); padding: 24px; border-radius: 10px;
+           box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+    h2 { margin: 0 0 12px; font-size: 1.15rem; }
+    p { margin: 0 0 8px; }
+    .muted { color: var(--muted); font-size: 0.95rem; }
+    .divider { height: 1px; background: var(--border); margin: 16px 0; }
+    ul { line-height: 1.9; margin: 0; padding-inline-start: 20px; }
+    a { color: var(--brand); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .badges { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .badge { background: #f1e6ee; color: #4c1238; padding: 4px 8px; border-radius: 999px; font-size: 0.78rem; }
+    footer { max-width: 980px; margin: 0 auto 24px; color: var(--muted); font-size: 0.9rem; padding: 0 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <img src="assets/img/logo.png" alt="الشعار" onerror="this.style.display='none';" />
+      <img src="assets/img/school_name.png" alt="اسم المدرسة" onerror="this.style.display='none';" />
+      <h1>منصة الوثائق</h1>
+    </div>
+  </header>
+  <main>
+    <section>
+      <h2>ما الذي يتوفر في المنصة؟</h2>
+      <p class="muted">تجد أدناه قائمة بالملفات والوثائق المتاحة داخل هذا المستودع.</p>
+      <div class="badges">
+        <span class="badge">اتجاه RTL</span>
+        <span class="badge">عربي</span>
+        <span class="badge">روابط مباشرة للوثائق</span>
+      </div>
+    </section>
+    <div class="divider"></div>
+    <section>
+      <h2>المحتوى المتاح</h2>
+      <!-- AUTO_LIST_START -->
+      <ul>
+        <li><a href="DOC/Strategic_Plan_Shahania_2025_RTL.html" target="_blank" rel="noopener">DOC/Strategic_Plan_Shahania_2025_RTL.html</a></li>
+        <li><a href="DOC/Unified_Maroon_RTL.html" target="_blank" rel="noopener">DOC/Unified_Maroon_RTL.html</a></li>
+        <li><a href="assets/img/favicon.ico" target="_blank" rel="noopener">assets/img/favicon.ico</a></li>
+        <li><a href="assets/img/logo.png" target="_blank" rel="noopener">assets/img/logo.png</a></li>
+        <li><a href="assets/img/QATAR_Flag.png" target="_blank" rel="noopener">assets/img/QATAR_Flag.png</a></li>
+        <li><a href="assets/img/school_name.png" target="_blank" rel="noopener">assets/img/school_name.png</a></li>
+        <li><a href="DOC/school_DATA/schasual.xlsx" target="_blank" rel="noopener">DOC/school_DATA/schasual.xlsx</a></li>
+        <li><a href="DOC/school_DATA/students_03.xlsx" target="_blank" rel="noopener">DOC/school_DATA/students_03.xlsx</a></li>
+        <li><a href="DOC/school_DATA/stuff_03.xlsx" target="_blank" rel="noopener">DOC/school_DATA/stuff_03.xlsx</a></li>
+      </ul>
+      <!-- AUTO_LIST_END -->
+    </section>
+  </main>
+  <footer>
+    <span>آخر تحديث يتم توليده تلقائيًا عند تشغيل السكربت.</span>
+  </footer>
+</body>
+</html>

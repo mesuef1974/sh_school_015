@@ -1,0 +1,367 @@
+<!doctype html>
+<html dir="rtl" lang="ar">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>الخطة الاستراتيجية الشاملة 2025 — مدرسة الشحّانية</title>
+    <meta name="description" content="خطة استراتيجية تنفيذية متينة لمدرسة الشحّانية الإعدادية الثانوية، مبنية على أفضل الممارسات (TOGAF/ITIL/ISO/OWASP/WCAG) مع دعم عربي RTL كامل وخارطة تنفيذ 8 أسابيع وروابط للوحة التنفيذية الموحدة." />
+
+    <!-- Minimal vendor libs for export -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+    <style>
+      @font-face {
+        font-family: "NotoKufiArabic-Local";
+        src: url("../assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Regular.ttf") format("truetype");
+        font-weight: 400; font-style: normal; font-display: swap;
+      }
+      @font-face {
+        font-family: "NotoKufiArabic-Local";
+        src: url("../assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Bold.ttf") format("truetype");
+        font-weight: 700; font-style: normal; font-display: swap;
+      }
+      @font-face {
+        font-family: "Amiri-Local";
+        src: url("../assets/fonts/Amiri/Amiri-Regular.ttf") format("truetype");
+        font-weight: 400; font-style: normal; font-display: swap;
+      }
+
+      :root{
+        --primary:#7a1a1a; --primary-700:#8b1d1d; --primary-900:#5d1111;
+        --accent:#d4a373; --bg:#fdf8f6; --surface:#ffffff; --text:#1f2937; --muted:#6b7280; --border:#e5e7eb;
+        --radius:14px; --shadow:0 8px 28px rgba(31,41,55,0.08);
+        --ok:#16a34a; --warn:#d97706; --danger:#dc2626; --info:#0284c7;
+      }
+      *{ box-sizing:border-box; }
+      html, body{ margin:0; padding:0; background:var(--bg); color:var(--text); line-height:1.7;
+        font-family:"NotoKufiArabic-Local","Amiri-Local","Segoe UI",Tahoma,Arial,sans-serif; }
+      a{ color:var(--primary-700); text-decoration:none; }
+      .container{ max-width: 1120px; margin: 0 auto; padding: 14px; }
+      header.hero{ background:linear-gradient(135deg,var(--primary),var(--primary-900)); color:#fff; border-radius:16px; padding:18px; box-shadow:var(--shadow); }
+      .brand{ display:flex; align-items:center; gap:12px; }
+      .brand img{ width:48px; height:48px; }
+      .brand h1{ margin:0; font-size:22px; }
+      .brand p{ margin:6px 0 0 0; opacity:.95; }
+
+      .toolbar{ display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+      .btn{ cursor:pointer; background:var(--primary); color:#fff; border:none; border-radius:10px; padding:8px 12px; }
+      .btn.outline{ background:#fff; color:var(--primary); border:1px solid var(--primary-700); }
+      .btn.alt{ background:#374151; }
+      .muted{ color:var(--muted); }
+
+      .panel{ background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin:12px 0; box-shadow:var(--shadow); }
+      h2{ color:var(--primary); font-size:18px; margin-top:0; }
+      h3{ color:var(--primary-700); margin-bottom:6px; }
+
+      /* ToC */
+      .toc{ background:#fff1f2; border:1px solid #fecaca; border-radius:12px; padding:12px; }
+      .toc ul{ margin:0; padding-inline-start:18px; }
+      .toc a{ color:var(--primary-900); }
+
+      /* Print */
+      @page { size: A4 portrait; margin: 16mm; }
+      @media print{
+        .no-print{ display:none !important; }
+        body{ background:#fff; }
+      }
+
+      footer.site{ text-align:center; color:#fff; background:var(--primary); padding:12px; border-top:1px solid var(--primary-900); margin-top:16px; border-radius: 12px; }
+      .badge{ display:inline-block; padding:2px 8px; border-radius:12px; border:1px solid var(--border); background:#fff; margin-inline-start:6px; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="hero" role="banner">
+        <div class="brand">
+          <img src="../assets/img/logo.png" alt="شعار المدرسة" onerror="this.src='../assets/img/logo.png'" />
+          <div>
+            <h1>الخطة الاستراتيجية الشاملة 2025 — مدرسة الشحّانية</h1>
+            <p>وثيقة تنفيذية احترافية مبنية على TOGAF/ITIL/ISO/OWASP/WCAG مع دعم RTL كامل وهوية مارونية نهارية</p>
+          </div>
+        </div>
+      </header>
+
+      <div class="toolbar no-print" role="group" aria-label="أدوات">
+        <button class="btn" onclick="exportPDF()">تصدير PDF</button>
+        <button class="btn outline" onclick="window.print()">طباعة</button>
+        <a class="btn alt" href="Unified_Maroon_RTL.html" target="_blank" rel="noopener">اللوحة التنفيذية الموحدة</a>
+        <a class="btn outline" href="STRATEGY_2025_PRO_ar.md" target="_blank" rel="noopener">المصدر النصي (Markdown)</a>
+        <span class="badge" id="today"></span>
+      </div>
+
+      <section class="panel toc" aria-labelledby="toc-title">
+        <h2 id="toc-title">جدول المحتويات</h2>
+        <ul>
+          <li><a href="#vision">1) الرؤية والقيمة</a></li>
+          <li><a href="#principles">2) المبادئ المرجعية</a></li>
+          <li><a href="#okrs">3) الأهداف والنتائج (OKRs)</a></li>
+          <li><a href="#scope">4) النطاق وخارجه</a></li>
+          <li><a href="#governance">5) الحوكمة والمسؤوليات</a></li>
+          <li><a href="#architecture">6) الاستراتيجية المعمارية</a></li>
+          <li><a href="#security">7) الأمن والخصوصية</a></li>
+          <li><a href="#data">8) استراتيجية البيانات</a></li>
+          <li><a href="#quality">9) الجودة والاختبارات</a></li>
+          <li><a href="#devops">10) DevOps/CI-CD</a></li>
+          <li><a href="#ux">11) UX/RTL/Accessibility</a></li>
+          <li><a href="#roadmap">12) خارطة الطريق (12 شهرًا)</a></li>
+          <li><a href="#kpis">13) KPIs & SLO/SLAs</a></li>
+          <li><a href="#risks">14) سجل المخاطر</a></li>
+          <li><a href="#success">15) معايير النجاح</a></li>
+          <li><a href="#final-8">الخطة النهائية المختصرة (8 أسابيع)</a></li>
+          <li><a href="#templates-plan">خطة تحويل الواجهة إلى قوالب Django</a></li>
+        </ul>
+      </section>
+
+      <main id="doc" role="main" aria-label="الخطة الاستراتيجية">
+        <section id="vision" class="panel">
+          <h2>1) الرؤية والقيمة</h2>
+          <ul>
+            <li>منصة مدرسية عربية موحّدة، آمنة، قابلة للتوسع، بدعم RTL كامل وتجربة متميزة للأدوار: المدير، المعلّم، الطالب، وليّ الأمر.</li>
+            <li>تحويل بيانات اليوم الدراسي (حضور/درجات/تنبيهات) إلى قرارات عبر لوحات مؤشرات تقود الأداء والتحسين.</li>
+          </ul>
+        </section>
+
+        <section id="principles" class="panel">
+          <h2>2) المبادئ المرجعية</h2>
+          <ul>
+            <li>البساطة أولًا ثم القابلية للتوسع.</li>
+            <li>الأمن بالتصميم، والمراقبة بالافتراض.</li>
+            <li>وصول شامل (WCAG 2.1 AA) ودعم RTL في كل طبقة.</li>
+            <li>بنية معيارية (Modular Monolith وفق DDD/TOGAF) قابلة للتجزئة لاحقًا.</li>
+            <li>أتمتة: CI/CD وفحوصات جودة وأمن إلزامية قبل الإطلاق.</li>
+          </ul>
+          <p class="muted">مراجع: TOGAF · ITIL · ISO 27001/27701 · OWASP ASVS/Top10 · WCAG 2.1 AA</p>
+        </section>
+
+        <section id="okrs" class="panel">
+          <h2>3) الأهداف والنتائج (OKRs)</h2>
+          <ul>
+            <li>الهدف 1: تسليم MVP خلال 12 أسبوعًا.
+              <ul>
+                <li>CRUD أساسية + JWT + RBAC موثقة في Swagger.</li>
+                <li>لوحة RTL بمؤشرين (حضور/درجات) + تصدير PDF/CSV/JSON.</li>
+                <li>P95 ≤ 300ms للواجهات الحرجة.</li>
+              </ul>
+            </li>
+            <li>الهدف 2: تعزيز الأمن والموثوقية.
+              <ul>
+                <li>0 ثغرات حرجة في فحوصات الأمن.</li>
+                <li>تغطية اختبارات ≥ 70% للوحدات الحرجة.</li>
+                <li>RPO ≤ 24h وRTO ≤ 4h لخطة النسخ الاحتياطي.</li>
+              </ul>
+            </li>
+            <li>الهدف 3: الجاهزية للتوسع والحوكمة.
+              <ul>
+                <li>مراقبة (APM + Logs + Metrics) بتنبيهات.</li>
+                <li>RACI واضح ولجان توجيه شهرية.</li>
+              </ul>
+            </li>
+          </ul>
+        </section>
+
+        <section id="scope" class="panel">
+          <h2>4) النطاق وخارجه</h2>
+          <ul>
+            <li>في النطاق (عام 1): Django/DRF + PostgreSQL، RBAC، استيراد/تصدير، قوالب RTL + صفحة موحّدة، مراقبة وأمن أساسيان.</li>
+            <li>خارج النطاق: SPA وتطبيق جوّال وSSO/OIDC إلا بطلب صريح؛ تُرحّل للمرحلة التالية.</li>
+          </ul>
+          <p class="muted">روابط مساندة: DOC/RBAC.md · DOC/SECRETS_AND_ENV_ar.md · DOC/Unified_Maroon_RTL.html</p>
+        </section>
+
+        <section id="governance" class="panel">
+          <h2>5) الحوكمة والمسؤوليات (RACI + Cadence)</h2>
+          <ul>
+            <li>اجتماعات: أسبوعية للتسليم وشهرية للتوجيه.</li>
+            <li>RACI مختصر:
+              <ul>
+                <li>Backend/DB: مسؤول عن النماذج، API، RBAC، النسخ الاحتياطي.</li>
+                <li>Frontend: مسؤول عن القوالب، الرسوم، التصدير.</li>
+                <li>QA/Docs: مسؤول/مستشار عن الاختبارات والتوثيق.</li>
+                <li>المالك/الإدارة: اعتماد/إحاطة بالقرارات.</li>
+              </ul>
+            </li>
+            <li>التغييرات المعمارية الجوهرية تتطلب RFC داخلي وموافقة لجنة.</li>
+          </ul>
+        </section>
+
+        <section id="architecture" class="panel">
+          <h2>6) الاستراتيجية المعمارية (Target Architecture)</h2>
+          <ul>
+            <li>Modular Monolith (Django/DRF) بطبقات: Domain · Application · API · Infra.</li>
+            <li>PostgreSQL + فهارس + سياسات أرشفة/احتفاظ.</li>
+            <li>التكامل: RESTful + جاهزية Webhooks؛ UUID Keys، JSONB لمرونة الحقول.</li>
+            <li>المراقبة: Sentry/ELK + Prometheus/Grafana حسب البيئة.</li>
+            <li>فصل الواجهة إلى Vue/Vite تدريجيًا بعد استقرار الـ API.</li>
+          </ul>
+        </section>
+
+        <section id="security" class="panel">
+          <h2>7) الأمن والخصوصية</h2>
+          <ul>
+            <li>JWT (SimpleJWT) + RBAC (Scopes + Constraints).</li>
+            <li>كلمات المرور: Argon2id/Bcrypt، تدوير المفاتيح، قصر عمر الرموز.</li>
+            <li>الحماية: Rate limiting، CORS/CSRF، CSP، X-Frame-Options، HSTS إنتاجًا.</li>
+            <li>الخصوصية: تصنيف البيانات (عام/داخلي/سري)، إخفاء الهوية في النسخ.</li>
+            <li>النسخ الاحتياطي: pg_dump ليلي + اختبارات استعادة ربع سنوية.</li>
+          </ul>
+        </section>
+
+        <section id="data" class="panel">
+          <h2>8) استراتيجية البيانات</h2>
+          <ul>
+            <li>نمذجة: Users/Students/Staff/Classes/Subjects/Enrollments/Attendance/Grades.</li>
+            <li>مفاتيح UUID، استخدام JSONB، فهارس على الأعمدة الحرجة.</li>
+            <li>جودة: تحقق إدخال، تتبع أخطاء، سياسة ملكية بيانات لكل جدول.</li>
+          </ul>
+        </section>
+
+        <section id="quality" class="panel">
+          <h2>9) الجودة والاختبارات</h2>
+          <ul>
+            <li>Unit + Integration + E2E مبسّط للمسارات الحرجة.</li>
+            <li>أدوات: ruff/black/isort/pytest، تقارير تغطية، فحوصات أمن (Bandit/Trivy).</li>
+            <li>تعريف DoD موحد.
+            </li>
+          </ul>
+        </section>
+
+        <section id="devops" class="panel">
+          <h2>10) DevOps/CI-CD</h2>
+          <ul>
+            <li>فروع Git: main (محمي) · develop · feature/*</li>
+            <li>بايبلاين: Lint → Test → Security Scan → Package → Deploy (staging) → Smoke → Prod.</li>
+            <li>إدارة الأسرار: .env عبر مدير أسرار ومنع التسريبات.</li>
+          </ul>
+        </section>
+
+        <section id="ux" class="panel">
+          <h2>11) UX/RTL/Accessibility</h2>
+          <ul>
+            <li>RTL افتراضيًا، خطوط عربية محلية (NotoKufi/Amiri)، تباين WCAG AA، دعم لوحة المفاتيح والقرّاء.</li>
+          </ul>
+        </section>
+
+        <section id="roadmap" class="panel">
+          <h2>12) خارطة الطريق (12 شهرًا)</h2>
+          <ul>
+            <li>الشهر 1: تأسيس المشروع، الإعدادات، خطوط CI، معايير الكود.</li>
+            <li>2–3: CRUD + JWT + RBAC + استيراد/تصدير + لوحة RTL.</li>
+            <li>4–6: حضور/درجات، تقارير PDF/Excel، مراقبة وأمان.</li>
+            <li>7–9: تحسين الأداء، إدارة الملفات، لوحات إدارة بسيطة.</li>
+            <li>10–12: UAT موسّع، تحسين UX، استعداد لـ SPA اختيارية.</li>
+          </ul>
+        </section>
+
+        <section id="kpis" class="panel">
+          <h2>13) KPIs & SLO/SLAs</h2>
+          <ul>
+            <li>أداء: P95 ≤ 300ms · أخطاء API ≤ 0.5%</li>
+            <li>موثوقية: 99.9% توافر شهري</li>
+            <li>جودة: ≥70% تغطية للوحدات الحرجة · 0 ثغرات حرجة</li>
+            <li>تسليم: الالتزام بالمعالم ≥ 90% · MTTR للأعطال الحرجة ≤ 4h</li>
+          </ul>
+        </section>
+
+        <section id="risks" class="panel">
+          <h2>14) سجل المخاطر</h2>
+          <ul>
+            <li>مسارات بأسماء فيها فراغات → خطة: إعادة تسمية وتحديث الروابط لاحقًا.</li>
+            <li>اعتماد على CDN → خطة: نسخ محلية/Bundling.</li>
+            <li>حساسية بيانات Excel → خطة: عينات مجهولة وتقييد الوصول.</li>
+            <li>محدودية موارد → خطة: تركيز MVP وتأجيل SPA.</li>
+          </ul>
+        </section>
+
+        <section id="success" class="panel">
+          <h2>15) معايير النجاح</h2>
+          <ul>
+            <li>استيفاء OKRs + DoD، ورضا أصحاب المصلحة ≥ 8/10 في UAT.</li>
+          </ul>
+        </section>
+
+        <section id="final-8" class="panel">
+          <h2>الخطة النهائية (8 أسابيع) — التنفيذ المختصر</h2>
+          <ol>
+            <li>الأسبوع 1: Django + PostgreSQL + Models كاملة + Basic API (CRUD) — اختبار عبر Postman.</li>
+            <li>الأسبوع 2: JWT + RBAC (Groups/Permissions) + ربط Frontend المبدئي بقوالب Django.</li>
+            <li>الأسبوع 3: استيراد Excel (طلاب/موظفون) مع Validation + Endpoints مستقرة.</li>
+            <li>الأسبوع 4: Attendance + Grades API + Charts مرتبطة بقاعدة البيانات.</li>
+            <li>الأسبوع 5: Reports (PDF/DOCX/Excel) من الخادم + مركز تصدير.</li>
+            <li>الأسبوع 6: Testing (Unit/Integration) + Security Hardening + Audit Log.</li>
+            <li>الأسبوع 7: Deployment + CI/CD + Backup/Restore.</li>
+            <li>الأسبوع 8: UAT + إصلاحات + توثيق نهائي.</li>
+          </ol>
+          <p class="muted">ملاحظة: سيتم تحويل Unified_Maroon_RTL.html إلى قوالب Django تدريجيًا (base.html + partials + blocks).</p>
+        </section>
+
+        <section id="templates-plan" class="panel">
+          <h2>خطة تحويل الواجهة إلى قوالب Django</h2>
+          <ul>
+            <li>base.html: الرأس/الأقدام، الألوان، إعداد RTL.</li>
+            <li>includes/_tabs.html: شريط التبويب.</li>
+            <li>dashboards/exec.html: الملخّص التنفيذي + التصدير PDF.</li>
+            <li>dashboards/kpi.html: المؤشرات (ECharts) متصلة بـ API.</li>
+            <li>data/import.html: استيراد Excel مع رفع ملف واستدعاء API.</li>
+          </ul>
+          <p class="muted">نقل الأنماط الحالية تدريجيًا إلى static/ + قالب رئيسي، واستبدال محاكاة البيانات بنداءات AJAX إلى DRF.</p>
+        </section>
+
+        <section class="panel" aria-label="ملاحظات ختامية">
+          <h2>ملاحظات ختامية وروابط</h2>
+          <ul>
+            <li>اللوحة التنفيذية (نسخة HTML تفاعلية): <a href="Unified_Maroon_RTL.html">DOC/Unified_Maroon_RTL.html</a></li>
+            <li>المصدر النصي الكامل: <a href="STRATEGY_2025_PRO_ar.md">DOC/STRATEGY_2025_PRO_ar.md</a></li>
+            <li>الأمن والبيئات: <a href="SECRETS_AND_ENV_ar.md">DOC/SECRETS_AND_ENV_ar.md</a></li>
+            <li>RBAC: <a href="RBAC.md">DOC/RBAC.md</a></li>
+          </ul>
+        </section>
+      </main>
+
+      <footer class="site" role="contentinfo">&copy; 2025 — مدرسة الشحّانية الإعدادية الثانوية للبنين — جميع الحقوق محفوظة</footer>
+    </div>
+
+    <script>
+      function setToday(){
+        const el = document.getElementById('today');
+        if(el) el.textContent = new Date().toLocaleDateString('ar-QA');
+      }
+      setToday();
+
+      async function exportPDF(){
+        try{
+          const { jsPDF } = window.jspdf;
+          const page = document.getElementById('doc');
+          const canvas = await html2canvas(page, { scale: 2 });
+          const imgData = canvas.toDataURL('image/png');
+          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+          // scale to width 210mm, keep aspect
+          const pageWidth = 210; const pageHeight = 297;
+          const imgWidth = pageWidth; const imgHeight = canvas.height * imgWidth / canvas.width;
+          let y = 0; let h = imgHeight; let sCanvas = canvas;
+          // If content exceeds single page, slice vertically into pages
+          if(h <= pageHeight){
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+          } else {
+            // multi-page slicing
+            const onePageHeightPx = canvas.width * (pageHeight / pageWidth);
+            let renderedHeight = 0;
+            while(renderedHeight < canvas.height){
+              const slice = document.createElement('canvas');
+              slice.width = canvas.width;
+              slice.height = Math.min(onePageHeightPx, canvas.height - renderedHeight);
+              const ctx = slice.getContext('2d');
+              ctx.drawImage(canvas, 0, renderedHeight, canvas.width, slice.height, 0, 0, slice.width, slice.height);
+              const sliceImg = slice.toDataURL('image/png');
+              const sliceHeightMM = (slice.height * pageWidth) / slice.width;
+              pdf.addImage(sliceImg, 'PNG', 0, 0, pageWidth, sliceHeightMM);
+              renderedHeight += slice.height;
+              if(renderedHeight < canvas.height) pdf.addPage();
+            }
+          }
+          pdf.save('Strategic-Plan-Shahania-2025.pdf');
+        }catch(e){ alert('تعذر إنشاء PDF: '+e.message); }
+      }
+    </script>
+  </body>
+</html>

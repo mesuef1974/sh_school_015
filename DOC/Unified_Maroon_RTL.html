@@ -1,0 +1,1233 @@
+<!doctype html>
+<html dir="rtl" lang="ar">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>اللوحة الموحدة — مارونية نهارية | مدرسة الشحّانية</title>
+    <meta name="description" content="صفحة واحدة RTL تفاعلية: ملخص تنفيذي للطباعة، مؤشرات، مهام + Gantt، استيراد Excel/CSV، مركز تصدير PDF/CSV/JSON/DOCX، محاكاة RBAC، وERD." />
+
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico" />
+
+    <!-- Vendor libs (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pizzip@3.1.4/dist/pizzip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docxtemplater@3.44.0/build/docxtemplater.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+
+    <style>
+      @font-face {
+        font-family: "NotoKufiArabic-Local";
+        src: url("/static/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Regular.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "NotoKufiArabic-Local";
+        src: url("/static/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Bold.ttf") format("truetype");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Amiri-Local";
+        src: url("/static/fonts/Amiri/Amiri-Regular.ttf") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      :root {
+        --primary: #7a1a1a; /* maroon */
+        --primary-700: #8b1d1d;
+        --primary-900: #5d1111;
+        --accent: #d4a373; /* daylight warm */
+        --bg: #fdf8f6;
+        --surface: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --shadow: 0 8px 28px rgba(31, 41, 55, 0.08);
+        --radius: 14px;
+        --ok: #16a34a; --warn: #d97706; --danger: #dc2626; --info: #0284c7;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0; padding: 0; background: var(--bg); color: var(--text);
+        font-family: "NotoKufiArabic-Local", "Amiri-Local", "Segoe UI", Tahoma, Arial, sans-serif;
+        line-height: 1.7;
+        padding-bottom: 56px; /* space for fixed footer */
+      }
+      a { color: var(--primary-700); text-decoration: none; }
+      .container { max-width: 99%; margin: 0 auto; padding: 10px; }
+      .hero {
+        position: relative; overflow: hidden; color: #fff;
+        background: linear-gradient(135deg, var(--primary), var(--primary-900));
+        border-radius: 16px; padding: 24px; box-shadow: var(--shadow);
+      }
+      .hero .brand { display: flex; align-items: center; gap: 14px; }
+      .hero img.logo { width: 48px; height: 48px; }
+      .hero h1 { margin: 0; font-size: 22px; }
+      .hero p { margin: 6px 0 0 0; opacity: .95; }
+
+      .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+      .tabs button { cursor: pointer; background: var(--surface); color: var(--primary);
+        border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; box-shadow: var(--shadow);
+      }
+      .tabs button.active { background: #fff1f2; border-color: #fecaca; color: var(--primary-900); }
+
+      section.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 16px; margin: 12px 0; }
+      h2 { color: var(--primary); font-size: 18px; margin: 0 0 12px 0; }
+
+      /* Simple grid */
+      .grid { display: grid; gap: 12px; }
+      @media (min-width: 900px) { .grid.cols-2 { grid-template-columns: 1fr 1fr; } .grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; } }
+
+      /* Gantt styles */
+      .tasks { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .tasks th, .tasks td { border: 1px solid var(--border); padding: 4px; font-size: 13px; }
+      .tasks thead th { background:#fff1f2; border-color:#fecaca; color: var(--primary-900); }
+      .tasks tbody tr:nth-child(odd) { background: #fff; }
+      .tasks tbody tr:nth-child(even) { background: #fdf2f2; }
+      .tasks tbody tr.done { background: #ecfdf5 !important; }
+      .tasks tbody tr.inprogress { background: #eef2ff !important; }
+      .tasks td .input, .tasks td select.input, .tasks td textarea.input { width: 100%; }
+      .tasks th, .tasks td { word-break: break-word; overflow-wrap: anywhere; white-space: normal; }
+      .tasks td textarea.input { resize: vertical; min-height: 44px; line-height: 1.4; white-space: pre-wrap; }
+      .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; line-height:1.6; }
+      .badge.prio-high { background:#fee2e2; border:1px solid #fecaca; color:#7a1a1a; }
+      .badge.prio-medium { background:#fef9c3; border:1px solid #fde68a; color:#92400e; }
+      .badge.prio-low { background:#dcfce7; border:1px solid #bbf7d0; color:#14532d; }
+      .badge.status-done { background:#dcfce7; border:1px solid #bbf7d0; color:#14532d; }
+      .badge.status-inprogress { background:#e0e7ff; border:1px solid #c7d2fe; color:#3730a3; }
+      .badge.status-planned { background:#f1f5f9; border:1px solid #e2e8f0; color:#0f172a; }
+      .badge.status-blocked { background:#fee2e2; border:1px solid #fecaca; color:#7a1a1a; }
+      .gantt { position: relative; height: 220px; background: #fdf2f2; border: 1px solid #fecaca; border-radius: 10px; overflow-x: auto; }
+      .gantt .bar { position: absolute; height: 24px; background: var(--primary-700); color:#fff; border-radius: 8px; padding: 2px 6px; font-size: 12px; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+      .gantt .bar.small { background: #fde8e8; color: var(--primary-900); border: 1px solid #fecaca; text-shadow: none; }
+
+      /* Charts: responsive sizing — no internal scroll */
+      #tab-kpi .kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
+      @media (max-width: 1200px){ #tab-kpi .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+      @media (max-width: 800px){ #tab-kpi .kpi-grid { grid-template-columns: 1fr; } }
+      #tab-kpi .echart { display:block; width: 100% !important; height: 28vh !important; max-height: 360px; }
+
+      /* Table container */
+      .table-wrap { overflow-x: auto; }
+
+      /* Executive one-pager printing */
+      @page { size: A4 portrait; margin: 18mm 16mm 20mm 16mm; }
+      @media print {
+        body { background: #fff; }
+        .no-print { display: none !important; }
+        .print-page { width: 210mm; min-height: 297mm; background: #fff; color: #000; position: relative; padding: 20mm 16mm; font-size: 12pt; }
+        .letterhead-header { position: fixed; top: 0; left: 0; right: 0; height: 40mm; }
+        .letterhead-footer { position: fixed; bottom: 0; left: 0; right: 0; height: 15mm; }
+      }
+
+      .letterhead-header, .letterhead-footer { display: flex; align-items: center; justify-content: space-between; opacity: .9; }
+      .letterhead-header img { height: 40px; }
+      .brand-name-badge { background: var(--primary); border: 1px solid var(--primary-900); color:#fff; padding: 6px 12px; border-radius: 12px; box-shadow: 0 6px 16px rgba(122,26,26,.25); display: inline-flex; align-items: center; }
+      .brand-name-badge img { height: 34px; display:block; }
+
+      .muted { color: var(--muted); }
+      .btn { cursor: pointer; background: var(--primary); color: #fff; border: none; border-radius: 10px; padding: 8px 12px; }
+      .btn.alt { background: #374151; }
+      .btn.warn { background: var(--warn); }
+      .btn.outline { background: #fff; color: var(--primary); border: 1px solid var(--primary-700); }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .input { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
+      .kbd { background:#eef2ff;border:1px solid #c7d2fe;border-radius:6px;padding:2px 6px; }
+      /* Fixed footer */
+      .footer-fixed { position: fixed; bottom: 0; left: 0.5%; right: 0.5%; background: var(--primary); color:#fff; text-align: center; padding: 10px 0; border-top: 1px solid var(--primary-900); box-shadow: 0 -6px 16px rgba(31,41,55,0.12); z-index: 1000; font-size: 14px; }
+      .footer-inner { width: 100%; margin: 0 auto; padding: 0 20px; }
+      @media print { .footer-fixed { display: none !important; } }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="hero">
+        <div class="brand">
+          <img class="logo" src="{% static '../assets/img/logo.png' %}" alt="شعار" />
+            <div>
+            <h1>اللوحة الموحدة بهوية مارونية نهارية</h1>
+            <p>ملخّص تنفيذي للطباعة · مؤشرات · مهام + Gantt · استيراد Excel/CSV · RBAC · ERD · مركز تصدير</p>
+          </div>
+        </div>
+      </header>
+
+      <nav class="tabs no-print" role="tablist" aria-label="التبويبات">
+        <button data-tab="exec" class="active" aria-selected="true">الملخّص التنفيذي</button>
+        <button data-tab="kickoff">ابدأ الآن</button>
+        <button data-tab="kpi">المؤشرات</button>
+        <button data-tab="data">البيانات (Excel/CSV)</button>
+        <button data-tab="rbac">RBAC</button>
+        <button data-tab="erd">ERD</button>
+        <button data-tab="export">التصدير</button>
+      </nav>
+
+      <!-- Executive one-pager -->
+      <section id="tab-exec" class="panel">
+        <div class="letterhead-header">
+          <div class="brand-name-badge">
+            <img src="/static/img/school_name.png" alt="اسم المدرسة" />
+          </div>
+          <img src="/static/img/QATAR_Flag.png" alt="علم قطر" />
+        </div>
+        <div class="print-page" id="exec-page" aria-label="الملخّص التنفيذي للطباعة">
+          <h2>ملخّص تنفيذي — صفحة واحدة</h2>
+          <div class="grid cols-2">
+            <div>
+              <h3>المؤشرات الرئيسية (KPIs)</h3>
+              <ul id="kpis-list">
+                <li>الحضور اليوم: <span id="kpi-att">—</span>%</li>
+                <li>تقدّم المهام الأسبوعية: <span id="kpi-tasks">—</span>%</li>
+                <li>متوسّط الدرجات الأخير: <span id="kpi-grade">—</span>%</li>
+                <li>المهمة المقبلة: <span id="kpi-next">—</span><button class="btn alt" id="btn-go-next" onclick="focusNextTask()" style="padding:2px 8px;font-size:12px;margin-inline-start:6px">ابدأها الآن</button></li>
+              </ul>
+            </div>
+            <div>
+              <h3>أبرز المخاطر</h3>
+              <ul>
+                <li>تأخر إدخال الدرجات لبعض المواد.</li>
+                <li>نقص تغطية معلّمين لفصلين.</li>
+                <li>تذبذب حضور لبعض الصفوف.</li>
+              </ul>
+            </div>
+          </div>
+          <h3>توصيات سريعة</h3>
+          <ul>
+            <li>تعزيز متابعة الحضور مبكرًا.</li>
+            <li>جلسة دعم للمواد المتعثّرة.</li>
+            <li>تحديث خطة الأسبوع القادم بناءً على المؤشرات.</li>
+          </ul>
+        </div>
+        <div class="letterhead-footer muted">
+          <span>مدرسة الشحّانية</span>
+          <span id="today"></span>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" onclick="exportExecPDF()">تصدير الملخّص PDF</button>
+          <button class="btn outline" onclick="window.print()">طباعة</button>
+        </div>
+      </section>
+
+      <!-- Kickoff: tasks + professional table + simple Gantt -->
+      <section id="tab-kickoff" class="panel" hidden>
+        <h2>ابدأ الآن — جدول مهام احترافي + مخطط زمني</h2>
+        <div class="row">
+          <button class="btn" onclick="initWeekTasks()">تهيئة مهام الأسبوع الأول (اليوم)</button>
+          <button class="btn alt" onclick="saveState()">حفظ</button>
+          <button class="btn outline" onclick="clearState()">مسح آمن</button>
+          <button class="btn" onclick="initPlanTasks()">تهيئة مهام الخطة (8 أسابيع)</button>
+          <button class="btn" onclick="exportTasksCSV()">تصدير CSV</button>
+          <button class="btn" onclick="exportTasksJSON()">تصدير JSON</button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <label>تصفية الحالة:
+            <select class="input" id="filter-status" onchange="renderTasks()">
+              <option value="">الكل</option>
+              <option value="planned">مجدولة</option>
+              <option value="inprogress">قيد التنفيذ</option>
+              <option value="blocked">معلّقة</option>
+              <option value="done">مكتملة</option>
+            </select>
+          </label>
+          <label>تصفية الأولوية:
+            <select class="input" id="filter-priority" onchange="renderTasks()">
+              <option value="">الكل</option>
+              <option value="high">عالية</option>
+              <option value="medium">متوسطة</option>
+              <option value="low">منخفضة</option>
+            </select>
+          </label>
+          <label>الأسبوع:
+            <select class="input" id="filter-week" onchange="renderTasks()">
+              <option value="">الكل</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+            </select>
+          </label>
+          <button class="btn" onclick="addTaskRow()">إضافة مهمة</button>
+          <button class="btn alt" onclick="initAllWeeksTasks()">تهيئة مهام جميع الأسابيع</button>
+        </div>
+        <div id="progress-chipbar" class="row" style="margin-top:10px"></div>
+        <div class="table-wrap" style="margin-top:10px">
+          <table class="tasks" id="tasks-table" aria-label="جدول المهام الاحترافي">
+            <thead>
+              <tr>
+                <th scope="col" style="width:28%;cursor:pointer" onclick="sortTasks('title','text')" aria-sort="none">المهمة</th>
+                <th scope="col" style="width:5%;cursor:pointer" onclick="sortTasks('week','number')" aria-sort="none">الأسبوع</th>
+                <th scope="col" style="width:6%;cursor:pointer" onclick="sortTasks('priority','text')" aria-sort="none">الأولوية</th>
+                <th scope="col" style="width:8%;cursor:pointer" onclick="sortTasks('status','text')" aria-sort="none">الحالة</th>
+                <th scope="col" style="width:8%;cursor:pointer" onclick="sortTasks('start','date')" aria-sort="none">تاريخ البدء</th>
+                <th scope="col" style="width:8%;cursor:pointer" onclick="sortTasks('end','date')" aria-sort="none">تاريخ النهاية</th>
+                <th scope="col" style="width:5%;cursor:pointer" onclick="sortTasks('duration','number')" aria-sort="none">المدة (يوم)</th>
+                <th scope="col" style="width:7%;cursor:pointer" onclick="sortTasks('progress','number')" aria-sort="none">النسبة%</th>
+                <th scope="col" style="width:9%;cursor:pointer" onclick="sortTasks('owner','text')" aria-sort="none">مسؤول</th>
+                <th scope="col" style="width:10%;cursor:pointer" onclick="sortTasks('notes','text')" aria-sort="none">ملاحظات</th>
+                <th scope="col" style="width:6%">حذف</th>
+              </tr>
+            </thead>
+            <tbody id="tasks-body"></tbody>
+          </table>
+        </div>
+        <div class="gantt" id="gantt" aria-label="مخطط زمني للمهام" style="margin-top:10px"></div>
+      </section>
+
+      <!-- KPIs charts -->
+      <section id="tab-kpi" class="panel" hidden>
+        <h2>لوحة المؤشرات</h2>
+        <div class="kpi-grid">
+          <div id="chart-gauge" class="echart" aria-label="نسبة الإتمام الكلية"></div>
+          <div id="chart-tasks" class="echart" aria-label="توزيع حالات المهام"></div>
+          <div id="chart-weekly" class="echart" aria-label="التقدم بالأسبوع (مكدّس)"></div>
+          <div id="chart-burndown" class="echart" aria-label="Burndown"></div>
+        </div>
+        <div class="muted" style="margin-top:8px;text-align:center">
+          انقر على أي عمود/شريحة لتصفية جدول المهام حسب الأسبوع/الحالة — انقر نقرتين لإلغاء التصفية
+        </div>
+      </section>
+
+      <!-- Data import -->
+      <section id="tab-data" class="panel" hidden>
+        <h2>البيانات — استيراد Excel/CSV (محليًا)</h2>
+        <p class="muted">لا يتم رفع الملفات للخادم؛ كل المعالجة تتم داخل المتصفح.</p>
+        <div class="row">
+          <input class="input" type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+          <button class="btn" onclick="clearImported()">مسح الاستيراد</button>
+        </div>
+        <details style="margin-top:8px"><summary>المعايير المتوقعة</summary>
+          <ul>
+            <li>الطلاب: national_no, student_name, nationality, date_of_birth, age, class, section</li>
+            <li>الموظفون: phone_no, email, job_no, job_title, stuff_name/staff_name, national_no</li>
+          </ul>
+        </details>
+        <pre id="import-preview" style="max-height:260px;overflow:auto;background:#0b1020;color:#e5e7eb;padding:10px;border-radius:10px"></pre>
+      </section>
+
+      <!-- RBAC -->
+      <section id="tab-rbac" class="panel" hidden>
+        <h2>محاكاة الصلاحيات (RBAC)</h2>
+        <div class="row">
+          <label>الدور:
+            <select class="input" id="role-select" onchange="applyRole()">
+              <option>Admin</option>
+              <option>Teacher</option>
+              <option>Student</option>
+              <option>Parent</option>
+            </select>
+          </label>
+          <label>تشفير LocalStorage بكلمة مرور:
+            <input class="input" id="enc-pass" type="password" placeholder="اختياري" />
+          </label>
+          <button class="btn" onclick="saveState()">حفظ الحالة</button>
+        </div>
+        <div style="margin-top:8px">
+          <code id="claims-json" style="display:block;white-space:pre-wrap;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:10px;padding:10px"></code>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="btn-enter-grade" class="btn">زر تجريبي: إدخال درجات</button>
+          <button id="btn-admin-users" class="btn warn">زر تجريبي: إدارة المستخدمين</button>
+        </div>
+      </section>
+
+      <!-- ERD -->
+      <section id="tab-erd" class="panel" hidden>
+        <h2>ERD — مخطط الكيانات والعلاقات (اقتراح أولي)</h2>
+        <div class="grid cols-2">
+          <pre style="background:#0b1020;color:#e5e7eb;padding:10px;border-radius:10px;overflow:auto;max-height:320px">// Prisma (مقتطف)
+model Student {
+  id           String   @id @default(cuid())
+  studentCode  String   @unique
+  name         String
+  dob          DateTime?
+  gender       String?
+  class        Class?   @relation(fields: [classId], references: [id])
+  classId      String?
+  enrollments  Enrollment[]
+  grades       Grade[]
+  attendance   Attendance[]
+}
+
+model Class {
+  id         String   @id @default(cuid())
+  name       String
+  gradeLevel Int
+  students   Student[]
+}
+
+model Grade {
+  id         String   @id @default(cuid())
+  student    Student  @relation(fields: [studentId], references: [id])
+  studentId  String
+  subjectId  String
+  examId     String?
+  score      Float
+}</pre>
+          <div>
+            <p class="muted">خريطة كيانات: Users, Students, Staff, Classes, Subjects, Enrollment, Attendance, Exams, Grades, Guardians, Messages, AuditLog.</p>
+            <p>يمكن نقل هذا المخطط مباشرةً إلى Prisma داخل مشروع الخادم لاحقًا.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Export center -->
+      <section id="tab-export" class="panel" hidden>
+        <h2>مركز التصدير</h2>
+        <div class="row">
+          <button class="btn" onclick="exportExecPDF()">تصدير الملخّص PDF</button>
+          <button class="btn alt" onclick="exportSectionPNG('exec-page')">تصدير الملخّص PNG</button>
+          <button class="btn" onclick="exportTasksCSV()">تصدير المهام CSV</button>
+          <button class="btn" onclick="exportTasksJSON()">تصدير المهام JSON</button>
+          <a class="btn" href="/api/reports/export/letter-portrait.docx" target="_blank" rel="noopener">تصدير DOCX — الكتاب الرسمي بالطول</a>
+          <a class="btn" href="/api/reports/export/letter-landscape.docx" target="_blank" rel="noopener">تصدير DOCX — الكتاب الرسمي بالعرض</a>
+          <button class="btn outline" onclick="exportDocxBasic()">توليد DOCX محلي (تجريبي)</button>
+        </div>
+        <p class="muted" style="margin-top:8px">سيتم اعتماد قوالب Word الرسمية عند التصدير من الخادم (RTL عربي). زر "محلي (تجريبي)" يبني ملفًا بسيطًا داخل المتصفح فقط للاختبار.</p>
+      </section>
+
+    </div>
+
+    <footer class="footer-fixed"><div class="footer-inner">&copy; 2025 — مدرسة الشحانية الاعدادية الثانوية للبنين — جميع الحقوق محفوظة — سفيان أحمد مسيف</div></footer>
+
+    <script>
+      // ---------- State & helpers ----------
+      const SCHEMA_VERSION = 1;
+      const STORAGE_KEY = 'unified_maroon_state_v1';
+      const state = {
+        version: SCHEMA_VERSION,
+        role: 'Admin',
+        claims: { role: 'Admin', permissions: [
+          'users:read:any','users:write:any','users:delete:any','roles:assign:any',
+          'classes:read:any','classes:write:any','enrollments:read:any','enrollments:write:any',
+          'students:read:any','students:write:any','attendance:read:any','attendance:write:any',
+          'subjects:read:any','subjects:write:any','grades:read:any','grades:write:any',
+          'reports:read:any','reports:export:any','messages:send:any'
+        ], constraints: {} },
+        tasks: [],
+        importPreview: [],
+      };
+
+      function todayISO() { return new Date().toISOString().slice(0,10); }
+      function setToday() { document.getElementById('today').textContent = new Date().toLocaleDateString('ar-QA'); }
+      setToday();
+
+      function can(perm) { const s = new Set((currentClaims()?.permissions)||[]); return s.has(perm); }
+      function currentClaims(){ return state.claims; }
+
+      // Encryption (optional)
+      async function encryptText(text, password){
+        if(!password) return { plain: true, data: text };
+        const enc = new TextEncoder();
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+        const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const cipher = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(text));
+        return { iv: Array.from(iv), salt: Array.from(salt), data: btoa(String.fromCharCode(...new Uint8Array(cipher))) };
+      }
+      async function decryptText(obj, password){
+        if(!obj || obj.plain) return obj?.data||obj; // plain
+        const enc = new TextEncoder(); const dec = new TextDecoder();
+        const salt = new Uint8Array(obj.salt); const iv = new Uint8Array(obj.iv);
+        const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password||''), 'PBKDF2', false, ['deriveKey']);
+        const key = await crypto.subtle.deriveKey({ name:'PBKDF2', salt, iterations: 100000, hash:'SHA-256' }, keyMaterial, {name:'AES-GCM', length:256}, false, ['decrypt']);
+        const buf = Uint8Array.from(atob(obj.data), c=>c.charCodeAt(0));
+        const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, buf);
+        return dec.decode(plain);
+      }
+
+      async function saveState(){
+        try{
+          const toSave = JSON.stringify(state);
+          const pass = document.getElementById('enc-pass')?.value||'';
+          const payload = await encryptText(toSave, pass);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: SCHEMA_VERSION, payload }));
+          alert('تم الحفظ محليًا');
+          updateKPIs();
+          drawGantt();
+        }catch(e){ alert('تعذر الحفظ: '+e.message); }
+      }
+      async function loadState(){
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return;
+        try{
+          const pack = JSON.parse(raw);
+          const pass = document.getElementById('enc-pass')?.value||'';
+          const json = await decryptText(pack.payload, pass);
+          const obj = JSON.parse(json);
+          if(obj.version !== SCHEMA_VERSION){ /* upgrade hook */ obj.version = SCHEMA_VERSION; }
+          Object.assign(state, obj);
+        }catch(e){ alert('تعذر فك التشفير: هل كلمة المرور صحيحة؟'); console.warn('loadState error', e); }
+      }
+      function clearState(){ if(confirm('مسح جميع البيانات المحلية؟')) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
+
+      // ---------- Tabs ----------
+      document.querySelectorAll('.tabs [data-tab]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+          document.querySelectorAll('section.panel').forEach(s=>s.hidden=true);
+          document.getElementById('tab-'+btn.dataset.tab).hidden=false;
+          if (btn.dataset.tab === 'kpi') {
+            setTimeout(()=>{
+              chartTasks && chartTasks.resize();
+              chartGauge && chartGauge.resize();
+              chartStacked && chartStacked.resize();
+              chartBurndown && chartBurndown.resize();
+            }, 0);
+          }
+        });
+      });
+      // Programmatic tab activation helper
+      function activateTab(name){
+        document.querySelectorAll('.tabs button').forEach(b=>{
+          const isActive = b.dataset.tab === name;
+          b.classList.toggle('active', isActive);
+        });
+        document.querySelectorAll('section.panel').forEach(s=>s.hidden=true);
+        const sec = document.getElementById('tab-'+name);
+        if (sec) sec.hidden = false;
+        if (name === 'kpi') {
+          setTimeout(()=>{
+            chartTasks && chartTasks.resize();
+            chartGauge && chartGauge.resize();
+            chartStacked && chartStacked.resize();
+            chartBurndown && chartBurndown.resize();
+          }, 0);
+        }
+      }
+
+      // ---------- Tasks & Gantt ----------
+      function addTaskRow(task={ title:'مهمة جديدة', week: 1, priority:'medium', status:'planned', start: todayISO(), end: todayISO(), progress: 0, owner: 'فريق', notes:'' }){
+        state.tasks.push(task);
+        renderTasks(); drawGantt();
+      }
+      function taskDurationDays(t){
+        try{
+          const s = new Date(t.start).getTime();
+          const e = new Date(t.end).getTime();
+          if(isNaN(s)||isNaN(e)) return '';
+          const days = Math.max(1, Math.round((e - s)/(1000*60*60*24))+1);
+          return days;
+        }catch{ return ''; }
+      }
+      function validateDateRange(i){
+        const t = state.tasks[i];
+        const s = new Date(t.start).getTime();
+        const e = new Date(t.end).getTime();
+        if(!isNaN(s) && !isNaN(e) && e < s){
+          alert('تاريخ النهاية قبل تاريخ البداية — تم التعديل تلقائيًا');
+          state.tasks[i].end = t.start;
+        }
+      }
+      function renderTasks(){
+        const body = document.getElementById('tasks-body');
+        body.innerHTML = '';
+        const fStatus = document.getElementById('filter-status')?.value || '';
+        const fPrio = document.getElementById('filter-priority')?.value || '';
+        const fWeek = document.getElementById('filter-week')?.value || '';
+        // filter first
+        let view = state.tasks.filter(t=> (!fStatus || t.status===fStatus) && (!fPrio || t.priority===fPrio) && (!fWeek || String(t.week||'')===String(fWeek)));
+        // sort view if needed
+        if(sortState.key){
+          view = [...view].sort((a,b)=>{
+            let av, bv; let type = sortState.type;
+            if(sortState.key==='duration'){ av = taskDurationDays(a); bv = taskDurationDays(b); type='number'; }
+            else { av = a[sortState.key]; bv = b[sortState.key]; if(sortState.key==='priority') type='priority'; if(sortState.key==='status') type='status'; }
+            return sortState.dir * cmp(av, bv, type);
+          });
+        }
+        view.forEach((t)=>{
+          // find real index in state.tasks for stable updates
+          const i = state.tasks.indexOf(t);
+          const tr = document.createElement('tr');
+          const rowStatus = (t.status==='done' || (+t.progress)>=100) ? 'done' : (t.status==='inprogress' ? 'inprogress' : '');
+          if(rowStatus) tr.classList.add(rowStatus);
+          tr.innerHTML = `
+            <td><textarea class="input" rows="2" oninput="state.tasks[${i}].title=this.value; this.style.height='auto'; this.style.height=(this.scrollHeight)+'px'; updateKPIs(); drawGantt();">${t.title}</textarea></td>
+            <td>
+              <select class="input" onchange="state.tasks[${i}].week=+this.value; renderTasks(); drawGantt();">
+                ${Array.from({length:8},(_,w)=>`<option value="${w+1}" ${(+t.week||1)===(w+1)?'selected':''}>${w+1}</option>`).join('')}
+              </select>
+            </td>
+            <td>
+              <select class="input" onchange="state.tasks[${i}].priority=this.value; renderTasks();">
+                <option value="high" ${t.priority==='high'?'selected':''}>عالية</option>
+                <option value="medium" ${t.priority==='medium'?'selected':''}>متوسطة</option>
+                <option value="low" ${t.priority==='low'?'selected':''}>منخفضة</option>
+              </select>
+            </td>
+            <td>
+              <select class="input" onchange="state.tasks[${i}].status=this.value; updateKPIs(); renderTasks();">
+                <option value="planned" ${t.status==='planned'?'selected':''}>مجدولة</option>
+                <option value="inprogress" ${t.status==='inprogress'?'selected':''}>قيد التنفيذ</option>
+                <option value="blocked" ${t.status==='blocked'?'selected':''}>معلّقة</option>
+                <option value="done" ${t.status==='done'?'selected':''}>مكتملة</option>
+              </select>
+            </td>
+            <td><input class="input" type="date" value="${t.start}" onchange="state.tasks[${i}].start=this.value; validateDateRange(${i}); drawGantt(); renderTasks();"/></td>
+            <td><input class="input" type="date" value="${t.end}" onchange="state.tasks[${i}].end=this.value; validateDateRange(${i}); drawGantt(); renderTasks();"/></td>
+            <td style="text-align:center">${taskDurationDays(t)}</td>
+            <td><input class="input" type="number" min="0" max="100" value="${t.progress}" onchange="state.tasks[${i}].progress=+this.value; updateKPIs();"/></td>
+            <td><input class="input" value="${t.owner}" onchange="state.tasks[${i}].owner=this.value;"/></td>
+            <td><input class="input" value="${t.notes||''}" placeholder="إدخِل ملاحظة" onchange="state.tasks[${i}].notes=this.value;"/></td>
+            <td><button class="btn warn" onclick="state.tasks.splice(${i},1); renderTasks(); drawGantt(); updateKPIs();">حذف</button></td>
+          `;
+          body.appendChild(tr);
+        });
+      }
+      function initWeekTasks(){
+        const start = new Date();
+        function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); }
+        state.tasks = [
+          { title:'تهيئة البيئة', week:1, priority:'high', status:'inprogress', start: addDays(start,0), end: addDays(start,1), progress: 40, owner:'فريق', notes:'أجهزة + Docker' },
+          { title:'استيراد بيانات', week:1, priority:'medium', status:'planned', start: addDays(start,1), end: addDays(start,2), progress: 0, owner:'البيانات', notes:'' },
+          { title:'إعداد RBAC', week:1, priority:'high', status:'planned', start: addDays(start,2), end: addDays(start,3), progress: 0, owner:'الأمان', notes:'' },
+          { title:'إخراج PDF', week:1, priority:'low', status:'planned', start: addDays(start,3), end: addDays(start,4), progress: 0, owner:'واجهة', notes:'' }
+        ];
+        renderTasks(); drawGantt(); updateKPIs();
+      }
+
+      function initAllWeeksTasks(){
+        const start = new Date();
+        function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); }
+        function weekStart(base, w){ const x = new Date(base); x.setDate(x.getDate() + (w-1)*7); return x; }
+        const tasks = [];
+        const weeks = [
+          { w:1, list:[
+            { title:'تهيئة البيئة', pr:'high', dur:2, owner:'فريق', notes:'أجهزة + Docker' },
+            { title:'تجهيز المستودع/CI', pr:'medium', dur:2, owner:'فريق', notes:'' },
+            { title:'استيراد بيانات أولية', pr:'medium', dur:2, owner:'البيانات', notes:'' },
+            { title:'لوحة مؤشرات مبدئية', pr:'low', dur:2, owner:'واجهة', notes:'' }
+          ]},
+          { w:2, list:[
+            { title:'تعريف ERD وPrisma', pr:'high', dur:3, owner:'البيانات', notes:'' },
+            { title:'هجرات قاعدة البيانات', pr:'high', dur:2, owner:'البيانات', notes:'' },
+            { title:'وحدة Auth + JWT', pr:'medium', dur:3, owner:'الأمان', notes:'' },
+            { title:'RBAC (claims/scopes)', pr:'medium', dur:2, owner:'الأمان', notes:'' }
+          ]},
+          { w:3, list:[
+            { title:'واجهات RTL أساسية', pr:'medium', dur:3, owner:'واجهة', notes:'' },
+            { title:'ربط API: طلاب/موظفون', pr:'medium', dur:3, owner:'واجهة', notes:'' },
+            { title:'تقرير PDF تنفيذي', pr:'low', dur:2, owner:'واجهة', notes:'' },
+            { title:'استيراد Excel محسّن', pr:'low', dur:2, owner:'واجهة', notes:'' }
+          ]},
+          { w:4, list:[
+            { title:'تحسين الشارتات والمتابعة', pr:'medium', dur:3, owner:'واجهة', notes:'' },
+            { title:'اختبارات توافق الأجهزة', pr:'medium', dur:2, owner:'QA', notes:'' },
+            { title:'إعداد النشر (Pages/Access)', pr:'high', dur:2, owner:'DevOps', notes:'' },
+            { title:'توثيق وتشغيل نهائي', pr:'low', dur:2, owner:'فريق', notes:'' }
+          ]}
+        ];
+        weeks.forEach(({w,list})=>{
+          const ws = weekStart(start, w);
+          list.forEach((t, i)=>{
+            const s = addDays(ws, i); // يوزع المهام عبر أيام الأسبوع
+            const e = addDays(ws, i + Math.max(1, t.dur-1));
+            tasks.push({ title:t.title, week:w, priority:t.pr, status:'planned', start:s, end:e, progress:0, owner:t.owner, notes:t.notes });
+          });
+        });
+        state.tasks = tasks;
+        renderTasks(); drawGantt(); updateKPIs();
+      }
+
+      // Initialize tasks from the official 8-week execution plan
+      function initPlanTasks(){
+        const base = new Date();
+        function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10); }
+        function weekStart(w){ const x = new Date(base); x.setDate(x.getDate() + (w-1)*7); return x; }
+        // Plan items derived from DOC/خطة_حسب_البيئة_Django_PostgreSQL.html
+        const plan = [
+          {w:1, title:'تهيئة مشروع Django + إعداد settings/.env', pr:'high', dur:2, owner:'Backend', done:true},
+          {w:1, title:'تكامل PostgreSQL + الهجرة الأولى', pr:'high', dur:1, owner:'DB', done:true},
+          {w:1, title:'إنشاء نماذج: Class, Student, Staff', pr:'high', dur:2, owner:'Backend'},
+          {w:1, title:'DRF + ViewSets + Routers (قائمة/تفاصيل)', pr:'medium', dur:2, owner:'Backend'},
+
+          {w:2, title:'مصادقة JWT (SimpleJWT)', pr:'high', dur:2, owner:'Backend'},
+          {w:2, title:'RBAC (Permissions/Groups + claims)', pr:'high', dur:2, owner:'Backend'},
+          {w:2, title:'استيراد Excel مبدئي (طلاب/موظفون)', pr:'medium', dur:2, owner:'Data', done:true},
+
+          {w:3, title:'نماذج Attendance/Grade + علاقات', pr:'medium', dur:2, owner:'Backend'},
+          {w:3, title:'تصفيات django-filter وPagination', pr:'low', dur:1, owner:'Backend'},
+          {w:3, title:'تقارير بسيطة JSON/CSV', pr:'low', dur:1, owner:'Backend'},
+
+          {w:4, title:'قوالب Django (RTL) + Bootstrap RTL', pr:'medium', dur:2, owner:'Frontend'},
+          {w:4, title:'لوحة مؤشرات Chart.js (حضور/درجات)', pr:'low', dur:2, owner:'Frontend'},
+          {w:4, title:'رفع ملفات (صور/مستندات)', pr:'low', dur:1, owner:'Backend'},
+
+          {w:5, title:'إجراءات أمان أساسية (CORS, CSRF, Headers)', pr:'high', dur:1, owner:'Backend'},
+          {w:5, title:'اختبارات وحدات وتكامل أساسية', pr:'high', dur:2, owner:'QA'},
+          {w:5, title:'توثيق OpenAPI منظم (drf-spectacular)', pr:'medium', dur:1, owner:'Backend'},
+
+          {w:6, title:'تسيير ملفات ثابتة (whitenoise) + إعداد نشر', pr:'medium', dur:2, owner:'DevOps'},
+          {w:6, title:'نسخ احتياطي PostgreSQL وخطة استعادة', pr:'high', dur:1, owner:'DevOps'},
+          {w:6, title:'لوحات إدارة بسيطة للمشرفين', pr:'low', dur:2, owner:'Frontend'},
+
+          {w:7, title:'UAT مع الإدارة والمعلمين', pr:'medium', dur:2, owner:'QA'},
+          {w:7, title:'تحسين الأداء واستعلامات الفهارس', pr:'low', dur:1, owner:'DB'},
+          {w:7, title:'إعداد التقارير PDF/Excel الأساسية', pr:'low', dur:2, owner:'Frontend'},
+
+          {w:8, title:'إغلاق ملاحظات UAT وإصلاحات نهائية', pr:'high', dur:2, owner:'الكل'},
+          {w:8, title:'خطة إطلاق تجريبي + تدريب مختصر', pr:'high', dur:1, owner:'PM'},
+          {w:8, title:'خطة دعم ما بعد الإطلاق', pr:'medium', dur:1, owner:'Support'},
+        ];
+        const tasks = [];
+        plan.forEach((p, idx)=>{
+          const ws = weekStart(p.w);
+          const s = addDays(ws, Math.min(idx%4, 6));
+          const e = addDays(ws, Math.min((idx%4) + Math.max(1, p.dur-1), 6));
+          tasks.push({
+            title: p.title,
+            week: p.w,
+            priority: p.pr,
+            status: p.done ? 'done' : 'planned',
+            start: s,
+            end: e,
+            progress: p.done ? 100 : 0,
+            owner: p.owner,
+            notes: ''
+          });
+        });
+        state.tasks = tasks;
+        renderTasks(); drawGantt(); updateKPIs();
+      }
+
+      function drawGantt(){
+        const wrap = document.getElementById('gantt');
+        if(!wrap) return; // Gantt section removed safely
+        wrap.innerHTML = '';
+        if(!state.tasks.length) return;
+        const min = Math.min(...state.tasks.map(t=>new Date(t.start).getTime()));
+        const max = Math.max(...state.tasks.map(t=>new Date(t.end).getTime()));
+        const span = Math.max(1, max - min);
+        state.tasks.forEach((t,i)=>{
+          const left = ((new Date(t.start).getTime()-min)/span)*100;
+          const width = (Math.max(1, new Date(t.end).getTime()-new Date(t.start).getTime())/span)*100;
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.style.top = (i*28+8)+'px';
+          bar.style.left = left+'%';
+          bar.style.width = width+'%';
+          // If the bar is too narrow, switch to high-contrast small style
+          if (width < 8) bar.classList.add('small');
+          bar.textContent = `${t.title} (${t.progress}%)`;
+          wrap.appendChild(bar);
+        });
+        wrap.style.height = (state.tasks.length*28+24)+'px';
+      }
+
+      // ---------- KPIs & Charts ----------
+      let chartTasks, chartGauge, chartStacked, chartBurndown;
+      // Sorting state for tasks
+      const sortState = { key: null, dir: 1, type: 'text' }; // dir: 1 asc, -1 desc
+      function setAriaSort(key){
+        const heads = document.querySelectorAll('#tasks-table thead th');
+        heads.forEach(h=>h.setAttribute('aria-sort','none'));
+        const map = { title:0, week:1, priority:2, status:3, start:4, end:5, duration:6, progress:7, owner:8, notes:9 };
+        const idx = map[key];
+        if(idx!=null){
+          const th = heads[idx];
+          th.setAttribute('aria-sort', sortState.dir===1?'ascending':'descending');
+        }
+      }
+      function sortTasks(key, type='text'){
+        if(sortState.key===key){ sortState.dir *= -1; } else { sortState.key = key; sortState.dir = 1; sortState.type = type; }
+        setAriaSort(key);
+        renderTasks();
+      }
+      function cmp(a,b,type){
+        if(type==='number'){ return ((+a)||0) - ((+b)||0); }
+        if(type==='date'){ return new Date(a).getTime() - new Date(b).getTime(); }
+        // map for priority/status ordering
+        if(type==='priority'){ const order = { high:3, medium:2, low:1 }; return ((order[a]||0) - (order[b]||0)); }
+        if(type==='status'){ const order = { done:3, inprogress:2, planned:1, blocked:0 }; return ((order[a]||0) - (order[b]||0)); }
+        // default text
+        return String(a||'').localeCompare(String(b||''), 'ar');
+      }
+      function updateKPIs(){
+        const total = state.tasks.length;
+        const avgProg = total ? Math.round(state.tasks.reduce((a,b)=>a+(+b.progress||0),0)/total) : 0;
+        const done = state.tasks.filter(t=>t.status==='done' || (+t.progress)>=100).length;
+        const inprogress = state.tasks.filter(t=>t.status==='inprogress' && (+t.progress||0)<100).length;
+        const planned = state.tasks.filter(t=>t.status==='planned').length;
+        const blocked = state.tasks.filter(t=>t.status==='blocked').length;
+        document.getElementById('kpi-tasks').textContent = String(avgProg);
+        document.getElementById('kpi-att').textContent = '92';
+        document.getElementById('kpi-grade').textContent = '81';
+        const next = nextUpcomingTask();
+        const nextEl = document.getElementById('kpi-next');
+        if (nextEl) {
+          if (next) {
+            nextEl.textContent = `${next.title} — ${next.start}`;
+            nextEl.title = `الأسبوع ${next.week||''} • المسؤول: ${next.owner||''}`;
+          } else {
+            nextEl.textContent = '—';
+            nextEl.removeAttribute('title');
+          }
+        }
+        const h2 = document.querySelector('#tab-kickoff h2');
+        if(h2){ h2.title = `إجمالي المهام: ${total} | المكتمل: ${done}`; }
+
+        // Update progress chipbar (overall + per week)
+        const chipBar = document.getElementById('progress-chipbar');
+        if (chipBar) {
+          if (!total) {
+            chipBar.innerHTML = '<span class="muted">لا توجد مهام بعد — ابدأ بالزر أعلاه.</span>';
+          } else {
+            const weeks = weeksRange();
+            function wkAvg(w){
+              const list = state.tasks.filter(t=> (+t.week||0)===w);
+              if(!list.length) return 0;
+              return Math.round(list.reduce((a,b)=> a + (+b.progress||0), 0) / list.length);
+            }
+            function badge(content, colorClass){
+              return `<span class="badge ${colorClass}" style="margin-inline-end:6px">${content}</span>`;
+            }
+            function colorCls(p){
+              if(p>=90) return 'status-done';
+              if(p>=40) return 'status-inprogress';
+              if(p>0) return 'status-planned';
+              return 'status-blocked';
+            }
+            const parts = [];
+            parts.push(badge(`الإنجاز الكلي: ${avgProg}%`, colorCls(avgProg)));
+            weeks.forEach(w=>{ const p = wkAvg(w); parts.push(badge(`أسبوع ${w}: ${p}%`, colorCls(p))); });
+            chipBar.innerHTML = parts.join('');
+          }
+        }
+
+        // Update ECharts instances if present
+        if (chartTasks) {
+          chartTasks.setOption({
+            series: [{ data: [
+              {value: done, name:'مكتملة'},
+              {value: inprogress, name:'قيد التنفيذ'},
+              {value: planned, name:'مجدولة'},
+              {value: blocked, name:'معلّقة'}
+            ]}]
+          });
+        }
+        if (chartGauge) {
+          chartGauge.setOption({ series: [{ data: [{value: avgProg}] }] });
+        }
+        if (chartStacked) {
+          const weekly = countsByWeekAndStatus();
+          const statuses = ['done','inprogress','planned','blocked'];
+          chartStacked.setOption({
+            xAxis: [{ data: weekly.weeks.map(w=>`أسبوع ${w}`) }],
+            series: statuses.map((s)=>({ data: weekly.weeks.map(w=> weekly.acc[w][s]) }))
+          });
+        }
+        if (chartBurndown) {
+          chartBurndown.setOption({
+            xAxis: { data: weeksRange().map(w=>`أسبوع ${w}`) },
+            series: [{ data: burndownSeries() }]
+          });
+        }
+      }
+      // Helpers for charts aggregation
+      function isDone(t){ return t.status==='done' || (+t.progress)>=100; }
+      function statusKey(t){
+        if (isDone(t)) return 'done';
+        if (t.status==='inprogress') return 'inprogress';
+        if (t.status==='blocked') return 'blocked';
+        return 'planned';
+      }
+      function weeksRange(){
+        const w = state.tasks.map(t=>+t.week||0).filter(Boolean);
+        const max = Math.max(8, ...(w.length? [Math.max(...w)]: [8]));
+        return Array.from({length:max}, (_,i)=> i+1);
+      }
+      function countsByWeekAndStatus(){
+        const weeks = weeksRange();
+        const statuses = ['done','inprogress','planned','blocked'];
+        const acc = Object.fromEntries(weeks.map(w=>[w, { done:0,inprogress:0,planned:0,blocked:0 }]));
+        state.tasks.forEach(t=>{
+          const wk = +t.week||1; const sk = statusKey(t);
+          if(acc[wk]) acc[wk][sk]++;
+        });
+        return { weeks, statuses, acc };
+      }
+      function burndownSeries(){
+        const weeks = weeksRange();
+        return weeks.map(wk=>{
+          const upto = state.tasks.filter(t=> (+t.week||0) <= wk);
+          const total = upto.length;
+          const done = upto.filter(isDone).length;
+          return total - done; // remaining
+        });
+      }
+      // Compute the next upcoming task by start date (excluding completed). Fallback to earliest by date.
+      function nextUpcomingTask(){
+        try{
+          const parse = (d)=>{ const t = new Date(d).getTime(); return isNaN(t)? null : t; };
+          const todayISO = new Date().toISOString().slice(0,10);
+          const candidates = state.tasks.filter(t=> !isDone(t) && t.start && parse(t.start)!=null);
+          if(!candidates.length) return null;
+          const future = candidates.filter(t=> String(t.start) >= todayISO);
+          const pickFrom = future.length ? future : candidates;
+          pickFrom.sort((a,b)=> (parse(a.start)||Infinity) - (parse(b.start)||Infinity));
+          return pickFrom[0] || null;
+        }catch{ return null; }
+      }
+      // Jump to the next task now: switch to Kickoff, filter by week and highlight the row
+      function focusNextTask(){
+        const t = nextUpcomingTask();
+        if(!t){ try{ alert('لا توجد مهمة نشطة الآن'); }catch{} return; }
+        activateTab('kickoff');
+        try{
+          const fw = document.getElementById('filter-week'); if(fw) fw.value = String(t.week||'');
+          const fs = document.getElementById('filter-status'); if(fs) fs.value = '';
+          const fp = document.getElementById('filter-priority'); if(fp) fp.value = '';
+        }catch{}
+        renderTasks();
+        // Try to locate the row containing the task title and start date
+        setTimeout(()=>{
+          try{
+            const body = document.getElementById('tasks-body'); if(!body) return;
+            const rows = Array.from(body.querySelectorAll('tr'));
+            const target = rows.find(r=> r.textContent.includes(String(t.title)) && r.textContent.includes(String(t.start)) ) || rows.find(r=> r.textContent.includes(String(t.title)));
+            if(target){
+              target.scrollIntoView({ behavior:'smooth', block:'center' });
+              const prev = target.style.outline;
+              target.style.outline = '3px solid #f59e0b';
+              target.style.transition = 'outline-color .3s ease';
+              setTimeout(()=>{ target.style.outline = prev || ''; }, 2200);
+            }
+          }catch{}
+        }, 50);
+      }
+      // Start executing now: ensure tasks exist, mark next as in progress, and jump to it
+      function startNow(){
+        try{
+          if (!state.tasks || state.tasks.length===0){
+            initWeekTasks();
+          }
+          const t = nextUpcomingTask();
+          if (!t){ try{ alert('لا توجد مهمة مناسبة للبدء الآن'); }catch{} return; }
+          if (t.status==='planned'){ t.status='inprogress'; }
+          if (((+t.progress)||0)===0 && t.status==='inprogress'){ t.progress = 1; }
+          updateKPIs();
+          focusNextTask();
+        }catch{}
+      }
+      function handleFilter(status, week){
+        const fs = document.getElementById('filter-status');
+        const fw = document.getElementById('filter-week');
+        fs.value = status||''; fw.value = week||''; renderTasks();
+      }
+      function initCharts(){
+        // Create ECharts instances
+        const elPie = document.getElementById('chart-tasks');
+        const elGauge = document.getElementById('chart-gauge');
+        const elStack = document.getElementById('chart-weekly');
+        const elBurn = document.getElementById('chart-burndown');
+        if (!elPie || !elGauge || !elStack || !elBurn || !window.echarts) return;
+
+        chartTasks = echarts.init(elPie, null, { locale: 'AR' });
+        chartGauge = echarts.init(elGauge, null, { locale: 'AR' });
+        chartStacked = echarts.init(elStack, null, { locale: 'AR' });
+        chartBurndown = echarts.init(elBurn, null, { locale: 'AR' });
+
+        const counts = (function(){
+          const done = state.tasks.filter(t=>t.status==='done' || (+t.progress)>=100).length;
+          const inprogress = state.tasks.filter(t=>t.status==='inprogress' && (+t.progress||0)<100).length;
+          const planned = state.tasks.filter(t=>t.status==='planned').length;
+          const blocked = state.tasks.filter(t=>t.status==='blocked').length;
+          return { done, inprogress, planned, blocked };
+        })();
+
+        // Pie (status distribution)
+        chartTasks.setOption({
+          tooltip: { trigger: 'item' },
+          legend: { bottom: 0 },
+          series: [{
+            name: 'حالة المهام',
+            type: 'pie',
+            radius: ['55%','75%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderColor: '#fff', borderWidth: 2 },
+            label: { formatter: '{b}: {c}' },
+            data: [
+              {value: counts.done, name:'مكتملة', itemStyle:{ color:'#16a34a' }},
+              {value: counts.inprogress, name:'قيد التنفيذ', itemStyle:{ color:'#3b82f6' }},
+              {value: counts.planned, name:'مجدولة', itemStyle:{ color:'#94a3b8' }},
+              {value: counts.blocked, name:'معلّقة', itemStyle:{ color:'#ef4444' }}
+            ]
+          }]
+        });
+        chartTasks.on('click', (p)=>{
+          const map = { 'مكتملة':'done', 'قيد التنفيذ':'inprogress', 'مجدولة':'planned', 'معلّقة':'blocked' };
+          handleFilter(map[p.name]||'', '');
+        });
+        chartTasks.on('dblclick', ()=> handleFilter('', ''));
+
+        // Gauge (avg progress) — semi-circle
+        const avgProg = (state.tasks.length ? Math.round(state.tasks.reduce((a,b)=>a+(+b.progress||0),0)/state.tasks.length) : 0);
+        chartGauge.setOption({
+          series: [{
+            type: 'gauge',
+            startAngle: 180,
+            endAngle: 0,
+            min: 0,
+            max: 100,
+            splitNumber: 5,
+            axisLine: { lineStyle: { width: 12, color: [[avgProg/100,'#7a1a1a'], [1,'#e5e7eb']] } },
+            pointer: { show: true, length: '70%', width: 4 },
+            progress: { show: true, width: 12, roundCap: true },
+            axisTick: { show: false },
+            splitLine: { show: false },
+            axisLabel: { show: false },
+            anchor: { show: false },
+            title: { show: false },
+            detail: { valueAnimation: true, formatter: '{value}%', fontSize: 18, color: '#7a1a1a' },
+            data: [{ value: avgProg }]
+          }]
+        });
+        chartGauge.on('dblclick', ()=> handleFilter('', ''));
+
+        // Stacked bar per week
+        const weekly = countsByWeekAndStatus();
+        const weekLabels = weekly.weeks.map(w=>`أسبوع ${w}`);
+        chartStacked.setOption({
+          tooltip: { trigger: 'axis' },
+          legend: { bottom: 0 },
+          grid: { left: 8, right: 8, top: 8, bottom: 32, containLabel: true },
+          xAxis: [{ type: 'category', data: weekLabels }],
+          yAxis: [{ type: 'value' }],
+          series: [
+            { name:'مكتملة', type:'bar', stack:'total', itemStyle:{ color:'#16a34a' }, data: weekly.weeks.map(w=> weekly.acc[w].done), emphasis:{ focus:'series' }, barMaxWidth: 28 },
+            { name:'قيد التنفيذ', type:'bar', stack:'total', itemStyle:{ color:'#3b82f6' }, data: weekly.weeks.map(w=> weekly.acc[w].inprogress), barMaxWidth: 28 },
+            { name:'مجدولة', type:'bar', stack:'total', itemStyle:{ color:'#94a3b8' }, data: weekly.weeks.map(w=> weekly.acc[w].planned), barMaxWidth: 28 },
+            { name:'معلّقة', type:'bar', stack:'total', itemStyle:{ color:'#ef4444' }, data: weekly.weeks.map(w=> weekly.acc[w].blocked), barMaxWidth: 28 }
+          ]
+        });
+        chartStacked.on('click', (p)=>{
+          const name = p.seriesName; const idx = p.dataIndex; const week = weekly.weeks[idx];
+          const map = { 'مكتملة':'done', 'قيد التنفيذ':'inprogress', 'مجدولة':'planned', 'معلّقة':'blocked' };
+          handleFilter(map[name]||'', String(week));
+        });
+        chartStacked.on('dblclick', ()=> handleFilter('', ''));
+
+        // Burndown line
+        chartBurndown.setOption({
+          tooltip: { trigger: 'axis' },
+          legend: { bottom: 0 },
+          grid: { left: 8, right: 8, top: 8, bottom: 32, containLabel: true },
+          xAxis: { type: 'category', data: weekLabels },
+          yAxis: { type: 'value' },
+          series: [{ name:'المتبقي', type:'line', smooth: true, data: burndownSeries(), areaStyle: { opacity: 0.15, color: '#7a1a1a' }, lineStyle: { color:'#7a1a1a' } }]
+        });
+        chartBurndown.on('dblclick', ()=> handleFilter('', ''));
+
+        window.addEventListener('resize', ()=>{
+          chartTasks.resize(); chartGauge.resize(); chartStacked.resize(); chartBurndown.resize();
+        });
+      }
+
+      // ---------- Env plan inline rendering ----------
+
+      // ---------- Import (SheetJS) ----------
+      document.getElementById('fileInput').addEventListener('change', async (e)=>{
+        const file = e.target.files[0]; if(!file) return;
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type:'array' });
+        const all = [];
+        for(const name of wb.SheetNames){
+          const sheet = wb.Sheets[name];
+          const rows = XLSX.utils.sheet_to_json(sheet, { defval:'', raw:true });
+          function excelDateToISO(n){ const epoch = new Date(Date.UTC(1899,11,30)); const d = new Date(epoch.getTime() + n*86400000); return d.toISOString().slice(0,10); }
+          rows.forEach(r=>{ if (typeof r.date_of_birth === 'number') r.date_of_birth = excelDateToISO(r.date_of_birth); });
+          all.push(...rows);
+        }
+        // Basic schema check for known sets
+        const keys = new Set(all[0] ? Object.keys(all[0]).map(k=>k.toLowerCase()) : []);
+        const studentsRequired = ['national_no','student_name','nationality','date_of_birth','age','class','section'];
+        const staffRequired = ['phone_no','email','job_no','job_title','stuff_name','national_no'];
+        let schema = 'غير معروف';
+        if(studentsRequired.every(k=>keys.has(k))) schema = 'طلاب';
+        else if(staffRequired.every(k=>keys.has(k) || k==='stuff_name' && keys.has('staff_name'))) schema = 'موظفون/كادر';
+        state.importPreview = all.slice(0,50);
+        document.getElementById('import-preview').textContent = JSON.stringify({ schema, sample: state.importPreview.slice(0,5) }, null, 2);
+      });
+      function clearImported(){ state.importPreview = []; document.getElementById('import-preview').textContent=''; }
+
+      // ---------- RBAC ----------
+      function roleDefaults(role){
+        if(role==='Admin') return { role, permissions:[
+          'users:read:any','users:write:any','users:delete:any','roles:assign:any',
+          'classes:read:any','classes:write:any','students:read:any','students:write:any','attendance:read:any','attendance:write:any','grades:read:any','grades:write:any','reports:read:any','reports:export:any','messages:send:any'
+        ], constraints:{} };
+        if(role==='Teacher') return { role, permissions:[
+          'classes:read:own','enrollments:read:class','students:read:class','attendance:read:class','attendance:write:class','subjects:read:own','grades:read:class','grades:write:subject','reports:read:class','messages:send:class'
+        ], constraints:{ class_ids:['7A'], subject_ids:['math-7'] } };
+        if(role==='Student') return { role, permissions:['users:read:self','students:read:self','grades:read:self','attendance:read:self','reports:read:self'], constraints:{} };
+        if(role==='Parent') return { role, permissions:['students:read:self','grades:read:self','attendance:read:self','reports:read:self'], constraints:{ student_ids:['stu-001','stu-002'] } };
+        return { role, permissions:[], constraints:{} };
+      }
+      function applyRole(){
+        const role = document.getElementById('role-select').value;
+        state.role = role; state.claims = roleDefaults(role);
+        document.getElementById('claims-json').textContent = JSON.stringify(state.claims, null, 2);
+        // UI gating examples
+        document.getElementById('btn-enter-grade').style.display = can('grades:write:subject') ? 'inline-block' : 'none';
+        document.getElementById('btn-admin-users').style.display = can('users:write:any') ? 'inline-block' : 'none';
+      }
+
+      // ---------- Export helpers ----------
+      async function exportExecPDF(){
+        const { jsPDF } = window.jspdf; const page = document.getElementById('exec-page');
+        const canvas = await html2canvas(page, { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+        pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+        pdf.save('Executive-OnePager.pdf');
+      }
+      async function exportSectionPNG(id){
+        const el = document.getElementById(id);
+        const canvas = await html2canvas(el, { scale: 2 });
+        const link = document.createElement('a');
+        link.download = 'section.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }
+      function exportTasksCSV(){
+        const header = ['title','week','priority','status','start','end','duration_days','progress','owner','notes'];
+        const rows = [header, ...state.tasks.map(t=>[
+          t.title,
+          t.week,
+          t.priority,
+          t.status,
+          t.start,
+          t.end,
+          taskDurationDays(t),
+          t.progress,
+          t.owner,
+          (t.notes||'')
+        ])];
+        const csv = rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\n');
+        const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tasks.csv'; a.click();
+      }
+      function exportTasksJSON(){
+        const blob = new Blob([JSON.stringify(state.tasks, null, 2)], {type:'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tasks.json'; a.click();
+      }
+
+      // Basic DOCX export (without template placeholders)
+      async function exportDocxBasic(){
+        try {
+          if (!window.docx) throw new Error('docx library is not loaded');
+          const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType } = window.docx;
+
+          // Gather data
+          const dateStr = new Date().toLocaleDateString('ar-QA');
+          const kpiAtt = document.getElementById('kpi-att').textContent;
+          const kpiTasks = document.getElementById('kpi-tasks').textContent;
+          const kpiGrade = document.getElementById('kpi-grade').textContent;
+
+          // Build a short tasks table (top 5 tasks)
+          const rows = [
+            new TableRow({
+              children: [
+                new TableCell({ children:[ new Paragraph({ text:'المهمة', alignment: AlignmentType.RIGHT, bidirectional: true }) ] , width:{ size: 6000, type: WidthType.DXA } }),
+                new TableCell({ children:[ new Paragraph({ text:'الحالة', alignment: AlignmentType.RIGHT, bidirectional: true }) ] , width:{ size: 1200, type: WidthType.DXA } }),
+                new TableCell({ children:[ new Paragraph({ text:'% التقدم', alignment: AlignmentType.RIGHT, bidirectional: true }) ] , width:{ size: 1200, type: WidthType.DXA } })
+              ]
+            }),
+            ...state.tasks.slice(0,5).map(t=> new TableRow({ children:[
+              new TableCell({ children:[ new Paragraph({ text: String(t.title||''), alignment: AlignmentType.RIGHT, bidirectional: true }) ] }),
+              new TableCell({ children:[ new Paragraph({ text: String(t.status||''), alignment: AlignmentType.RIGHT, bidirectional: true }) ] }),
+              new TableCell({ children:[ new Paragraph({ text: String(t.progress||0), alignment: AlignmentType.RIGHT, bidirectional: true }) ] })
+            ]}))
+          ];
+
+          const doc = new Document({
+            sections: [{
+              properties: { rightToLeft: true },
+              children: [
+                new Paragraph({
+                  text: 'ملخّص تنفيذي',
+                  heading: HeadingLevel.HEADING_1,
+                  alignment: AlignmentType.RIGHT,
+                  bidirectional: true
+                }),
+                new Paragraph({ text: `التاريخ: ${dateStr}`, alignment: AlignmentType.RIGHT, bidirectional: true }),
+                new Paragraph({ text: '', bidirectional: true }),
+                new Paragraph({ text: 'المؤشرات الرئيسية (KPIs)', heading: HeadingLevel.HEADING_2, alignment: AlignmentType.RIGHT, bidirectional: true }),
+                new Paragraph({ text: `الحضور: ${kpiAtt}%`, alignment: AlignmentType.RIGHT, bidirectional: true }),
+                new Paragraph({ text: `تقدم المهام: ${kpiTasks}%`, alignment: AlignmentType.RIGHT, bidirectional: true }),
+                new Paragraph({ text: `متوسط الدرجات: ${kpiGrade}%`, alignment: AlignmentType.RIGHT, bidirectional: true }),
+                new Paragraph({ text: '', bidirectional: true }),
+                new Paragraph({ text: `عدد المهام: ${state.tasks.length}`, alignment: AlignmentType.RIGHT, bidirectional: true }),
+                new Paragraph({ text: 'عينّة من المهام', heading: HeadingLevel.HEADING_2, alignment: AlignmentType.RIGHT, bidirectional: true }),
+                new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows })
+              ]
+            }]
+          });
+
+          const blob = await Packer.toBlob(doc);
+          const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'Executive-Summary.docx'; a.click();
+        } catch(e){ alert('تعذر إنشاء DOCX: '+e.message); }
+      }
+
+      // ---------- Init ----------
+      (async function init(){
+        await loadState();
+        renderTasks(); drawGantt(); initCharts(); updateKPIs(); applyRole();
+        // URL/Hash quick action: initialize this week's tasks now
+        try{
+          const params = new URLSearchParams(location.search);
+          if (params.get('init') === 'week' || location.hash === '#init-week-now'){
+            activateTab('kickoff');
+            initWeekTasks();
+          }
+          if (params.get('go') === 'now' || location.hash === '#go-now'){
+            focusNextTask();
+          }
+          if (params.get('start') === 'now' || location.hash === '#start-now'){
+            startNow();
+          }
+        }catch{}
+      })();
+
+      // Keyboard shortcut: Alt+W — initialize this week's tasks now
+      window.addEventListener('keydown', (e)=>{
+        const key = e.key || '';
+        if (e.altKey && (key === 'w' || key === 'W')){
+          e.preventDefault();
+          activateTab('kickoff');
+          initWeekTasks();
+          try { alert('تم تهيئة مهام الأسبوع الآن'); } catch {}
+        }
+        // Keyboard shortcut: Alt+N — go to the next task now
+        if (e.altKey && (key === 'n' || key === 'N')){
+          e.preventDefault();
+          focusNextTask();
+        }
+        // Keyboard shortcut: Alt+S — start executing now
+        if (e.altKey && (key === 's' || key === 'S')){
+          e.preventDefault();
+          startNow();
+        }
+      });
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() { navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+      }
+    </script>
+  </body>
+</html>
