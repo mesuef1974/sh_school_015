@@ -8,6 +8,7 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+.venv_fix/
 venv/
 .env
 .env.*

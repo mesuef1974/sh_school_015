@@ -29,6 +29,7 @@ EXCLUDE_DIRS = {
     "venv",
     ".venv",
     ".venv1",
+    ".venv_fix",
     "__pycache__",
     "dist",
     "build",
@@ -123,12 +124,12 @@ def render_list(paths):
                 f' <span class="meta">— حجم: {size} • آخر تعديل: {mtime}</span></li>'
             )
         block = [
-            f"      <details open>",
+            "      <details open>",
             f"        <summary>{html.escape(group)}</summary>",
-            f"        <ul>",
+            "        <ul>",
             "\n".join(items_html),
-            f"        </ul>",
-            f"      </details>",
+            "        </ul>",
+            "      </details>",
         ]
         blocks.append("\n".join(block))
     return "\n".join(blocks)
@@ -143,7 +144,7 @@ def update_index(rendered: str):
         r"(<!--\s*AUTO_LIST_START\s*-->)(.*?)(<!--\s*AUTO_LIST_END\s*-->)",
         re.S,
     )
-    replacement = r"\1\n" + rendered + "\n      " + r"\3"
+    replacement = r"\1\n" + rendered + "\n" + r"\3"
     new_html, count = pattern.subn(replacement, html_text, count=1)
     if count == 0:
         raise SystemExit("Markers not found in index.html")

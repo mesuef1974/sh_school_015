@@ -8,7 +8,33 @@
 بوابة بسيطة باللغة العربية (RTL) تعرض كل الوثائق والملفات المتوفرة داخل هذا المستودع، مع توليد تلقائي للقائمة وروابط مباشرة. تم تضمين تحسينات على الواجهة لإظهار حجم الملف وتاريخ آخر تعديل مع تجميع المحتوى حسب المجلدات.
 
 ## المتطلبات
-- Python 3.8+ مثبت على الجهاز (Windows أو macOS أو Linux)
+- Python 3.11 أو أحدث (3.11+) على الجهاز (Windows أو macOS أو Linux)
+
+## كيف أُجهّز بيئة التطوير على ويندوز؟
+لتجنب رسالة "No pyvenv.cfg file" وضمان توفر الأدوات (Black/Flake8)، استخدم السكربت المدمج:
+
+```powershell
+# من جذر المشروع
+./scripts/dev_setup.ps1
+```
+
+ما الذي يفعله السكربت؟
+- ينشئ بيئة افتراضية .venv إذا كانت مفقودة أو تالفة.
+- إذا كانت `.venv` مقفلة أو معطوبة (مثلاً خطأ Permission denied أو غياب pip)، سيحاول حذفها أو استخدام مسار بديل مؤقت `.venv_fix` تلقائيًا وإصلاح pip عبر ensurepip.
+- يفعّل البيئة ويحدث pip.
+- يثبّت الأدوات من requirements-dev.txt (Black و Flake8).
+- يشغّل فحص Black وFlake8، ويشغّل `python gen_index.py --check`. 
+
+إذا أردت تشغيل الأوامر يدويًا:
+```powershell
+python -m venv .venv
+. .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+black --check gen_index.py
+flake8 gen_index.py --max-line-length=100
+python gen_index.py --check
+```
 
 ## كيف أُحدّث قائمة المحتوى؟
 1. أضف/احذف الملفات داخل المستودع (HTML, PDF, صور, Excel, …).
@@ -70,6 +96,11 @@
 - تريد فرزًا مختلفًا أو تجميعًا أعمق؟ عدّل دالة `group_by_top` في `gen_index.py` أو طريقة الترتيب في `collect_files`.
 
 ---
+
+## خيارات gen_index.py
+- python gen_index.py: يكتب التغييرات إلى index.html (الوضع الافتراضي).
+- python gen_index.py --check: يفحص فقط دون كتابة ويطبع عدد العناصر المتوقع.
+- python gen_index.py --write: يفرض الكتابة حتى عند تمرير راية أخرى.
 
 # English (brief)
 Simple Arabic RTL landing page that auto-lists repository documents with direct links. Run `python gen_index.py` to regenerate the list between AUTO_LIST markers in `index.html`. Items are grouped by top-level folder and show file size and last modified timestamp. Fonts are embedded via `@font-face`. For deployment, enable GitHub Pages from the root of the main branch.
