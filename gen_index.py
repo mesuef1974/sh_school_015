@@ -27,6 +27,8 @@ EXCLUDE_DIRS = {
     ".git",
     "node_modules",
     "venv",
+    ".venv",
+    ".venv1",
     "__pycache__",
     "dist",
     "build",

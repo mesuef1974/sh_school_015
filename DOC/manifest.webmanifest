@@ -1,0 +1,9 @@
+{
+  "name": "لوحة موحدة — مدرسة الشحّانية",
+  "short_name": "لوحة موحدة",
+  "start_url": "./Unified_Maroon_RTL.html",
+  "display": "standalone",
+  "icons": [
+    { "src": "../assets/img/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }
+  ]
+}
