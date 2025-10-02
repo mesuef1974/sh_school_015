@@ -50,20 +50,17 @@ Set-Location (Join-Path $Root 'backend')
 Write-Host "[serve] Applying migrations ..."
 python manage.py migrate
 
-# Create superuser if env vars exist
+# Ensure superuser idempotently via a dedicated command
 $suUser = $envVars['DJANGO_SUPERUSER_USERNAME']
 $suEmail = $envVars['DJANGO_SUPERUSER_EMAIL']
 $suPass = $envVars['DJANGO_SUPERUSER_PASSWORD']
 if ($suUser -and $suEmail -and $suPass) {
-    Write-Host "[serve] Ensuring superuser '$suUser' exists ..."
+    Write-Host "[serve] Ensuring superuser '$suUser' exists (idempotent) ..."
     $env:DJANGO_SUPERUSER_USERNAME = $suUser
     $env:DJANGO_SUPERUSER_EMAIL = $suEmail
     $env:DJANGO_SUPERUSER_PASSWORD = $suPass
-    try {
-        python manage.py createsuperuser --noinput
-    } catch {
-        Write-Warning "[serve] createsuperuser may have failed (possibly exists). Continuing ..."
-    }
+    # Use custom management command that creates/updates quietly when already present
+    python manage.py ensure_superuser
 }
 
 # Bootstrap RBAC

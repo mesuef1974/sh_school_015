@@ -105,6 +105,7 @@ DJANGO_RUN_PORT=8000
   ```
 - فشل المصادقة: تأكد أن `PG_USER/PG_PASSWORD` في `.env` تطابق إعدادات الحاوية. السكربت يعيد إنشاء الحاوية والـ volume ليتطابقا مع `.env`.
 - المنفذ مشغول: غيّر `PG_PORT` في `.env` (مثلاً 5434)، ثم أعد تشغيل `./scripts/serve.ps1`.
+- خطأ: Database is uninitialized and superuser password is not specified: شغّل `./scripts/serve.ps1` أو `./scripts/db_up.ps1` وسيكتشف السكربت الحالة ويُعيد تهيئة مجلد البيانات تلقائيًا بكلمة السر من `.env`.
 
 ## ما يظهر في القائمة
 - يتم تجميع العناصر حسب أعلى مجلد (مثلاً: `DOC`, `assets`, أو `(الجذر)` للملفات في مستوى الجذر).
@@ -162,3 +163,45 @@ Simple Arabic RTL landing page that auto-lists repository documents with direct 
   - CodeQL: تحليل أمني أساسي للشفرة (Python).
 - حوكمة المستودع: `CODEOWNERS`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, وترخيص `LICENSE`.
 - أدوات مطورين: `requirements-dev.txt` وتهيئة `pre-commit` اختيارية.
+
+
+## نسخة احتياطية لقاعدة البيانات (Backup)
+لأخذ نسخة احتياطية كاملة من قاعدة بيانات PostgreSQL المستخدمة في المشروع، لديك خياران:
+
+- عبر أمر إدارة Django (موصى به):
+  - يقوم بإنشاء ملف .sql (أو .sql.gz) داخل مجلد backups في جذر المشروع، ويستخدم حاوية Docker pg-sh-school تلقائيًا.
+  
+  أوامر:
+  ```powershell
+  # من جذر المشروع
+  cd D:\sh_school_015\backend
+  # ملف الإخراج الافتراضي: ..\backups\pg_backup_<db>_<YYYYmmdd_HHMMSS>.sql
+  python manage.py backup_db
+  
+  # مخرجات مضغوطة gzip
+  python manage.py backup_db --gzip
+  
+  # تحديد مجلد إخراج مخصص
+  python manage.py backup_db --out D:\sh_school_015\my_backups
+  ```
+  
+  ملاحظات الاستعادة (Restore):
+  ```powershell
+  # ملف SQL عادي
+  psql -h 127.0.0.1 -U <PG_USER> -d <PG_DB> -f "D:\\sh_school_015\\backups\\pg_backup_<db>_<ts>.sql"
+  
+  # ملف .sql.gz
+  gunzip -c "D:\\sh_school_015\\backups\\pg_backup_<db>_<ts>.sql.gz" | psql -h 127.0.0.1 -U <PG_USER> -d <PG_DB>
+  ```
+
+- سكربت PowerShell (اختياري):
+  ```powershell
+  # من جذر المشروع
+  ./scripts/db_backup.ps1           # إخراج SQL عادي إلى مجلد backups
+  ./scripts/db_backup.ps1 -Gzip     # إخراج مضغوط .sql.gz
+  ./scripts/db_backup.ps1 -OutDir D:\sh_school_015\my_backups
+  ```
+
+المتطلبات:
+- يجب أن تكون حاوية Docker باسم `pg-sh-school` موجودة/تعمل (يتم تشغيلها تلقائيًا عبر ./scripts/serve.ps1).
+- يستخدم السكربت/الأمر متغيرات الاتصال من `backend/.env` (PG_DB, PG_USER, PG_PASSWORD, PG_HOST, PG_PORT).
