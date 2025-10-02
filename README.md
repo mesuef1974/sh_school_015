@@ -205,3 +205,41 @@ Simple Arabic RTL landing page that auto-lists repository documents with direct 
 المتطلبات:
 - يجب أن تكون حاوية Docker باسم `pg-sh-school` موجودة/تعمل (يتم تشغيلها تلقائيًا عبر ./scripts/serve.ps1).
 - يستخدم السكربت/الأمر متغيرات الاتصال من `backend/.env` (PG_DB, PG_USER, PG_PASSWORD, PG_HOST, PG_PORT).
+
+## أمثلة طلبات API على PowerShell (Windows)
+عند نسخ أوامر cURL المصاغة لبيئة Bash إلى PowerShell ستظهر أخطاء مثل: `-d: The term '-d' is not recognized` لأن PowerShell لا يدعم صياغة الاستدعاء متعددة الأسطر باستخدام \\ ولا يمرر الرايات بنفس الطريقة. استخدم إحدى الطرق التالية:
+
+- الطريقة الموصى بها: Invoke-RestMethod في PowerShell
+
+1) الحصول على توكن JWT
+```powershell
+# من PowerShell (سطر واحد)
+$resp = Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8000/api/token/" -ContentType 'application/json' -Body (@{ username = 'mesuef'; password = '123123' } | ConvertTo-Json)
+$access = $resp.access
+$refresh = $resp.refresh
+$access
+```
+
+2) استدعاء API باستخدام التوكن
+```powershell
+Invoke-RestMethod -Uri 'http://127.0.0.1:8000/api/classes/' -Headers @{ Authorization = "Bearer $access" }
+```
+
+- بديل: استخدام cURL الموجود على ويندوز كسطر واحد (أو مع ^ لمتابعة السطر)
+
+1) الحصول على التوكن (كسطر واحد):
+```powershell
+curl -X POST "http://127.0.0.1:8000/api/token/" -H "Content-Type: application/json" -d '{"username":"mesuef","password":"123123"}'
+```
+
+2) استدعاء API بالهيدر Authorization:
+```powershell
+$token = "<ACCESS_TOKEN>"
+curl "http://127.0.0.1:8000/api/classes/" -H "Authorization: Bearer $token"
+```
+
+ملاحظات هامة:
+- لا تستخدم الشرطة المائلة العادية \\ لمتابعة الأسطر في PowerShell؛ استعمل ^ أو اكتب الأمر في سطر واحد.
+- مع Invoke-RestMethod استخدم -ContentType و -Body (وحوّل الجسم إلى JSON عبر ConvertTo-Json).
+- إذا كان لديك كلٌ من curl.exe و alias لـ Invoke-WebRequest، يفضّل استدعاء المسار الكامل لـ curl.exe عند الحاجة: `& $Env:SystemRoot\System32\curl.exe ...`
+- تأكد من تشغيل الخادم أولًا عبر: `./scripts/serve.ps1` وأن متغيرات السوبر يوزر في backend/.env صحيحة.
