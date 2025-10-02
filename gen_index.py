@@ -1,15 +1,39 @@
 #!/usr/bin/env python3
-import os, re, html, datetime, argparse
+import argparse
+import datetime
+import html
+import os
+import re
 from urllib.parse import quote
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 INDEX = os.path.join(ROOT, "index.html")
 
 INCLUDE_EXT = {
-    ".html", ".pdf", ".xlsx", ".xls", ".docx", ".doc", ".csv",
-    ".png", ".jpg", ".jpeg", ".svg", ".ico"
+    ".html",
+    ".pdf",
+    ".xlsx",
+    ".xls",
+    ".docx",
+    ".doc",
+    ".csv",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".svg",
+    ".ico",
 }
-EXCLUDE_DIRS = {".git", "node_modules", "venv", "__pycache__", "dist", "build", ".next", ".DS_Store", ".idea"}
+EXCLUDE_DIRS = {
+    ".git",
+    "node_modules",
+    "venv",
+    "__pycache__",
+    "dist",
+    "build",
+    ".next",
+    ".DS_Store",
+    ".idea",
+}
 EXCLUDE_FILES = set()
 
 # Do not list index.html itself
@@ -97,12 +121,12 @@ def render_list(paths):
                 f' <span class="meta">— حجم: {size} • آخر تعديل: {mtime}</span></li>'
             )
         block = [
-            f'      <details open>',
-            f'        <summary>{html.escape(group)}</summary>',
-            f'        <ul>',
+            f"      <details open>",
+            f"        <summary>{html.escape(group)}</summary>",
+            f"        <ul>",
             "\n".join(items_html),
-            f'        </ul>',
-            f'      </details>'
+            f"        </ul>",
+            f"      </details>",
         ]
         blocks.append("\n".join(block))
     return "\n".join(blocks)
@@ -113,7 +137,10 @@ def update_index(rendered: str):
         raise SystemExit("index.html not found. Create it first.")
     with open(INDEX, "r", encoding="utf-8") as f:
         html_text = f.read()
-    pattern = re.compile(r"(<!--\s*AUTO_LIST_START\s*-->)(.*?)(<!--\s*AUTO_LIST_END\s*-->)", re.S)
+    pattern = re.compile(
+        r"(<!--\s*AUTO_LIST_START\s*-->)(.*?)(<!--\s*AUTO_LIST_END\s*-->)",
+        re.S,
+    )
     replacement = r"\1\n" + rendered + "\n      " + r"\3"
     new_html, count = pattern.subn(replacement, html_text, count=1)
     if count == 0:
@@ -123,9 +150,22 @@ def update_index(rendered: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate or check index.html content list.")
-    parser.add_argument("--check", action="store_true", help="Check rendering only; do not modify index.html. Exit non-zero on problems.")
-    parser.add_argument("--write", action="store_true", help="Force writing index.html (default behavior if no flags).")
+    parser = argparse.ArgumentParser(
+        description="Generate or check index.html content list.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "Check rendering only; do not modify index.html. Exit non-zero on "
+            "problems."
+        ),
+    )
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Force writing index.html (default behavior if no flags).",
+    )
     args = parser.parse_args()
 
     files = collect_files()
