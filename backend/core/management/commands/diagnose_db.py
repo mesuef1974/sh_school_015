@@ -19,7 +19,9 @@ class Command(BaseCommand):
         host = db.get("HOST", "")
         port = db.get("PORT", "")
 
-        self.stdout.write(self.style.HTTP_INFO("Effective database settings (default):"))
+        self.stdout.write(
+            self.style.HTTP_INFO("Effective database settings (default):")
+        )
         self.stdout.write(f"  ENGINE   : {engine}")
         self.stdout.write(f"  NAME     : {name}")
         if user:
@@ -43,26 +45,43 @@ class Command(BaseCommand):
                 if vendor == "postgresql":
                     cursor.execute("SELECT version();")
                     ver = cursor.fetchone()[0]
-                    self.stdout.write(self.style.SUCCESS("Connected to PostgreSQL successfully."))
+                    self.stdout.write(
+                        self.style.SUCCESS("Connected to PostgreSQL successfully.")
+                    )
                     self.stdout.write(f"  Server version: {ver}")
                 elif vendor == "sqlite":
                     cursor.execute("select sqlite_version();")
                     ver = cursor.fetchone()[0]
-                    self.stdout.write(self.style.SUCCESS("Connected to SQLite successfully."))
+                    self.stdout.write(
+                        self.style.SUCCESS("Connected to SQLite successfully.")
+                    )
                     self.stdout.write(f"  SQLite version: {ver}")
                 else:
-                    self.stdout.write(self.style.SUCCESS(f"Connected successfully (vendor={vendor})."))
+                    self.stdout.write(
+                        self.style.SUCCESS(f"Connected successfully (vendor={vendor}).")
+                    )
         except Exception as exc:  # pragma: no cover - environment dependent
             self.stdout.write("")
             self.stderr.write(self.style.ERROR("Failed to connect to the database."))
             self.stderr.write(self.style.ERROR(f"  {exc}"))
             self.stdout.write("")
             self.stdout.write(self.style.WARNING("Common fixes:"))
-            self.stdout.write("  - If you intend to use SQLite locally: set USE_SQLITE=True in backend/.env (or copy .env.example).")
-            self.stdout.write("  - If you intend to use PostgreSQL: set USE_SQLITE=False and ensure DB_NAME/DB_USER/DB_PASSWORD/DB_HOST/DB_PORT are correct in backend/.env.")
-            self.stdout.write("  - Ensure PostgreSQL service is running and credentials are valid. Use scripts/postgres_reset_password.ps1 if you forgot the password (Windows).")
+            self.stdout.write(
+                "  - If you intend to use SQLite locally: set USE_SQLITE=True in backend/.env "
+                "(or copy .env.example)."
+            )
+            self.stdout.write(
+                "  - If you intend to use PostgreSQL: set USE_SQLITE=False and ensure "
+                "DB_NAME/DB_USER/DB_PASSWORD/DB_HOST/DB_PORT are correct in backend/.env."
+            )
+            self.stdout.write(
+                "  - Ensure PostgreSQL service is running and credentials are valid. "
+                "Use scripts/postgres_reset_password.ps1 if you forgot the password (Windows)."
+            )
             # Exit with non-zero to signal failure in CI/local scripts if desired
             sys.exit(2)
 
         self.stdout.write("")
-        self.stdout.write(self.style.SUCCESS("Database diagnostics completed successfully."))
+        self.stdout.write(
+            self.style.SUCCESS("Database diagnostics completed successfully.")
+        )

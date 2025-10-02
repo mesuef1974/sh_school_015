@@ -57,13 +57,62 @@ python gen_index.py --check
 - لروابط الويب يُستخدَم دائمًا الفاصل `/` حتى على ويندوز.
 - يدعم السكربت ترميز المسارات غير اللاتينية تلقائيًا.
 
+## تشغيل السيرفر (Django + Postgres)
+لتشغيل الباكند كاملًا بطريقة احترافية على ويندوز، استخدم السكربت الموحّد:
+
+```powershell
+# من جذر المشروع
+./scripts/serve.ps1
+```
+
+ماذا يفعل هذا السكربت؟
+- يقرأ `backend/.env` ويشغّل حاوية PostgreSQL متوافقة مع متغيّرات `PG_*` عبر `scripts/db_up.ps1` (يتعامل مع المنافذ وكلمات السر تلقائيًا).
+- يطبّق الهجرات: `python manage.py migrate`.
+- ينشئ مستخدمًا إداريًا تلقائيًا إذا كانت متغيرات البيئة التالية موجودة في `.env`:
+  - `DJANGO_SUPERUSER_USERNAME`, `DJANGO_SUPERUSER_EMAIL`, `DJANGO_SUPERUSER_PASSWORD`.
+- يشغّل تهيئة صلاحيات المجموعات RBAC: `python manage.py bootstrap_rbac`.
+- يبدأ الخادم: `python manage.py runserver 0.0.0.0:8000` (يمكن تغيير المضيف والمنفذ عبر `DJANGO_RUN_HOST` و`DJANGO_RUN_PORT`).
+
+تلميحات إعداد `.env` (ملف: `backend/.env`):
+```env
+# مثال سريع
+DJANGO_SECRET_KEY=change-me-very-secret
+DJANGO_DEBUG=True
+DJANGO_ALLOWED_HOSTS=127.0.0.1,localhost
+
+PG_DB=sh_school
+PG_USER=postgres
+PG_PASSWORD=postgres
+PG_HOST=127.0.0.1
+PG_PORT=5433  # يجب أن يطابق منفذ المضيف الذي ستحجزه Docker
+
+# (اختياري) إنشاء سوبر يوزر تلقائيًا في أول تشغيل
+DJANGO_SUPERUSER_USERNAME=admin
+DJANGO_SUPERUSER_EMAIL=admin@example.com
+DJANGO_SUPERUSER_PASSWORD=Admin@12345
+
+# (اختياري) تغيير مضيف/منفذ تشغيل السيرفر
+DJANGO_RUN_HOST=0.0.0.0
+DJANGO_RUN_PORT=8000
+```
+
+استكشاف الأخطاء الشائعة:
+- تعارض اسم الحاوية: إذا ظهرت رسالة أن الحاوية `pg-sh-school` موجودة، احذفها وأعد التشغيل:
+  ```powershell
+  docker rm -f pg-sh-school
+  docker volume rm pg-sh-school-data  # لإعادة تهيئة بيانات التطوير
+  ./scripts/serve.ps1
+  ```
+- فشل المصادقة: تأكد أن `PG_USER/PG_PASSWORD` في `.env` تطابق إعدادات الحاوية. السكربت يعيد إنشاء الحاوية والـ volume ليتطابقا مع `.env`.
+- المنفذ مشغول: غيّر `PG_PORT` في `.env` (مثلاً 5434)، ثم أعد تشغيل `./scripts/serve.ps1`.
+
 ## ما يظهر في القائمة
 - يتم تجميع العناصر حسب أعلى مجلد (مثلاً: `DOC`, `assets`, أو `(الجذر)` للملفات في مستوى الجذر).
 - لكل عنصر:
   - اسم/مسار الملف كنص الرابط.
   - حجم الملف (KB/MB).
   - تاريخ آخر تعديل (محلي) بصيغة `YYYY-MM-DD HH:MM`.
-- يمكنك طي/فتح كل مجموعة بواسطة عنصر `<details>`.
+- يمكنك طي/فتح كل مجموعة بواسطة عنصر `<details>`. 
 
 ## تخصيص الاستثناءات
 إذا رغبت باستثناء ملفات معيّنة، يمكنك تعديل المتغيرات في `gen_index.py`:

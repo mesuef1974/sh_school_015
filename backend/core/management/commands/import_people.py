@@ -9,7 +9,9 @@ from core.models import Class, Staff, Student
 
 try:
     from openpyxl import load_workbook
-except Exception:  # pragma: no cover - optional import; validated at runtime if .xlsx is used
+except (
+    Exception
+):  # pragma: no cover - optional import; validated at runtime if .xlsx is used
     load_workbook = None  # type: ignore
 
 
@@ -57,7 +59,9 @@ def read_csv_rows(path: Path, delimiter: str = ",") -> Iterable[dict]:
 
 def read_xlsx_first_sheet(path: Path) -> Iterable[dict]:
     if load_workbook is None:
-        raise CommandError("openpyxl is required to read .xlsx files. Please install 'openpyxl'.")
+        raise CommandError(
+            "openpyxl is required to read .xlsx files. Please install 'openpyxl'."
+        )
     if not path.exists():
         raise CommandError(f"Excel file not found: {path}")
     wb = load_workbook(filename=str(path), read_only=True, data_only=True)
@@ -73,7 +77,10 @@ def read_xlsx_first_sheet(path: Path) -> Iterable[dict]:
         # Pad/truncate to headers length
         values = list(r) if r is not None else []
         values += [None] * (len(headers) - len(values))
-        row = {headers[i]: ("" if values[i] is None else str(values[i]).strip()) for i in range(len(headers))}
+        row = {
+            headers[i]: ("" if values[i] is None else str(values[i]).strip())
+            for i in range(len(headers))
+        }
         # Skip empty lines
         if any(v for v in row.values()):
             yield row
@@ -82,7 +89,9 @@ def read_xlsx_first_sheet(path: Path) -> Iterable[dict]:
 def iter_xlsx_sheets(path: Path) -> Iterable[tuple[str, dict]]:
     """Yield (sheet_name, row_dict) for every non-empty row across worksheets."""
     if load_workbook is None:
-        raise CommandError("openpyxl is required to read .xlsx files. Please install 'openpyxl'.")
+        raise CommandError(
+            "openpyxl is required to read .xlsx files. Please install 'openpyxl'."
+        )
     if not path.exists():
         raise CommandError(f"Excel file not found: {path}")
     wb = load_workbook(filename=str(path), read_only=True, data_only=True)
@@ -95,7 +104,10 @@ def iter_xlsx_sheets(path: Path) -> Iterable[tuple[str, dict]]:
         for r in rows:
             values = list(r) if r is not None else []
             values += [None] * (len(headers) - len(values))
-            row = {headers[i]: ("" if values[i] is None else str(values[i]).strip()) for i in range(len(headers))}
+            row = {
+                headers[i]: ("" if values[i] is None else str(values[i]).strip())
+                for i in range(len(headers))
+            }
             if any(v for v in row.values()):
                 yield ws.title.strip(), row
 
@@ -109,7 +121,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--staff", type=str, help="Path to staff CSV/XLSX file")
-        parser.add_argument("--students", type=str, help="Path to students CSV/XLSX file")
+        parser.add_argument(
+            "--students", type=str, help="Path to students CSV/XLSX file"
+        )
         parser.add_argument(
             "--delimiter",
             type=str,
@@ -135,7 +149,9 @@ class Command(BaseCommand):
         create_classes = bool(options.get("create_classes"))
 
         if not staff_path and not students_path:
-            raise CommandError("Provide at least one of --staff or --students file paths (.csv or .xlsx).")
+            raise CommandError(
+                "Provide at least one of --staff or --students file paths (.csv or .xlsx)."
+            )
 
         total_created = 0
         total_updated = 0
@@ -153,9 +169,13 @@ class Command(BaseCommand):
         if students_path:
             sp = Path(students_path)
             if sp.suffix.lower() == ".xlsx":
-                created, updated, note_list = self._import_students_xlsx(sp, dry_run, create_classes)
+                created, updated, note_list = self._import_students_xlsx(
+                    sp, dry_run, create_classes
+                )
             else:
-                created, updated, note_list = self._import_students(sp, delimiter, dry_run, create_classes)
+                created, updated, note_list = self._import_students(
+                    sp, delimiter, dry_run, create_classes
+                )
             total_created += created
             total_updated += updated
             notes.extend(note_list)
@@ -170,12 +190,13 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(msg))
 
     # ---- helpers ----
-    def _import_staff(self, path: Path, delimiter: str, dry_run: bool) -> tuple[int, int]:
+    def _import_staff(
+        self, path: Path, delimiter: str, dry_run: bool
+    ) -> tuple[int, int]:
         if not path.exists():
             raise CommandError(f"Staff CSV not found: {path}")
         created = 0
         updated = 0
-        expected = {"staff_code", "name", "job_title", "email", "phone"}
         for row in read_csv_rows(path, delimiter):
             # header aliases
             staff_code = row.get("staff_code") or row.get("code")
@@ -252,7 +273,8 @@ class Command(BaseCommand):
                         )
                     else:
                         notes.append(
-                            f"Class '{class_name}' not found; student '{student_code}' will have no class."
+                            f"Class '{class_name}' not found; student "
+                            f"'{student_code}' has no class."
                         )
 
             defaults = {
@@ -266,7 +288,9 @@ class Command(BaseCommand):
                     student_code=student_code, defaults=defaults
                 )
             else:
-                is_created = not Student.objects.filter(student_code=student_code).exists()
+                is_created = not Student.objects.filter(
+                    student_code=student_code
+                ).exists()
 
             if is_created:
                 created += 1
@@ -275,7 +299,7 @@ class Command(BaseCommand):
 
         return created, updated, notes
 
-# --- XLSX helpers appended by Junie ---
+    # --- XLSX helpers appended by Junie ---
     def _import_staff_xlsx(self, path: Path, dry_run: bool) -> tuple[int, int]:
         if not path.exists():
             raise CommandError(f"Staff Excel not found: {path}")
@@ -355,7 +379,8 @@ class Command(BaseCommand):
                         )
                     else:
                         notes.append(
-                            f"Class '{class_name}' not found; student '{student_code}' will have no class."
+                            f"Class '{class_name}' not found; student "
+                            f"'{student_code}' has no class."
                         )
 
             defaults = {
@@ -369,7 +394,9 @@ class Command(BaseCommand):
                     student_code=student_code, defaults=defaults
                 )
             else:
-                is_created = not Student.objects.filter(student_code=student_code).exists()
+                is_created = not Student.objects.filter(
+                    student_code=student_code
+                ).exists()
 
             if is_created:
                 created += 1
