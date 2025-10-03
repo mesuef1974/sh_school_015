@@ -205,6 +205,14 @@
             <li>جلسة دعم للمواد المتعثّرة.</li>
             <li>تحديث خطة الأسبوع القادم بناءً على المؤشرات.</li>
           </ul>
+          <details style="margin-top:10px">
+            <summary>تحليل الحالة التفصيلي — أين وصلنا؟ ماذا أُنجز؟ وما الخطوات القادمة؟</summary>
+            <div class="row" style="margin:8px 0">
+              <button class="btn" onclick="renderDeepStatus()">تحديث التحليل</button>
+              <button class="btn outline" onclick="copyDeepStatus()">نسخ التحليل</button>
+            </div>
+            <pre id="deep-status" style="max-height:340px;overflow:auto;background:#0b1020;color:#e5e7eb;padding:10px;border-radius:10px;white-space:pre-wrap"></pre>
+          </details>
         </div>
         <div class="letterhead-footer muted">
           <span>مدرسة الشحّانية</span>
