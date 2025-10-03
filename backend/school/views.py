@@ -2,8 +2,12 @@ from django import forms
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.urls import reverse
+from django.contrib import messages
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
+from django.db.models import Q
+from django.db.models.deletion import ProtectedError
+from django.db import IntegrityError
 from .models import Class, Student, Staff, Subject, TeachingAssignment, ClassSubject
 from .serializers import (
     ClassSerializer,
@@ -15,6 +19,9 @@ from .serializers import (
 )
 from openpyxl import load_workbook
 import re
+from django.db import connection
+from django.core.paginator import Paginator
+from django.http import Http404
 
 
 class ClassViewSet(ModelViewSet):
@@ -59,6 +66,58 @@ class TeachingAssignmentForm(forms.ModelForm):
     class Meta:
         model = TeachingAssignment
         fields = ["teacher", "classroom", "subject", "no_classes_weekly", "notes"]
+
+
+# Generic CRUD forms for editable tables
+class ClassForm(forms.ModelForm):
+    class Meta:
+        model = Class
+        # Include common fields; adjust as per actual model fields in project
+        fields = [
+            f.name
+            for f in Class._meta.fields
+            if f.editable and f.name != Class._meta.pk.name
+        ]
+
+
+class StudentForm(forms.ModelForm):
+    class Meta:
+        model = Student
+        fields = [
+            f.name
+            for f in Student._meta.fields
+            if f.editable and f.name != Student._meta.pk.name
+        ]
+
+
+class StaffForm(forms.ModelForm):
+    class Meta:
+        model = Staff
+        fields = [
+            f.name
+            for f in Staff._meta.fields
+            if f.editable and f.name != Staff._meta.pk.name
+        ]
+
+
+class SubjectForm(forms.ModelForm):
+    class Meta:
+        model = Subject
+        fields = [
+            f.name
+            for f in Subject._meta.fields
+            if f.editable and f.name != Subject._meta.pk.name
+        ]
+
+
+class ClassSubjectForm(forms.ModelForm):
+    class Meta:
+        model = ClassSubject
+        fields = [
+            f.name
+            for f in ClassSubject._meta.fields
+            if f.editable and f.name != ClassSubject._meta.pk.name
+        ]
 
 
 class ExcelUploadForm(forms.Form):
@@ -320,3 +379,259 @@ def _import_excel_file(file_obj):
             )
 
     return True
+
+
+@login_required
+def data_overview(request):
+    # Denylist sensitive tables by prefix or exact names
+    deny_exact = {"django_session"}
+    deny_prefixes = ("auth_", "django_", "admin_")
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema='public' AND table_type='BASE TABLE'
+            ORDER BY table_name
+            """
+        )
+        tables = [row[0] for row in cursor.fetchall()]
+
+    visible_tables = [
+        t
+        for t in tables
+        if t not in deny_exact and not any(t.startswith(p) for p in deny_prefixes)
+    ]
+
+    # Get row counts efficiently
+    table_stats = []
+    with connection.cursor() as cursor:
+        for t in visible_tables:
+            try:
+                cursor.execute(f'SELECT COUNT(*) FROM "{t}"')
+                cnt = cursor.fetchone()[0]
+            except Exception:
+                cnt = None
+            table_stats.append({"name": t, "count": cnt})
+
+    context = {
+        "title": "معاينة البيانات — كل الجداول",
+        "tables": table_stats,
+    }
+    return render(request, "data/overview.html", context)
+
+
+@login_required
+def data_table_detail(request, table):
+    # Security: allow only public tables and apply same deny rules
+    deny_exact = {"django_session"}
+    deny_prefixes = ("auth_", "django_", "admin_")
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema='public' AND table_type='BASE TABLE'
+            """
+        )
+        all_tables = {row[0] for row in cursor.fetchall()}
+
+    if (
+        table not in all_tables
+        or table in deny_exact
+        or any(table.startswith(p) for p in deny_prefixes)
+    ):
+        raise Http404("Table not found")
+
+    # Registry of editable tables
+    MODEL_REGISTRY = {
+        Class._meta.db_table: (Class, ClassForm),
+        Student._meta.db_table: (Student, StudentForm),
+        Staff._meta.db_table: (Staff, StaffForm),
+        Subject._meta.db_table: (Subject, SubjectForm),
+        ClassSubject._meta.db_table: (ClassSubject, ClassSubjectForm),
+        TeachingAssignment._meta.db_table: (TeachingAssignment, TeachingAssignmentForm),
+    }
+
+    editable = table in MODEL_REGISTRY
+
+    # Common query params
+    q = (request.GET.get("q") or "").strip()
+    order = request.GET.get("order") or ""
+    page = int(request.GET.get("page") or 1)
+    per_page = int(request.GET.get("per_page") or 25)
+
+    if editable:
+        Model, FormClass = MODEL_REGISTRY[table]
+        # Build columns, include pk first for actions
+        fields = [f for f in Model._meta.fields if f.editable or f.primary_key]
+        columns = [Model._meta.pk.name] + [
+            f.name for f in fields if f.name != Model._meta.pk.name
+        ]
+
+        # Handle POST actions
+        if request.method == "POST":
+            # Helper to rebuild querystring preserving filters
+            def _qs_keep(req, drop_keys=None):
+                drop_keys = set(drop_keys or [])
+                from urllib.parse import parse_qsl, urlencode
+
+                pairs = [
+                    (k, v)
+                    for k, v in parse_qsl(
+                        req.META.get("QUERY_STRING", ""), keep_blank_values=True
+                    )
+                    if k not in drop_keys
+                ]
+                return ("?" + urlencode(pairs, doseq=True)) if pairs else ""
+
+            action = request.POST.get("action")
+            if action == "create":
+                form = FormClass(request.POST)
+                if form.is_valid():
+                    try:
+                        form.save()
+                        messages.success(request, "تمت الإضافة بنجاح.")
+                    except IntegrityError as e:
+                        messages.error(request, f"تعذر الحفظ بسبب قيود البيانات: {e}")
+                        return redirect(request.path + _qs_keep(request))
+                    return redirect(request.path + _qs_keep(request, drop_keys=["add"]))
+            elif action == "update":
+                pk = request.POST.get("id")
+                instance = Model.objects.filter(pk=pk).first()
+                if instance is not None:
+                    form = FormClass(request.POST, instance=instance)
+                    if form.is_valid():
+                        try:
+                            form.save()
+                            messages.success(request, "تم حفظ التعديلات.")
+                        except IntegrityError as e:
+                            messages.error(
+                                request, f"تعذر الحفظ بسبب قيود البيانات: {e}"
+                            )
+                            return redirect(request.path + _qs_keep(request))
+                        # Preserve current page filters
+                        return redirect(
+                            request.path + _qs_keep(request, drop_keys=["edit"])
+                        )
+            elif action == "delete":
+                pk = request.POST.get("id")
+                obj = Model.objects.filter(pk=pk).first()
+                if obj is not None:
+                    try:
+                        obj.delete()
+                        messages.success(request, "تم حذف السجل.")
+                    except (ProtectedError, IntegrityError) as e:
+                        messages.error(
+                            request, f"لا يمكن حذف السجل لارتباطه بسجلات أخرى: {e}"
+                        )
+                return redirect(request.path + _qs_keep(request))
+
+        # Build queryset (use select_related for FK fields and keep objects for better display)
+        qs = Model.objects.all()
+        # Select related for FK fields to optimize display
+        fk_fields = [
+            f.name
+            for f in Model._meta.fields
+            if getattr(f, "is_relation", False) and getattr(f, "many_to_one", False)
+        ]
+        if fk_fields:
+            qs = qs.select_related(*fk_fields)
+        if q:
+            # Apply search across textual fields
+            text_fields = [
+                f.name
+                for f in Model._meta.fields
+                if getattr(f, "get_internal_type", lambda: "")()
+                in ("CharField", "TextField")
+            ]
+            query = Q()
+            for name in text_fields:
+                query |= Q(**{f"{name}__icontains": q})
+            if query:
+                qs = qs.filter(query)
+        if order:
+            if order.lstrip("-") in columns:
+                qs = qs.order_by(order)
+        total_count = qs.count()
+        paginator = Paginator(qs, per_page)
+        page_obj = paginator.get_page(page)
+
+        add_mode = request.GET.get("add") == "1"
+        edit_id = request.GET.get("edit")
+        create_form = FormClass() if add_mode else None
+        edit_form = None
+        if edit_id:
+            inst = Model.objects.filter(pk=edit_id).first()
+            if inst is not None:
+                edit_form = FormClass(instance=inst)
+
+        context = {
+            "title": f"جدول: {table}",
+            "table": table,
+            "columns": columns,
+            "page_obj": page_obj,
+            "q": q,
+            "order": order,
+            "per_page": per_page,
+            "per_page_options": [10, 25, 50, 100],
+            "total_count": total_count,
+            "editable": True,
+            "create_form": create_form,
+            "edit_form": edit_form,
+            "edit_id": edit_id,
+        }
+        return render(request, "data/table_detail.html", context)
+
+    # Fallback read-only for non-registered tables (raw SQL path)
+    # Read columns
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema='public' AND table_name=%s
+            ORDER BY ordinal_position
+            """,
+            [table],
+        )
+        columns = [r[0] for r in cursor.fetchall()]
+
+    order_sql = ""
+    if order and order.lstrip("-") in columns:
+        col = order.lstrip("-")
+        direction = "DESC" if order.startswith("-") else "ASC"
+        order_sql = f' ORDER BY "{col}" {direction}'
+
+    where_sql = ""
+    params = []
+    if q:
+        like_params = []
+        for col in columns:
+            like_params.append(f'CAST("{col}" AS TEXT) ILIKE %s')
+            params.append(f"%{q}%")
+        where_sql = " WHERE " + " OR ".join(like_params)
+
+    sql = f'SELECT * FROM "{table}"' + where_sql + order_sql
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    paginator = Paginator(rows, per_page)
+    page_obj = paginator.get_page(page)
+
+    context = {
+        "title": f"جدول: {table}",
+        "table": table,
+        "columns": columns,
+        "page_obj": page_obj,
+        "q": q,
+        "order": order,
+        "per_page": per_page,
+        "per_page_options": [10, 25, 50, 100],
+        "total_count": len(rows),
+        "editable": False,
+    }
+    return render(request, "data/table_detail.html", context)

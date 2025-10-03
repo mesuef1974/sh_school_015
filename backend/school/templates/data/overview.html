@@ -1,0 +1,34 @@
+{% extends "_base_maronia.html" %}
+{% block title %}مارونية — {{ title }}{% endblock %}
+{% block content %}
+  <div class="d-flex align-items-center mb-4 page-header">
+    <div>
+      <h1 class="h3 mb-1"><i class="bi bi-database-fill text-accent me-1"></i> معاينة قاعدة البيانات</h1>
+      <div class="text-muted">كل الجداول ومحتوياتها</div>
+    </div>
+  </div>
+
+  {% if tables %}
+  <div class="row g-3">
+    {% for t in tables %}
+    <div class="col-md-6 col-lg-4">
+      <a class="text-decoration-none" href="{% url 'data_table_detail' t.name %}">
+        <div class="card card-hover h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="fw-bold"><i class="bi bi-table text-accent me-1"></i> {{ t.name }}</div>
+                <div class="text-muted small"><i class="bi bi-123 me-1"></i> عدد الصفوف: {{ t.count|default:'—' }}</div>
+              </div>
+              <span class="badge badge-accent"><i class="bi bi-eye-fill me-1"></i> عرض</span>
+            </div>
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="alert alert-info">لا توجد جداول لعرضها.</div>
+  {% endif %}
+{% endblock %}

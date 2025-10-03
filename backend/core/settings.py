@@ -139,6 +139,14 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "static/"
+# Include the top-level 'assets' directory so we can reference branding files via {% static %}
+STATICFILES_DIRS = [
+    # BASE_DIR points to backend/, so assets live one level up
+    (BASE_DIR.parent / "assets").as_posix(),
+]
+
+# Redirect login_required to the admin login page (we don't have /accounts/login/)
+LOGIN_URL = "/admin/login/"
 
 # REST Framework & JWT
 REST_FRAMEWORK = {
