@@ -1,6 +1,6 @@
 from django.core.management import BaseCommand
 from openpyxl import load_workbook
-from school.models import Staff
+from ...models import Staff
 
 
 class Command(BaseCommand):

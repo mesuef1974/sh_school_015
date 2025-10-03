@@ -1,0 +1,14 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+{% block content %}
+  <div class="container" style="max-width: 720px;">
+    <h1>{{ title }}</h1>
+    <form method="post" enctype="multipart/form-data" class="card p-3" style="background:#fff;">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="default">رفع واستيراد</button>
+      <a href=".." class="button cancel-link">رجوع</a>
+    </form>
+    <p class="help">يُفضّل استخدام الملف: DOC/school_DATA/schasual.xlsx</p>
+  </div>
+{% endblock %}

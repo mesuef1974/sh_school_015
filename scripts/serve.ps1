@@ -49,6 +49,10 @@ Set-Location (Join-Path $Root 'backend')
 
 Write-Host "[serve] Applying migrations ..."
 python manage.py migrate
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "[serve] Migrations failed with exit code $LASTEXITCODE. Aborting."
+    exit 1
+}
 
 # Ensure superuser idempotently via a dedicated command
 $suUser = $envVars['DJANGO_SUPERUSER_USERNAME']
