@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>الجدول الأسبوعي — {{ classroom.name }} — {{ template.name }}</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; vertical-align: top; }
+    th { background: #f6f6f6; }
+    .meta { color: #555; margin: 0.25rem 0 1rem; }
+    .cell-time { color: #333; font-size: 0.9rem; }
+    .empty { color: #aaa; font-size: 0.85rem; }
+    a { text-decoration: none; color: #0b61a4; }
+  </style>
+</head>
+<body>
+  <h1>الجدول الأسبوعي</h1>
+  <div class="meta">
+    <div><strong>الصف:</strong> {{ classroom.name }}</div>
+    <div><strong>القالب:</strong> {{ template.name }} ({{ template.scope }} — {{ template.days }})</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>الفترة</th>
+        {% for d in days %}
+          <th>{{ d }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {# period_rows items are tuples: (period_index, start_time, end_time, block, order) #}
+      {% for pr in period_rows %}
+        {% with p=pr.0 st=pr.1 et=pr.2 blk=pr.3 %}
+        <tr>
+          <td>
+            <div><strong>{{ p }}</strong></div>
+            <div class="cell-time">{{ st }} — {{ et }}</div>
+            <div class="cell-time">{{ blk }}</div>
+          </td>
+          {% for d in days %}
+            {# Placeholder content for MVP — empty cells #}
+            <td class="empty">—</td>
+          {% endfor %}
+        </tr>
+        {% endwith %}
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <p style="margin-top: 1rem;"><a href="{% url 'timetable_select' %}">رجوع للاختيار</a></p>
+  <p><a href="/admin/">لوحة الإدارة</a></p>
+</body>
+</html>

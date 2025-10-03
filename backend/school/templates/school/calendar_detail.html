@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تفاصيل القالب: {{ template.name }}</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; }
+    th { background: #f6f6f6; }
+    .meta { color: #555; margin: 0.25rem 0 1rem; }
+    a { text-decoration: none; color: #0b61a4; }
+    .back { margin-top: 1rem; display: inline-block; }
+  </style>
+</head>
+<body>
+  <h1>تفاصيل القالب: {{ template.name }}</h1>
+  <div class="meta">
+    <div><strong>النطاق:</strong> {{ template.scope }}</div>
+    <div><strong>الأيام:</strong> {{ template.days }}</div>
+  </div>
+
+  {% if slots %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>اليوم</th>
+        <th>الفترة</th>
+        <th>من</th>
+        <th>إلى</th>
+        <th>النوع</th>
+        <th>الترتيب</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in slots %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ s.day }}</td>
+        <td>{{ s.period_index }}</td>
+        <td>{{ s.start_time }}</td>
+        <td>{{ s.end_time }}</td>
+        <td>{{ s.block }}</td>
+        <td>{{ s.order }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p>لا توجد فترات لهذا القالب.</p>
+  {% endif %}
+
+  <p class="back"><a href="{% url 'calendar_list' %}">الرجوع إلى القوائم</a></p>
+  <p><a href="/admin/">لوحة الإدارة</a></p>
+</body>
+</html>

@@ -1,14 +1,23 @@
 from django import forms
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib import messages
-from rest_framework.viewsets import ModelViewSet
+from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
 from django.db import IntegrityError
-from .models import Class, Student, Staff, Subject, TeachingAssignment, ClassSubject
+from .models import (
+    Class,
+    Student,
+    Staff,
+    Subject,
+    TeachingAssignment,
+    ClassSubject,
+    CalendarTemplate,
+    CalendarSlot,
+)
 from .serializers import (
     ClassSerializer,
     StudentSerializer,
@@ -16,6 +25,8 @@ from .serializers import (
     SubjectSerializer,
     TeachingAssignmentSerializer,
     ClassSubjectSerializer,
+    CalendarTemplateSerializer,
+    CalendarSlotSerializer,
 )
 from openpyxl import load_workbook
 import re
@@ -635,3 +646,111 @@ def data_table_detail(request, table):
         "editable": False,
     }
     return render(request, "data/table_detail.html", context)
+
+
+# --- Calendar (API + HTML) ---
+
+
+class CalendarTemplateViewSet(ReadOnlyModelViewSet):
+    queryset = CalendarTemplate.objects.all().prefetch_related("slots")
+    serializer_class = CalendarTemplateSerializer
+
+
+class CalendarSlotViewSet(ReadOnlyModelViewSet):
+    queryset = CalendarSlot.objects.select_related("template").all()
+    serializer_class = CalendarSlotSerializer
+
+
+@login_required
+def calendar_list(request):
+    templates = CalendarTemplate.objects.all().order_by("name")
+    return render(request, "school/calendar_list.html", {"templates": templates})
+
+
+@login_required
+def calendar_template_detail(request, pk: int):
+    tmpl = get_object_or_404(CalendarTemplate, pk=pk)
+    slots = tmpl.slots.all().order_by("day", "order", "start_time")
+    return render(
+        request,
+        "school/calendar_detail.html",
+        {"template": tmpl, "slots": slots},
+    )
+
+
+# --- Timetable (Weekly grid MVP) ---
+DAYS_ORDER = ["Sun", "Mon", "Tue", "Wed", "Thu"]
+
+
+@login_required
+def timetable_select(request):
+    """Select a class and a calendar template to view the weekly timetable.
+    Read-only MVP: displays the time grid only.
+    """
+    classes = Class.objects.all().order_by("grade", "section", "name")
+    templates = CalendarTemplate.objects.all().order_by("name")
+
+    # Allow simple GET selection as well
+    class_id = request.GET.get("class_id")
+    template_id = request.GET.get("template_id")
+    if request.method == "POST":
+        class_id = request.POST.get("class_id")
+        template_id = request.POST.get("template_id")
+    if class_id and template_id:
+        try:
+            cid = int(class_id)
+            tid = int(template_id)
+            return redirect(reverse("timetable_class_week", args=[cid, tid]))
+        except Exception:
+            pass
+
+    return render(
+        request,
+        "school/timetable_select.html",
+        {"classes": classes, "templates": templates},
+    )
+
+
+@login_required
+def timetable_class_week(request, class_id: int, template_id: int):
+    classroom = get_object_or_404(Class, pk=class_id)
+    tmpl = get_object_or_404(CalendarTemplate, pk=template_id)
+
+    # Build day->list[slot] where slots are expanded for 'ALL' days
+    raw_slots = list(tmpl.slots.all().order_by("day", "order", "start_time"))
+    day_slots = {d: [] for d in DAYS_ORDER}
+    for s in raw_slots:
+        if (s.day or "").upper() == "ALL":
+            for d in DAYS_ORDER:
+                day_slots[d].append(s)
+        else:
+            if s.day in day_slots:
+                day_slots[s.day].append(s)
+
+    # Normalize per-day ordering
+    for d in day_slots:
+        day_slots[d] = sorted(
+            day_slots[d], key=lambda x: (x.order, x.start_time, x.period_index)
+        )
+
+    # Determine the unique period rows based on order/start_time from first non-empty day
+    period_rows = []
+    for d in DAYS_ORDER:
+        if day_slots[d]:
+            for s in day_slots[d]:
+                key = (s.period_index, s.start_time, s.end_time, s.block, s.order)
+                if key not in period_rows:
+                    period_rows.append(key)
+            break
+
+    context = {
+        "classroom": classroom,
+        "template": tmpl,
+        "days": DAYS_ORDER,
+        "day_slots": day_slots,
+        "period_rows": period_rows,
+    }
+    return render(request, "school/timetable_week.html", context)
+
+
+# EOF

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>اختيار الصف والقالب لعرض الجدول الأسبوعي</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; }
+    label { display: block; margin: 0.5rem 0 0.25rem; }
+    select { padding: 6px 8px; min-width: 240px; }
+    button { margin-top: 0.75rem; padding: 8px 14px; cursor: pointer; }
+    .note { color: #555; margin-top: 1rem; }
+    a { text-decoration: none; color: #0b61a4; }
+  </style>
+</head>
+<body>
+  <h1>عرض الجدول الأسبوعي (نسخة أولية للقراءة فقط)</h1>
+  <form method="post">
+    {% csrf_token %}
+    <label for="class_id">الصف</label>
+    <select id="class_id" name="class_id" required>
+      <option value="">— اختر الصف —</option>
+      {% for c in classes %}
+        <option value="{{ c.id }}">{{ c.name }}</option>
+      {% endfor %}
+    </select>
+
+    <label for="template_id">قالب اليوم الدراسي</label>
+    <select id="template_id" name="template_id" required>
+      <option value="">— اختر القالب —</option>
+      {% for t in templates %}
+        <option value="{{ t.id }}">{{ t.name }} ({{ t.scope }}, {{ t.days }})</option>
+      {% endfor %}
+    </select>
+
+    <div>
+      <button type="submit">عرض الجدول</button>
+    </div>
+  </form>
+
+  <p class="note">ملاحظة: هذه نسخة أولية تعرض شبكة الأوقات فقط، دون توزيع حصص المواد بعد.</p>
+  <p><a href="/admin/">لوحة الإدارة</a></p>
+</body>
+</html>

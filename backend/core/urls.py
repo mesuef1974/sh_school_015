@@ -25,6 +25,8 @@ from school.views import (
     SubjectViewSet,
     TeachingAssignmentViewSet,
     ClassSubjectViewSet,
+    CalendarTemplateViewSet,
+    CalendarSlotViewSet,
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 from school.auth import CustomTokenObtainPairView
@@ -36,6 +38,8 @@ router.register(r"staff", StaffViewSet)
 router.register(r"subjects", SubjectViewSet)
 router.register(r"class-subjects", ClassSubjectViewSet)
 router.register(r"teaching-assignments", TeachingAssignmentViewSet)
+router.register(r"calendar-templates", CalendarTemplateViewSet)
+router.register(r"calendar-slots", CalendarSlotViewSet)
 
 urlpatterns = [
     path("admin/", admin.site.urls),

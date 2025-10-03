@@ -394,3 +394,46 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                     created_assignments += 1
 
         return created_assignments, created_subjects
+
+
+# ---- Calendar Template Admin ----
+from .models import CalendarTemplate, CalendarSlot  # noqa: E402
+
+
+class CalendarSlotInline(admin.TabularInline):
+    model = CalendarSlot
+    extra = 0
+    fields = (
+        "day",
+        "period_index",
+        "start_time",
+        "end_time",
+        "block",
+        "order",
+    )
+    ordering = ("day", "order", "start_time")
+
+
+@admin.register(CalendarTemplate)
+class CalendarTemplateAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "scope", "days")
+    search_fields = ("name", "scope", "days")
+    list_filter = ("scope", "days")
+    inlines = [CalendarSlotInline]
+
+
+@admin.register(CalendarSlot)
+class CalendarSlotAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "template",
+        "day",
+        "period_index",
+        "start_time",
+        "end_time",
+        "block",
+        "order",
+    )
+    list_filter = ("template", "day", "block")
+    search_fields = ("template__name", "day", "period_index")
+    ordering = ("template", "day", "order", "start_time")
