@@ -1,0 +1,22 @@
+أوامر سريعة لإعادة تطبيق هجرات Django (Windows PowerShell)
+
+1) تفعيل البيئة الافتراضية والانتقال لمجلد backend:
+   . .\.venv\Scripts\Activate.ps1
+   cd backend
+
+2) إنشاء الهجرات (إن وُجدت تغييرات على النماذج) ثم تطبيقها:
+   python manage.py makemigrations
+   python manage.py migrate
+
+3) التحقق من حالة الهجرات (اختياري):
+   python manage.py showmigrations school
+   python manage.py migrate --plan
+
+4) (اختياري) زرع بيانات فترات اليوم الدراسي بعد الهجرات:
+   python manage.py seed_periods
+
+5) تشغيل الخادم للتأكد:
+   python manage.py runserver 0.0.0.0:8000
+
+بديل سريع ينجز (تشغيل Postgres + migrate + خادم) دفعة واحدة من جذر المشروع:
+   ./scripts/serve.ps1

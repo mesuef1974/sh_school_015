@@ -24,9 +24,41 @@ class ClassAdmin(admin.ModelAdmin):
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ("id", "sid", "full_name", "class_fk", "active")
-    search_fields = ("sid", "full_name")
-    list_filter = ("active", "class_fk")
+    list_display = (
+        "id",
+        "sid",
+        "full_name",
+        "national_no",
+        "class_fk",
+        "grade_label",
+        "section_label",
+        "phone_no",
+        "parent_phone",
+        "nationality",
+        "active",
+    )
+    search_fields = (
+        "sid",
+        "full_name",
+        "national_no",
+        "phone_no",
+        "parent_phone",
+        "parent_name",
+        "parent_national_no",
+        "email",
+        "parent_email",
+        "nationality",
+        "grade_label",
+        "section_label",
+    )
+    list_filter = (
+        "active",
+        "class_fk",
+        "needs",
+        "nationality",
+        "grade_label",
+        "section_label",
+    )
 
 
 @admin.register(Staff)

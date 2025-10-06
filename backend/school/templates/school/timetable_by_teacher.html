@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>معاينة أسبوعية حسب المعلم</title>
+  <style>
+    :root { --brand:#6e0303; --ink:#222; --muted:#666; --line:#ddd; }
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: var(--ink); background:#fafafa; }
+    h1 { margin: 0 0 8px; }
+    .muted { color: var(--muted); }
+    .topbar { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .badge { background: #eee; padding: 2px 6px; border-radius: 6px; font-size: 0.85rem; }
+    a { color: #0b61a4; text-decoration: none; }
+    a.btn { display: inline-block; background: var(--brand); color: #fff; padding: 8px 12px; border-radius: 8px; }
+    .scroll { overflow: auto; max-height: 75vh; border: 1px solid #eee; border-radius: 8px; background:#fff; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; }
+    thead th { position: sticky; top: 0; background: #f6f6f6; z-index: 2; }
+    th, td { border-inline-start: 1px solid var(--line); border-block-start: 1px solid var(--line); padding: 8px 10px; text-align: center; }
+    thead th:first-child, tbody td.teacher, tbody th:first-child { position: sticky; right: 0; background: #f6f6f6; z-index: 3; }
+    tbody td.teacher { background:#fff; text-align: start; white-space: nowrap; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .total { font-weight: 700; }
+    .print { background:#2e7d32; }
+    @media print { .topbar { display:none !important; } thead th, thead th:first-child, tbody th:first-child, tbody td.teacher { position: static; } body { background:#fff; margin:0; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>معاينة أسبوعية حسب المعلم</h1>
+    <div class="actions">
+      <a class="btn print" href="#" onclick="window.print(); return false;">طباعة</a>
+      <a class="btn" href="/timetable/pro/">لوحة الجاهزية</a>
+      <a class="btn" href="/loads/" style="background:#444;">لوحة أحمال المعلمين</a>
+      <a class="btn" href="/admin/" style="background:#0b61a4;">لوحة الإدارة</a>
+    </div>
+  </div>
+  <div class="muted">الصفوف = المعلمين، الأعمدة = الأيام. هذه معاينة توزيع متوازن بناءً على إجمالي الحصص الأسبوعية لكل معلم. انقر على اسم المعلم للاطلاع على جدوله التفصيلي.</div>
+
+  {% if rows and days %}
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>المعلم</th>
+          {% for d in days %}
+            <th>{{ d }}</th>
+          {% endfor %}
+          <th>الإجمالي</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td class="teacher"><a href="{% url 'teacher_timetable' r.teacher.id %}">{{ r.teacher.full_name }}</a></td>
+            {% for n in r.per_day %}
+              <td>{% if n %}{{ n }}{% else %}<span class="muted">0</span>{% endif %}</td>
+            {% endfor %}
+            <td class="total">{{ r.total }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <p>لا توجد بيانات لعرضها. يرجى التأكد من وجود معلمين وتكليفات تدريس.</p>
+  {% endif %}
+
+  <div class="actions" style="margin-top:12px;">
+    <span class="badge">عدد المعلمين: {{ teachers_count }}</span>
+    <a class="btn" href="/timetable/pro/teachers/all/" style="background:#7b1fa2;">كل جداول المعلمين</a>
+  </div>
+</body>
+</html>

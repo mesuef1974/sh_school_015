@@ -1,0 +1,1 @@
+school:  days: [Sun, Mon, Tue, Wed, Thu]  template_name: "الجدول الرسمي"hard_constraints:  teacher:    skip_import:      - "يوسف يعقوب"# يمكن إضافة قيود إضافية لاحقًا. هذا الملف يُقرأ في بعض العروض كمرجع للأيام.

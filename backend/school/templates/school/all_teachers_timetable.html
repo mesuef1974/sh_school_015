@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>جداول جميع المعلمين</title>
+  <style>
+    :root { --brand:#6e0303; --ink:#222; --muted:#666; --line:#ddd; }
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: var(--ink); background:#fafafa; }
+    h1 { margin: 0 0 8px; }
+    h2 { margin: 1rem 0 0.5rem; font-size: 1.1rem; }
+    .muted { color: var(--muted); }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; margin-top: 0.5rem; background:#fff; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+    thead th { position: sticky; top: 0; background: #f6f6f6; z-index: 2; }
+    th, td { border-inline-start: 1px solid var(--line); border-block-start: 1px solid var(--line); padding: 8px 10px; text-align: center; }
+    thead th:first-child, tbody th:first-child { position: sticky; right: 0; background: #f6f6f6; z-index: 3; }
+    tbody th { background: #fcfcfc; font-weight: 700; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .cell { min-width: 120px; }
+    .line1 { font-weight: 700; }
+    .line2 { color: #555; font-size: 0.9rem; }
+    .time { color: #777; font-size: 0.8rem; margin-top:2px; }
+    .teacher-card { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-bottom: 12px; background: #fff; }
+    .actions { margin: 12px 0; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .topbar { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    a { color: #0b61a4; text-decoration: none; }
+    a.btn { display: inline-block; background: var(--brand); color: #fff; padding: 8px 12px; border-radius: 8px; }
+    .btn.print { background:#2e7d32; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fit,minmax(340px,1fr)); gap:12px; }
+    .nav { display:flex; gap:6px; flex-wrap:wrap; }
+    .chip { background:#eee; border-radius:14px; padding:4px 8px; font-size:.9rem; }
+    @media print { .actions, .topbar, .nav { display:none !important; } thead th, thead th:first-child, tbody th:first-child { position: static; } body { background:#fff; margin:0; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>جداول جميع المعلمين</h1>
+    <div class="actions">
+      <a class="btn print" href="#" onclick="window.print(); return false;">طباعة</a>
+      <a class="btn" href="/timetable/pro/teachers/">ملخص المعلمين</a>
+      <a class="btn" href="/timetable/pro/teachers/export.csv" style="background:#2e7d32;">تصدير CSV</a>
+      <a class="btn" href="/timetable/pro/" style="background:#444;">لوحة الجاهزية</a>
+    </div>
+  </div>
+
+  {% if pages %}
+    <div class="nav">
+      {% for pg in pages %}
+        <a class="chip" href="#t{{ pg.teacher.id }}">{{ pg.teacher.full_name }}</a>
+      {% endfor %}
+    </div>
+    <div class="grid">
+    {% for pg in pages %}
+      <div class="teacher-card" id="t{{ pg.teacher.id }}">
+        <h2>{{ pg.teacher.full_name }}</h2>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 100px;">اليوم</th>
+              {% for col in pg.columns %}
+                <th>حصة {{ col.period_index }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in pg.rows %}
+              <tr>
+                <th>{{ r.day }}</th>
+                {% for c in r.cells %}
+                  {% if c.line1 or c.line2 %}
+                    <td class="cell">
+                      <div class="line1">{{ c.line1 }}</div>
+                      <div class="line2">{{ c.line2 }}</div>
+                      {% if c.time %}<div class="time">{{ c.time }}</div>{% endif %}
+                    </td>
+                  {% else %}
+                    <td class="cell muted">{% if c.time %}<span class="time">{{ c.time }}</span>{% else %}—{% endif %}</td>
+                  {% endif %}
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+    </div>
+  {% else %}
+    <p>لا توجد بيانات لعرضها.</p>
+  {% endif %}
+</body>
+</html>

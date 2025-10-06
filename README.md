@@ -243,3 +243,205 @@ curl "http://127.0.0.1:8000/api/classes/" -H "Authorization: Bearer $token"
 - مع Invoke-RestMethod استخدم -ContentType و -Body (وحوّل الجسم إلى JSON عبر ConvertTo-Json).
 - إذا كان لديك كلٌ من curl.exe و alias لـ Invoke-WebRequest، يفضّل استدعاء المسار الكامل لـ curl.exe عند الحاجة: `& $Env:SystemRoot\System32\curl.exe ...`
 - تأكد من تشغيل الخادم أولًا عبر: `./scripts/serve.ps1` وأن متغيرات السوبر يوزر في backend/.env صحيحة.
+
+# منصة الوثائق - sh_school_015
+
+[![CI](https://github.com/mesuef1974/sh_school_015/actions/workflows/python-ci.yml/badge.svg)](https://github.com/mesuef1974/sh_school_015/actions/workflows/python-ci.yml)
+[![Links](https://github.com/mesuef1974/sh_school_015/actions/workflows/links-validate.yml/badge.svg)](https://github.com/mesuef1974/sh_school_015/actions/workflows/links-validate.yml)
+[![CodeQL](https://github.com/mesuef1974/sh_school_015/actions/workflows/codeql.yml/badge.svg)](https://github.com/mesuef1974/sh_school_015/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+بوابة بسيطة باللغة العربية (RTL) تعرض كل الوثائق والملفات المتوفرة داخل هذا المستودع، مع توليد تلقائي للقائمة وروابط مباشرة. تم تضمين تحسينات على الواجهة لإظهار حجم الملف وتاريخ آخر تعديل مع تجميع المحتوى حسب المجلدات.
+
+## المتطلبات
+- Python 3.11 أو أحدث (3.11+) على الجهاز (Windows أو macOS أو Linux)
+
+## كيف أُجهّز بيئة التطوير على ويندوز؟
+لتجنب رسالة "No pyvenv.cfg file" وضمان توفر الأدوات (Black/Flake8)، استخدم السكربت المدمج:
+
+```powershell
+# من جذر المشروع
+./scripts/dev_setup.ps1
+```
+
+ما الذي يفعله السكربت؟
+- ينشئ بيئة افتراضية .venv إذا كانت مفقودة أو تالفة.
+- إذا كانت `.venv` مقفلة أو معطوبة (مثلاً خطأ Permission denied أو غياب pip)، سيحاول حذفها أو استخدام مسار بديل مؤقت `.venv_fix` تلقائيًا وإصلاح pip عبر ensurepip.
+- يفعّل البيئة ويحدث pip.
+- يثبّت الأدوات من requirements-dev.txt (Black و Flake8).
+- يشغّل فحص Black وFlake8، ويشغّل `python gen_index.py --check`. 
+
+إذا أردت تشغيل الأوامر يدويًا:
+```powershell
+python -m venv .venv
+. .\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements-dev.txt
+black --check gen_index.py
+flake8 gen_index.py --max-line-length=100
+python gen_index.py --check
+```
+
+## كيف أُحدّث قائمة المحتوى؟
+1. أضف/احذف الملفات داخل المستودع (HTML, PDF, صور, Excel, …).
+2. شغّل السكربت:
+   - على ويندوز (PowerShell):
+     ```powershell
+     python .\gen_index.py
+     ```
+3. سيتكفّل السكربت بتحديث الجزء الموجود بين العلامتين في `index.html`:
+   ```html
+   <!-- AUTO_LIST_START -->
+   ... يتم الاستبدال هنا تلقائيًا ...
+   <!-- AUTO_LIST_END -->
+   ```
+4. افتح `index.html` محليًا لتتأكد من ظهور العناصر بالشكل المطلوب.
+5. قم بعمل commit ثم push للتغييرات.
+
+ملاحظات:
+- السكربت يستثني تلقائيًا مجلدات شائعة مثل `.git`, `venv`, `node_modules`, `__pycache__`, `build`, `dist`.
+- لروابط الويب يُستخدَم دائمًا الفاصل `/` حتى على ويندوز.
+- يدعم السكربت ترميز المسارات غير اللاتينية تلقائيًا.
+
+## تشغيل السيرفر (Django + Postgres)
+لتشغيل الباكند كاملًا بطريقة احترافية على ويندوز، استخدم السكربت الموحّد:
+
+```powershell
+# من جذر المشروع
+./scripts/serve.ps1
+```
+
+هذا السكربت سيقوم بـ:
+- تشغيل/إعادة تشغيل حاوية Postgres باسم `pg-sh-school` بالاعتمادات من الملف `backend/.env`.
+- تطبيق الترقيات (migrations).
+- إنشاء/تحديث المستخدم الخارق (superuser) تلقائيًا حسب القيم في `.env` (اسم المستخدم/البريد/كلمة المرور).
+- تهيئة صلاحيات المجموعات (RBAC).
+- تشغيل `runserver`.
+
+إذا واجهت مشكلة في رقم المنفذ PG_PORT داخل `.env` (تعليق بجانبه)، سيظهر تحذير بتنظيف القيمة وسيستخدم رقمًا صحيحًا فقط.
+
+## استيراد الجداول من PDF (بدون Java أيضًا)
+إذا أردت استخدام أمر Django لاستيراد الجداول من ملفات PDF، فلديك طريقتان:
+
+- الطريقة الأسهل (موصى بها):
+  ```powershell
+  # من جذر المشروع
+  ./scripts/backend_run.ps1 import_from_pdf D:\sh_school_015\DOC\school_DATA --dry-run
+  ```
+  هذا السكربت يقوم تلقائيًا بإنشاء/تفعيل بيئة .venv وتثبيت الحزم من requirements.txt قبل تنفيذ الأمر.
+
+- الطريقة اليدوية:
+  ```powershell
+  # من جذر المشروع
+  python -m venv .venv
+  . .\.venv\Scripts\Activate.ps1
+  pip install -r requirements.txt
+  python backend\manage.py import_from_pdf D:\sh_school_015\DOC\school_DATA --dry-run
+  ```
+
+ملاحظات هامة:
+- يستخدم الأمر مكتبة tabula-py إن كانت متوفرة (تحتاج Java على النظام). هذا يعطي نتائج جيدة للجداول الشبكية.
+- إن لم تتوفر Java أو فشل tabula، فهناك مسار بديل تلقائي يعمل بدون Java عبر pdfplumber + pandas (تمت إضافته في هذا المشروع).
+- للتأكد من توفر الاعتماديات الخاصة بالمسار البديل (بدون Java):
+  ```powershell
+  pip install -r requirements-dev.txt
+  ```
+  هذا سيثبت pandas و pdfplumber الضروريّتين للمسار البديل.
+- يمكنك إزالة راية `--dry-run` للتنفيذ الفعلي بعد التأكد من صحة القراءة.
+
+استكشاف الأخطاء:
+- ImportError: No module named 'django'
+  - السبب: لم تُثبّت الاعتماديات داخل البيئة الافتراضية الفعّالة.
+  - الحل السريع: استخدم السكربت الموحّد:
+    ```powershell
+    ./scripts/backend_run.ps1 import_from_pdf D:\sh_school_015\DOC\school_DATA --dry-run
+    ```
+    أو ثبّت يدويًا ثم أعد التنفيذ:
+    ```powershell
+    . .\.venv\Scripts\Activate.ps1
+    pip install -r requirements.txt
+    python backend\manage.py import_from_pdf D:\sh_school_015\DOC\school_DATA --dry-run
+    ```
+
+إذا ظهرت رسالة مثل: `java command is not found`، فهذا يعني أن tabula حاولت العمل دون Java؛ ومع ذلك سيحاول الأمر تلقائيًا استخدام pdfplumber. إذا ظهر تنبيه بضرورة تثبيت pdfplumber أو pandas فقم بتثبيتهما كما في الأعلى.
+
+## النسخ الاحتياطي والاستعادة لقاعدة البيانات (Postgres)
+- إنشاء نسخة احتياطية (داخل مجلد backups افتراضيًا):
+  ```powershell
+  # تأكد أن الحاوية تعمل عبر serve.ps1 أو db_up.ps1
+  ./scripts/db_backup.ps1
+  # أو ضغط gzip
+  ./scripts/db_backup.ps1 -Gzip
+  ```
+- استعادة نسخة احتياطية (تحذف محتوى قاعدة البيانات أولًا):
+  ```powershell
+  # مثال عملي حسب طلبك لاستعادة هذا الملف:
+  ./scripts/db_restore.ps1 "D:\\sh_school_015\\backups\\pg_backup_sh_school_20251003_153856.sql" -Force
+  ```
+  خيارات:
+  - استخدم `-Force` لتخطي سؤال التأكيد.
+  - استخدم `-SkipDrop` إذا كنت لا تريد حذف مخطط public قبل الاستعادة (غير مستحسن عادةً).
+
+ملاحظات:
+- السكربتان يقرآن إعدادات الاتصال من `backend/.env` (PG_USER, PG_PASSWORD, PG_DB, PG_PORT).
+- تتم العملية بالكامل داخل الحاوية `pg-sh-school`، ويتم نسخ ملف النسخة الاحتياطية مؤقتًا إلى داخلها ثم حذفه.
+
+
+## استيراد الطلاب من Excel (يدعم شيت لكل صف)
+إذا كان ملف Excel يحتوي على ورقة (Sheet) لكل صف، أصبح أمر الاستيراد يدعم ذلك مباشرة:
+
+- تجربة بدون كتابة (Dry-Run):
+```powershell
+python backend\manage.py import_students "D:\\sh_school_015\\DOC\\school_DATA\\new_studants.xlsx" --all-sheets --sheet-per-class --dry-run
+```
+
+- تنفيذ فعلي (آمن للإعادة – يعتمد على national_no):
+```powershell
+python backend\manage.py import_students "D:\\sh_school_015\\DOC\\school_DATA\\new_studants.xlsx" --all-sheets --sheet-per-class
+```
+
+شرح الخيارات:
+- --all-sheets: يستورد كل الأوراق في المصنف (يمكن بدلاً منه استخدام: --sheet ALL).
+- --sheet-per-class: يتعامل مع اسم الورقة كاسم الصف/الشعبة إذا كان عمود section مفقودًا أو فارغًا،
+  ويحاول استخراج رقم الصف من اسم الورقة إذا كان عمود grade مفقودًا.
+- ما زال بإمكانك تحديد ورقة معينة بالاسم أو الفهرس:
+```powershell
+python backend\manage.py import_students "D:\\sh_school_015\\DOC\\school_DATA\\new_studants.xlsx" --sheet "الصف- 12" --sheet-per-class --dry-run
+```
+ملاحظة هامة: لا تستخدم مسارًا افتراضيًا مثل `...xlsx`. يجب وضع المسار الحقيقي للملف، ووضعه بين علامات اقتباس. في سطور أوامر PowerShell داخل أمثلة Python، استخدم شرطة خلفية مزدوجة `\\` داخل السلسلة.
+
+ملاحظات:
+- الأعمدة المتوقعة إن وجدت: national_no, studant_name, studant_englisf_name, date_of_birth, needs,
+  grade, section, stu_phone_no, stu_email, nationality, parent_national_no, name_parent, relation_parent,
+  extra_phone_no, parent_email. أي عمود مفقود يُعامل كفارغ وستظهر رسالة تحذير.
+  - ملاحظة: لا يزال الحقل القديم parent_phone مدعومًا كبديل (fallback) لملء parent_national_no إذا لم يتوفر عمود خاص به.
+- عند تفعيل --sheet-per-class: إذا كان عمود section غير موجود/فارغ، سيُستخدم اسم الورقة كـ section_label
+  وكذلك كاسم الصف لإنشاء/مطابقة كيان Class في قاعدة البيانات. وإذا كان عمود grade مفقودًا، سيُحاول استخراج رقم
+  الصف من بداية اسم الورقة (مثل 12 من "12/1" أو "12-Science").
+
+- معالجة تاريخ الميلاد والعمر: يتم حفظ تاريخ الميلاد (dob) كما في الملف، ويتم حساب العمر (age) تلقائيًا عند الحفظ
+  اعتمادًا على تاريخ اليوم. لا حاجة لإدخال العمر يدويًا، وسيتم تحديثه تلقائيًا عند تعديل dob.
+- معالجة الجنسية: يمكنك تزويد عمود باسم nationality أو بالعربية "الجنسية"، وسيتم استيراده إلى حقل الجنسية في النموذج.
+
+### طلبك الحالي: مسح الطلاب واستيراد جديد + جلب الجنسية من ملف آخر
+- لمسح جميع بيانات الطلاب ثم الاستيراد من الملف الجديد مع جلب الجنسية من ملف آخر، استخدم:
+```powershell
+# مسح الطلاب ثم الاستيراد من الملف الرئيسي مع اعتبار كل شيت صفًا
+python backend\manage.py import_students "D:\sh_school_015\DOC\school_DATA\new_studants.xlsx" --all-sheets --sheet-per-class --clean --nationality-xlsx "D:\sh_school_015\DOC\school_DATA\students_03.xlsx" --expect-total 742
+```
+شرح الخيارات المضافة:
+- `--wipe`: يحذف جميع سجلات الطلاب الحالية قبل الاستيراد (احذر: لا رجعة بدون نسخة احتياطية).
+- `--clean`: اختصار عربي لـ "الاستيراد على نظافة" — يعمل تمامًا مثل `--wipe` لتهيئة البيانات قبل الاستيراد.
+- `--nationality-xlsx`: مسار ملف Excel إضافي يحتوي على عمود الجنسية. تتم المطابقة أساسًا على الحقل national_no. إذا لم تتوفر الجنسية داخل الملف الرئيسي فسيتم أخذها من هذا الملف.
+- تبقى جميع الخيارات السابقة متاحة مثل `--dry-run` للتجربة قبل التنفيذ الفعلي.
+- ملاحظة: عند استخدام `--clean` أو `--wipe` سيتم إعادة ضبط تسلسل أرقام المعرّفات IDs لجدول الطلاب تلقائيًا بحيث تبدأ من 1، وعند استيراد 742 طالبًا ستكون المعرفات من 1 إلى 742.
+
+
+### ملاحظة مهمة حول جوال/إيميل ولي الأمر
+- العمود parent_phone_no مدعوم تلقائيًا (يُعامل كـ parent_phone) وبجانب ذلك يتم التعامل مع extra_phone_no إن وُجد.
+- إذا احتوت خانة جوال ولي الأمر على رقمين أو أكثر، فسيتم توزيعها كالتالي:
+  - الرقم الأول → parent_phone (الرئيسي)
+  - الرقم الثاني وما بعده → extra_phone_no (مفصولة بفواصل)
+- إذا لم يوجد رقم في parent_phone لكن يوجد في extra_phone_no، فسيؤخذ أول رقم من extra_phone_no كرقم رئيسي، والباقي يبقى في extra_phone_no.
+- يتم تنظيف الأرقام واستخراج المتتاليات الرقمية ذات 6 أرقام فأكثر فقط، مع إزالة التكرارات والحفاظ على الترتيب.
+- يتم استيراد بريد ولي الأمر من العمود parent_email (وكذلك الأسماء العربية المكافئة مثل "ايميل ولي الامر" و"البريد الالكتروني لولي الامر").

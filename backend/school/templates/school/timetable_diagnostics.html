@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تشخيص الجدول — كامل المدرسة</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: #222; }
+    h1 { margin: 0 0 8px; }
+    .muted { color: #666; }
+    .badge { background: #eee; padding: 3px 8px; border-radius: 999px; font-size: 0.85rem; display:inline-block; }
+    .badges { display:flex; flex-wrap:wrap; gap:8px; margin: 6px 0 10px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 12px; margin: 12px 0; }
+    .card { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 12px; }
+    .ok { color: #1b7f2a; font-weight: 700; }
+    .warn { color: #9a6b00; font-weight: 700; }
+    .err { color: #a00; font-weight: 700; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+    th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: start; }
+    th { background: #f8f8f8; text-align: center; }
+    .actions { margin: 12px 0; display:flex; gap:8px; flex-wrap:wrap; }
+    a { color: #0b61a4; text-decoration: none; }
+    a.btn { display:inline-block; background:#6e0303; color:#fff; padding:8px 12px; border-radius:8px; }
+    a.btn.secondary { background:#444; }
+    a.btn.alt { background:#7b1fa2; }
+    a.btn.warn { background:#d84315; }
+    .small { font-size: 0.92rem; }
+  </style>
+</head>
+<body>
+  <h1>تشخيص الجدول — كامل المدرسة</h1>
+  <div class="muted small">يفحص مطابقة السعة، التجاور الإلزامي، التكرارات داخل اليوم، وتعارضات المعلم عبر الصفوف.</div>
+
+  <div class="badges">
+    <span class="badge">عدد الصفوف: {{ classes_count }}</span>
+    <span class="badge" style="background:#fff3cd;">عدد المشكلات المرصودة: {{ issues_count }}</span>
+    <span class="badge" style="background:#fdeaea;">تعارضات المعلمين: {{ conflicts_count }}</span>
+    <span class="badge" style="background:#e7f5e8;">الوضع: مصدر البيانات من قاعدة البيانات فقط</span>
+  </div>
+
+  <div class="actions">
+    <a class="btn" href="/timetable/pro/">لوحة الجاهزية</a>
+    <a class="btn alt" href="/timetable/pro/teachers/">معاينة حسب المعلم</a>
+    <a class="btn secondary" href="/admin/">لوحة الإدارة</a>
+    <a class="btn warn" href="?export=csv">تصدير CSV</a>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 6px;">ملخص المشاكل لكل صف</h3>
+    {% if issues %}
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60px">#</th>
+            <th>الصف</th>
+            <th style="width:220px">النوع</th>
+            <th>التفاصيل</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in issues %}
+            <tr>
+              <td style="text-align:center;">{{ forloop.counter }}</td>
+              <td>{{ it.class }}</td>
+              <td style="text-align:center;">
+                {% if it.kind == 'capacity_mismatch' %}
+                  <span class="badge">capacity_mismatch</span>
+                {% elif it.kind == 'duplicate_subject_in_day' %}
+                  <span class="badge" style="background:#fdeaea;">duplicate_subject_in_day</span>
+                {% elif it.kind == 'adjacency_odd_total' %}
+                  <span class="badge" style="background:#fff3cd;">adjacency_odd_total</span>
+                {% else %}
+                  <span class="badge">{{ it.kind }}</span>
+                {% endif %}
+              </td>
+              <td>{{ it.detail }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="muted">لا توجد مشاكل مرصودة على مستوى الصفوف.</div>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h3 style="margin:0 0 6px;">تعارضات المعلمين (نفس اليوم والحصة)</h3>
+    {% if teacher_conflicts %}
+      <table>
+        <thead>
+          <tr>
+            <th style="width:70px">#</th>
+            <th style="width:80px; text-align:center;">اليوم</th>
+            <th style="width:80px; text-align:center;">الحصة</th>
+            <th>المعلم</th>
+            <th>الصفوف المتعارضة</th>
+            <th style="width:120px; text-align:center;">عدد التعارضات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in teacher_conflicts %}
+            <tr>
+              <td style="text-align:center;">{{ forloop.counter }}</td>
+              <td style="text-align:center;">{{ c.day }}</td>
+              <td style="text-align:center;">{{ c.period }}</td>
+              <td>{{ c.teacher }}</td>
+              <td>{{ c.classes }}</td>
+              <td style="text-align:center;">{{ c.count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="muted">لا توجد تعارضات بين المعلمين عبر الصفوف لنفس اليوم والحصة.</div>
+    {% endif %}
+  </div>
+
+  <div class="muted small" style="margin-top:10px;">
+    ملاحظة: هذا التشخيص يعتمد على معاينة داخلية (DB-only) دون تخزين جدول فعلي. استخدم تصدير CSV لمراجعة تفصيلية خارجية.
+  </div>
+</body>
+</html>

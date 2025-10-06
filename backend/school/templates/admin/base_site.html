@@ -1,0 +1,17 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{# Keep default branding #}
+{% block branding %}
+  {{ block.super }}
+{% endblock %}
+
+{# Add global navigation shortcuts to the timetable tools #}
+{% block nav-global %}
+  {{ block.super }}
+  <div style="margin-inline-start:auto; display:flex; gap:8px; align-items:center;">
+    <a href="{% url 'timetable_pro' %}" class="button" style="background:#6e0303;color:#fff;padding:6px 10px;border-radius:6px;text-decoration:none;">الجدول الاحترافي</a>
+    <a href="{% url 'timetable_new' %}" class="button" style="background:#444;color:#fff;padding:6px 10px;border-radius:6px;text-decoration:none;">معاينة الجدول</a>
+    <a href="{% url 'calendar_list' %}" class="button" style="padding:6px 10px;border-radius:6px;text-decoration:none;border:1px solid #ddd;">قوالب اليوم الدراسي</a>
+  </div>
+{% endblock %}

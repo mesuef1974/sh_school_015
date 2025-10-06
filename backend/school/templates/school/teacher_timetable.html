@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>جدول المعلم — {{ teacher.full_name }}</title>
+  <style>
+    :root { --brand:#6e0303; --ink:#222; --muted:#666; --line:#ddd; --bg:#fff; }
+    html, body { height: 100%; }
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: var(--ink); background: #fafafa; }
+    h1 { margin: 0 0 8px; font-size: 1.4rem; }
+    .subtitle { color: var(--muted); margin-bottom: 10px; }
+    .wrap { background: var(--bg); border: 1px solid #eee; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.04); padding: 12px; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; margin-top: 0.75rem; background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+    thead th { position: sticky; top: 0; background: #f6f6f6; z-index: 2; }
+    th, td { border-inline-start: 1px solid var(--line); border-block-start: 1px solid var(--line); padding: 10px; text-align: center; }
+    thead th:first-child, tbody th:first-child { position: sticky; right: 0; background: #f6f6f6; z-index: 3; }
+    tbody th { background: #fcfcfc; font-weight: 700; }
+    tr:nth-child(even) td { background: #fafafa; }
+    .cell { min-width: 140px; }
+    .line1 { font-weight: 700; }
+    .line2 { color: #555; font-size: 0.9rem; }
+    .time { color: #777; font-size: 0.85rem; margin-top: 2px; }
+    a { color: #0b61a4; text-decoration: none; }
+    a.btn { display: inline-block; background: var(--brand); color: #fff; padding: 8px 12px; border-radius: 8px; }
+    .actions { margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .badge { background:#eee; padding:2px 6px; border-radius:6px; font-size:.85rem; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .right { display:flex; gap:8px; }
+    .print-btn { background:#2e7d32; }
+    @media print {
+      body { margin: 0; background: #fff; }
+      .actions, .toolbar { display: none !important; }
+      thead th { position: static; }
+      thead th:first-child, tbody th:first-child { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>جدول المعلم — {{ teacher.full_name }}</h1>
+    <div class="right">
+      <a class="btn print-btn" href="#" onclick="window.print(); return false;">طباعة</a>
+      <a class="btn" href="/timetable/pro/teachers/">ملخص المعلمين</a>
+    </div>
+  </div>
+  <div class="subtitle">شبكة أسبوعية حسب الأيام والحصص مع توقيت كل حصة.</div>
+  <div class="wrap">
+  {% if rows and columns %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 110px;">اليوم</th>
+        {% for col in columns %}
+          <th>حصة {{ col.period_index }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <th>{{ r.day }}</th>
+        {% for c in r.cells %}
+          {% if c.line1 or c.line2 %}
+            <td class="cell">
+              <div class="line1">{{ c.line1 }}</div>
+              <div class="line2">{{ c.line2 }}</div>
+              {% if c.time %}<div class="time">{{ c.time }}</div>{% endif %}
+            </td>
+          {% else %}
+            <td class="cell muted">{% if c.time %}<span class="time">{{ c.time }}</span>{% else %}—{% endif %}</td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p>لا تتوفر بنية صالحة للعرض. يرجى التأكد من وجود فترات (block = CLASS) في القالب.</p>
+  {% endif %}
+  </div>
+
+  <div class="actions">
+    <span class="badge">عدد الأيام: {{ rows|length }}</span>
+    <a class="btn" href="/timetable/pro/teachers/all/" style="background:#7b1fa2;">كل المعلمين</a>
+    <a class="btn" href="/timetable/pro/" style="background:#444;">لوحة الجاهزية</a>
+    <a class="btn" href="/admin/" style="background:#0b61a4;">لوحة الإدارة</a>
+  </div>
+</body>
+</html>

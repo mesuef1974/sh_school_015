@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>لوحة القوانين — تحرير YAML</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: #222; }
+    h1 { margin: 0 0 8px; }
+    .muted { color: #666; }
+    .card { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 12px; }
+    textarea { width: 100%; min-height: 60vh; font-family: Consolas, Monaco, 'Courier New', monospace; font-size: 14px; direction: ltr; }
+    .actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .btn { display: inline-block; background: #6e0303; color: #fff; padding: 8px 12px; border-radius: 8px; text-decoration: none; }
+    .btn.secondary { background: #444; }
+    .help { background: #faf7f9; border: 1px solid #eee; border-radius: 8px; padding: 8px 12px; margin-top: 10px; }
+    code { background: #f5f5f5; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>لوحة القوانين — تحرير ملف YAML</h1>
+  <div class="muted">تحذير: أي خطأ في الصيغة سيمنع الحفظ. يتم التحقق من صحة YAML قبل الكتابة.</div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="card">
+      <textarea name="yaml_text" spellcheck="false">{{ yaml_text }}</textarea>
+    </div>
+    <div class="actions">
+      <button class="btn" type="submit">حفظ الملف</button>
+      <a class="btn secondary" href="/timetable/pro/">الرجوع إلى لوحة الجاهزية</a>
+    </div>
+  </form>
+
+  <div class="help">
+    <strong>مفاتيح شائعة:</strong>
+    <pre style="white-space:pre-wrap;">preferences:
+  strict_mode: true    # التزام صارم بعدد الحصص المسندة (لا تكرار ولا ملء قسري)
+  teacher_free_days:
+    # "اسم المعلم": يوم
+  first_period_preferences:
+    # Arabic: true
+  extra_fill:
+    strategy: off      # off | balanced (تستخدم فقط إذا strict_mode = false)
+constraints:
+  class:
+    max_periods_per_day: 7
+  teacher:
+    max_periods_per_day: 6
+    max_periods_per_week: 28
+    avoid_consecutive_periods: true
+  subject:
+    one_per_day_default: true
+    spread_evenly: true
+    avoid_last_period_for: [Math, Physics]
+    must_be_adjacent_for: [Technology, IT, "تكنولوجيا", "حاسب"]</pre>
+  </div>
+</body>
+</html>

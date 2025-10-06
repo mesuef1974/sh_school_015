@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>الجدول العام للمعلمين</title>
+  <style>
+    body{font-family:"Tahoma","Segoe UI",Arial,sans-serif;}
+    table{border-collapse:collapse;width:100%;table-layout:fixed;}
+    th,td{border:1px solid #222;padding:2px 4px;text-align:center;vertical-align:middle;}
+    thead th{background:#f3f3f3;font-weight:700;}
+    .sticky-header thead th{position:sticky;top:0;z-index:2;}
+    .teacher-col{width:180px;max-width:180px;text-align:right;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .period{font-size:12px;color:#333;}
+    .cell-text{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .day-title{background:#e9eef7;font-size:14px;}
+    .note{margin:10px 0;color:#666;font-size:12px;}
+    @media print{
+      .no-print{display:none;}
+      body{margin:0;}
+      table{font-size:11px;}
+      .teacher-col{width:140px;max-width:140px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="no-print" style="margin:10px 0;display:flex;gap:8px;align-items:center;justify-content:space-between;">
+    <h2 style="margin:0;">الجدول العام للمعلمين</h2>
+    <div>
+      <button onclick="window.print()">طباعة</button>
+      <a href="{% url 'teachers_export_csv' %}" target="_blank">تصدير CSV</a>
+    </div>
+  </div>
+  <div class="note no-print">الصفوف = المعلمون، الأعمدة = الأيام والحصص. الخلية تعرض اسم الصف (مثال: 10-3).</div>
+
+  <div style="overflow:auto;">
+    <table class="sticky-header">
+      <thead>
+        <tr>
+          <th class="day-title teacher-col" rowspan="2">المعلم</th>
+          {% for d in header.days %}
+            <th class="day-title" colspan="{{ d.colspan }}">{{ d.arabic }}</th>
+          {% endfor %}
+        </tr>
+        <tr>
+          {% for d in header.days %}
+            {% for p in d.periods %}
+              <th class="period">{{ p }}</th>
+            {% endfor %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td class="teacher-col" title="{{ row.teacher.full_name }}"><a href="{% url 'teacher_timetable' row.teacher.id %}" style="color: inherit; text-decoration: none;">{{ row.teacher.full_name }}</a></td>
+            {% for c in row.cells %}
+              <td><div class="cell-text">{{ c.text }}</div></td>
+            {% endfor %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="999">لا توجد بيانات لعرضها.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</body>
+</html>

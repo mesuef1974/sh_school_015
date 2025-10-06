@@ -1,0 +1,6 @@
+[flake8]
+max-line-length = 120
+extend-ignore =
+    # handled by black or not useful for this project
+    E203,
+    W503

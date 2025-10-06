@@ -22,16 +22,58 @@ class Class(models.Model):
 class Student(models.Model):
     sid = models.CharField(max_length=30, unique=True)
     full_name = models.CharField(max_length=200)
+    english_name = models.CharField(max_length=200, blank=True)
+    national_no = models.CharField(max_length=30, unique=True, null=True, blank=True)
+    needs = models.BooleanField(default=False, help_text="احتياجات خاصة")
     class_fk = models.ForeignKey(
         Class, on_delete=models.SET_NULL, null=True, related_name="students"
     )
+    grade_label = models.CharField(
+        max_length=50, blank=True, help_text="مثل 12-Science"
+    )
+    section_label = models.CharField(max_length=50, blank=True, help_text="مثل 12/1")
     dob = models.DateField(null=True, blank=True)
     nationality = models.CharField(max_length=100, blank=True)
     age = models.PositiveSmallIntegerField(null=True, blank=True)
+    phone_no = models.CharField(max_length=200, blank=True)
+    email = models.EmailField(blank=True)
+    parent_name = models.CharField(max_length=200, blank=True)
+    parent_relation = models.CharField(max_length=50, blank=True)
+    parent_national_no = models.CharField(
+        max_length=30, blank=True, help_text="الرقم الوطني لولي الأمر"
+    )
+    parent_phone = models.CharField(max_length=200, blank=True)
+    extra_phone_no = models.CharField(max_length=200, blank=True)
+    parent_email = models.EmailField(blank=True)
     active = models.BooleanField(default=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["national_no"], name="student_natno_idx"),
+        ]
 
     def __str__(self) -> str:
         return f"{self.sid} - {self.full_name}"
+
+    def save(self, *args, **kwargs):
+        # Auto-compute age from dob if available
+        try:
+            from datetime import date as _date
+
+            if self.dob:
+                today = _date.today()
+                years = (
+                    today.year
+                    - self.dob.year
+                    - ((today.month, today.day) < (self.dob.month, self.dob.day))
+                )
+                if years < 0:
+                    years = 0
+                self.age = years
+        except Exception:
+            # Never block saving due to age computation
+            pass
+        super().save(*args, **kwargs)
 
 
 class Staff(models.Model):
@@ -208,6 +250,34 @@ class CalendarSlot(models.Model):
         return (
             f"{self.template.name} - {self.day} - {self.period_index} "
             f"({self.start_time}-{self.end_time})"
+        )
+
+
+class TimetableEntry(models.Model):
+    classroom = models.ForeignKey(
+        Class, on_delete=models.CASCADE, related_name="timetable_entries"
+    )
+    day = models.CharField(max_length=10, help_text="Sun, Mon, Tue, Wed, Thu")
+    slot = models.ForeignKey(
+        CalendarSlot, on_delete=models.PROTECT, related_name="timetable_entries"
+    )
+    subject = models.ForeignKey(Subject, on_delete=models.PROTECT)
+    teacher = models.ForeignKey(Staff, on_delete=models.PROTECT)
+
+    class Meta:
+        verbose_name = "حصة مجدولة"
+        verbose_name_plural = "حصص مجدولة"
+        unique_together = ("classroom", "day", "slot")
+        indexes = [
+            models.Index(fields=["classroom", "day"], name="tt_class_day_idx"),
+            models.Index(fields=["slot"], name="tt_slot_idx"),
+            models.Index(fields=["teacher"], name="tt_teacher_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"{self.classroom.name} - {self.day} - {self.slot.period_index} - "
+            f"{self.subject.name_ar} - {self.teacher.full_name}"
         )
 
 

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>معاينة مهنية — {{ classroom.name }}</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: #222; }
+    h1 { margin: 0 0 8px; }
+    .muted { color: #666; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: center; }
+    th { background: #f6f6f6; }
+    .cell { min-width: 120px; }
+    .subject { font-weight: 700; }
+    .teacher { color: #555; font-size: 0.9rem; }
+    .badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+    .actions { margin-top: 12px; }
+    a { color: #0b61a4; text-decoration: none; }
+    a.btn { display: inline-block; background: #6e0303; color: #fff; padding: 8px 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>معاينة مهنية مبدئية — {{ classroom.name }}</h1>
+  <div class="muted">قالب: {{ template.name }}</div>
+  {% if applied_rules %}
+  <div style="margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <span class="badge" style="background:#e7f5e8;">المصدر: قاعدة البيانات</span>
+    {% if applied_rules.subject_adjacency %}<span class="badge">مواد متجاورة</span>{% endif %}
+    {% if applied_rules.subject_spread_evenly %}<span class="badge">توزيع متوازن</span>{% endif %}
+    {% if applied_rules.subject_one_per_day %}<span class="badge">مادة مرة يوميًا</span>{% endif %}
+    {% if applied_rules.subject_avoid_last %}<span class="badge">تجنب الحصة الأخيرة</span>{% endif %}
+    {% if applied_rules.teacher_daily_cap %}<span class="badge">حد يومي للمعلم</span>{% endif %}
+    {% if applied_rules.teacher_weekly_cap %}<span class="badge">حد أسبوعي للمعلم</span>{% endif %}
+    {% if applied_rules.teacher_no_consecutive %}<span class="badge">منع التتابع للمعلم</span>{% endif %}
+    {% if applied_rules.class_daily_cap %}<span class="badge">حد يومي للصف</span>{% endif %}
+    {% if applied_rules.first_period_prefs %}<span class="badge">أفضلية الحصة الأولى</span>{% endif %}
+    {% if applied_rules.teacher_free_day %}<span class="badge">أيام تفرغ للمعلمين</span>{% endif %}
+    {% if not db_source_mode and empty_cells and empty_cells > 0 %}
+      <a class="btn" href="?complete=1&amp;prefer=%D8%AA%D9%83%D9%86%D9%88%D9%84%D9%88%D8%AC%D9%8A%D8%A7%20%D8%A7%D9%84%D9%85%D8%B9%D9%84%D9%88%D9%85%D8%A7%D8%AA" style="background:#2e7d32;">أكمل الإسناد</a>
+    {% endif %}
+    {% if complete_mode %}<span class="badge" style="background:#e3f2fd;">وضع الإكمال قيد التشغيل</span>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="muted" style="margin-top:6px;">
+    {% if totals %}
+      <span class="badge">مطلوب أسبوعيًا: {{ totals.required }}</span>
+      <span class="badge">سعة القالب: {{ totals.slots }}</span>
+      <span class="badge">المسند (التمرير الأول): {{ totals.placed_first }}</span>
+      {% if fallback_filled and fallback_filled > 0 %}
+        <span class="badge" style="background:#e7f5e8;">استخدام تمرير احتياطي +{{ fallback_filled }}</span>
+      {% endif %}
+      {% if forced_filled and forced_filled > 0 %}
+        <span class="badge" style="background:#e3f2fd;">ملء قسري +{{ forced_filled }}</span>
+      {% endif %}
+      {% if extra_filled and extra_filled > 0 %}
+        <span class="badge" style="background:#fff3cd;">تكرار لإكمال السعة +{{ extra_filled }}</span>
+      {% endif %}
+      {% if unplaced_count and unplaced_count > 0 %}
+        <span class="badge" style="background:#fdeaea;color:#a00;">غير مُسنّد: {{ unplaced_count }}</span>
+      {% else %}
+        <span class="badge" style="background:#e7f5e8;">اكتمل الإسناد</span>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {% if rows and columns %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 80px;">اليوم</th>
+        {% for col in columns %}
+          <th>{{ col.period_index }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <th>{{ r.day }}</th>
+        {% for c in r.cells %}
+          {% if c %}
+            <td class="cell">
+              <div class="subject">{{ c.label }}</div>
+              <div class="teacher">{{ c.sub }}</div>
+              {% if c.time %}<div class="muted" style="font-size:0.85rem;">{{ c.time }}</div>{% endif %}
+            </td>
+          {% else %}
+            <td class="cell muted">{% if c and c.time %}<span class="muted">{{ c.time }}</span>{% else %}—{% endif %}</td>
+          {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p>لا تتوفر بنية صالحة للعرض. يرجى التأكد من وجود فترات (block = CLASS) في القالب.</p>
+  {% endif %}
+
+  <div class="actions">
+    <a class="btn" href="/timetable/pro/">لوحة الجاهزية</a>
+    <a class="btn" href="/calendar/" style="background:#444;">إدارة الفترات</a>
+    <a class="btn" href="/admin/" style="background:#0b61a4;">لوحة الإدارة</a>
+    {% if unplaced_count and unplaced_count > 0 %}
+      <span class="badge" style="margin-inline-start:8px;">لم يتم إسناد {{ unplaced_count }} حصة</span>
+    {% endif %}
+  </div>
+</body>
+</html>

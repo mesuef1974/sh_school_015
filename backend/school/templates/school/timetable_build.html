@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>بناء جدول المدرسة — معاينة</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: #222; }
+    h1 { margin: 0 0 8px; }
+    .muted { color: #666; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: center; }
+    th { background: #f6f6f6; }
+    .badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+    .actions { margin-top: 12px; display:flex; gap:8px; flex-wrap:wrap; }
+    a { color: #0b61a4; text-decoration: none; }
+    a.btn { display:inline-block; background:#6e0303; color:#fff; padding:8px 12px; border-radius:8px; }
+    a.btn.secondary { background:#444; }
+    a.btn.alt { background:#2e7d32; }
+  </style>
+</head>
+<body>
+  <h1>بناء جدول المدرسة — معاينة</h1>
+  <div class="muted">بناء في الذاكرة اعتمادًا على قاعدة البيانات فقط (لا يتم الحفظ).</div>
+  <div style="margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <span class="badge">الأيام: {{ days|join:', ' }}</span>
+    <span class="badge">عدد الأعمدة (حصص الفصل): {{ columns|length }}</span>
+    <span class="badge" style="background:#e7f5e8;">الخلايا المعبأة: {{ filled_cells }} / {{ total_cells }}</span>
+  </div>
+
+  {% if summaries %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:60px">#</th>
+        <th>الصف</th>
+        <th>خلايا معبأة</th>
+        <th>خلايا فارغة</th>
+        <th>حصص غير مُسنّدة (مطلوب متبقٍ)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in summaries %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td>{{ s.name }}</td>
+        <td>{{ s.filled }}</td>
+        <td>{% if s.empty %}{{ s.empty }}{% else %}<span class="muted">0</span>{% endif %}</td>
+        <td>{% if s.unassigned %}<span style="color:#a00; font-weight:700;">{{ s.unassigned }}</span>{% else %}<span class="muted">0</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p>لا توجد صفوف لعرضها.</p>
+  {% endif %}
+
+  <div class="actions">
+    <a class="btn" href="/timetable/pro/">لوحة الجاهزية</a>
+    <a class="btn secondary" href="/timetable/pro/diagnostics/">تشخيص الجدول</a>
+    <a class="btn alt" href="?export=csv">تصدير CSV</a>
+    <a class="btn" href="/admin/" style="background:#0b61a4;">لوحة الإدارة</a>
+  </div>
+
+  <form method="post" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+    {% csrf_token %}
+    <button type="submit" name="action" value="save" class="btn" style="background:#2e7d32;">حفظ الجدول في قاعدة البيانات</button>
+    <button type="submit" name="action" value="clear" class="btn secondary" onclick="return confirm('هل أنت متأكد من حذف الجدول المخزّن؟');">حذف الجدول المخزَّن</button>
+  </form>
+
+  {% if class_grids %}
+  <h2 style="margin-top:18px;">المعاينة التفصيلية لكل صف</h2>
+  <p class="muted">ملاحظة: هذه معاينة في الذاكرة فقط — لا يتم الحفظ في قاعدة البيانات.</p>
+  {% for cg in class_grids %}
+    <details style="margin:10px 0;">
+      <summary style="cursor:pointer; font-weight:700;">{{ cg.name }}</summary>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:60px">اليوم</th>
+            {% for col in columns %}
+              <th>حصة {{ col.period_index }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in cg.rows %}
+          <tr>
+            <td>{{ r.day }}</td>
+            {% for cell in r.cells %}
+              <td>{% if cell.text %}{{ cell.text }}{% else %}<span class="muted">—</span>{% endif %}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endfor %}
+  {% endif %}
+</body>
+</html>

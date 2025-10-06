@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>الجدول الاحترافي — لوحة الجاهزية</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: #222; }
+    h1 { margin: 0 0 8px; }
+    .muted { color: #666; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 12px; margin: 12px 0; }
+    .card { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 12px; }
+    .ok { color: #1b7f2a; font-weight: 700; }
+    .warn { color: #9a6b00; font-weight: 700; }
+    .err { color: #a00; font-weight: 700; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+    th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: center; }
+    th { background: #f8f8f8; }
+    .badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+    a { color: #0b61a4; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .actions { margin-top: 12px; }
+    .btn { display: inline-block; background: #6e0303; color: #fff; padding: 8px 12px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>الجدول الاحترافي — لوحة الجاهزية</h1>
+  <p class="muted">هذه اللوحة تفحص البيانات والقوالب للتأكد من الجاهزية قبل بناء مُولِّد الجدول الاحترافي.</p>
+  <div class="muted" style="margin-top:6px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    {% if readiness.total_classes %}
+      <span class="badge">نسبة الجاهزية: {{ readiness.readiness_pct }}%</span>
+      <span class="badge">جاهز: {{ readiness.ready_count }} / {{ readiness.total_classes }}</span>
+      {% if readiness.readiness_pct == 100 %}
+        <span class="badge" style="background:#e7f5e8; color:#1b7f2a; font-weight:700;">جاهزية 100%</span>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <div class="cards">
+    <div class="card"><div>الصفوف</div><div class="badge">{{ classes_count }}</div></div>
+    <div class="card"><div>المعلمين (Staff)</div><div class="badge">{{ teachers_count }}</div></div>
+    <div class="card"><div>المواد</div><div class="badge">{{ subjects_count }}</div></div>
+    <div class="card"><div>تكليفات التدريس</div><div class="badge">{{ assignments_count }}</div></div>
+    <div class="card"><div>قوالب اليوم الدراسي</div><div class="badge">{{ templates_count }}</div></div>
+    <div class="card"><div>إجمالي الفترات</div><div class="badge">{{ slots_count }}</div></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 6px;">إعدادات المدرسة</h3>
+    <div><strong>الأيام:</strong> {{ days|join:', ' }}</div>
+    <div><strong>حصص في اليوم (دون الاستراحات/الصلاة):</strong> {{ periods_per_day }}</div>
+    <div><strong>السعة الأسبوعية لكل صف (تقريبية):</strong> {{ weekly_capacity }}</div>
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h3 style="margin:0 0 6px;">التحقق العام</h3>
+    <ul>
+      <li>ملف القواعد: {% if readiness.has_rules %}<span class="ok">متوفر</span>{% else %}<span class="warn">غير متوفر</span>{% endif %}</li>
+      <li>ملف تكاليف المعلمين: {% if readiness.has_costs %}<span class="ok">متوفر</span>{% else %}<span class="warn">غير متوفر</span>{% endif %}</li>
+      <li>قالب اليوم الدراسي والفترات: {% if readiness.has_template %}<span class="ok">جاهز</span>{% else %}<span class="warn">غير مكتمل</span>{% endif %}</li>
+      <li>تكليفات التدريس: {% if readiness.has_assignments %}<span class="ok">موجودة</span>{% else %}<span class="warn">غير موجودة</span>{% endif %}</li>
+    </ul>
+    {% if warnings %}
+      <div class="warn">ملاحظات:</div>
+      <ul>
+        {% for w in warnings %}<li class="muted">{{ w }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% if errors %}
+      <div class="err">أخطاء:</div>
+      <ul>
+        {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:12px;">
+    <h3 style="margin:0 0 6px;">مطابقة السعة لكل صف</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>الصف</th>
+          <th>المُسند أسبوعيًا</th>
+          <th>السعة التقريبية</th>
+          <th>الحالة</th>
+          <th>إجراء</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in per_class %}
+        <tr>
+          <td>{{ forloop.counter }}</td>
+          <td>{{ c.name }}</td>
+          <td>{{ c.assigned }}</td>
+          <td>{{ c.capacity }}</td>
+          <td>
+            {% if c.status == 'ok' %}<span class="ok">ضمن السعة</span>
+            {% elif c.status == 'over' %}<span class="err">يتجاوز السعة</span>
+            {% else %}<span class="muted">غير محدد</span>
+            {% endif %}
+          </td>
+          <td>
+            <a class="btn" href="{% url 'timetable_pro_preview' c.id %}" style="padding:4px 8px; font-size:0.9rem;">معاينة مبدئية</a>
+            <a class="btn" href="{% url 'timetable_rules_review' c.id %}" style="padding:4px 8px; font-size:0.9rem; background:#7b1fa2;">مراجعة القواعد</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="muted">لا توجد صفوف.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="actions">
+    <a class="btn" href="/timetable/">معاينة الجدول الحالي</a>
+    <a class="btn" href="/timetable/pro/build/" style="background:#2e7d32;">بناء جدول المدرسة</a>
+    <a class="btn" href="/timetable/pro/teachers/" style="background:#7b1fa2;">معاينة حسب المعلم</a>
+    <a class="btn" href="/timetable/pro/diagnostics/" style="background:#d84315;">تشخيص المشاكل</a>
+    <a class="btn" href="/timetable/pro/rules/edit/" style="background:#9c27b0;">لوحة القوانين</a>
+    <a class="btn" href="/timetable/pro/?export=csv" style="background:#2e7d32;">تصدير CSV</a>
+    <a class="btn" href="/calendar/" style="background:#444;">إدارة الفترات</a>
+    <a class="btn" href="/admin/" style="background:#0b61a4;">لوحة الإدارة</a>
+  </div>
+</body>
+</html>
