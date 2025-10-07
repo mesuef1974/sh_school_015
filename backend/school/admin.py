@@ -2,6 +2,7 @@ from django.contrib import admin, messages
 from django.urls import path
 from django.shortcuts import render, redirect
 from django import forms
+from django.utils.html import format_html
 from .models import Class, Student, Staff, Subject, TeachingAssignment, ClassSubject
 from openpyxl import load_workbook
 import re
@@ -28,7 +29,7 @@ class StudentAdmin(admin.ModelAdmin):
     list_display = (
         "id",
         "sid",
-        "full_name",
+        "student_name_one_line",
         "english_name",
         "national_no",
         "needs",
@@ -41,13 +42,14 @@ class StudentAdmin(admin.ModelAdmin):
         "phone_no",
         "extra_phone_no",
         "email",
-        "parent_name",
+        "guardian_name_one_line",
         "parent_relation",
         "parent_national_no",
         "parent_phone",
         "parent_email",
         "active",
     )
+    list_display_links = ("sid", "student_name_one_line")
     search_fields = (
         "sid",
         "full_name",
@@ -72,6 +74,18 @@ class StudentAdmin(admin.ModelAdmin):
     )
     list_select_related = ("class_fk",)
     list_per_page = 100
+
+    def student_name_one_line(self, obj: Student):
+        name = obj.full_name or ""
+        return format_html('<span style="white-space:nowrap;">{}</span>', name)
+
+    student_name_one_line.short_description = "اسم الطالب"
+
+    def guardian_name_one_line(self, obj: Student):
+        name = obj.parent_name or ""
+        return format_html('<span style="white-space:nowrap;">{}</span>', name)
+
+    guardian_name_one_line.short_description = "اسم ولي الأمر"
 
 
 @admin.register(Staff)

@@ -78,7 +78,8 @@ function Start-Postgres {
     $maxAttempts = 30
     for ($i=0; $i -lt $maxAttempts; $i++) {
         Start-Sleep -Seconds 1
-        $logs = & docker logs $containerName 2>&1
+        # Use cmd.exe to avoid NativeCommandError when docker writes to stderr; capture both stdout and stderr
+        $logs = & cmd /c "docker logs $containerName 2>&1"
         if ($logs -match 'database system is ready to accept connections') {
             Write-Host "Postgres is ready." -ForegroundColor Green
             return $true
