@@ -1,12 +1,18 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db.models import Q, F
 
 
 class Class(models.Model):
     name = models.CharField(max_length=100, unique=True)
     grade = models.PositiveSmallIntegerField()
     section = models.CharField(max_length=10, blank=True)
+    # Denormalized count of students in this class/section for fast access
+    students_count = models.PositiveIntegerField(default=0, db_index=True)
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     # Subjects offered for this class (managed via ClassSubject through model)
     subjects = models.ManyToManyField(
         "Subject",
@@ -46,10 +52,19 @@ class Student(models.Model):
     extra_phone_no = models.CharField(max_length=200, blank=True)
     parent_email = models.EmailField(blank=True)
     active = models.BooleanField(default=True)
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         indexes = [
             models.Index(fields=["national_no"], name="student_natno_idx"),
+            models.Index(fields=["class_fk"], name="student_class_idx"),
+            models.Index(fields=["active"], name="student_active_idx"),
+            models.Index(fields=["needs"], name="student_needs_idx"),
+            models.Index(fields=["nationality"], name="student_nationality_idx"),
+            models.Index(fields=["grade_label"], name="student_grade_label_idx"),
+            models.Index(fields=["section_label"], name="student_section_label_idx"),
         ]
 
     def __str__(self) -> str:
@@ -82,9 +97,36 @@ class Staff(models.Model):
     role = models.CharField(
         max_length=50,
         choices=[
-            ("teacher", "Teacher"),
-            ("admin", "Admin"),
-            ("staff", "Staff"),
+            ("admin", "أدمن"),
+            ("teacher", "معلم"),
+            ("school_principal", "مدير المدرسة"),
+            ("academic_vice", "النائب الاكاديمي"),
+            ("administrative_vice", "النائب الاداري"),
+            ("supervisor", "مشرف اداري"),
+            ("coordinator", "منسق"),
+            ("developer", "مطور"),
+            ("administrative", "إداري"),
+            ("staff", "موظف"),
+            # Extended roles (from job titles list)
+            ("psychologist", "اخصائي نفسي"),
+            ("store_keeper", "امين مخزن"),
+            ("social_specialist", "أخصائي اجتماعي"),
+            ("activities_specialist", "أخصائي أنشطة مدرسية"),
+            ("school_secretary", "سكرتير مدرسة"),
+            ("services_worker", "عامل خدمات"),
+            ("it_technician", "فني تقنية معلومات"),
+            ("accountant", "محاسب"),
+            ("lab_biology_prep", "محضر مختبر أحياء"),
+            ("lab_physics_prep", "محضر مختبر فيزياء"),
+            ("science_teacher", "مدرس علوم"),
+            ("support_assistant", "مرافق الدعم"),
+            ("academic_advisor", "مرشد أكاديمي"),
+            ("assistant_secretary", "مساعد سكرتير مدرسة"),
+            ("learning_resources_officer", "مسؤول مصادر التعلم"),
+            ("cafeteria_supervisor", "مشرف مقصف"),
+            ("student_observer", "ملاحظ طلبه"),
+            ("representative", "مندوب"),
+            ("receptionist", "موظف استقبال"),
         ],
     )
     national_no = models.CharField(max_length=30, blank=True)
@@ -92,6 +134,19 @@ class Staff(models.Model):
     job_no = models.CharField(max_length=50, blank=True)
     email = models.EmailField(blank=True)
     phone_no = models.CharField(max_length=30, blank=True)
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["role"], name="staff_role_idx"),
+            models.Index(fields=["user"], name="staff_user_idx"),
+            models.Index(fields=["email"], name="staff_email_idx"),
+            models.Index(fields=["phone_no"], name="staff_phone_idx"),
+            models.Index(fields=["national_no"], name="staff_natno_idx"),
+            models.Index(fields=["job_no"], name="staff_jobno_idx"),
+        ]
 
     def __str__(self) -> str:
         return self.full_name
@@ -102,9 +157,15 @@ class Subject(models.Model):
     code = models.CharField(max_length=20, blank=True, null=True, unique=True)
     weekly_default = models.PositiveSmallIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["name_ar"]
+        indexes = [
+            models.Index(fields=["is_active"], name="subject_active_idx"),
+        ]
 
     def __str__(self) -> str:
         return self.name_ar
@@ -243,6 +304,11 @@ class CalendarSlot(models.Model):
         indexes = [
             models.Index(fields=["template"], name="calslot_template_idx"),
             models.Index(fields=["day"], name="calslot_day_idx"),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                check=Q(end_time__gt=F("start_time")), name="calslot_time_order"
+            ),
         ]
         unique_together = ("template", "day", "period_index")
 

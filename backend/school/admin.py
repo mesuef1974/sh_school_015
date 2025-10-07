@@ -16,9 +16,10 @@ class ClassSubjectInline(admin.TabularInline):
 
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "grade", "section")
+    list_display = ("id", "name", "grade", "section", "students_count")
     search_fields = ("name",)
     list_filter = ("grade", "section")
+    ordering = ("grade", "name")
     inlines = [ClassSubjectInline]
 
 
@@ -28,13 +29,23 @@ class StudentAdmin(admin.ModelAdmin):
         "id",
         "sid",
         "full_name",
+        "english_name",
         "national_no",
+        "needs",
         "class_fk",
         "grade_label",
         "section_label",
-        "phone_no",
-        "parent_phone",
+        "dob",
+        "age",
         "nationality",
+        "phone_no",
+        "extra_phone_no",
+        "email",
+        "parent_name",
+        "parent_relation",
+        "parent_national_no",
+        "parent_phone",
+        "parent_email",
         "active",
     )
     search_fields = (
@@ -59,13 +70,33 @@ class StudentAdmin(admin.ModelAdmin):
         "grade_label",
         "section_label",
     )
+    list_select_related = ("class_fk",)
+    list_per_page = 100
 
 
 @admin.register(Staff)
 class StaffAdmin(admin.ModelAdmin):
-    list_display = ("id", "full_name", "role", "user")
-    search_fields = ("full_name",)
-    list_filter = ("role",)
+    list_display = (
+        "id",
+        "full_name",
+        "get_role_display",
+        "job_title",
+        "job_no",
+        "national_no",
+        "email",
+        "phone_no",
+        "user",
+    )
+    search_fields = ("full_name", "national_no", "job_no", "email", "phone_no")
+    list_filter = (
+        "role",
+        ("user", admin.EmptyFieldListFilter),
+        ("email", admin.EmptyFieldListFilter),
+        ("phone_no", admin.EmptyFieldListFilter),
+        ("national_no", admin.EmptyFieldListFilter),
+        ("job_no", admin.EmptyFieldListFilter),
+        ("job_title", admin.EmptyFieldListFilter),
+    )
 
 
 @admin.register(Subject)
