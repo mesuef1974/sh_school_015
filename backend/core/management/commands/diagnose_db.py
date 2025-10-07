@@ -19,9 +19,7 @@ class Command(BaseCommand):
         host = db.get("HOST", "")
         port = db.get("PORT", "")
 
-        self.stdout.write(
-            self.style.HTTP_INFO("Effective database settings (default):")
-        )
+        self.stdout.write(self.style.HTTP_INFO("Effective database settings (default):"))
         self.stdout.write(f"  ENGINE   : {engine}")
         self.stdout.write(f"  NAME     : {name}")
         if user:
@@ -45,16 +43,12 @@ class Command(BaseCommand):
                 if vendor == "postgresql":
                     cursor.execute("SELECT version();")
                     ver = cursor.fetchone()[0]
-                    self.stdout.write(
-                        self.style.SUCCESS("Connected to PostgreSQL successfully.")
-                    )
+                    self.stdout.write(self.style.SUCCESS("Connected to PostgreSQL successfully."))
                     self.stdout.write(f"  Server version: {ver}")
                 elif vendor == "sqlite":
                     cursor.execute("select sqlite_version();")
                     ver = cursor.fetchone()[0]
-                    self.stdout.write(
-                        self.style.SUCCESS("Connected to SQLite successfully.")
-                    )
+                    self.stdout.write(self.style.SUCCESS("Connected to SQLite successfully."))
                     self.stdout.write(f"  SQLite version: {ver}")
                 else:
                     self.stdout.write(
@@ -82,6 +76,4 @@ class Command(BaseCommand):
             sys.exit(2)
 
         self.stdout.write("")
-        self.stdout.write(
-            self.style.SUCCESS("Database diagnostics completed successfully.")
-        )
+        self.stdout.write(self.style.SUCCESS("Database diagnostics completed successfully."))

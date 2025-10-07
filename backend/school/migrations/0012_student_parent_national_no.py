@@ -11,8 +11,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="student",
             name="parent_national_no",
-            field=models.CharField(
-                max_length=30, blank=True, help_text="الرقم الوطني لولي الأمر"
-            ),
+            field=models.CharField(max_length=30, blank=True, help_text="الرقم الوطني لولي الأمر"),
         ),
     ]

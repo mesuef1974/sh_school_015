@@ -97,9 +97,9 @@ class Command(BaseCommand):
                         )
                     )
             CalendarSlot.objects.bulk_create(bulk)
-            msg = (
-                "Created template '{name}' with {slots} slots across {days} days."
-            ).format(name=tmpl.name, slots=len(bulk), days=len(DEFAULT_DAYS))
+            msg = ("Created template '{name}' with {slots} slots across {days} days.").format(
+                name=tmpl.name, slots=len(bulk), days=len(DEFAULT_DAYS)
+            )
             self.stdout.write(self.style.SUCCESS(msg))
         else:
             count = tmpl.slots.count()

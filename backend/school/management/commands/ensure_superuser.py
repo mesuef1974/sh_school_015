@@ -7,20 +7,28 @@ from django.core.management.base import BaseCommand
 
 class Command(BaseCommand):
     help = (
-        "Ensure a Django superuser exists with credentials from environment\n"
+        "Ensure a Django superuser exists with credentials from CLI args or environment.\n"
+        "You can pass --username, --email, --password; otherwise it reads\n"
         "DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_EMAIL, DJANGO_SUPERUSER_PASSWORD.\n"
         "Idempotent: creates if missing; if exists, updates email and password when provided."
     )
 
+    def add_arguments(self, parser):
+        parser.add_argument("--username", type=str, help="Superuser username")
+        parser.add_argument("--email", type=str, help="Superuser email")
+        parser.add_argument("--password", type=str, help="Superuser password (plain text)")
+
     def handle(self, *args, **options):
-        username = os.getenv("DJANGO_SUPERUSER_USERNAME")
-        email = os.getenv("DJANGO_SUPERUSER_EMAIL")
-        password = os.getenv("DJANGO_SUPERUSER_PASSWORD")
+        username = options.get("username") or os.getenv("DJANGO_SUPERUSER_USERNAME")
+        email = options.get("email") or os.getenv("DJANGO_SUPERUSER_EMAIL")
+        password = options.get("password") or os.getenv("DJANGO_SUPERUSER_PASSWORD")
 
         if not (username and email and password):
             self.stdout.write(
                 self.style.WARNING(
-                    "DJANGO_SUPERUSER_* env vars are not fully provided; skipping ensure_superuser."
+                    "Superuser credentials not fully provided. "
+                    "Provide --username/--email/--password or set "
+                    "DJANGO_SUPERUSER_* env vars. Skipping."
                 )
             )
             return
@@ -58,6 +66,4 @@ class Command(BaseCommand):
         elif changed:
             self.stdout.write(self.style.HTTP_INFO(f"Superuser '{username}' updated."))
         else:
-            self.stdout.write(
-                self.style.HTTP_INFO(f"Superuser '{username}' already up-to-date.")
-            )
+            self.stdout.write(self.style.HTTP_INFO(f"Superuser '{username}' already up-to-date."))

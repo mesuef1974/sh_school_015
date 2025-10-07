@@ -48,9 +48,7 @@ class Command(BaseCommand):
                 # count CLASS blocks for first listed day; fallback to total slots that day
                 first_day = (tmpl.days or "Sun,Mon,Tue,Wed,Thu").split(",")[0].strip()
                 per_day = (
-                    tmpl.slots.filter(
-                        day=first_day, block=CalendarSlot.Block.CLASS
-                    ).count()
+                    tmpl.slots.filter(day=first_day, block=CalendarSlot.Block.CLASS).count()
                     or tmpl.slots.filter(day=first_day).count()
                 )
             else:
@@ -94,9 +92,7 @@ class Command(BaseCommand):
 
         self.stdout.write("")
         pct = int(round((ready / total_classes) * 100)) if total_classes else 0
-        self.stdout.write(
-            self.style.SUCCESS(f"Ready: {ready}/{total_classes} ({pct}%)")
-        )
+        self.stdout.write(self.style.SUCCESS(f"Ready: {ready}/{total_classes} ({pct}%)"))
         if under:
             self.stdout.write(self.style.WARNING(f"Under capacity: {under}"))
         if over:

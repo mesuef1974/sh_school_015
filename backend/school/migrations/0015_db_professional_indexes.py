@@ -32,9 +32,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="student",
-            index=models.Index(
-                fields=["section_label"], name="student_section_label_idx"
-            ),
+            index=models.Index(fields=["section_label"], name="student_section_label_idx"),
         ),
         # Staff indexes
         migrations.AddIndex(

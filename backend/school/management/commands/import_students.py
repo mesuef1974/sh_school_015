@@ -89,9 +89,7 @@ class Command(BaseCommand):
         try:
             if not os.path.exists(xlsx_path):
                 self.stdout.write(
-                    self.style.WARNING(
-                        f"Nationality file not found (ignored): {xlsx_path}"
-                    )
+                    self.style.WARNING(f"Nationality file not found (ignored): {xlsx_path}")
                 )
                 return mapping
             # Read all sheets to be safe
@@ -132,9 +130,7 @@ class Command(BaseCommand):
                     # First wins; don't overwrite
                     mapping.setdefault(nat_no, nat_val)
         except Exception as e:
-            self.stdout.write(
-                self.style.WARNING(f"Failed to read nationality file: {e}")
-            )
+            self.stdout.write(self.style.WARNING(f"Failed to read nationality file: {e}"))
         return mapping
 
     def add_arguments(self, parser: CommandParser) -> None:
@@ -306,9 +302,9 @@ class Command(BaseCommand):
                 phone_no = _norm_text(row.get("stu_phone_no"))
                 email = _norm_text(row.get("stu_email"))
                 # Prefer explicit parent_national_no; fallback to legacy parent_phone if not present
-                parent_national_no = _norm_text(
-                    row.get("parent_national_no")
-                ) or _norm_text(row.get("parent_phone"))
+                parent_national_no = _norm_text(row.get("parent_national_no")) or _norm_text(
+                    row.get("parent_phone")
+                )
                 # Normalize guardian phones: split into individual numbers,
                 # then map to primary/extra as requested
                 raw_parent_phone = _norm_text(row.get("parent_phone"))
@@ -445,9 +441,7 @@ class Command(BaseCommand):
                     if std_name:
                         class_obj = Class.objects.filter(name=std_name).first()
                     if not class_obj and (grade_num is not None) and (sec_code != ""):
-                        class_obj = Class.objects.filter(
-                            grade=grade_num, section=sec_code
-                        ).first()
+                        class_obj = Class.objects.filter(grade=grade_num, section=sec_code).first()
                     if not class_obj and sec_label:
                         class_obj = Class.objects.filter(name=sec_label).first()
                     if not class_obj and grade_num and sec_code:
@@ -553,9 +547,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.WARNING("No sheets found in workbook."))
                 return
             for sh_name, df in book.items():
-                self.stdout.write(
-                    self.style.HTTP_INFO(f"[sheet] Processing: {sh_name}")
-                )
+                self.stdout.write(self.style.HTTP_INFO(f"[sheet] Processing: {sh_name}"))
                 a, u, s, e = self._process_df(
                     df,
                     dry=dry,
@@ -588,9 +580,7 @@ class Command(BaseCommand):
                         )
                     else:
                         self.stdout.write(
-                            self.style.SUCCESS(
-                                f"[check] Total students match expected: {expect}"
-                            )
+                            self.style.SUCCESS(f"[check] Total students match expected: {expect}")
                         )
         else:
             df = pd.read_excel(path, sheet_name=sheet, engine="openpyxl")
@@ -629,7 +619,5 @@ class Command(BaseCommand):
                         )
                     else:
                         self.stdout.write(
-                            self.style.SUCCESS(
-                                f"[check] Total students match expected: {expect}"
-                            )
+                            self.style.SUCCESS(f"[check] Total students match expected: {expect}")
                         )

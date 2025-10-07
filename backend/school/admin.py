@@ -3,6 +3,8 @@ from django.urls import path
 from django.shortcuts import render, redirect
 from django import forms
 from django.utils.html import format_html
+from django.contrib.auth.models import User
+from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 from .models import Class, Student, Staff, Subject, TeachingAssignment, ClassSubject
 from openpyxl import load_workbook
 import re
@@ -113,6 +115,124 @@ class StaffAdmin(admin.ModelAdmin):
     )
 
 
+class StaffInline(admin.StackedInline):
+    model = Staff
+    can_delete = False
+    extra = 0
+    fk_name = "user"
+    fields = (
+        "full_name",
+        "role",
+        "job_title",
+        "job_no",
+        "national_no",
+        "email",
+        "phone_no",
+        "created_at",
+        "updated_at",
+    )
+    readonly_fields = ("created_at", "updated_at")
+
+
+# Customize the built-in User admin to include Staff information
+if admin.site.is_registered(User):
+    admin.site.unregister(User)
+
+
+@admin.register(User)
+class UserAdmin(DjangoUserAdmin):
+    inlines = [StaffInline]
+    list_select_related = ("staff",)
+
+    # Remove 'Personal info' fieldset and keep others
+    fieldsets = (
+        (None, {"fields": ("username", "password")}),
+        (
+            "Permissions",
+            {
+                "fields": (
+                    "is_active",
+                    "is_staff",
+                    "is_superuser",
+                    "groups",
+                    "user_permissions",
+                )
+            },
+        ),
+        (
+            "Important dates",
+            {
+                "fields": (
+                    "last_login",
+                    "date_joined",
+                )
+            },
+        ),
+    )
+
+    # Extend list display with staff fields
+    def staff_full_name(self, obj: User):
+        s = getattr(obj, "staff", None)
+        return s.full_name if s else "—"
+
+    def staff_role(self, obj: User):
+        s = getattr(obj, "staff", None)
+        return s.get_role_display() if s else "—"
+
+    def staff_phone(self, obj: User):
+        s = getattr(obj, "staff", None)
+        return s.phone_no if s else ""
+
+    def staff_job_no(self, obj: User):
+        s = getattr(obj, "staff", None)
+        return s.job_no if s else ""
+
+    def staff_national_no(self, obj: User):
+        s = getattr(obj, "staff", None)
+        return s.national_no if s else ""
+
+    staff_full_name.short_description = "اسم الموظف"
+    staff_role.short_description = "الصفة/الدور"
+    staff_phone.short_description = "جوال الموظف"
+    staff_job_no.short_description = "الرقم الوظيفي"
+    staff_national_no.short_description = "رقم الهوية"
+
+    # Insert our columns near the start (keeping username, email)
+    list_display = (
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "is_active",
+        "is_staff",
+        "is_superuser",
+        "last_login",
+        "staff_full_name",
+        "staff_role",
+        "staff_phone",
+        "staff_job_no",
+        "staff_national_no",
+    )
+
+    # Allow searching by staff fields
+    search_fields = (
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "staff__full_name",
+        "staff__phone_no",
+        "staff__national_no",
+        "staff__job_no",
+    )
+
+    # Add filters including whether user has Staff row and by role
+    list_filter = DjangoUserAdmin.list_filter + (
+        ("staff", admin.EmptyFieldListFilter),
+        ("staff__role", admin.AllValuesFieldListFilter),
+    )
+
+
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
     list_display = ("id", "name_ar", "code", "weekly_default", "is_active")
@@ -162,17 +282,11 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
         if db_field.name == "subject":
             classroom_id = None
             try:
-                classroom_id = request.GET.get("classroom") or request.POST.get(
-                    "classroom"
-                )
+                classroom_id = request.GET.get("classroom") or request.POST.get("classroom")
             except Exception:
                 classroom_id = None
             # Try resolve object_id when editing existing assignment
-            if (
-                not classroom_id
-                and hasattr(request, "resolver_match")
-                and request.resolver_match
-            ):
+            if not classroom_id and hasattr(request, "resolver_match") and request.resolver_match:
                 obj_id = (
                     request.resolver_match.kwargs.get("object_id")
                     if hasattr(request.resolver_match, "kwargs")
@@ -185,9 +299,9 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                     except TeachingAssignment.DoesNotExist:
                         pass
             if classroom_id:
-                subject_ids = ClassSubject.objects.filter(
-                    classroom_id=classroom_id
-                ).values_list("subject_id", flat=True)
+                subject_ids = ClassSubject.objects.filter(classroom_id=classroom_id).values_list(
+                    "subject_id", flat=True
+                )
                 kwargs["queryset"] = Subject.objects.filter(id__in=list(subject_ids))
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
@@ -207,9 +321,7 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
         import csv
 
         response = HttpResponse(content_type="text/csv; charset=utf-8")
-        response["Content-Disposition"] = (
-            'attachment; filename="teacher_loads_summary.csv"'
-        )
+        response["Content-Disposition"] = 'attachment; filename="teacher_loads_summary.csv"'
         writer = csv.writer(response)
         writer.writerow(["المعلم", "الصف", "المادة", "حصص/أسبوع"])
         for a in queryset.select_related("teacher", "classroom", "subject"):
@@ -291,15 +403,11 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
 
         # Build class index by (grade, section) and by name
         classes = Class.objects.all()
-        class_by_grade_section = {
-            (c.grade, (c.section or "").strip()): c for c in classes
-        }
+        class_by_grade_section = {(c.grade, (c.section or "").strip()): c for c in classes}
         class_by_name = {self._normalize_ar_text(c.name): c for c in classes}
 
         # Subject index
-        subject_by_norm = {
-            self._normalize_ar_text(s.name_ar): s for s in Subject.objects.all()
-        }
+        subject_by_norm = {self._normalize_ar_text(s.name_ar): s for s in Subject.objects.all()}
 
         total_rows = 0
         for ws in wb.worksheets:
@@ -317,15 +425,11 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                 try:
                     vals = [
                         c if c is not None else ""
-                        for c in next(
-                            ws.iter_rows(min_row=r, max_row=r, values_only=True)
-                        )
+                        for c in next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
                     ]
                 except StopIteration:
                     break
-                normed = [
-                    self._normalize_ar_text(v).replace(" ", "").lower() for v in vals
-                ]
+                normed = [self._normalize_ar_text(v).replace(" ", "").lower() for v in vals]
                 tokens = {
                     "teacher": {
                         "teachername",
@@ -403,9 +507,7 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                 )
 
                 # Normalize
-                t_key = (
-                    self._normalize_ar_text(current_teacher).replace(" ", "").lower()
-                )
+                t_key = self._normalize_ar_text(current_teacher).replace(" ", "").lower()
                 teacher = teacher_index.get(t_key)
                 if not teacher:
                     # skip if teacher not found
@@ -455,17 +557,13 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                     continue
 
                 # Ensure the subject is assigned to the class
-                ClassSubject.objects.get_or_create(
-                    classroom=classroom, subject=subj_obj
-                )
+                ClassSubject.objects.get_or_create(classroom=classroom, subject=subj_obj)
 
                 obj, created = TeachingAssignment.objects.update_or_create(
                     teacher=teacher,
                     classroom=classroom,
                     subject=subj_obj,
-                    defaults={
-                        "no_classes_weekly": weekly or subj_obj.weekly_default or 0
-                    },
+                    defaults={"no_classes_weekly": weekly or subj_obj.weekly_default or 0},
                 )
                 if created:
                     created_assignments += 1

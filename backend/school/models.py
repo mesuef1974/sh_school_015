@@ -34,9 +34,7 @@ class Student(models.Model):
     class_fk = models.ForeignKey(
         Class, on_delete=models.SET_NULL, null=True, related_name="students"
     )
-    grade_label = models.CharField(
-        max_length=50, blank=True, help_text="مثل 12-Science"
-    )
+    grade_label = models.CharField(max_length=50, blank=True, help_text="مثل 12-Science")
     section_label = models.CharField(max_length=50, blank=True, help_text="مثل 12/1")
     dob = models.DateField(null=True, blank=True)
     nationality = models.CharField(max_length=100, blank=True)
@@ -172,12 +170,8 @@ class Subject(models.Model):
 
 
 class ClassSubject(models.Model):
-    classroom = models.ForeignKey(
-        Class, on_delete=models.CASCADE, related_name="class_subjects"
-    )
-    subject = models.ForeignKey(
-        Subject, on_delete=models.CASCADE, related_name="class_subjects"
-    )
+    classroom = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="class_subjects")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="class_subjects")
     weekly_default = models.PositiveSmallIntegerField(
         null=True,
         blank=True,
@@ -198,15 +192,9 @@ class ClassSubject(models.Model):
 
 
 class TeachingAssignment(models.Model):
-    teacher = models.ForeignKey(
-        Staff, on_delete=models.CASCADE, related_name="assignments"
-    )
-    classroom = models.ForeignKey(
-        Class, on_delete=models.CASCADE, related_name="assignments"
-    )
-    subject = models.ForeignKey(
-        Subject, on_delete=models.PROTECT, related_name="assignments"
-    )
+    teacher = models.ForeignKey(Staff, on_delete=models.CASCADE, related_name="assignments")
+    classroom = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="assignments")
+    subject = models.ForeignKey(Subject, on_delete=models.PROTECT, related_name="assignments")
     no_classes_weekly = models.PositiveSmallIntegerField("عدد الحصص أسبوعياً")
     notes = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -233,8 +221,7 @@ class TeachingAssignment(models.Model):
                 raise ValidationError(
                     {
                         "subject": (
-                            "هذه المادة غير مضافة لهذا الصف. "
-                            "أضفها من صفحة المواد للصف أولاً."
+                            "هذه المادة غير مضافة لهذا الصف. " "أضفها من صفحة المواد للصف أولاً."
                         )
                     }
                 )
@@ -280,9 +267,7 @@ class CalendarSlot(models.Model):
         PRAYER = "prayer", "Prayer"
         OTHER = "other", "Other"
 
-    template = models.ForeignKey(
-        CalendarTemplate, on_delete=models.CASCADE, related_name="slots"
-    )
+    template = models.ForeignKey(CalendarTemplate, on_delete=models.CASCADE, related_name="slots")
     day = models.CharField(max_length=10, help_text="Sun, Mon, Tue, Wed, Thu, ALL")
     period_index = models.CharField(
         max_length=16, help_text="1..n or a label like BREAK/PRAYER/OTHER"
@@ -320,9 +305,7 @@ class CalendarSlot(models.Model):
 
 
 class TimetableEntry(models.Model):
-    classroom = models.ForeignKey(
-        Class, on_delete=models.CASCADE, related_name="timetable_entries"
-    )
+    classroom = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="timetable_entries")
     day = models.CharField(max_length=10, help_text="Sun, Mon, Tue, Wed, Thu")
     slot = models.ForeignKey(
         CalendarSlot, on_delete=models.PROTECT, related_name="timetable_entries"

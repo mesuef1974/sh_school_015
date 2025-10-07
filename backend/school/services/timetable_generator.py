@@ -120,9 +120,7 @@ def generate_timetable(
     conflicts: List[Dict] = []
 
     # Occupancy trackers
-    teacher_busy: Dict[int, Dict[str, set]] = defaultdict(
-        lambda: {d: set() for d in DAYS}
-    )
+    teacher_busy: Dict[int, Dict[str, set]] = defaultdict(lambda: {d: set() for d in DAYS})
     class_busy: Dict[str, set] = {d: set() for d in DAYS}
     class_daily_count: Dict[str, int] = {d: 0 for d in DAYS}
     # Subject/day usage for this class: (subject_id, day) -> count
@@ -171,9 +169,7 @@ def generate_timetable(
                 # Subject/day repetition rule: by default disallow repeating same
                 # subject in the same day.
                 subj_id = ta.subject_id
-                weekly_total = subject_weekly_count.get(
-                    subj_id, int(ta.no_classes_weekly or 0)
-                )
+                weekly_total = subject_weekly_count.get(subj_id, int(ta.no_classes_weekly or 0))
                 per_day_cap = 1 if weekly_total <= 5 else 2
                 if subject_day_count[(subj_id, d)] >= per_day_cap:
                     continue
@@ -227,9 +223,7 @@ def generate_timetable(
                         continue
                     # Subject/day repetition rule in second pass as well
                     subj_id = ta.subject_id
-                    weekly_total = subject_weekly_count.get(
-                        subj_id, int(ta.no_classes_weekly or 0)
-                    )
+                    weekly_total = subject_weekly_count.get(subj_id, int(ta.no_classes_weekly or 0))
                     per_day_cap = 1 if weekly_total <= 5 else 2
                     if subject_day_count[(subj_id, d)] >= per_day_cap:
                         continue

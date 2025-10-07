@@ -44,18 +44,14 @@ class Command(BaseCommand):
         base_name = f"pg_backup_{pg_db}_{ts}"
         use_gzip: bool = bool(options.get("gzip"))
 
-        container_tmp = (
-            f"/tmp/{base_name}.sql.gz" if use_gzip else f"/tmp/{base_name}.sql"
-        )
+        container_tmp = f"/tmp/{base_name}.sql.gz" if use_gzip else f"/tmp/{base_name}.sql"
         host_out = out_dir / Path(container_tmp).name
 
         container = "pg-sh-school"
 
         # Ensure docker is available
         if not self._has_docker():
-            raise CommandError(
-                "Docker CLI not available. Please install/start Docker Desktop."
-            )
+            raise CommandError("Docker CLI not available. Please install/start Docker Desktop.")
 
         # Ensure container exists
         if not self._container_exists(container):

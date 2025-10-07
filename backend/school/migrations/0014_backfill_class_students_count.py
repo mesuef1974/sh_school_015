@@ -12,9 +12,7 @@ def backfill_counts(apps, schema_editor):
     from django.db.models import Count
 
     counts = (
-        Student.objects.values("class_fk")
-        .annotate(c=Count("id"))
-        .filter(class_fk__isnull=False)
+        Student.objects.values("class_fk").annotate(c=Count("id")).filter(class_fk__isnull=False)
     )
     # Apply in batches
     for row in counts:

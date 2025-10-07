@@ -58,6 +58,4 @@ class Command(BaseCommand):
         elif changed:
             self.stdout.write(self.style.HTTP_INFO(f"Superuser '{username}' updated."))
         else:
-            self.stdout.write(
-                self.style.HTTP_INFO(f"Superuser '{username}' already up-to-date.")
-            )
+            self.stdout.write(self.style.HTTP_INFO(f"Superuser '{username}' already up-to-date."))

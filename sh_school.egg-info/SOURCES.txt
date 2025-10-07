@@ -51,6 +51,9 @@ backend/school/migrations/0013_class_students_count.py
 backend/school/migrations/0014_backfill_class_students_count.py
 backend/school/migrations/0015_db_professional_indexes.py
 backend/school/migrations/0016_add_timestamps.py
+backend/school/migrations/0017_fix_timestamps_not_null.py
+backend/school/migrations/0018_alter_staff_role.py
+backend/school/migrations/0018_db_quality_improvements.py
 backend/school/migrations/__init__.py
 backend/school/services/timetable_generator.py
 backend/school/templatetags/__init__.py

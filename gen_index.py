@@ -26,12 +26,7 @@ def _escape(s):
             s = s.decode("utf-8", "ignore")
     except Exception:
         pass
-    return (
-        s.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
+    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
 # URL quote per path segment
@@ -191,9 +186,7 @@ def render_list(paths):
                 '          <li><a href="{0}" target="_blank" rel="noopener">{1}</a>'.format(
                     href, text
                 )
-                + ' <span class="meta">— حجم: {0} • آخر تعديل: {1}</span></li>'.format(
-                    size, mtime
-                )
+                + ' <span class="meta">— حجم: {0} • آخر تعديل: {1}</span></li>'.format(size, mtime)
             )
         block = [
             "      <details open>",
@@ -231,10 +224,7 @@ def main():
     parser.add_argument(
         "--check",
         action="store_true",
-        help=(
-            "Check rendering only; do not modify index.html. Exit non-zero on "
-            "problems."
-        ),
+        help=("Check rendering only; do not modify index.html. Exit non-zero on " "problems."),
     )
     parser.add_argument(
         "--write",

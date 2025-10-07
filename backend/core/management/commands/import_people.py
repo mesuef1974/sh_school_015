@@ -9,9 +9,7 @@ from core.models import Class, Staff, Student
 
 try:
     from openpyxl import load_workbook
-except (
-    Exception
-):  # pragma: no cover - optional import; validated at runtime if .xlsx is used
+except Exception:  # pragma: no cover - optional import; validated at runtime if .xlsx is used
     load_workbook = None  # type: ignore
 
 
@@ -59,9 +57,7 @@ def read_csv_rows(path: Path, delimiter: str = ",") -> Iterable[dict]:
 
 def read_xlsx_first_sheet(path: Path) -> Iterable[dict]:
     if load_workbook is None:
-        raise CommandError(
-            "openpyxl is required to read .xlsx files. Please install 'openpyxl'."
-        )
+        raise CommandError("openpyxl is required to read .xlsx files. Please install 'openpyxl'.")
     if not path.exists():
         raise CommandError(f"Excel file not found: {path}")
     wb = load_workbook(filename=str(path), read_only=True, data_only=True)
@@ -89,9 +85,7 @@ def read_xlsx_first_sheet(path: Path) -> Iterable[dict]:
 def iter_xlsx_sheets(path: Path) -> Iterable[tuple[str, dict]]:
     """Yield (sheet_name, row_dict) for every non-empty row across worksheets."""
     if load_workbook is None:
-        raise CommandError(
-            "openpyxl is required to read .xlsx files. Please install 'openpyxl'."
-        )
+        raise CommandError("openpyxl is required to read .xlsx files. Please install 'openpyxl'.")
     if not path.exists():
         raise CommandError(f"Excel file not found: {path}")
     wb = load_workbook(filename=str(path), read_only=True, data_only=True)
@@ -121,9 +115,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--staff", type=str, help="Path to staff CSV/XLSX file")
-        parser.add_argument(
-            "--students", type=str, help="Path to students CSV/XLSX file"
-        )
+        parser.add_argument("--students", type=str, help="Path to students CSV/XLSX file")
         parser.add_argument(
             "--delimiter",
             type=str,
@@ -180,9 +172,8 @@ class Command(BaseCommand):
             total_updated += updated
             notes.extend(note_list)
 
-        msg = (
-            f"Completed import. Created: {total_created}, Updated: {total_updated}. "
-            + ("DRY-RUN: no changes were written." if dry_run else "")
+        msg = f"Completed import. Created: {total_created}, Updated: {total_updated}. " + (
+            "DRY-RUN: no changes were written." if dry_run else ""
         )
         if notes:
             for n in notes:
@@ -190,9 +181,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(msg))
 
     # ---- helpers ----
-    def _import_staff(
-        self, path: Path, delimiter: str, dry_run: bool
-    ) -> tuple[int, int]:
+    def _import_staff(self, path: Path, delimiter: str, dry_run: bool) -> tuple[int, int]:
         if not path.exists():
             raise CommandError(f"Staff CSV not found: {path}")
         created = 0
@@ -241,10 +230,7 @@ class Command(BaseCommand):
             name = row.get("name") or row.get("full_name")
             dob_raw = row.get("date_of_birth") or row.get("dob") or row.get("birthdate")
             class_name = (
-                row.get("class")
-                or row.get("class_name")
-                or row.get("clazz")
-                or row.get("section")
+                row.get("class") or row.get("class_name") or row.get("clazz") or row.get("section")
             )
 
             if not student_code or not name:
@@ -268,9 +254,7 @@ class Command(BaseCommand):
                     elif create_classes and dry_run:
                         clazz = None
                         # Will appear created in reality; add a note
-                        notes.append(
-                            f"Would create Class(name='{class_name}', grade_level=0)"
-                        )
+                        notes.append(f"Would create Class(name='{class_name}', grade_level=0)")
                     else:
                         notes.append(
                             f"Class '{class_name}' not found; student "
@@ -288,9 +272,7 @@ class Command(BaseCommand):
                     student_code=student_code, defaults=defaults
                 )
             else:
-                is_created = not Student.objects.filter(
-                    student_code=student_code
-                ).exists()
+                is_created = not Student.objects.filter(student_code=student_code).exists()
 
             if is_created:
                 created += 1
@@ -345,10 +327,7 @@ class Command(BaseCommand):
             name = row.get("name") or row.get("full_name")
             dob_raw = row.get("date_of_birth") or row.get("dob") or row.get("birthdate")
             class_name = (
-                row.get("class")
-                or row.get("class_name")
-                or row.get("clazz")
-                or row.get("section")
+                row.get("class") or row.get("class_name") or row.get("clazz") or row.get("section")
             )
             # If class not provided in columns, fallback to the worksheet title
             if not class_name:
@@ -374,9 +353,7 @@ class Command(BaseCommand):
                         clazz = Class.objects.create(name=class_name, grade_level=0)
                     elif create_classes and dry_run:
                         clazz = None
-                        notes.append(
-                            f"Would create Class(name='{class_name}', grade_level=0)"
-                        )
+                        notes.append(f"Would create Class(name='{class_name}', grade_level=0)")
                     else:
                         notes.append(
                             f"Class '{class_name}' not found; student "
@@ -394,9 +371,7 @@ class Command(BaseCommand):
                     student_code=student_code, defaults=defaults
                 )
             else:
-                is_created = not Student.objects.filter(
-                    student_code=student_code
-                ).exists()
+                is_created = not Student.objects.filter(student_code=student_code).exists()
 
             if is_created:
                 created += 1

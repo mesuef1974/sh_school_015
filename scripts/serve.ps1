@@ -25,6 +25,28 @@ try {
     exit 1
 }
 
+# Ensure required Python packages (install if Django missing)
+Write-Host "[serve] Checking Python dependencies ..."
+$djangoOk = $true
+try {
+    & python -c "import django" *> $null
+} catch {
+    $djangoOk = $false
+}
+if (-not $djangoOk) {
+    Write-Host "[serve] Django not found. Installing requirements from requirements.txt ..."
+    try {
+        & python -m pip install --upgrade pip
+        & python -m pip install -r (Join-Path $Root 'requirements.txt')
+        Write-Host "[serve] Requirements installed." -ForegroundColor Green
+    } catch {
+        Write-Error "[serve] Failed to install requirements: $($_.Exception.Message)"
+        exit 1
+    }
+} else {
+    Write-Host "[serve] Django is already installed."
+}
+
 # Read backend/.env
 $EnvFile = Join-Path $Root 'backend\.env'
 if (-not (Test-Path $EnvFile)) {
@@ -73,6 +95,22 @@ try {
     python manage.py bootstrap_rbac
 } catch {
     Write-Warning "[serve] RBAC bootstrap failed: $($_.Exception.Message)"
+}
+
+# Ensure a Django user is created/linked for each Staff (idempotent)
+Write-Host "[serve] Ensuring auth users for Staff ..."
+try {
+    python manage.py ensure_staff_users
+} catch {
+    Write-Warning "[serve] ensure_staff_users failed: $($_.Exception.Message)"
+}
+
+# Activate staff flags for linked users (excluding developer and principal)
+Write-Host "[serve] Activating staff flags for Staff users ..."
+try {
+    python manage.py activate_staff_users
+} catch {
+    Write-Warning "[serve] activate_staff_users failed: $($_.Exception.Message)"
 }
 
 # Optional: collectstatic (dev typically not required)

@@ -15,11 +15,7 @@ class Command(BaseCommand):
         sheets_processed = 0
 
         def norm(s):
-            return (
-                str(s).strip().lower().replace(" ", "").replace("_", "")
-                if s is not None
-                else ""
-            )
+            return str(s).strip().lower().replace(" ", "").replace("_", "") if s is not None else ""
 
         # Known header tokens (normalized) to detect the header row robustly
         expected_any = {
@@ -107,9 +103,7 @@ class Command(BaseCommand):
                 try:
                     header_cells = [
                         c if c is not None else ""
-                        for c in next(
-                            ws.iter_rows(min_row=1, max_row=1, values_only=True)
-                        )
+                        for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
                     ]
                     header_row_idx = 1
                 except StopIteration:
@@ -221,9 +215,7 @@ class Command(BaseCommand):
                 full_name = str(full_name_cell).strip() if full_name_cell else None
                 if not full_name:
                     # Try composing from first/last names if headers are unconventional
-                    first_idx = col(
-                        "first_name", "firstname", "الاسمالاول", "الاسم الأول"
-                    )
+                    first_idx = col("first_name", "firstname", "الاسمالاول", "الاسم الأول")
                     last_idx = col(
                         "last_name",
                         "lastname",
@@ -259,20 +251,14 @@ class Command(BaseCommand):
 
                 national_no_cell = val_at(idx_national_no)
                 national_no_val = (
-                    str(national_no_cell).strip()
-                    if national_no_cell not in (None, "")
-                    else ""
+                    str(national_no_cell).strip() if national_no_cell not in (None, "") else ""
                 )
                 job_no_cell = val_at(idx_job_no)
-                job_no_val = (
-                    str(job_no_cell).strip() if job_no_cell not in (None, "") else ""
-                )
+                job_no_val = str(job_no_cell).strip() if job_no_cell not in (None, "") else ""
                 email_cell = val_at(idx_email)
                 email_val = str(email_cell).strip() if email_cell else ""
                 phone_cell = val_at(idx_phone)
-                phone_val = (
-                    str(phone_cell).strip() if phone_cell not in (None, "") else ""
-                )
+                phone_val = str(phone_cell).strip() if phone_cell not in (None, "") else ""
 
                 # Use national_no as natural key if present; otherwise job_no+name
                 lookup = (
@@ -286,9 +272,7 @@ class Command(BaseCommand):
                     defaults={
                         "full_name": full_name,
                         "role": (
-                            role_val
-                            if role_val in {"teacher", "admin", "staff"}
-                            else "staff"
+                            role_val if role_val in {"teacher", "admin", "staff"} else "staff"
                         ),
                         "national_no": national_no_val,
                         "job_title": job_title_val,

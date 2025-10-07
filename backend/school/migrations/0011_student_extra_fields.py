@@ -26,9 +26,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="student",
             name="grade_label",
-            field=models.CharField(
-                max_length=50, blank=True, help_text="مثل 12-Science"
-            ),
+            field=models.CharField(max_length=50, blank=True, help_text="مثل 12-Science"),
         ),
         migrations.AddField(
             model_name="student",

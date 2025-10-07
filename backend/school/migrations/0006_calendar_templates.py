@@ -70,9 +70,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "day",
-                    models.CharField(
-                        max_length=10, help_text="Sun, Mon, Tue, Wed, Thu, ALL"
-                    ),
+                    models.CharField(max_length=10, help_text="Sun, Mon, Tue, Wed, Thu, ALL"),
                 ),
                 (
                     "period_index",

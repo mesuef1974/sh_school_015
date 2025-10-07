@@ -32,9 +32,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "day",
-                    models.CharField(
-                        max_length=10, help_text="Sun, Mon, Tue, Wed, Thu"
-                    ),
+                    models.CharField(max_length=10, help_text="Sun, Mon, Tue, Wed, Thu"),
                 ),
                 (
                     "slot",

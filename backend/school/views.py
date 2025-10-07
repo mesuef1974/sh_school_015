@@ -66,9 +66,7 @@ class ClassSubjectViewSet(ModelViewSet):
 
 
 class TeachingAssignmentViewSet(ModelViewSet):
-    queryset = TeachingAssignment.objects.select_related(
-        "teacher", "classroom", "subject"
-    ).all()
+    queryset = TeachingAssignment.objects.select_related("teacher", "classroom", "subject").all()
     serializer_class = TeachingAssignmentSerializer
     permission_classes = [IsAuthenticated]
 
@@ -85,9 +83,7 @@ class ClassForm(forms.ModelForm):
         model = Class
         # Include common fields; adjust as per actual model fields in project
         fields = [
-            f.name
-            for f in Class._meta.fields
-            if f.editable and f.name != Class._meta.pk.name
+            f.name for f in Class._meta.fields if f.editable and f.name != Class._meta.pk.name
         ]
 
 
@@ -95,9 +91,7 @@ class StudentForm(forms.ModelForm):
     class Meta:
         model = Student
         fields = [
-            f.name
-            for f in Student._meta.fields
-            if f.editable and f.name != Student._meta.pk.name
+            f.name for f in Student._meta.fields if f.editable and f.name != Student._meta.pk.name
         ]
 
 
@@ -105,9 +99,7 @@ class StaffForm(forms.ModelForm):
     class Meta:
         model = Staff
         fields = [
-            f.name
-            for f in Staff._meta.fields
-            if f.editable and f.name != Staff._meta.pk.name
+            f.name for f in Staff._meta.fields if f.editable and f.name != Staff._meta.pk.name
         ]
 
 
@@ -115,9 +107,7 @@ class SubjectForm(forms.ModelForm):
     class Meta:
         model = Subject
         fields = [
-            f.name
-            for f in Subject._meta.fields
-            if f.editable and f.name != Subject._meta.pk.name
+            f.name for f in Subject._meta.fields if f.editable and f.name != Subject._meta.pk.name
         ]
 
 
@@ -173,9 +163,7 @@ def teacher_loads_dashboard(request):
     section_q = request.GET.get("section")
     subject_q = request.GET.get("subject")
 
-    qs = TeachingAssignment.objects.select_related(
-        "teacher", "classroom", "subject"
-    ).all()
+    qs = TeachingAssignment.objects.select_related("teacher", "classroom", "subject").all()
     if teacher_q:
         qs = qs.filter(teacher_id=teacher_q)
     if grade_q:
@@ -188,9 +176,7 @@ def teacher_loads_dashboard(request):
     context = {
         "form": form,
         "upload_form": up_form,
-        "assignments": qs.order_by(
-            "teacher__full_name", "classroom__grade", "classroom__section"
-        ),
+        "assignments": qs.order_by("teacher__full_name", "classroom__grade", "classroom__section"),
         "teachers": Staff.objects.all(),
         "classes": Class.objects.all(),
         "subjects": Subject.objects.all(),
@@ -410,9 +396,7 @@ def data_overview(request):
         tables = [row[0] for row in cursor.fetchall()]
 
     visible_tables = [
-        t
-        for t in tables
-        if t not in deny_exact and not any(t.startswith(p) for p in deny_prefixes)
+        t for t in tables if t not in deny_exact and not any(t.startswith(p) for p in deny_prefixes)
     ]
 
     # Get row counts efficiently
@@ -478,9 +462,7 @@ def data_table_detail(request, table):
         Model, FormClass = MODEL_REGISTRY[table]
         # Build columns, include pk first for actions
         fields = [f for f in Model._meta.fields if f.editable or f.primary_key]
-        columns = [Model._meta.pk.name] + [
-            f.name for f in fields if f.name != Model._meta.pk.name
-        ]
+        columns = [Model._meta.pk.name] + [f.name for f in fields if f.name != Model._meta.pk.name]
 
         # Handle POST actions
         if request.method == "POST":
@@ -491,9 +473,7 @@ def data_table_detail(request, table):
 
                 pairs = [
                     (k, v)
-                    for k, v in parse_qsl(
-                        req.META.get("QUERY_STRING", ""), keep_blank_values=True
-                    )
+                    for k, v in parse_qsl(req.META.get("QUERY_STRING", ""), keep_blank_values=True)
                     if k not in drop_keys
                 ]
                 return ("?" + urlencode(pairs, doseq=True)) if pairs else ""
@@ -519,14 +499,10 @@ def data_table_detail(request, table):
                             form.save()
                             messages.success(request, "تم حفظ التعديلات.")
                         except IntegrityError as e:
-                            messages.error(
-                                request, f"تعذر الحفظ بسبب قيود البيانات: {e}"
-                            )
+                            messages.error(request, f"تعذر الحفظ بسبب قيود البيانات: {e}")
                             return redirect(request.path + _qs_keep(request))
                         # Preserve current page filters
-                        return redirect(
-                            request.path + _qs_keep(request, drop_keys=["edit"])
-                        )
+                        return redirect(request.path + _qs_keep(request, drop_keys=["edit"]))
             elif action == "delete":
                 pk = request.POST.get("id")
                 obj = Model.objects.filter(pk=pk).first()
@@ -535,9 +511,7 @@ def data_table_detail(request, table):
                         obj.delete()
                         messages.success(request, "تم حذف السجل.")
                     except (ProtectedError, IntegrityError) as e:
-                        messages.error(
-                            request, f"لا يمكن حذف السجل لارتباطه بسجلات أخرى: {e}"
-                        )
+                        messages.error(request, f"لا يمكن حذف السجل لارتباطه بسجلات أخرى: {e}")
                 return redirect(request.path + _qs_keep(request))
 
         # Build queryset (use select_related for FK fields and keep objects for better display)
@@ -555,8 +529,7 @@ def data_table_detail(request, table):
             text_fields = [
                 f.name
                 for f in Model._meta.fields
-                if getattr(f, "get_internal_type", lambda: "")()
-                in ("CharField", "TextField")
+                if getattr(f, "get_internal_type", lambda: "")() in ("CharField", "TextField")
             ]
             query = Q()
             for name in text_fields:
@@ -729,9 +702,7 @@ def timetable_class_week(request, class_id: int, template_id: int):
 
     # Normalize per-day ordering
     for d in day_slots:
-        day_slots[d] = sorted(
-            day_slots[d], key=lambda x: (x.order, x.start_time, x.period_index)
-        )
+        day_slots[d] = sorted(day_slots[d], key=lambda x: (x.order, x.start_time, x.period_index))
 
     # Determine the unique period rows based on order/start_time from first non-empty day
     period_rows = []

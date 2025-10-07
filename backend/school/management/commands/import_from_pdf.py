@@ -128,9 +128,7 @@ def try_read_pdf_tables(pdf_path: Path):
                 page_text = page.extract_text() or ""
                 for tbl in tables:
                     if not tbl or all(
-                        (cell is None or str(cell).strip() == "")
-                        for row in tbl
-                        for cell in row
+                        (cell is None or str(cell).strip() == "") for row in tbl for cell in row
                     ):
                         continue
                     # Determine header: if first row looks like headers (contains Arabic words
@@ -140,10 +138,7 @@ def try_read_pdf_tables(pdf_path: Path):
                     def _is_header_cell(x: Optional[str]) -> bool:
                         s = norm_ar(x or "")
                         return bool(
-                            any(
-                                k in s
-                                for k in ["اليوم", "المعلم", "المدرس", "الشعبة", "الصف"]
-                            )
+                            any(k in s for k in ["اليوم", "المعلم", "المدرس", "الشعبة", "الصف"])
                             or re.search(r"\d+", s.translate(AR_NUMS))
                         )
 
@@ -212,9 +207,7 @@ class Command(BaseCommand):
             default=["يوسف يعقوب"],
             help="Full name of teacher to exclude (can repeat)",
         )
-        parser.add_argument(
-            "--dry-run", action="store_true", help="Validate only; no DB writes"
-        )
+        parser.add_argument("--dry-run", action="store_true", help="Validate only; no DB writes")
 
     def handle(
         self,
@@ -246,16 +239,12 @@ class Command(BaseCommand):
 
         # 1) Ensure/prepare CalendarTemplate and Slots
         tmpl = self._ensure_template(template_name)
-        days = [
-            d.strip()
-            for d in (tmpl.days or "Sun,Mon,Tue,Wed,Thu").split(",")
-            if d.strip()
-        ]
+        days = [d.strip() for d in (tmpl.days or "Sun,Mon,Tue,Wed,Thu").split(",") if d.strip()]
         slots_index: Dict[Tuple[str, str], object] = {}
         for d in days:
-            for s in tmpl.slots.filter(
-                day=d, block=self.CalendarSlot.Block.CLASS
-            ).order_by("order", "start_time"):
+            for s in tmpl.slots.filter(day=d, block=self.CalendarSlot.Block.CLASS).order_by(
+                "order", "start_time"
+            ):
                 slots_index[(d, str(s.period_index))] = s
 
         # 2) Seed classes from الشعب.pdf if present
@@ -266,17 +255,13 @@ class Command(BaseCommand):
         created_entries: List[object] = []
         subjects_cache: Dict[str, object] = {}
         classes_cache: Dict[str, object] = {c.name: c for c in self.Class.objects.all()}
-        teachers_cache: Dict[str, object] = {
-            t.full_name: t for t in self.Staff.objects.all()
-        }
+        teachers_cache: Dict[str, object] = {t.full_name: t for t in self.Staff.objects.all()}
 
         rows_seen = 0
 
         # 3) Preferred source: المعلمون.pdf contains per-teacher timetable with subject+class
         if teachers_pdf.exists():
-            self.stdout.write(
-                f"[info] Reading teachers' timetables from {teachers_pdf} ..."
-            )
+            self.stdout.write(f"[info] Reading teachers' timetables from {teachers_pdf} ...")
             tables = try_read_pdf_tables(teachers_pdf)
             for df in tables:
                 df = df.fillna("")
@@ -328,9 +313,7 @@ class Command(BaseCommand):
                 multi_grid_handled = False
                 try:
                     first_col = (
-                        df.iloc[:, 0]
-                        .astype(str)
-                        .map(lambda s: norm_ar(s).translate(AR_NUMS))
+                        df.iloc[:, 0].astype(str).map(lambda s: norm_ar(s).translate(AR_NUMS))
                     )
                     nums = [int(x) for x in first_col if x.isdigit()]
                 except Exception:
@@ -367,11 +350,7 @@ class Command(BaseCommand):
                         days_order = ["Sun", "Mon", "Tue", "Wed", "Thu"]
                         total_periods = 7
                         # Count how many complete sequences 1..7 exist
-                        seq = [
-                            int(x)
-                            for x in first_col
-                            if x.isdigit() and 1 <= int(x) <= 7
-                        ]
+                        seq = [int(x) for x in first_col if x.isdigit() and 1 <= int(x) <= 7]
                         complete_runs = len(seq) // total_periods
                         max_day_groups = min(len(days_order), complete_runs)
                         for day_idx in range(max_day_groups):
@@ -382,8 +361,7 @@ class Command(BaseCommand):
                                     break
                                 for col_idx, col_name in enumerate(data_cols):
                                     teacher_name = (
-                                        norm_ar(teacher_names[col_idx])
-                                        or f"معلم-{col_idx+1}"
+                                        norm_ar(teacher_names[col_idx]) or f"معلم-{col_idx+1}"
                                     )
                                     val = norm_ar(df.iloc[r][col_name])
                                     if not val:
@@ -412,13 +390,9 @@ class Command(BaseCommand):
                                     # Resolve class
                                     c_obj = classes_cache.get(cname)
                                     if not c_obj:
-                                        c_obj = self.Class.objects.filter(
-                                            name=cname
-                                        ).first()
+                                        c_obj = self.Class.objects.filter(name=cname).first()
                                         if not c_obj:
-                                            m = re.search(
-                                                r"(\d+)", cname.translate(AR_NUMS)
-                                            )
+                                            m = re.search(r"(\d+)", cname.translate(AR_NUMS))
                                             grade = int(m.group(1)) if m else 0
                                             c_obj = self.Class.objects.create(
                                                 name=cname, grade=grade
@@ -466,8 +440,7 @@ class Command(BaseCommand):
                 # Try to pre-detect teacher from page header text if teacher column is absent
                 current_teacher = None
                 if not any(
-                    k in (teacher_col_idx if teacher_col_idx is not None else [])
-                    for k in []
+                    k in (teacher_col_idx if teacher_col_idx is not None else []) for k in []
                 ):
                     # Simple regex to capture a teacher name following a label
                     m = (
@@ -491,15 +464,9 @@ class Command(BaseCommand):
                 for _, row in df.iterrows():
                     rows_seen += 1
                     teacher_name = (
-                        norm_ar(row.iloc[teacher_col_idx])
-                        if teacher_col_idx is not None
-                        else ""
+                        norm_ar(row.iloc[teacher_col_idx]) if teacher_col_idx is not None else ""
                     )
-                    day_ar = (
-                        norm_ar(row.iloc[day_col_idx])
-                        if day_col_idx is not None
-                        else ""
-                    )
+                    day_ar = norm_ar(row.iloc[day_col_idx]) if day_col_idx is not None else ""
                     day_en = DAY_AR_TO_EN.get(day_ar, None) if day_ar else None
                     # If no explicit day column, this table might be per-teacher
                     # with one row per day section, or the day is embedded in a
@@ -517,9 +484,7 @@ class Command(BaseCommand):
                     if teacher_name:
                         t_obj = teachers_cache.get(teacher_name)
                         if not t_obj:
-                            t_obj, _ = self.Staff.objects.get_or_create(
-                                full_name=teacher_name
-                            )
+                            t_obj, _ = self.Staff.objects.get_or_create(full_name=teacher_name)
                             teachers_cache[teacher_name] = t_obj
                         current_teacher = t_obj
                     else:
@@ -558,9 +523,7 @@ class Command(BaseCommand):
                                 # Create with best-effort grade from name
                                 m = re.search(r"(\d+)", cname.translate(AR_NUMS))
                                 grade = int(m.group(1)) if m else 0
-                                c_obj = self.Class.objects.create(
-                                    name=cname, grade=grade
-                                )
+                                c_obj = self.Class.objects.create(name=cname, grade=grade)
                             classes_cache[cname] = c_obj
 
                         # Resolve subject (allow Arabic name_ar)
@@ -568,19 +531,13 @@ class Command(BaseCommand):
                         if sname:
                             subj_obj = subjects_cache.get(sname)
                             if not subj_obj:
-                                subj_obj = self.Subject.objects.filter(
-                                    name_ar=sname
-                                ).first()
+                                subj_obj = self.Subject.objects.filter(name_ar=sname).first()
                                 if not subj_obj:
-                                    subj_obj = self.Subject.objects.create(
-                                        name_ar=sname
-                                    )
+                                    subj_obj = self.Subject.objects.create(name_ar=sname)
                                 subjects_cache[sname] = subj_obj
                         else:
                             # Create placeholder subject when absent
-                            subj_obj = self.Subject.objects.get_or_create(
-                                name_ar="غير محدد"
-                            )[0]
+                            subj_obj = self.Subject.objects.get_or_create(name_ar="غير محدد")[0]
 
                         # Resolve teacher: if absent in row and no carry-over, skip
                         if not t_obj:
@@ -607,9 +564,7 @@ class Command(BaseCommand):
         # 4) Fallback: parse الجدول العام.pdf if present and needed (optional)
         if not created_entries and general_pdf.exists():
             try:
-                self.stdout.write(
-                    f"[info] Reading general timetable from {general_pdf} ..."
-                )
+                self.stdout.write(f"[info] Reading general timetable from {general_pdf} ...")
                 tables = try_read_pdf_tables(general_pdf)
             except Exception:
                 tables = []
@@ -667,9 +622,7 @@ class Command(BaseCommand):
                         # resolve teacher
                         t_obj = teachers_cache.get(teacher_name)
                         if not t_obj:
-                            t_obj, _ = self.Staff.objects.get_or_create(
-                                full_name=teacher_name
-                            )
+                            t_obj, _ = self.Staff.objects.get_or_create(full_name=teacher_name)
                             teachers_cache[teacher_name] = t_obj
                         # For each day/period
                         idx = 0
@@ -691,17 +644,11 @@ class Command(BaseCommand):
                                     continue
                                 c_obj = classes_cache.get(cname)
                                 if not c_obj:
-                                    c_obj = self.Class.objects.filter(
-                                        name=cname
-                                    ).first()
+                                    c_obj = self.Class.objects.filter(name=cname).first()
                                     if not c_obj:
-                                        m = re.search(
-                                            r"(\d+)", cname.translate(AR_NUMS)
-                                        )
+                                        m = re.search(r"(\d+)", cname.translate(AR_NUMS))
                                         grade = int(m.group(1)) if m else 0
-                                        c_obj = self.Class.objects.create(
-                                            name=cname, grade=grade
-                                        )
+                                        c_obj = self.Class.objects.create(name=cname, grade=grade)
                                     classes_cache[cname] = c_obj
                                 if sname:
                                     subj_obj = subjects_cache.get(sname)
@@ -710,9 +657,7 @@ class Command(BaseCommand):
                                             name_ar=sname
                                         ).first()
                                         if not subj_obj:
-                                            subj_obj = self.Subject.objects.create(
-                                                name_ar=sname
-                                            )
+                                            subj_obj = self.Subject.objects.create(name_ar=sname)
                                         subjects_cache[sname] = subj_obj
                                 else:
                                     subj_obj = self.Subject.objects.get_or_create(
@@ -765,15 +710,11 @@ class Command(BaseCommand):
                 key = (e.classroom_id or e.classroom.id, e.day, e.slot_id or e.slot.id)
                 dedup_map[key] = e
             # Skip rows that already exist due to unique constraint (classroom, day, slot)
-            self.TimetableEntry.objects.bulk_create(
-                list(dedup_map.values()), ignore_conflicts=True
-            )
+            self.TimetableEntry.objects.bulk_create(list(dedup_map.values()), ignore_conflicts=True)
 
             # Rebuild TeachingAssignment counts from TimetableEntry
             agg: Dict[Tuple[int, int, int], int] = {}
-            qs = self.TimetableEntry.objects.all().select_related(
-                "classroom", "subject", "teacher"
-            )
+            qs = self.TimetableEntry.objects.all().select_related("classroom", "subject", "teacher")
             if skip_teacher:
                 qs = qs.exclude(teacher__full_name__in=skip_teacher)
             for e in qs:
@@ -781,9 +722,7 @@ class Command(BaseCommand):
                 agg[key] = agg.get(key, 0) + 1
             for (cid, sid, tid), cnt in agg.items():
                 # Ensure the subject is attached to the class (required by TeachingAssignment.clean)
-                if not self.ClassSubject.objects.filter(
-                    classroom_id=cid, subject_id=sid
-                ).exists():
+                if not self.ClassSubject.objects.filter(classroom_id=cid, subject_id=sid).exists():
                     self.ClassSubject.objects.create(
                         classroom_id=cid, subject_id=sid, weekly_default=cnt
                     )
@@ -820,9 +759,7 @@ class Command(BaseCommand):
 
             start = datetime.strptime("08:00", "%H:%M").time()
             for day in [
-                d.strip()
-                for d in (tmpl.days or "Sun,Mon,Tue,Wed,Thu").split(",")
-                if d.strip()
+                d.strip() for d in (tmpl.days or "Sun,Mon,Tue,Wed,Thu").split(",") if d.strip()
             ]:
                 t0 = start
                 for p in range(1, 8):
@@ -849,23 +786,19 @@ class Command(BaseCommand):
         # create with default time based on order as last known + 50 minutes per period
         from datetime import datetime, timedelta
 
-        existing = tmpl.slots.filter(
-            day=day, block=self.CalendarSlot.Block.CLASS
-        ).order_by("order", "start_time")
+        existing = tmpl.slots.filter(day=day, block=self.CalendarSlot.Block.CLASS).order_by(
+            "order", "start_time"
+        )
         if existing.exists():
             last = existing.last()
             start = (
                 datetime.combine(datetime.today(), last.end_time) + timedelta(minutes=5)
             ).time()
-            end = (
-                datetime.combine(datetime.today(), start) + timedelta(minutes=45)
-            ).time()
+            end = (datetime.combine(datetime.today(), start) + timedelta(minutes=45)).time()
             order = (last.order or 0) + 1
         else:
             start = datetime.strptime("08:00", "%H:%M").time()
-            end = (
-                datetime.combine(datetime.today(), start) + timedelta(minutes=45)
-            ).time()
+            end = (datetime.combine(datetime.today(), start) + timedelta(minutes=45)).time()
             order = 1
         return self.CalendarSlot.objects.create(
             template=tmpl,
@@ -903,9 +836,7 @@ class Command(BaseCommand):
                 if created_flag:
                     created += 1
         if created:
-            self.stdout.write(
-                f"[info] Created {created} class(es) from {pdf_path.name}"
-            )
+            self.stdout.write(f"[info] Created {created} class(es) from {pdf_path.name}")
 
 
 if __name__ == "__main__":
@@ -920,11 +851,6 @@ if __name__ == "__main__":
         "D:\\sh_school_015\\DOC\\school_DATA --dry-run"
     )
     print("If the dry-run looks correct, run:")
-    print(
-        "python backend\\manage.py import_from_pdf "
-        "D:\\sh_school_015\\DOC\\school_DATA --wipe"
-    )
-    print(
-        "Note: teacher 'يوسف يعقوب' is skipped by default; use --skip-teacher to adjust."
-    )
+    print("python backend\\manage.py import_from_pdf " "D:\\sh_school_015\\DOC\\school_DATA --wipe")
+    print("Note: teacher 'يوسف يعقوب' is skipped by default; use --skip-teacher to adjust.")
     sys.exit(0)

@@ -1,0 +1,15 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{# Move Staff inline(s) to the top of the form #}
+{% block form_top %}
+  {{ block.super }}
+  {% if inline_admin_formsets %}
+    {% for inline_admin_formset in inline_admin_formsets %}
+      {% include inline_admin_formset.opts.template %}
+    {% endfor %}
+  {% endif %}
+{% endblock %}
+
+{# Suppress default placement of inlines at the bottom to avoid duplication #}
+{% block inline_field_sets %}{% endblock %}
