@@ -7,7 +7,6 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $Root
 
 $VenvPath = Join-Path $Root '.venv'
-$PyCfg = Join-Path $VenvPath 'pyvenv.cfg'
 $TargetVenvPath = $VenvPath
 
 Write-Host "Project root: $Root"

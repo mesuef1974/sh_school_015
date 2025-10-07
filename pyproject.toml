@@ -1,0 +1,23 @@
+[tool.ruff]
+target-version = "py311"
+# Do not scan virtual environments, build artifacts, or third-party libraries
+extend-exclude = [
+  ".venv", ".venv_fix", "venv", "env", ".tox", ".eggs", "build", "dist",
+  "**/site-packages", "**/__pycache__", "backend/.venv"
+]
+line-length = 120
+
+[tool.ruff.lint]
+# Enable a sensible default rule set; teams can adjust later
+select = ["E", "F", "I"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_no_return = true
+warn_unused_configs = true
+# Exclude third-party and build directories
+exclude = "(\\.venv|\\.venv_fix|venv|env|\\.tox|site-packages|build|dist|backend\\\\.venv)(?:$|\\\\)"

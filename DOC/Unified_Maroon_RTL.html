@@ -7,7 +7,7 @@
     <meta name="description" content="صفحة واحدة RTL تفاعلية: ملخص تنفيذي للطباعة، مؤشرات، مهام + Gantt، استيراد Excel/CSV، مركز تصدير PDF/CSV/JSON/DOCX، محاكاة RBAC، وERD." />
 
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="../assets/img/favicon.ico" />
 
     <!-- Vendor libs (CDN) -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
@@ -21,21 +21,21 @@
     <style>
       @font-face {
         font-family: "NotoKufiArabic-Local";
-        src: url("/static/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Regular.ttf") format("truetype");
+        src: url("../assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Regular.ttf") format("truetype");
         font-weight: 400;
         font-style: normal;
         font-display: swap;
       }
       @font-face {
         font-family: "NotoKufiArabic-Local";
-        src: url("/static/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Bold.ttf") format("truetype");
+        src: url("../assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-Bold.ttf") format("truetype");
         font-weight: 700;
         font-style: normal;
         font-display: swap;
       }
       @font-face {
         font-family: "Amiri-Local";
-        src: url("/static/fonts/Amiri/Amiri-Regular.ttf") format("truetype");
+        src: url("../assets/fonts/Amiri/Amiri-Regular.ttf") format("truetype");
         font-weight: 400;
         font-style: normal;
         font-display: swap;
@@ -174,9 +174,9 @@
       <section id="tab-exec" class="panel">
         <div class="letterhead-header">
           <div class="brand-name-badge">
-            <img src="/static/img/school_name.png" alt="اسم المدرسة" />
+            <img src="../assets/img/school_name.png" alt="اسم المدرسة" />
           </div>
-          <img src="/static/img/QATAR_Flag.png" alt="علم قطر" />
+          <img src="../assets/img/QATAR_Flag.png" alt="علم قطر" />
         </div>
         <div class="print-page" id="exec-page" aria-label="الملخّص التنفيذي للطباعة">
           <h2>ملخّص تنفيذي — صفحة واحدة</h2>
@@ -566,7 +566,7 @@ model Grade {
           tr.innerHTML = `
             <td><textarea class="input" rows="2" oninput="state.tasks[${i}].title=this.value; this.style.height='auto'; this.style.height=(this.scrollHeight)+'px'; updateKPIs(); drawGantt();">${t.title}</textarea></td>
             <td>
-              <select class="input" onchange="state.tasks[${i}].week=+this.value; renderTasks(); drawGantt();">
+              <select class="input" onchange="state.tasks[${i}].week=parseInt(this.value,10)||0; renderTasks(); drawGantt();">
                 ${Array.from({length:8},(_,w)=>`<option value="${w+1}" ${(+t.week||1)===(w+1)?'selected':''}>${w+1}</option>`).join('')}
               </select>
             </td>
@@ -588,7 +588,7 @@ model Grade {
             <td><input class="input" type="date" value="${t.start}" onchange="state.tasks[${i}].start=this.value; validateDateRange(${i}); drawGantt(); renderTasks();"/></td>
             <td><input class="input" type="date" value="${t.end}" onchange="state.tasks[${i}].end=this.value; validateDateRange(${i}); drawGantt(); renderTasks();"/></td>
             <td style="text-align:center">${taskDurationDays(t)}</td>
-            <td><input class="input" type="number" min="0" max="100" value="${t.progress}" onchange="state.tasks[${i}].progress=+this.value; updateKPIs();"/></td>
+            <td><input class="input" type="number" min="0" max="100" value="${t.progress}" onchange="state.tasks[${i}].progress=Math.max(0, Math.min(100, parseInt(this.value,10)||0)); updateKPIs();"/></td>
             <td><input class="input" value="${t.owner}" onchange="state.tasks[${i}].owner=this.value;"/></td>
             <td><input class="input" value="${t.notes||''}" placeholder="إدخِل ملاحظة" onchange="state.tasks[${i}].notes=this.value;"/></td>
             <td><button class="btn warn" onclick="state.tasks.splice(${i},1); renderTasks(); drawGantt(); updateKPIs();">حذف</button></td>
