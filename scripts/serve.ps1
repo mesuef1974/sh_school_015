@@ -80,13 +80,15 @@ if ($LASTEXITCODE -ne 0) {
 $suUser = $envVars['DJANGO_SUPERUSER_USERNAME']
 $suEmail = $envVars['DJANGO_SUPERUSER_EMAIL']
 $suPass = $envVars['DJANGO_SUPERUSER_PASSWORD']
-if ($suUser -and $suEmail -and $suPass) {
-    Write-Host "[serve] Ensuring superuser '$suUser' exists (idempotent) ..."
+if ($suUser -and ($suEmail -or $suPass)) {
+    Write-Host "[serve] Ensuring superuser '$suUser' exists/updates (idempotent) ..."
     $env:DJANGO_SUPERUSER_USERNAME = $suUser
-    $env:DJANGO_SUPERUSER_EMAIL = $suEmail
-    $env:DJANGO_SUPERUSER_PASSWORD = $suPass
+    if ($suEmail) { $env:DJANGO_SUPERUSER_EMAIL = $suEmail }
+    if ($suPass)  { $env:DJANGO_SUPERUSER_PASSWORD = $suPass }
     # Use custom management command that creates/updates quietly when already present
     python manage.py ensure_superuser
+} elseif ($suUser) {
+    Write-Host "[serve] DJANGO_SUPERUSER_USERNAME is set but neither email nor password provided; skipping ensure_superuser."
 }
 
 # Bootstrap RBAC

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="منصة وثائق عربية تسرد ملفات وصور وروابط المستودع تلقائيًا.">
   <title>منصة الوثائق</title>
-  <link rel="icon" href="assets/img/favicon.ico">
+  <link rel="icon" href="/static/img/favicon.ico">
   <style>
     :root {
       --brand: #6e0303;
@@ -18,14 +18,14 @@
     }
     @font-face {
       font-family: 'NotoKufiArabic';
-      src: url('assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf') format('truetype');
+      src: url('/static/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf') format('truetype');
       font-weight: 100 900;
       font-style: normal;
       font-display: swap;
     }
     @font-face {
       font-family: 'Amiri';
-      src: url('assets/fonts/Amiri/Amiri-Regular.ttf') format('truetype');
+      src: url('/static/fonts/Amiri/Amiri-Regular.ttf') format('truetype');
       font-weight: 400;
       font-style: normal;
       font-display: swap;
@@ -61,8 +61,8 @@
 <body>
   <header>
     <div class="brand">
-      <img src="assets/img/logo.png" alt="الشعار" onerror="this.style.display='none';" />
-      <img src="assets/img/school_name.png" alt="اسم المدرسة" onerror="this.style.display='none';" />
+      <img src="/static/img/logo.png" alt="الشعار" onerror="this.style.display='none';" />
+      <img src="/static/img/school_name.png" alt="اسم المدرسة" onerror="this.style.display='none';" />
       <h1>منصة الوثائق</h1>
     </div>
   </header>
@@ -74,16 +74,31 @@
         <span class="badge">اتجاه RTL</span>
         <span class="badge">عربي</span>
         <span class="badge">روابط مباشرة للوثائق</span>
+        <span class="badge">واجهات أمامية</span>
       </div>
     </section>
     <div class="divider"></div>
 
     <section>
+      <h2>الواجهات الأمامية (Frontend)</h2>
+      <p class="muted">هذه القوالب الأمامية تعمل باتجاه RTL ومهيأة للعربية. للعرض الكامل كصفحات ديناميكية، شغّل الخادم الخلفي عبر السكربت <code>scripts/serve.ps1</code> ثم افتح المتصفح على العنوان الذي يظهر لك.</p>
+      <ul>
+        <li><a href="/timetable/" target="_blank" rel="noopener">واجهة: عرض الجداول الدراسية (ديناميكي)</a></li>
+        <li><a href="/loads/" target="_blank" rel="noopener">لوحة: أحمال المعلمين</a></li>
+        <li><a href="/calendar/" target="_blank" rel="noopener">التقويمات الدراسية</a></li>
+        <li><a href="/data/" target="_blank" rel="noopener">نظرة عامة على البيانات</a></li>
+        <li><a href="/DOC/Unified_Maroon_RTL.html" target="_blank" rel="noopener">دليل التصميم الموحّد RTL</a></li>
+      </ul>
+    </section>
+
+    <section>
       <h2>واجهات برمجة التطبيقات (API)</h2>
       <p class="muted">عرض احترافي لملف YAML الخاص بـ OpenAPI.</p>
       <ul>
-        <li><a href="DOC/OpenAPI_RTL.html" target="_blank" rel="noopener">فتح توثيق API (عرض احترافي)</a></li>
-        <li><a href="backend/schema.yaml" target="_blank" rel="noopener">عرض ملف YAML الأصلي</a></li>
+        <li><a href="/DOC/OpenAPI_RTL.html" target="_blank" rel="noopener">فتح توثيق API (عرض احترافي)</a></li>
+        <li><a href="/api/" target="_blank" rel="noopener">استكشاف API (DRF)</a> <span class="meta">— قد تحتاج لتسجيل الدخول</span></li>
+        <li><a href="/api-auth/login/?next=/api/" target="_blank" rel="noopener">تسجيل الدخول لاستعراض API</a></li>
+        <li><a href="/api/token/" target="_blank" rel="noopener">الحصول على رمز JWT (token)</a></li>
       </ul>
     </section>
 
@@ -101,37 +116,11 @@
         </ul>
       </details>
       <details open>
-        <summary>backend</summary>
-        <ul>
-          <li><a href="backend/school/templates/_base_maronia.html" target="_blank" rel="noopener">backend/school/templates/_base_maronia.html</a> <span class="meta">— حجم: 5.9 KB • آخر تعديل: 2025-10-03 16:38</span></li>
-          <li><a href="backend/school/templates/admin/base_site.html" target="_blank" rel="noopener">backend/school/templates/admin/base_site.html</a> <span class="meta">— حجم: 915 بايت • آخر تعديل: 2025-10-04 06:28</span></li>
-          <li><a href="backend/school/templates/admin/teachingassignment_import.html" target="_blank" rel="noopener">backend/school/templates/admin/teachingassignment_import.html</a> <span class="meta">— حجم: 572 بايت • آخر تعديل: 2025-10-02 23:03</span></li>
-          <li><a href="backend/school/templates/data/overview.html" target="_blank" rel="noopener">backend/school/templates/data/overview.html</a> <span class="meta">— حجم: 1.3 KB • آخر تعديل: 2025-10-06 07:56</span></li>
-          <li><a href="backend/school/templates/data/school_timetableentry.html" target="_blank" rel="noopener">backend/school/templates/data/school_timetableentry.html</a> <span class="meta">— حجم: 2.7 KB • آخر تعديل: 2025-10-05 20:03</span></li>
-          <li><a href="backend/school/templates/data/table_detail.html" target="_blank" rel="noopener">backend/school/templates/data/table_detail.html</a> <span class="meta">— حجم: 7.4 KB • آخر تعديل: 2025-10-03 16:40</span></li>
-          <li><a href="backend/school/templates/school/all_teachers_timetable.html" target="_blank" rel="noopener">backend/school/templates/school/all_teachers_timetable.html</a> <span class="meta">— حجم: 4.2 KB • آخر تعديل: 2025-10-05 00:04</span></li>
-          <li><a href="backend/school/templates/school/calendar_detail.html" target="_blank" rel="noopener">backend/school/templates/school/calendar_detail.html</a> <span class="meta">— حجم: 1.7 KB • آخر تعديل: 2025-10-06 07:56</span></li>
-          <li><a href="backend/school/templates/school/calendar_list.html" target="_blank" rel="noopener">backend/school/templates/school/calendar_list.html</a> <span class="meta">— حجم: 1.2 KB • آخر تعديل: 2025-10-06 07:56</span></li>
-          <li><a href="backend/school/templates/school/teacher_loads_dashboard.html" target="_blank" rel="noopener">backend/school/templates/school/teacher_loads_dashboard.html</a> <span class="meta">— حجم: 4.7 KB • آخر تعديل: 2025-10-03 16:07</span></li>
-          <li><a href="backend/school/templates/school/teacher_timetable.html" target="_blank" rel="noopener">backend/school/templates/school/teacher_timetable.html</a> <span class="meta">— حجم: 4.2 KB • آخر تعديل: 2025-10-05 00:03</span></li>
-          <li><a href="backend/school/templates/school/timetable_all.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_all.html</a> <span class="meta">— حجم: 1.5 KB • آخر تعديل: 2025-10-05 08:25</span></li>
-          <li><a href="backend/school/templates/school/timetable_build.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_build.html</a> <span class="meta">— حجم: 4.3 KB • آخر تعديل: 2025-10-05 09:00</span></li>
-          <li><a href="backend/school/templates/school/timetable_by_teacher.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_by_teacher.html</a> <span class="meta">— حجم: 3.8 KB • آخر تعديل: 2025-10-05 00:05</span></li>
-          <li><a href="backend/school/templates/school/timetable_diagnostics.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_diagnostics.html</a> <span class="meta">— حجم: 5.5 KB • آخر تعديل: 2025-10-04 12:27</span></li>
-          <li><a href="backend/school/templates/school/timetable_pro_dashboard.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_pro_dashboard.html</a> <span class="meta">— حجم: 6.6 KB • آخر تعديل: 2025-10-04 12:43</span></li>
-          <li><a href="backend/school/templates/school/timetable_pro_preview.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_pro_preview.html</a> <span class="meta">— حجم: 5.6 KB • آخر تعديل: 2025-10-04 10:43</span></li>
-          <li><a href="backend/school/templates/school/timetable_rules_editor.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_rules_editor.html</a> <span class="meta">— حجم: 2.5 KB • آخر تعديل: 2025-10-04 09:17</span></li>
-          <li><a href="backend/school/templates/school/timetable_rules_review.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_rules_review.html</a> <span class="meta">— حجم: 6.0 KB • آخر تعديل: 2025-10-04 09:18</span></li>
-          <li><a href="backend/school/templates/school/timetable_select.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_select.html</a> <span class="meta">— حجم: 1.6 KB • آخر تعديل: 2025-10-06 07:56</span></li>
-          <li><a href="backend/school/templates/school/timetable_week.html" target="_blank" rel="noopener">backend/school/templates/school/timetable_week.html</a> <span class="meta">— حجم: 1.9 KB • آخر تعديل: 2025-10-06 07:56</span></li>
-        </ul>
-      </details>
-      <details open>
         <summary>DOC</summary>
         <ul>
           <li><a href="DOC/OpenAPI_RTL.html" target="_blank" rel="noopener">DOC/OpenAPI_RTL.html</a> <span class="meta">— حجم: 2.9 KB • آخر تعديل: 2025-10-02 22:15</span></li>
           <li><a href="DOC/Strategic_Plan_Shahania_2025_RTL.html" target="_blank" rel="noopener">DOC/Strategic_Plan_Shahania_2025_RTL.html</a> <span class="meta">— حجم: 20.7 KB • آخر تعديل: 2025-10-02 22:19</span></li>
-          <li><a href="DOC/Unified_Maroon_RTL.html" target="_blank" rel="noopener">DOC/Unified_Maroon_RTL.html</a> <span class="meta">— حجم: 67.3 KB • آخر تعديل: 2025-10-03 16:51</span></li>
+          <li><a href="DOC/Unified_Maroon_RTL.html" target="_blank" rel="noopener">DOC/Unified_Maroon_RTL.html</a> <span class="meta">— حجم: 67.3 KB • آخر تعديل: 2025-10-07 10:59</span></li>
           <li><a href="DOC/school_DATA/new_studants.xlsx" target="_blank" rel="noopener">DOC/school_DATA/new_studants.xlsx</a> <span class="meta">— حجم: 111.4 KB • آخر تعديل: 2025-10-06 19:22</span></li>
           <li><a href="DOC/school_DATA/schasual.xlsx" target="_blank" rel="noopener">DOC/school_DATA/schasual.xlsx</a> <span class="meta">— حجم: 3.4 MB • آخر تعديل: 2025-09-28 18:11</span></li>
           <li><a href="DOC/school_DATA/students_03.xlsx" target="_blank" rel="noopener">DOC/school_DATA/students_03.xlsx</a> <span class="meta">— حجم: 58.3 KB • آخر تعديل: 2025-10-06 18:42</span></li>
@@ -150,5 +139,80 @@
   <footer>
     <span>آخر تحديث يتم توليده تلقائيًا عند تشغيل السكربت.</span>
   </footer>
+  <script>
+    // Hide raw Django template source files from the auto list if present in this static page
+    (function () {
+      try {
+        var listSection = document.querySelector('section');
+        // Operate only inside the auto list area
+        var autoStart = document.querySelector('!-- AUTO_LIST_START');
+      } catch (e) {}
+      // Fallback: simply scan all links and hide those pointing to backend/school/templates
+      var links = document.querySelectorAll('a[href]');
+      for (var i = 0; i < links.length; i++) {
+        var a = links[i];
+        if (a.getAttribute('href').indexOf('backend/school/templates/') === 0) {
+          var li = a.closest('li') || a;
+          if (li) {
+            // Replace with a friendly hint pointing to dynamic routes
+            var hint = document.createElement('span');
+            hint.className = 'meta';
+            hint.textContent = '— هذه ملفات قوالب Django ولا تُعرض مباشرة. استخدم الروابط العلوية: البيانات / الجداول / الأنصبة / التقويم.';
+            // Keep the filename but disable link
+            var nameSpan = document.createElement('span');
+            nameSpan.textContent = a.textContent;
+            li.innerHTML = '';
+            li.appendChild(nameSpan);
+            li.appendChild(document.createTextNode(' '));
+            li.appendChild(hint);
+          } else {
+            a.remove();
+          }
+        }
+      }
+    })();
+  </script>
+  <script>
+    // Dev convenience: if this page is opened via JetBrains' built-in server (e.g., 63342) or file://,
+    // rewrite dynamic app links to the Django dev server so they don't 404 on the static server.
+    (function(){
+      try {
+        var proto = window.location.protocol;
+        var host = window.location.hostname || 'localhost';
+        var port = window.location.port;
+        var qs = new URLSearchParams(window.location.search);
+        var override = qs.get('backend'); // allow manual override like ?backend=127.0.0.1:9000
+        var defaultBase = 'http://127.0.0.1:8000';
+        var base = override ? (override.match(/^https?:\/\//) ? override : ('http://' + override)) : defaultBase;
+        var nonDjango = (proto === 'file:') || (host === 'localhost' && port && port !== '8000') || (host === '127.0.0.1' && port && port !== '8000');
+        if (!nonDjango) return; // likely running under Django already
+        var dynamicPrefixes = ['/timetable', '/loads', '/calendar', '/data', '/api'];
+        var skipPrefixes = ['/static', '/DOC'];
+        var anchors = document.querySelectorAll('a[href]');
+        anchors.forEach(function(a){
+          var href = a.getAttribute('href');
+          if (!href) return;
+          // Skip absolute external links
+          if (/^https?:\/\//i.test(href)) return;
+          // Skip in-page anchors
+          if (href[0] === '#') return;
+          // Only process absolute-path app routes starting with '/'
+          if (href[0] !== '/') return;
+          for (var s=0; s<skipPrefixes.length; s++) {
+            if (href.indexOf(skipPrefixes[s] + '/') === 0 || href === skipPrefixes[s] + '/') return;
+          }
+          var matches = false;
+          for (var i=0; i<dynamicPrefixes.length; i++) {
+            if (href.indexOf(dynamicPrefixes[i] + '/') === 0 || href === dynamicPrefixes[i] + '/') { matches = true; break; }
+          }
+          if (matches) {
+            a.setAttribute('href', base + href);
+            a.setAttribute('target', a.getAttribute('target') || '_blank');
+            a.setAttribute('rel', (a.getAttribute('rel') || 'noopener'));
+          }
+        });
+      } catch(e) { /* noop */ }
+    })();
+  </script>
 </body>
 </html>

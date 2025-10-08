@@ -7,9 +7,9 @@ from django.core.management.base import BaseCommand
 
 class Command(BaseCommand):
     help = (
-        "Ensure a Django superuser exists with credentials from environment\n"
-        "DJANGO_SUPERUSER_USERNAME, DJANGO_SUPERUSER_EMAIL, DJANGO_SUPERUSER_PASSWORD.\n"
-        "Idempotent: creates if missing; if exists, updates email and password when provided."
+        "Ensure a Django superuser exists using env vars:\n"
+        "DJANGO_SUPERUSER_USERNAME (required), DJANGO_SUPERUSER_EMAIL (optional), DJANGO_SUPERUSER_PASSWORD (optional).\n"
+        "If user exists: updates email/password when provided. If missing: requires both email and password to create."
     )
 
     def handle(self, *args, **options):
@@ -17,21 +17,35 @@ class Command(BaseCommand):
         email = os.getenv("DJANGO_SUPERUSER_EMAIL")
         password = os.getenv("DJANGO_SUPERUSER_PASSWORD")
 
-        if not (username and email and password):
+        if not username:
             self.stdout.write(
                 self.style.WARNING(
-                    "DJANGO_SUPERUSER_* env vars are not fully provided; skipping ensure_superuser."
+                    "DJANGO_SUPERUSER_USERNAME is required; skipping ensure_superuser."
                 )
             )
             return
 
         User = get_user_model()
-        user, created = User.objects.get_or_create(
-            username=username,
-            defaults={"email": email, "is_staff": True, "is_superuser": True},
-        )
-        changed = False
+        user = None
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            if email and password:
+                user = User.objects.create_user(username=username, email=email, password=password)
+                user.is_staff = True
+                user.is_superuser = True
+                user.save()
+                self.stdout.write(self.style.SUCCESS(f"Superuser '{username}' created."))
+                return
+            else:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"User '{username}' not found and insufficient data to create (need both email and password)."
+                    )
+                )
+                return
 
+        changed = False
         # Always enforce is_staff/is_superuser for this bootstrap user
         if not user.is_staff:
             user.is_staff = True
@@ -50,12 +64,8 @@ class Command(BaseCommand):
             user.set_password(password)
             changed = True
 
-        if created or changed:
+        if changed:
             user.save()
-
-        if created:
-            self.stdout.write(self.style.SUCCESS(f"Superuser '{username}' created."))
-        elif changed:
             self.stdout.write(self.style.HTTP_INFO(f"Superuser '{username}' updated."))
         else:
             self.stdout.write(self.style.HTTP_INFO(f"Superuser '{username}' already up-to-date."))

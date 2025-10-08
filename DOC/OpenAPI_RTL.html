@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>توثيق API — عرض احترافي (OpenAPI)</title>
-  <link rel="icon" href="../assets/img/favicon.ico">
+  <link rel="icon" href="/static/img/favicon.ico">
   <style>
     :root {
       --brand: #6e0303;
@@ -14,7 +14,7 @@
     }
     @font-face {
       font-family: 'NotoKufiArabic';
-      src: url('../assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf') format('truetype');
+      src: url('/static/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf') format('truetype');
       font-weight: 100 900; font-style: normal; font-display: swap;
     }
     body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'NotoKufiArabic', system-ui, -apple-system, "Segoe UI", Tahoma, Arial, sans-serif; }
@@ -37,10 +37,10 @@
   <div class="toolbar">
     <div class="container" style="display:flex;justify-content:space-between;">
       <div>
-        <a href="../index.html">العودة إلى منصة الوثائق</a>
+        <a href="/docs/">العودة إلى منصة الوثائق</a>
       </div>
       <div style="display:flex; gap:12px;">
-        <a href="../backend/schema.yaml" download>تحميل ملف YAML</a>
+        <a href="#" id="download-yaml" download>تحميل ملف YAML</a>
         <a href="https://editor.swagger.io/?url=" target="_blank" id="open-swagger">فتح في Swagger Editor</a>
       </div>
     </div>
@@ -49,21 +49,38 @@
     <redoc id="redoc-container"></redoc>
   </div>
   <script>
-    // Set the Swagger Editor link to current schema location
+    // Resolve schema URL across contexts (Django dev server or static IDE/file preview)
     (function() {
-      var schemaUrl = location.origin + location.pathname.replace(/\/DOC\/.*$/, '') + '/backend/schema.yaml';
-      document.getElementById('open-swagger').href = 'https://editor.swagger.io/?url=' + encodeURIComponent(schemaUrl);
-      // Initialize ReDoc
-      Redoc.init('../backend/schema.yaml', {
-        hideDownloadButton: false,
-        expandResponses: '200,201',
-        requiredPropsFirst: true,
-        pathInMiddlePanel: true,
-        theme: {
-          typography: { fontFamily: 'NotoKufiArabic, Segoe UI, Tahoma, Arial, sans-serif' },
-          colors: { primary: { main: '#6e0303' } }
-        }
-      }, document.getElementById('redoc-container'));
+      try {
+        var proto = window.location.protocol;
+        var host = window.location.hostname || 'localhost';
+        var port = window.location.port;
+        var qs = new URLSearchParams(window.location.search);
+        var override = qs.get('backend'); // allow ?backend=127.0.0.1:8000
+        var defaultBase = 'http://127.0.0.1:8000';
+        var base = override ? (override.match(/^https?:\/\//) ? override : ('http://' + override)) : defaultBase;
+        var nonDjango = (proto === 'file:') || (host === 'localhost' && port && port !== '8000') || (host === '127.0.0.1' && port && port !== '8000');
+        var schemaPath = '/backend/schema.yaml';
+        var schemaUrl = nonDjango ? (base + schemaPath) : schemaPath;
+        // Update links
+        var dl = document.getElementById('download-yaml');
+        dl.href = schemaUrl;
+        var sw = document.getElementById('open-swagger');
+        sw.href = 'https://editor.swagger.io/?url=' + encodeURIComponent(schemaUrl);
+        // Initialize ReDoc with resolved URL
+        Redoc.init(schemaUrl, {
+          hideDownloadButton: false,
+          expandResponses: '200,201',
+          requiredPropsFirst: true,
+          pathInMiddlePanel: true,
+          theme: {
+            typography: { fontFamily: 'NotoKufiArabic, Segoe UI, Tahoma, Arial, sans-serif' },
+            colors: { primary: { main: '#6e0303' } }
+          }
+        }, document.getElementById('redoc-container'));
+      } catch (e) {
+        console.error(e);
+      }
     })();
   </script>
 </body>

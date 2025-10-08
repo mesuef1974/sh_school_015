@@ -147,9 +147,13 @@ STATICFILES_DIRS = [
 LOGIN_URL = "/admin/login/"
 
 # REST Framework & JWT
+# REST Framework & JWT
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        # Always support JWT
         "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # In development, also enable SessionAuthentication so the DRF browsable API can be used via login
+        *(() if not DEBUG else ("rest_framework.authentication.SessionAuthentication",)),
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
 }

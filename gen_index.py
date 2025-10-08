@@ -104,8 +104,15 @@ EXCLUDE_FILES.add(os.path.normpath(INDEX))
 
 
 def is_excluded_path(path):
-    parts = os.path.relpath(path, ROOT).split(os.sep)
-    return any(p in EXCLUDE_DIRS for p in parts)
+    rel = os.path.relpath(path, ROOT)
+    parts = rel.split(os.sep)
+    # Exclude by directory name anywhere in the path
+    if any(p in EXCLUDE_DIRS for p in parts):
+        return True
+    # Exclude Django template source files to avoid exposing raw template tags
+    if rel.startswith(os.path.join("backend", "school", "templates")):
+        return True
+    return False
 
 
 def rel_web_path(path):
