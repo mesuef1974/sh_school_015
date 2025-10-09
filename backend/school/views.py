@@ -1,13 +1,15 @@
 from django import forms
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required, user_passes_test
+from django.shortcuts import render, redirect
 from django.urls import reverse
 from django.contrib import messages
-from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
+from django.core.paginator import Paginator
+from django.http import Http404, StreamingHttpResponse
 from .models import (
     Class,
     Student,
@@ -15,8 +17,6 @@ from .models import (
     Subject,
     TeachingAssignment,
     ClassSubject,
-    CalendarTemplate,
-    CalendarSlot,
 )
 from .serializers import (
     ClassSerializer,
@@ -25,14 +25,9 @@ from .serializers import (
     SubjectSerializer,
     TeachingAssignmentSerializer,
     ClassSubjectSerializer,
-    CalendarTemplateSerializer,
-    CalendarSlotSerializer,
 )
-from openpyxl import load_workbook
 import re
-from django.db import connection
-from django.core.paginator import Paginator
-from django.http import Http404
+from openpyxl import load_workbook
 
 
 class ClassViewSet(ModelViewSet):
@@ -378,6 +373,11 @@ def _import_excel_file(file_obj):
     return True
 
 
+def _staff_only(user):
+    return user.is_authenticated and user.is_staff
+
+
+@user_passes_test(_staff_only)
 @login_required
 def data_overview(request):
     # Denylist sensitive tables by prefix or exact names
@@ -385,15 +385,8 @@ def data_overview(request):
     deny_prefixes = ("auth_", "django_", "admin_")
 
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema='public' AND table_type='BASE TABLE'
-            ORDER BY table_name
-            """
-        )
-        tables = [row[0] for row in cursor.fetchall()]
+        introspection = connection.introspection
+        tables = introspection.table_names()
 
     visible_tables = [
         t for t in tables if t not in deny_exact and not any(t.startswith(p) for p in deny_prefixes)
@@ -417,6 +410,7 @@ def data_overview(request):
     return render(request, "data/overview.html", context)
 
 
+@user_passes_test(_staff_only)
 @login_required
 def data_table_detail(request, table):
     # Security: allow only public tables and apply same deny rules
@@ -424,14 +418,8 @@ def data_table_detail(request, table):
     deny_prefixes = ("auth_", "django_", "admin_")
 
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT table_name
-            FROM information_schema.tables
-            WHERE table_schema='public' AND table_type='BASE TABLE'
-            """
-        )
-        all_tables = {row[0] for row in cursor.fetchall()}
+        introspection = connection.introspection
+        all_tables = set(introspection.table_names())
 
     if (
         table not in all_tables
@@ -570,18 +558,10 @@ def data_table_detail(request, table):
         return render(request, "data/table_detail.html", context)
 
     # Fallback read-only for non-registered tables (raw SQL path)
-    # Read columns
+    # Read columns (vendor-agnostic)
     with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema='public' AND table_name=%s
-            ORDER BY ordinal_position
-            """,
-            [table],
-        )
-        columns = [r[0] for r in cursor.fetchall()]
+        description = connection.introspection.get_table_description(cursor, table)
+        columns = [col.name for col in description]
 
     order_sql = ""
     if order and order.lstrip("-") in columns:
@@ -621,107 +601,47 @@ def data_table_detail(request, table):
     return render(request, "data/table_detail.html", context)
 
 
-# --- Calendar (API + HTML) ---
-
-
-class CalendarTemplateViewSet(ReadOnlyModelViewSet):
-    queryset = CalendarTemplate.objects.all().prefetch_related("slots")
-    serializer_class = CalendarTemplateSerializer
-
-
-class CalendarSlotViewSet(ReadOnlyModelViewSet):
-    queryset = CalendarSlot.objects.select_related("template").all()
-    serializer_class = CalendarSlotSerializer
-
-
+@user_passes_test(_staff_only)
 @login_required
-def calendar_list(request):
-    templates = CalendarTemplate.objects.all().order_by("name")
-    return render(request, "school/calendar_list.html", {"templates": templates})
-
-
-@login_required
-def calendar_template_detail(request, pk: int):
-    tmpl = get_object_or_404(CalendarTemplate, pk=pk)
-    slots = tmpl.slots.all().order_by("day", "order", "start_time")
-    return render(
-        request,
-        "school/calendar_detail.html",
-        {"template": tmpl, "slots": slots},
-    )
-
-
-# --- Timetable (Weekly grid MVP) ---
-DAYS_ORDER = ["Sun", "Mon", "Tue", "Wed", "Thu"]
-
-
-@login_required
-def timetable_select(request):
-    """Select a class and a calendar template to view the weekly timetable.
-    Read-only MVP: displays the time grid only.
-    """
-    classes = Class.objects.all().order_by("grade", "section", "name")
-    templates = CalendarTemplate.objects.all().order_by("name")
-
-    # Allow simple GET selection as well
-    class_id = request.GET.get("class_id")
-    template_id = request.GET.get("template_id")
-    if request.method == "POST":
-        class_id = request.POST.get("class_id")
-        template_id = request.POST.get("template_id")
-    if class_id and template_id:
-        try:
-            cid = int(class_id)
-            tid = int(template_id)
-            return redirect(reverse("timetable_class_week", args=[cid, tid]))
-        except Exception:
-            pass
-
-    return render(
-        request,
-        "school/timetable_select.html",
-        {"classes": classes, "templates": templates},
-    )
-
-
-@login_required
-def timetable_class_week(request, class_id: int, template_id: int):
-    classroom = get_object_or_404(Class, pk=class_id)
-    tmpl = get_object_or_404(CalendarTemplate, pk=template_id)
-
-    # Build day->list[slot] where slots are expanded for 'ALL' days
-    raw_slots = list(tmpl.slots.all().order_by("day", "order", "start_time"))
-    day_slots = {d: [] for d in DAYS_ORDER}
-    for s in raw_slots:
-        if (s.day or "").upper() == "ALL":
-            for d in DAYS_ORDER:
-                day_slots[d].append(s)
-        else:
-            if s.day in day_slots:
-                day_slots[s.day].append(s)
-
-    # Normalize per-day ordering
-    for d in day_slots:
-        day_slots[d] = sorted(day_slots[d], key=lambda x: (x.order, x.start_time, x.period_index))
-
-    # Determine the unique period rows based on order/start_time from first non-empty day
-    period_rows = []
-    for d in DAYS_ORDER:
-        if day_slots[d]:
-            for s in day_slots[d]:
-                key = (s.period_index, s.start_time, s.end_time, s.block, s.order)
-                if key not in period_rows:
-                    period_rows.append(key)
-            break
-
-    context = {
-        "classroom": classroom,
-        "template": tmpl,
-        "days": DAYS_ORDER,
-        "day_slots": day_slots,
-        "period_rows": period_rows,
+def export_table_csv(request, table):
+    # Registry of exportable tables (same as editable set)
+    MODEL_REGISTRY = {
+        Class._meta.db_table: Class,
+        Student._meta.db_table: Student,
+        Staff._meta.db_table: Staff,
+        Subject._meta.db_table: Subject,
+        ClassSubject._meta.db_table: ClassSubject,
+        TeachingAssignment._meta.db_table: TeachingAssignment,
     }
-    return render(request, "school/timetable_week.html", context)
+    Model = MODEL_REGISTRY.get(table)
+    if not Model:
+        raise Http404("Table not found")
+
+    fields = [f.name for f in Model._meta.concrete_fields]
+
+    def row_iter():
+        # Header
+        yield ",".join(fields) + "\n"
+        # Stream rows to avoid memory blowup
+        for obj in Model.objects.all().iterator():
+            vals = []
+            for f in fields:
+                v = getattr(obj, f)
+                if v is None:
+                    vals.append("")
+                else:
+                    s = str(v)
+                    # Basic CSV escaping for commas and quotes
+                    if any(ch in s for ch in [",", '"', "\n", "\r"]):
+                        s = '"' + s.replace('"', '""') + '"'
+                    vals.append(s)
+            yield ",".join(vals) + "\n"
+
+    resp = StreamingHttpResponse(row_iter(), content_type="text/csv; charset=utf-8")
+    resp["Content-Disposition"] = f'attachment; filename="{table}.csv"'
+    return resp
 
 
-# EOF
+# Timetable and calendar features have been fully removed from this module.
+# Any previous views or utilities related to calendars or weekly timetables were
+# deleted to ensure a safe and final cleanup as requested.

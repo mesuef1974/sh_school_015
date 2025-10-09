@@ -62,29 +62,3 @@ class ClassSubjectSerializer(serializers.ModelSerializer):
             "subject_name",
             "weekly_default",
         ]
-
-
-# --- Calendar serializers ---
-from .models import CalendarTemplate, CalendarSlot  # noqa: E402
-
-
-class CalendarSlotSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CalendarSlot
-        fields = [
-            "id",
-            "day",
-            "period_index",
-            "start_time",
-            "end_time",
-            "block",
-            "order",
-        ]
-
-
-class CalendarTemplateSerializer(serializers.ModelSerializer):
-    slots = CalendarSlotSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = CalendarTemplate
-        fields = ["id", "name", "scope", "days", "slots"]

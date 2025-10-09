@@ -23,13 +23,15 @@
     </div>
   </form>
 
+
   <div class="d-flex justify-content-between align-items-center mb-2">
     <div class="small text-muted">إجمالي الصفوف: {{ total_count }}</div>
-    {% if editable %}
-      <div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-outline-success" href="{% url 'data_export_csv' table %}"><i class="bi bi-download me-1"></i> تصدير CSV</a>
+      {% if editable %}
         <a class="btn btn-sm btn-maron" href="?add=1{% if q %}&q={{ q|urlencode }}{% endif %}{% if order %}&order={{ order|urlencode }}{% endif %}{% if per_page %}&per_page={{ per_page }}{% endif %}"><i class="bi bi-plus-circle-fill me-1"></i> إضافة سجل جديد</a>
-      </div>
-    {% endif %}
+      {% endif %}
+    </div>
   </div>
 
   {% if editable and create_form %}

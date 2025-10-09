@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.db.models import Q, F
 
 
 class Class(models.Model):
@@ -235,98 +234,6 @@ class TeachingAssignment(models.Model):
         return (
             f"{self.teacher.full_name} – {self.classroom.name} – "
             f"{self.subject.name_ar} ({self.no_classes_weekly})"
-        )
-
-
-class CalendarTemplate(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    scope = models.CharField(
-        max_length=50,
-        blank=True,
-        help_text="Upper, Ground, Secondary, Grade9(2-4)",
-    )
-    days = models.CharField(
-        max_length=50,
-        blank=True,
-        help_text="Comma-separated days (e.g., Sun,Mon,...) or 'ALL'",
-    )
-
-    class Meta:
-        verbose_name = "قالب اليوم الدراسي"
-        verbose_name_plural = "قوالب اليوم الدراسي"
-        indexes = [models.Index(fields=["name"], name="caltmpl_name_idx")]
-
-    def __str__(self) -> str:
-        return self.name
-
-
-class CalendarSlot(models.Model):
-    class Block(models.TextChoices):
-        CLASS = "class", "Class"
-        BREAK = "break", "Break"
-        PRAYER = "prayer", "Prayer"
-        OTHER = "other", "Other"
-
-    template = models.ForeignKey(CalendarTemplate, on_delete=models.CASCADE, related_name="slots")
-    day = models.CharField(max_length=10, help_text="Sun, Mon, Tue, Wed, Thu, ALL")
-    period_index = models.CharField(
-        max_length=16, help_text="1..n or a label like BREAK/PRAYER/OTHER"
-    )
-    start_time = models.TimeField()
-    end_time = models.TimeField()
-    block = models.CharField(
-        max_length=10,
-        choices=Block.choices,
-        default=Block.CLASS,
-        help_text="نوع الكتلة",
-    )
-    order = models.PositiveSmallIntegerField(default=0)
-
-    class Meta:
-        verbose_name = "فترة زمنية"
-        verbose_name_plural = "فترات زمنية"
-        ordering = ["template", "day", "order", "start_time"]
-        indexes = [
-            models.Index(fields=["template"], name="calslot_template_idx"),
-            models.Index(fields=["day"], name="calslot_day_idx"),
-        ]
-        constraints = [
-            models.CheckConstraint(
-                check=Q(end_time__gt=F("start_time")), name="calslot_time_order"
-            ),
-        ]
-        unique_together = ("template", "day", "period_index")
-
-    def __str__(self) -> str:
-        return (
-            f"{self.template.name} - {self.day} - {self.period_index} "
-            f"({self.start_time}-{self.end_time})"
-        )
-
-
-class TimetableEntry(models.Model):
-    classroom = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="timetable_entries")
-    day = models.CharField(max_length=10, help_text="Sun, Mon, Tue, Wed, Thu")
-    slot = models.ForeignKey(
-        CalendarSlot, on_delete=models.PROTECT, related_name="timetable_entries"
-    )
-    subject = models.ForeignKey(Subject, on_delete=models.PROTECT)
-    teacher = models.ForeignKey(Staff, on_delete=models.PROTECT)
-
-    class Meta:
-        verbose_name = "حصة مجدولة"
-        verbose_name_plural = "حصص مجدولة"
-        unique_together = ("classroom", "day", "slot")
-        indexes = [
-            models.Index(fields=["classroom", "day"], name="tt_class_day_idx"),
-            models.Index(fields=["slot"], name="tt_slot_idx"),
-            models.Index(fields=["teacher"], name="tt_teacher_idx"),
-        ]
-
-    def __str__(self) -> str:
-        return (
-            f"{self.classroom.name} - {self.day} - {self.slot.period_index} - "
-            f"{self.subject.name_ar} - {self.teacher.full_name}"
         )
 
 

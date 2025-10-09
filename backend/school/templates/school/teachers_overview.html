@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+{% load school_extras %}
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>قائمة المعلّمين — برنامج أسبوعي احترافي</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; }
+    h1 { margin-bottom: 0.25rem; }
+    .meta { color: #555; margin-bottom: 0.75rem; }
+    form.selector { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0.5rem 0 0.75rem; }
+    input[type="search"], select, button { padding: 6px 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+    th, td { border: 1px solid #ddd; padding: 8px 10px; vertical-align: top; }
+    th { background: #f6f6f6; }
+    .small { color: #666; font-size: 0.9rem; }
+    a { text-decoration: none; color: #0b61a4; }
+    .badge { display: inline-block; background: #eef5ff; border: 1px solid #cfe3ff; color: #094a9a; border-radius: 10px; padding: 2px 8px; font-size: 0.8rem; }
+    .tot-ok { color: #2e7d32; }
+  </style>
+</head>
+<body>
+  <h1>قائمة المعلّمين</h1>
+  <div class="meta">صفحة احترافية تعرض جميع المعلّمين مع روابط مباشرة لبرنامج كل معلّم (الأحد–الخميس).</div>
+
+  <form class="selector" method="get">
+    <label>بحث بالاسم: <input type="search" name="q" value="{{ q }}" placeholder="اكتب جزءًا من اسم المعلّم" /></label>
+    <button type="submit">بحث</button>
+    <span class="small">— روابط مفيدة: <a href="/timetable/teacher/">اختيار يدوي</a> · <a href="/data/">قاعدة البيانات</a></span>
+  </form>
+
+  {% if not has_any_entries %}
+  <div style="padding:10px; background:#fff3cd; border:1px solid #ffeeba; margin-bottom:10px;">
+    لا توجد حصص مجدولة ضمن أي من القوالب الرسمية حاليًا. يمكنك تشغيل التوليد الآن:
+    <a href="{% url 'ops_generate_all' %}">توليد الجداول الرسمية</a>
+  </div>
+  {% endif %}
+
+  <table>
+    <thead>
+      <tr>
+        <th>المعلّم</th>
+        {% for t in templates %}
+          <th title="عدد الحصص المجدولة تحت هذا القالب">{{ t.name }}</th>
+        {% endfor %}
+        <th>الإجمالي</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in teachers %}
+        {% with meta=counts_by_teacher|get_item:t.id %}
+        <tr>
+          <td>
+            <a href="{% url 'teacher_timetable_auto' t.id %}"><strong>{{ t.full_name }}</strong></a>
+            {% if meta.total > 0 %}
+              <span class="badge" title="إجمالي الحصص المجدولة">{{ meta.total }}</span>
+            {% endif %}
+          </td>
+          {% for tm in templates %}
+            {% with c=meta.per_template|get_item:tm.id %}
+              <td style="text-align:center;">{{ c }}</td>
+            {% endwith %}
+          {% endfor %}
+          <td style="text-align:center;" class="tot-ok">{{ meta.total }}</td>
+        </tr>
+        {% endwith %}
+      {% empty %}
+        <tr><td colspan="{{ templates|length|add:2 }}" class="small">لا يوجد معلمون.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <nav style="margin-top: 0.75rem;">
+    <div class="small">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</div>
+    <div>
+      {% if page_obj.has_previous %}
+        <a href="?page=1{% if q %}&q={{ q|urlencode }}{% endif %}">الأولى</a>
+        · <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q|urlencode }}{% endif %}">السابق</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+        · <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q|urlencode }}{% endif %}">التالي</a>
+        · <a href="?page={{ page_obj.paginator.num_pages }}{% if q %}&q={{ q|urlencode }}{% endif %}">الأخيرة</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <p style="margin-top: 1rem;"><a href="/timetable/pro/">لوحة الجداول</a> · <a href="/admin/">لوحة الإدارة</a></p>
+</body>
+</html>

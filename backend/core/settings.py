@@ -155,7 +155,15 @@ REST_FRAMEWORK = {
         # In development, also enable SessionAuthentication so the DRF browsable API can be used via login
         *(() if not DEBUG else ("rest_framework.authentication.SessionAuthentication",)),
     ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.DjangoModelPermissions",),
+    "DEFAULT_THROTTLE_CLASSES": (
+        "rest_framework.throttling.UserRateThrottle",
+        "rest_framework.throttling.AnonRateThrottle",
+    ),
+    "DEFAULT_THROTTLE_RATES": {
+        "user": "2000/hour",
+        "anon": "50/hour",
+    },
 }
 
 SIMPLE_JWT = {

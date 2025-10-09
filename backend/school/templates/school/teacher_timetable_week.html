@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>الجدول الأسبوعي — {{ classroom.name }} — {{ template.name }}</title>
+  <title>برنامج المعلم الأسبوعي — {{ teacher.full_name }} — {{ template.name }}</title>
   <style>
     body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; }
     table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
@@ -17,9 +17,9 @@
   </style>
 </head>
 <body>
-  <h1>الجدول الأسبوعي</h1>
+  <h1>برنامج المعلم الأسبوعي</h1>
   <div class="meta">
-    <div><strong>الصف:</strong> {{ classroom.name }}</div>
+    <div><strong>المعلّم:</strong> {{ teacher.full_name }}</div>
     <div><strong>القالب:</strong> {{ template.name }} ({{ template.scope }} — {{ template.days }})</div>
   </div>
 
@@ -29,8 +29,7 @@
     </div>
   {% elif not has_entries %}
     <div style="padding:10px; background:#e7f3fe; border:1px solid #b3d7ff; margin-bottom:10px;">
-      لا توجد حصص مجدولة لهذا الصف تحت هذا القالب. جرّب المعاينة التلقائية للقالب المناسب: <a href="{{ preview_url }}">اختيار تلقائي</a>،
-      أو قم بتوليد الجدول ثم أعد التحميل.
+      لا توجد حصص مجدولة لهذا المعلم تحت هذا القالب. سيتم اختيار القالب الأنسب تلقائيًا عند استخدام هذا الرابط: <a href="{{ auto_url }}">برنامج المعلم تلقائيًا</a>.
     </div>
   {% endif %}
 
@@ -53,7 +52,7 @@
                 <td>
                   <div class="cell-time">{{ st }} — {{ et }}</div>
                   <div><strong>{{ e.subject.name_ar }}</strong></div>
-                  <div class="cell-time">{{ e.teacher.full_name }}</div>
+                  <div class="cell-time">الصف: {{ e.classroom.name }}</div>
                 </td>
               {% else %}
                 <td class="empty">
@@ -68,7 +67,8 @@
     </tbody>
   </table>
 
-  <p style="margin-top: 1rem;"><a href="{% url 'timetable_select' %}">رجوع للاختيار</a></p>
+  <p style="margin-top: 1rem;"><a href="{% url 'teacher_timetable_select' %}">رجوع للاختيار</a></p>
   <p><a href="/admin/">لوحة الإدارة</a></p>
+
 </body>
 </html>

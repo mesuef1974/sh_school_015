@@ -3,99 +3,23 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>مراجعة القواعد — {{ classroom.name }}</title>
+  <title>الميزة أزيلت — مراجعة القواعد</title>
   <style>
     body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; color: #222; }
-    h1 { margin: 0 0 8px; }
-    .muted { color: #666; }
-    .badge { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
-    table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
-    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: center; }
-    th { background: #f6f6f6; }
-    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
-    .card { border: 1px solid #eee; border-radius: 8px; padding: 12px; background: #fff; }
-    .btn { display: inline-block; background: #6e0303; color: #fff; padding: 8px 12px; border-radius: 8px; text-decoration: none; }
-    a { color: #0b61a4; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .kv { display: grid; grid-template-columns: 220px 1fr; gap: 8px; }
-    .ok { color: #1b7f2a; }
-    .warn { color: #9a6b00; }
-    .err { color: #a00; }
+    .card { background:#fff; border:1px solid #eee; border-radius:8px; padding:12px; }
+    .muted { color:#666; }
+    a { color:#0b61a4; }
   </style>
 </head>
 <body>
-  <h1>مراجعة القواعد — {{ classroom.name }}</h1>
-  <div class="muted">قالب مستخدم: {{ template.name }} — الأيام: {{ days|join:', ' }} — حصص/يوم: {{ periods_per_day }}</div>
-
-  <div class="grid" style="margin-top:12px;">
-    <div class="card">
-      <h3 style="margin:0 0 6px;">ملخص السعة والتكليفات</h3>
-      <div class="kv">
-        <div>إجمالي الحصص المسندة أسبوعيًا:</div><div><span class="badge">{{ total_assigned }}</span></div>
-        <div>السعة النظرية (الأيام × حصص الفصل):</div><div><span class="badge">{{ capacity }}</span></div>
-        <div>الحالة:</div>
-        <div>
-          {% if total_assigned == capacity %}<span class="ok">متطابق تمامًا</span>
-          {% elif total_assigned < capacity %}<span class="warn">أقل من السعة (فراغات محتملة)</span>
-          {% else %}<span class="err">يتجاوز السعة</span>{% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin:0 0 6px;">قواعد مفعّلة (من ملف YAML)</h3>
-      <div class="kv">
-        <div>توزيع متوازن للمواد:</div><div>{% if flags.subject_spread_evenly %}<span class="badge">ON</span>{% else %}<span class="badge">OFF</span>{% endif %}</div>
-        {% if flags.subject_one_per_day_default is not None %}
-          <div>مادة مرة واحدة يوميًا افتراضيًا:</div><div>{% if flags.subject_one_per_day_default %}<span class="badge">ON</span>{% else %}<span class="badge">OFF</span>{% endif %}</div>
-        {% endif %}
-        <div>تجنب الحصة الأخيرة لبعض المواد:</div><div>{% if flags.subject_avoid_last %}<span class="badge">ON</span>{% else %}<span class="badge">OFF</span>{% endif %}</div>
-        <div>مواد يجب أن تكون متجاورة:</div><div>{% if flags.subject_adjacency %}<span class="badge">ON</span>{% else %}<span class="badge">—</span>{% endif %}</div>
-        <div>حد يومي للمعلم:</div><div>{% if flags.teacher_daily_cap %}<span class="badge">{{ flags.teacher_daily_cap }}</span>{% else %}<span class="badge">—</span>{% endif %}</div>
-        <div>حد أسبوعي للمعلم:</div><div>{% if flags.teacher_weekly_cap %}<span class="badge">{{ flags.teacher_weekly_cap }}</span>{% else %}<span class="badge">—</span>{% endif %}</div>
-        <div>منع حصتين متتاليتين لنفس المعلم:</div><div>{% if flags.teacher_avoid_consecutive %}<span class="badge">ON</span>{% else %}<span class="badge">OFF</span>{% endif %}</div>
-        <div>حد يومي للصف:</div><div>{% if flags.class_daily_cap %}<span class="badge">{{ flags.class_daily_cap }}</span>{% else %}<span class="badge">—</span>{% endif %}</div>
-        <div>أفضلية الحصة الأولى لمواد معينة:</div><div>{% if flags.first_period_prefs %}<span class="badge">ON</span>{% else %}<span class="badge">OFF</span>{% endif %}</div>
-        <div>أيام تفرغ للمعلمين:</div><div>{% if flags.teacher_free_day %}<span class="badge">ON</span>{% else %}<span class="badge">OFF</span>{% endif %}</div>
-      </div>
-      <div class="muted" style="margin-top:6px;">يمكن تعديل ملف القواعد من المسار: backend/school/timetable_rules.yaml</div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin:0 0 6px;">جدول التكليفات لهذا الصف</h3>
-      {% if assignments %}
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>المعلم</th>
-            <th>المادة</th>
-            <th>عدد الحصص أسبوعيًا</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for a in assignments %}
-          <tr>
-            <td>{{ forloop.counter }}</td>
-            <td>{{ a.teacher.full_name }}</td>
-            <td>{{ a.subject.name_ar }}</td>
-            <td>{{ a.no_classes_weekly }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-        <p class="muted">لا توجد تكليفات لهذا الصف.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
-    <a class="btn" href="{% url 'timetable_pro_preview' classroom.id %}">معاينة الجدول لهذا الصف</a>
-    <a class="btn" href="/timetable/pro/" style="background:#444;">لوحة الجاهزية</a>
-    <a class="btn" href="/timetable/pro/rules/edit/" style="background:#9c27b0;">لوحة القوانين</a>
-    <a class="btn" href="/admin/school/teachingassignment/" style="background:#0b61a4;">تعديل التكليفات (Admin)</a>
-    <a class="btn" href="/calendar/" style="background:#7b1fa2;">قوالب اليوم الدراسي</a>
+  <h1>تمت إزالة لوحة مراجعة قواعد الجدول</h1>
+  <div class="card">
+    <p class="muted">هذه الواجهة كانت خاصة بميزات الجدولة والقوالب الزمنية وقد أزيلت بالكامل ضمن التنظيف النهائي.</p>
+    <ul>
+      <li><a href="/loads/">لوحة: أحمال المعلمين</a></li>
+      <li><a href="/data/">معاينة البيانات</a></li>
+      <li><a href="/admin/">لوحة الإدارة</a></li>
+    </ul>
   </div>
 </body>
 </html>

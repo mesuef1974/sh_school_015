@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>تقرير مقارنة التكليفات مع الجدول — {{ template.name }}</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; }
+    h1 { margin-bottom: 0.25rem; }
+    .meta { color: #555; margin-bottom: 1rem; }
+    form.selector { margin: 0.75rem 0 1rem; }
+    select, button { padding: 6px 10px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 0.75rem; }
+    th, td { border: 1px solid #ccc; padding: 6px 8px; vertical-align: top; }
+    th { background: #f6f6f6; }
+    .delta-ok { color: #2e7d32; }
+    .delta-bad { color: #b71c1c; font-weight: bold; }
+    .section { margin-top: 1.5rem; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+    @media (min-width: 1100px) { .grid { grid-template-columns: 2fr 1fr; } }
+    .small { color: #666; font-size: 0.9rem; }
+    a { text-decoration: none; color: #0b61a4; }
+  </style>
+</head>
+<body>
+  <h1>تقرير مقارنة التكليفات مع الجدول</h1>
+  <div class="meta">القالب: <strong>{{ template.name }}</strong></div>
+
+  <form class="selector" method="get">
+    <label>اختيار القالب:</label>
+    <select name="template_id">
+      {% for t in templates %}
+        <option value="{{ t.id }}" {% if t.id == template.id %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit">تحديث</button>
+    <span class="small">— روابط مفيدة: <a href="/timetable/pro/">لوحة الجداول</a> · <a href="/data/">قاعدة البيانات</a></span>
+  </form>
+
+  {% if total_scheduled == 0 %}
+  <div style="padding:10px; background:#fff3cd; border:1px solid #ffeeba; margin-bottom:10px;">
+    لا توجد أي حصص مجدولة ضمن هذا القالب حتى الآن. يمكنك تشغيل التوليد الآن من هنا:
+    <a href="{% url 'ops_generate_all' %}">توليد الجداول الرسمية</a>
+    — أو اختر قالبًا آخر من القائمة بالأعلى.
+  </div>
+  {% endif %}
+
+  <div class="grid">
+    <div>
+      <h2 class="section">تفصيل التكليفات (المعلّم / الصف / المادة)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>المعلّم</th>
+            <th>الصف</th>
+            <th>المادة</th>
+            <th title="عدد الحصص الأسبوعي حسب التكليف">المتوقّع</th>
+            <th title="عدد الحصص الموجودة فعليًا في الجدول">الموجود</th>
+            <th>الفارق</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td>{{ r.teacher }}</td>
+              <td>{{ r.classroom }}</td>
+              <td>{{ r.subject }}</td>
+              <td style="text-align:center;">{{ r.expected }}</td>
+              <td style="text-align:center;">{{ r.scheduled }}</td>
+              {% if r.delta == 0 %}
+                <td class="delta-ok" style="text-align:center;">0</td>
+              {% else %}
+                <td class="delta-bad" style="text-align:center;">{{ r.delta }}</td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="small">لا توجد تكليفات مسجلة.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <h2 class="section">ملخص بحسب المعلّم</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>المعلّم</th>
+            <th>المتوقّع</th>
+            <th>الموجود</th>
+            <th>الفارق</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in teacher_rows %}
+            <tr>
+              <td>{{ r.teacher }}</td>
+              <td style="text-align:center;">{{ r.expected }}</td>
+              <td style="text-align:center;">{{ r.scheduled }}</td>
+              {% if r.delta == 0 %}
+                <td class="delta-ok" style="text-align:center;">0</td>
+              {% else %}
+                <td class="delta-bad" style="text-align:center;">{{ r.delta }}</td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="small">لا يوجد معلمون.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <h2 class="section">ملخص بحسب الصف</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>الصف</th>
+            <th>المتوقّع</th>
+            <th>الموجود</th>
+            <th>الفارق</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in class_rows %}
+            <tr>
+              <td>{{ r.classroom }}</td>
+              <td style="text-align:center;">{{ r.expected }}</td>
+              <td style="text-align:center;">{{ r.scheduled }}</td>
+              {% if r.delta == 0 %}
+                <td class="delta-ok" style="text-align:center;">0</td>
+              {% else %}
+                <td class="delta-bad" style="text-align:center;">{{ r.delta }}</td>
+              {% endif %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="small">لا توجد صفوف.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="section">
+        <strong>الإجمالي:</strong>
+        المتوقّع = {{ total_expected }} · الموجود = {{ total_scheduled }} · الفارق =
+        <span class="{% if total_delta == 0 %}delta-ok{% else %}delta-bad{% endif %}">{{ total_delta }}</span>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

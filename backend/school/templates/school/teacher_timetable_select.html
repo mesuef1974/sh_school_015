@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>اختيار برنامج المعلم الأسبوعي</title>
+  <style>
+    body { font-family: Tahoma, Arial, sans-serif; margin: 1.25rem; }
+    form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    select { padding: 6px 8px; }
+    button { padding: 6px 12px; cursor: pointer; }
+    a { text-decoration: none; color: #0b61a4; }
+  </style>
+</head>
+<body>
+  <h1>برنامج المعلم الأسبوعي</h1>
+  <p>اختر معلّمًا وقالب اليوم الدراسي لعرض برنامجه الأسبوعي.</p>
+  <form method="post">
+    {% csrf_token %}
+    <label>المعلّم:
+      <select name="teacher_id" required>
+        <option value="">— اختر —</option>
+        {% for t in teachers %}
+          <option value="{{ t.id }}">{{ t.full_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>القالب:
+      <select name="template_id" required>
+        <option value="">— اختر —</option>
+        {% for tm in templates %}
+          <option value="{{ tm.id }}">{{ tm.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button type="submit">عرض البرنامج</button>
+  </form>
+
+  <p style="margin-top: 1rem;"><a href="{% url 'timetable_select' %}">معاينة جداول الصفوف</a></p>
+  <p><a href="/admin/">لوحة الإدارة</a></p>
+</body>
+</html>
