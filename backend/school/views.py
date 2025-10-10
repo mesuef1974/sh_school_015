@@ -7,7 +7,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError
-from django.db import IntegrityError, connection
+from django.db import IntegrityError, connection, transaction
 from django.core.paginator import Paginator
 from django.http import Http404, StreamingHttpResponse
 from .models import (
@@ -28,6 +28,7 @@ from .serializers import (
 )
 import re
 from openpyxl import load_workbook
+from .services.imports import import_teacher_loads
 
 
 class ClassViewSet(ModelViewSet):
@@ -122,6 +123,10 @@ class ExcelUploadForm(forms.Form):
 
 @login_required
 def teacher_loads_dashboard(request):
+    from django.conf import settings
+    from django.utils import timezone
+    from django.db.models import Sum, Count, F, Q
+
     # Handle manual add
     if request.method == "POST" and request.POST.get("action") == "add":
         form = TeachingAssignmentForm(request.POST)
@@ -131,32 +136,110 @@ def teacher_loads_dashboard(request):
     else:
         form = TeachingAssignmentForm()
 
-    # Handle Excel upload
-    if request.method == "POST" and request.POST.get("action") == "upload":
+    # Handle Excel upload (gated by feature flag)
+    imports_disabled = getattr(settings, "DISABLE_IMPORTS", False)
+    if request.method == "POST" and request.POST.get("action") == "upload_async":
+        # Enqueue background import via RQ
+        if imports_disabled:
+            messages.warning(request, "تم تعطيل الاستيراد مؤقتًا بواسطة إعداد النظام.")
+            return redirect(reverse("teacher_loads_dashboard"))
         up_form = ExcelUploadForm(request.POST, request.FILES)
         if up_form.is_valid():
-            _import_excel_file(up_form.cleaned_data["file"])  # ignore summary here
+            from django_rq import get_queue
+            from .tasks.jobs_rq import enqueue_import_teacher_loads
+
+            dry_run_flag = (
+                request.POST.get("dry_run") or request.GET.get("dry_run") or ""
+            ).strip() in ("1", "true", "True")
+            file_obj = up_form.cleaned_data["file"]
+            file_bytes = file_obj.read()
+            q = get_queue("default")
+            job = enqueue_import_teacher_loads(q, file_bytes, dry_run=dry_run_flag)
+            messages.info(
+                request,
+                ("[Dry-run] " if dry_run_flag else "")
+                + f"تم إرسال مهمة الاستيراد إلى الخلفية. رقم المهمة: {job.id}",
+            )
+            return redirect(reverse("job_status", kwargs={"job_id": job.id}))
+    elif request.method == "POST" and request.POST.get("action") == "upload":
+        if imports_disabled:
+            messages.warning(request, "تم تعطيل الاستيراد مؤقتًا بواسطة إعداد النظام.")
+            return redirect(reverse("teacher_loads_dashboard"))
+        up_form = ExcelUploadForm(request.POST, request.FILES)
+        if up_form.is_valid():
+            dry_run_flag = (
+                request.POST.get("dry_run") or request.GET.get("dry_run") or ""
+            ).strip() in ("1", "true", "True")
+            summary = import_teacher_loads(up_form.cleaned_data["file"], dry_run=dry_run_flag)
+            messages.info(
+                request,
+                (
+                    ("[Dry-run] " if dry_run_flag else "")
+                    + (
+                        f"تمت معالجة {summary['rows_processed']} صفاً عبر {summary['worksheets']} ورقة. "
+                        f"مواد جديدة: {summary['subjects_created']}, مواد-صفوف جديدة: {summary['classsubjects_created']}, "
+                        f"أنصبة مضافة: {summary['assignments_created']}, أنصبة محدّثة: {summary['assignments_updated']}. "
+                        f"تخطّي: معلّم غير معروف={summary['skipped_no_teacher']}, صف غير معروف={summary['skipped_no_class']}, مادة غير معروفة={summary['skipped_no_subject']}."
+                    )
+                ),
+            )
             return redirect(reverse("teacher_loads_dashboard"))
     elif request.method == "POST" and request.POST.get("action") == "upload_default":
+        if imports_disabled:
+            messages.warning(request, "تم تعطيل الاستيراد مؤقتًا بواسطة إعداد النظام.")
+            return redirect(reverse("teacher_loads_dashboard"))
         # Import from the known default path on the server
         from pathlib import Path
 
         repo_root = Path(__file__).resolve().parents[2]
         default_path = repo_root / "DOC" / "school_DATA" / "schasual.xlsx"
+        dry_run_flag = (
+            request.POST.get("dry_run") or request.GET.get("dry_run") or ""
+        ).strip() in ("1", "true", "True")
         try:
             with open(default_path, "rb") as f:
-                _import_excel_file(f)
+                summary = import_teacher_loads(f, dry_run=dry_run_flag)
+                messages.info(
+                    request,
+                    (
+                        ("[Dry-run] " if dry_run_flag else "")
+                        + (
+                            f"تمت معالجة {summary['rows_processed']} صفاً عبر {summary['worksheets']} ورقة. "
+                            f"مواد جديدة: {summary['subjects_created']}, مواد-صفوف جديدة: {summary['classsubjects_created']}, "
+                            f"أنصبة مضافة: {summary['assignments_created']}, أنصبة محدّثة: {summary['assignments_updated']}. "
+                            f"تخطّي: معلّم غير معروف={summary['skipped_no_teacher']}, صف غير معروف={summary['skipped_no_class']}, مادة غير معروفة={summary['skipped_no_subject']}."
+                        )
+                    ),
+                )
         except FileNotFoundError:
-            pass
+            messages.error(request, f"لم يتم العثور على الملف: {default_path}")
         return redirect(reverse("teacher_loads_dashboard"))
     else:
         up_form = ExcelUploadForm()
 
-    # Filters
+    # Filters and search
     teacher_q = request.GET.get("teacher")
     grade_q = request.GET.get("grade")
     section_q = request.GET.get("section")
     subject_q = request.GET.get("subject")
+    q_text = (request.GET.get("q") or "").strip()
+
+    # Build base query string for sorting/links
+    from urllib.parse import urlencode
+
+    params = {}
+    if teacher_q:
+        params["teacher"] = teacher_q
+    if grade_q:
+        params["grade"] = grade_q
+    if section_q:
+        params["section"] = section_q
+    if subject_q:
+        params["subject"] = subject_q
+    if q_text:
+        params["q"] = q_text
+    base_query = urlencode(params, doseq=True)
+    base_prefix = "?" + base_query + ("&" if base_query else "")
 
     qs = TeachingAssignment.objects.select_related("teacher", "classroom", "subject").all()
     if teacher_q:
@@ -167,19 +250,280 @@ def teacher_loads_dashboard(request):
         qs = qs.filter(classroom__section=section_q)
     if subject_q:
         qs = qs.filter(subject_id=subject_q)
+    if q_text:
+        qs = qs.filter(
+            Q(teacher__full_name__icontains=q_text)
+            | Q(subject__name_ar__icontains=q_text)
+            | Q(classroom__name__icontains=q_text)
+            | Q(classroom__section__icontains=q_text)
+            | Q(classroom__grade__icontains=q_text)
+        )
+
+    # Sorting (safe mapping)
+    sort_key = (request.GET.get("sort") or "").strip()
+    sort_dir = (request.GET.get("dir") or "asc").lower()
+    allowed = {
+        "teacher": "teacher__full_name",
+        "grade": "classroom__grade",
+        "section": "classroom__section",
+        "subject": "subject__name_ar",
+        "weekly": "no_classes_weekly",
+    }
+    if sort_key in allowed:
+        field = allowed[sort_key]
+        if sort_dir == "desc":
+            qs = qs.order_by(f"-{field}")
+        else:
+            qs = qs.order_by(field)
+    else:
+        # Default order
+        qs = qs.order_by("teacher__full_name", "classroom__grade", "classroom__section")
+
+    # KPI stats
+    today = timezone.localdate()
+    total_assignments = TeachingAssignment.objects.count()
+    todays_assignments = TeachingAssignment.objects.filter(created_at__date=today).count()
+
+    # Determine latest update timestamp across assignments
+    latest_dt = (
+        TeachingAssignment.objects.order_by("-updated_at")
+        .values_list("updated_at", flat=True)
+        .first()
+        or TeachingAssignment.objects.order_by("-created_at")
+        .values_list("created_at", flat=True)
+        .first()
+    )
+    latest_date = latest_dt.date() if latest_dt else None
+
+    # Top teachers by weekly load (sum no_classes_weekly) for latest snapshot if available
+    ta_qs_for_charts = TeachingAssignment.objects.all()
+
+    agg = (
+        ta_qs_for_charts.values("teacher__full_name")
+        .annotate(total=Sum("no_classes_weekly"))
+        .order_by("-total")[:10]
+    )
+    top_teachers_labels = [a["teacher__full_name"] for a in agg]
+    top_teachers_values = [a["total"] or 0 for a in agg]
+
+    # Coverage: ClassSubjects that have at least one assignment vs gaps with none
+    cs = ClassSubject.objects.values("classroom_id", "subject_id", "classroom__grade").annotate(
+        assignments_count=Count(
+            "classroom__assignments",
+            filter=Q(classroom__assignments__subject=F("subject_id")),
+        )
+    )
+    covered = 0
+    gaps = 0
+    # Per-grade coverage tallies
+    per_grade = {}
+    for x in cs:
+        cnt = x.get("assignments_count") or 0
+        grade = x.get("classroom__grade")
+        if grade is None:
+            continue
+        if grade not in per_grade:
+            per_grade[grade] = {"covered": 0, "gaps": 0}
+        if cnt > 0:
+            covered += 1
+            per_grade[grade]["covered"] += 1
+        else:
+            gaps += 1
+            per_grade[grade]["gaps"] += 1
+
+    # Prepare arrays for stacked bar chart by grade
+    grades_sorted = sorted(per_grade.keys())
+    coverage_by_grade_labels = [str(g) for g in grades_sorted]
+    coverage_by_grade_covered = [per_grade[g]["covered"] for g in grades_sorted]
+    coverage_by_grade_gaps = [per_grade[g]["gaps"] for g in grades_sorted]
+
+    # Compute KPI: total weekly assignments (sum of no_classes_weekly)
+    weekly_total = (
+        TeachingAssignment.objects.aggregate(total=Sum("no_classes_weekly")).get("total") or 0
+    )
+    gaps_count = gaps  # reuse computed total gaps from coverage aggregation
+
+    # Build a concrete list of gaps (ClassSubject with no assignment) for display box
+    gaps_qs = (
+        ClassSubject.objects.select_related("classroom", "subject")
+        .annotate(
+            assignments_count=Count(
+                "classroom__assignments",
+                filter=Q(classroom__assignments__subject=F("subject_id")),
+            )
+        )
+        .filter(assignments_count=0)
+        .order_by("classroom__grade", "classroom__section", "subject__name_ar", "id")
+    )
+    # Keep it compact: cap at first 100 rows for the dashboard box
+    gaps_items = [
+        {
+            "grade": cs.classroom.grade,
+            "section": (cs.classroom.section or ""),
+            "subject": cs.subject.name_ar,
+        }
+        for cs in gaps_qs[:100]
+    ]
+
+    # Compute next sort direction per column to avoid template boolean expressions
+    _current_sort = sort_key or ""
+    _current_dir = sort_dir or "asc"
+
+    def _next_dir(col: str) -> str:
+        return "desc" if (_current_sort == col and _current_dir == "asc") else "asc"
 
     context = {
         "form": form,
         "upload_form": up_form,
-        "assignments": qs.order_by("teacher__full_name", "classroom__grade", "classroom__section"),
+        "assignments": qs,
         "teachers": Staff.objects.all(),
         "classes": Class.objects.all(),
         "subjects": Subject.objects.all(),
         "grades": sorted({c.grade for c in Class.objects.all()}),
         "sections": sorted({(c.section or "") for c in Class.objects.all()}),
         "title": "لوحة الأنصبة — إدخال ورفع Excel",
+        "show_imports": not imports_disabled,
+        # current filters/search/sort
+        "q_text": q_text,
+        "teacher_q": teacher_q,
+        "grade_q": grade_q,
+        "section_q": section_q,
+        "subject_q": subject_q,
+        "sort_key": sort_key,
+        "sort_dir": sort_dir,
+        "base_query": base_query,
+        "base_prefix": base_prefix,
+        # precomputed next sort dirs
+        "ndir_teacher": _next_dir("teacher"),
+        "ndir_grade": _next_dir("grade"),
+        "ndir_section": _next_dir("section"),
+        "ndir_subject": _next_dir("subject"),
+        "ndir_weekly": _next_dir("weekly"),
+        # KPIs
+        "kpi_total_assignments": total_assignments,
+        "kpi_todays_assignments": todays_assignments,
+        "kpi_weekly_total": weekly_total,
+        "kpi_gaps_count": gaps_count,
+        # latest snapshot info for charts
+        "charts_latest_date": latest_date,
+        # Charts data
+        "chart_top_teachers_labels": top_teachers_labels,
+        "chart_top_teachers_values": top_teachers_values,
+        "chart_coverage": {"covered": covered, "gaps": gaps},
+        "chart_coverage_by_grade_labels": coverage_by_grade_labels,
+        "chart_coverage_by_grade_covered": coverage_by_grade_covered,
+        "chart_coverage_by_grade_gaps": coverage_by_grade_gaps,
+        # gaps box data
+        "gaps_items": gaps_items,
     }
+    # HTMX partial update for assignments table
+    if request.headers.get("HX-Request"):
+        return render(request, "school/_assignments_table.html", context)
     return render(request, "school/teacher_loads_dashboard.html", context)
+
+
+@login_required
+def teacher_class_matrix(request):
+    """Matrix: rows=teachers, columns=classes, cells=sum of weekly lessons teacher gives to that class.
+    Professional RTL table with sticky headers.
+    """
+    # Get classes (columns) sorted by grade then section then id
+    classes = Class.objects.all().order_by("grade", "section", "id")
+    class_list = list(classes)
+
+    # Get teachers (rows) who have at least one assignment
+    # Order teachers by specialization (primary subject) then by name
+    from django.db.models import Subquery, OuterRef, Min
+
+    primary_subquery = Subquery(
+        TeachingAssignment.objects.filter(teacher_id=OuterRef("pk"))
+        .values("teacher_id")
+        .annotate(primary=Min("subject__name_ar"))
+        .values("primary")[:1]
+    )
+
+    teachers = (
+        Staff.objects.filter(assignments__isnull=False)
+        .distinct()
+        .annotate(primary_subject=primary_subquery)
+        .order_by("primary_subject", "full_name", "id")
+    )
+    teacher_list = list(teachers)
+
+    # Build mapping (teacher_id, class_id) -> total weekly lessons
+    from django.db.models import Sum
+
+    agg = TeachingAssignment.objects.values("teacher_id", "classroom_id").annotate(
+        total=Sum("no_classes_weekly")
+    )
+    matrix = {(a["teacher_id"], a["classroom_id"]): (a["total"] or 0) for a in agg}
+
+    # Precompute rows (cells ordered by class_list) and row totals
+    cells_by_teacher = {}
+    row_totals = {}
+    for t in teacher_list:
+        row = []
+        s = 0
+        for c in class_list:
+            v = matrix.get((t.id, c.id), 0) or 0
+            row.append(v)
+            s += v
+        cells_by_teacher[t.id] = row
+        row_totals[t.id] = s
+
+    # Column totals in class order
+    col_totals_list = []
+    for idx, c in enumerate(class_list):
+        s = 0
+        for t in teacher_list:
+            s += cells_by_teacher[t.id][idx]
+        col_totals_list.append(s)
+
+    grand_total = sum(row_totals.values())
+
+    # Labels for columns: grade-section (e.g., 7-A)
+    def _cls_label(c: Class) -> str:  # type: ignore[name-defined]
+        sec = (c.section or "").strip()
+        if sec:
+            return f"{c.grade}-{sec}"
+        return str(c.grade)
+
+    # Build rows for easier templating
+    rows = []
+    for t in teacher_list:
+        rows.append(
+            {
+                "teacher": t,
+                "cells": cells_by_teacher[t.id],
+                "total": row_totals[t.id],
+            }
+        )
+
+    # Coverage gaps across ClassSubject pairs: count pairs with no assignment
+    from django.db.models import Count, F, Q as _Q
+
+    cs = ClassSubject.objects.values("classroom_id", "subject_id").annotate(
+        assignments_count=Count(
+            "classroom__assignments",
+            filter=_Q(classroom__assignments__subject=F("subject_id")),
+        )
+    )
+    gaps_count = 0
+    for x in cs:
+        if not (x.get("assignments_count") or 0):
+            gaps_count += 1
+
+    context = {
+        "title": "مصفوفة الأنصبة — معلّم × صف",
+        "rows": rows,
+        "classes": class_list,
+        "cls_label": _cls_label,
+        "col_totals_list": col_totals_list,
+        "grand_total": grand_total,
+        "gaps_count": gaps_count,
+    }
+
+    return render(request, "school/teacher_class_matrix.html", context)
 
 
 def _normalize_ar_text(s: str) -> str:
@@ -207,7 +551,7 @@ def _normalize_ar_text(s: str) -> str:
     return s
 
 
-def _import_excel_file(file_obj):
+def _import_excel_file(file_obj, dry_run: bool = False):
     wb = load_workbook(filename=file_obj, data_only=True)
 
     # Build teacher index (normalized)
@@ -225,156 +569,223 @@ def _import_excel_file(file_obj):
     # Subject index
     subject_by_norm = {_normalize_ar_text(s.name_ar): s for s in Subject.objects.all()}
 
-    for ws in wb.worksheets:
-        # Try detect headers positions
-        header_row = None
-        col_map = {
-            "teacher": None,
-            "grade": None,
-            "section": None,
-            "subject": None,
-            "weekly": None,
-        }
-        for r in range(1, 11):
-            try:
-                vals = [
-                    c if c is not None else ""
-                    for c in next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
-                ]
-            except StopIteration:
-                break
-            normed = [_normalize_ar_text(v).replace(" ", "").lower() for v in vals]
-            tokens = {
-                "teacher": {
-                    "teachername",
-                    "teacher",
-                    "اسمالمعلم",
-                    "اسمالمعلّم",
-                    "المعلم",
-                },
-                "grade": {"grade", "الصف", "المرحلة", "الصفالدراسي"},
-                "section": {"section", "الشعبة", "الفصل"},
-                "subject": {"class", "subject", "المادة", "المواد"},
-                "weekly": {
-                    "no.classesw",
-                    "weekly",
-                    "weeklyclasses",
-                    "الحصصالاسبوعية",
-                    "الحصصالأسبوعية",
-                    "حصصالاسبوع",
-                },
-            }
-            for i, v in enumerate(normed):
-                for k, opts in tokens.items():
-                    if v in opts and col_map[k] is None:
-                        col_map[k] = i
-            if any(col_map.values()):
-                header_row = r
-                break
-        if header_row is None:
-            header_row = 1
+    summary = {
+        "subjects_created": 0,
+        "classsubjects_created": 0,
+        "assignments_created": 0,
+        "assignments_updated": 0,
+        "skipped_no_teacher": 0,
+        "skipped_no_class": 0,
+        "skipped_no_subject": 0,
+        "worksheets": 0,
+        "rows_processed": 0,
+    }
+
+    # Use a savepoint so we can rollback for dry_run without affecting outer transactions
+    sid = transaction.savepoint()
+    try:
+        for ws in wb.worksheets:
+            summary["worksheets"] += 1
+            # Try detect headers positions
+            header_row = None
             col_map = {
-                "teacher": 0,
-                "grade": 1,
-                "section": 2,
-                "subject": 3,
-                "weekly": 4,
+                "teacher": None,
+                "grade": None,
+                "section": None,
+                "subject": None,
+                "weekly": None,
             }
-
-        current_teacher = None
-        for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
-            if not row:
-                continue
-            # Carry-forward teacher if grouped
-            tv = (
-                row[col_map["teacher"]]
-                if col_map["teacher"] is not None and col_map["teacher"] < len(row)
-                else None
-            )
-            teacher_display = str(tv).strip() if tv not in (None, "") else None
-            if teacher_display:
-                current_teacher = teacher_display
-            if not current_teacher:
-                continue
-
-            gv = (
-                row[col_map["grade"]]
-                if col_map["grade"] is not None and col_map["grade"] < len(row)
-                else None
-            )
-            sv = (
-                row[col_map["section"]]
-                if col_map["section"] is not None and col_map["section"] < len(row)
-                else None
-            )
-            subjv = (
-                row[col_map["subject"]]
-                if col_map["subject"] is not None and col_map["subject"] < len(row)
-                else None
-            )
-            wv = (
-                row[col_map["weekly"]]
-                if col_map["weekly"] is not None and col_map["weekly"] < len(row)
-                else None
-            )
-
-            # Normalize
-            t_key = _normalize_ar_text(current_teacher).replace(" ", "").lower()
-            teacher = teacher_index.get(t_key)
-            if not teacher:
-                continue
-
-            def to_int_safe(x):
+            for r in range(1, 11):
                 try:
-                    return int(str(x).strip().split()[0])
-                except Exception:
-                    return None
+                    vals = [
+                        c if c is not None else ""
+                        for c in next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
+                    ]
+                except StopIteration:
+                    break
+                normed = [_normalize_ar_text(v).replace(" ", "").lower() for v in vals]
+                tokens = {
+                    "teacher": {
+                        "teachername",
+                        "teacher",
+                        "اسمالمعلم",
+                        "اسمالمعلّم",
+                        "المعلم",
+                    },
+                    "grade": {"grade", "الصف", "المرحلة", "الصفالدراسي"},
+                    "section": {"section", "الشعبة", "الفصل"},
+                    "subject": {"class", "subject", "المادة", "المواد"},
+                    "weekly": {
+                        "no.classesw",
+                        "weekly",
+                        "weeklyclasses",
+                        "الحصصالاسبوعية",
+                        "الحصصالأسبوعية",
+                        "حصصالاسبوع",
+                    },
+                }
+                for i, v in enumerate(normed):
+                    for k, opts in tokens.items():
+                        if v in opts and col_map[k] is None:
+                            col_map[k] = i
+                if any(col_map.values()):
+                    header_row = r
+                    break
+            if header_row is None:
+                header_row = 1
+                col_map = {
+                    "teacher": 0,
+                    "grade": 1,
+                    "section": 2,
+                    "subject": 3,
+                    "weekly": 4,
+                }
 
-            grade = to_int_safe(gv)
-            section = None
-            if sv not in (None, ""):
-                section = re.sub(r"[^0-9A-Za-zأ-ي]", "", str(sv)).strip()
-            subj_norm = _normalize_ar_text(subjv)
-            weekly = to_int_safe(wv) or 0
+            current_teacher = None
+            for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
+                if not row:
+                    continue
+                summary["rows_processed"] += 1
+                # Carry-forward teacher if grouped
+                tv = (
+                    row[col_map["teacher"]]
+                    if col_map["teacher"] is not None and col_map["teacher"] < len(row)
+                    else None
+                )
+                teacher_display = str(tv).strip() if tv not in (None, "") else None
+                if teacher_display:
+                    current_teacher = teacher_display
+                if not current_teacher:
+                    summary["skipped_no_teacher"] += 1
+                    continue
 
-            # Map class
-            classroom = None
-            if grade is not None:
-                classroom = class_by_grade_section.get((grade, section or ""))
-            if classroom is None and subj_norm:
-                if grade is not None and section is not None:
-                    key = f"{grade}{section}"
-                    for cname, cobj in class_by_name.items():
-                        if key in re.sub(r"\D", "", cname):
-                            classroom = cobj
-                            break
-            if classroom is None:
-                continue
+                gv = (
+                    row[col_map["grade"]]
+                    if col_map["grade"] is not None and col_map["grade"] < len(row)
+                    else None
+                )
+                sv = (
+                    row[col_map["section"]]
+                    if col_map["section"] is not None and col_map["section"] < len(row)
+                    else None
+                )
+                subjv = (
+                    row[col_map["subject"]]
+                    if col_map["subject"] is not None and col_map["subject"] < len(row)
+                    else None
+                )
+                wv = (
+                    row[col_map["weekly"]]
+                    if col_map["weekly"] is not None and col_map["weekly"] < len(row)
+                    else None
+                )
 
-            # Subject
-            if subj_norm:
-                subj_obj = subject_by_norm.get(subj_norm)
-                if not subj_obj:
-                    subj_obj = Subject.objects.create(name_ar=subjv)
-                    subject_by_norm[subj_norm] = subj_obj
-            else:
-                continue
+                # Normalize
+                t_key = _normalize_ar_text(current_teacher).replace(" ", "").lower()
+                teacher = teacher_index.get(t_key)
+                if not teacher:
+                    summary["skipped_no_teacher"] += 1
+                    continue
 
-            # Ensure the subject is assigned to the class
-            ClassSubject.objects.get_or_create(classroom=classroom, subject=subj_obj)
+                def to_int_safe(x):
+                    try:
+                        return int(str(x).strip().split()[0])
+                    except Exception:
+                        return None
 
-            TeachingAssignment.objects.update_or_create(
-                teacher=teacher,
-                classroom=classroom,
-                subject=subj_obj,
-                defaults={"no_classes_weekly": weekly or subj_obj.weekly_default or 0},
-            )
+                grade = to_int_safe(gv)
+                section = None
+                if sv not in (None, ""):
+                    section = re.sub(r"[^0-9A-Za-zأ-ي]", "", str(sv)).strip()
+                subj_norm = _normalize_ar_text(subjv)
+                weekly = to_int_safe(wv) or 0
 
-    return True
+                # Map class
+                classroom = None
+                if grade is not None:
+                    classroom = class_by_grade_section.get((grade, section or ""))
+                if classroom is None and subj_norm:
+                    if grade is not None and section is not None:
+                        key = f"{grade}{section}"
+                        for cname, cobj in class_by_name.items():
+                            if key in re.sub(r"\D", "", cname):
+                                classroom = cobj
+                                break
+                if classroom is None:
+                    summary["skipped_no_class"] += 1
+                    continue
+
+                # Subject
+                if subj_norm:
+                    subj_obj = subject_by_norm.get(subj_norm)
+                    if not subj_obj:
+                        subj_obj = Subject.objects.create(name_ar=subjv)
+                        subject_by_norm[subj_norm] = subj_obj
+                        summary["subjects_created"] += 1
+                else:
+                    summary["skipped_no_subject"] += 1
+                    continue
+
+                # Ensure the subject is assigned to the class
+                _, cs_created = ClassSubject.objects.get_or_create(
+                    classroom=classroom, subject=subj_obj
+                )
+                if cs_created:
+                    summary["classsubjects_created"] += 1
+
+                # Create/update teaching assignment
+                _, created = TeachingAssignment.objects.update_or_create(
+                    teacher=teacher,
+                    classroom=classroom,
+                    subject=subj_obj,
+                    defaults={"no_classes_weekly": weekly or subj_obj.weekly_default or 0},
+                )
+                if created:
+                    summary["assignments_created"] += 1
+                else:
+                    summary["assignments_updated"] += 1
+
+        # Rollback changes if dry_run requested
+        if dry_run:
+            transaction.savepoint_rollback(sid)
+        else:
+            transaction.savepoint_commit(sid)
+    except Exception:
+        # In case of unexpected error, rollback to be safe
+        transaction.savepoint_rollback(sid)
+        raise
+
+    return summary
 
 
 def _staff_only(user):
     return user.is_authenticated and user.is_staff
+
+
+@login_required
+def job_status(request, job_id: str):
+    """Simple job status page for background imports."""
+    try:
+        import django_rq
+        from rq.job import Job
+    except Exception:
+        raise Http404("RQ not available")
+
+    conn = django_rq.get_connection("default")
+    try:
+        job = Job.fetch(job_id, connection=conn)
+    except Exception:
+        raise Http404("Job not found")
+
+    state = job.get_status(refresh=True)
+    summary = (job.meta or {}).get("summary") if hasattr(job, "meta") else None
+    context = {
+        "title": f"حالة المهمة {job_id}",
+        "job_id": job_id,
+        "state": state,
+        "summary": summary,
+    }
+    return render(request, "school/job_status.html", context)
 
 
 @user_passes_test(_staff_only)
@@ -527,6 +938,9 @@ def data_table_detail(request, table):
         if order:
             if order.lstrip("-") in columns:
                 qs = qs.order_by(order)
+        else:
+            # Ensure deterministic ordering for pagination to avoid UnorderedObjectListWarning
+            qs = qs.order_by(Model._meta.pk.name)
         total_count = qs.count()
         paginator = Paginator(qs, per_page)
         page_obj = paginator.get_page(page)

@@ -3,6 +3,7 @@ from django.apps import AppConfig
 
 class SchoolConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
+    # App label for the local app
     name = "school"
 
     def ready(self):  # noqa: D401

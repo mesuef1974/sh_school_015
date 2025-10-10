@@ -1,0 +1,54 @@
+{% extends "_base_maronia.html" %}
+{% block title %}مارونية — {{ title }}{% endblock %}
+{% block content %}
+  <div class="d-flex align-items-center mb-3 page-header">
+    <h1 class="h5 mb-0">حالة مهمة الاستيراد</h1>
+  </div>
+
+  <div class="card p-3 mb-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <div class="small text-muted">رقم المهمة</div>
+        <div class="fw-bold">{{ job_id }}</div>
+      </div>
+      <div class="col-md-4">
+        <div class="small text-muted">الحالة الحالية</div>
+        {% if state == 'finished' %}
+          <span class="badge bg-success">منتهية</span>
+        {% elif state == 'failed' %}
+          <span class="badge bg-danger">فشلت</span>
+        {% elif state == 'started' %}
+          <span class="badge bg-primary">قيد التنفيذ</span>
+        {% else %}
+          <span class="badge bg-secondary">{{ state }}</span>
+        {% endif %}
+      </div>
+      <div class="col-md-4 text-md-end">
+        <a class="btn btn-outline-secondary" href="{% url 'teacher_loads_dashboard' %}">عودة إلى لوحة الأنصبة</a>
+      </div>
+    </div>
+  </div>
+
+  {% if summary %}
+    <div class="card p-3">
+      <h5 class="mb-3">ملخص الاستيراد</h5>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item">الصفوف المعالجة: {{ summary.rows_processed }} عبر {{ summary.worksheets }} ورقة</li>
+        <li class="list-group-item">مواد جديدة: {{ summary.subjects_created }} • مواد-صفوف جديدة: {{ summary.classsubjects_created }}</li>
+        <li class="list-group-item">أنصبة مضافة: {{ summary.assignments_created }} • محدّثة: {{ summary.assignments_updated }}</li>
+        <li class="list-group-item">تخطيات — معلّم: {{ summary.skipped_no_teacher }}, صف: {{ summary.skipped_no_class }}, مادة: {{ summary.skipped_no_subject }}</li>
+      </ul>
+    </div>
+  {% else %}
+    <div class="alert alert-info">لا يوجد ملخص بعد. إذا كانت المهمة غير منتهية، سيتم تحديث الصفحة تلقائيًا.</div>
+  {% endif %}
+
+{% endblock %}
+{% block extra_js %}
+  {{ block.super }}
+  {% if state != 'finished' and state != 'failed' %}
+    <script>
+      setTimeout(function(){ window.location.reload(); }, 3000);
+    </script>
+  {% endif %}
+{% endblock %}

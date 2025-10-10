@@ -1,0 +1,32 @@
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead>
+      <tr>
+        <th>المعلم</th>
+        <th>الصف</th>
+        <th>الشعبة</th>
+        <th>المادة</th>
+        <th>حصص/أسبوع</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in assignments %}
+        <tr>
+          <td>{{ a.teacher.full_name }}</td>
+          <td>{{ a.classroom.grade }}</td>
+          <td>{{ a.classroom.section }}</td>
+          <td>{{ a.subject.name_ar }}</td>
+          <td>{{ a.no_classes_weekly }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-muted">لا توجد بيانات</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="table-light fw-bold">
+        <td colspan="4" class="text-end">المجموع الإجمالي للحصص (جميع المعلّمين):</td>
+        <td>{{ kpi_weekly_total }}</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>

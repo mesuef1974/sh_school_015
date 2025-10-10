@@ -1,0 +1,71 @@
+{% extends "_base_maronia.html" %}
+{% load school_extras %}
+{% block title %}مارونية — {{ title }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+  <h1 class="h4 mb-0">مصفوفة الأنصبة (المعلّم × الصف)</h1>
+  <div>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'teacher_loads_dashboard' %}">العودة إلى لوحة الأنصبة</a>
+  </div>
+</div>
+
+<div class="full-bleed">
+  <div class="card p-2 p-md-3">
+    <div class="table-responsive matrix-wrap">
+      <table class="table table-sm table-bordered align-middle text-center matrix-table w-100" style="direction: rtl;">
+        <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 2;">
+          <tr>
+            <th class="text-start sticky-col" style="position: sticky; right: 0; z-index: 3; min-width: 240px; background: #fff;">المعلّم</th>
+            {% for c in classes %}
+              <th title="{{ c.name }}" style="min-width: 76px; white-space: nowrap;">{{ c|cls_label }}</th>
+            {% endfor %}
+            <th class="bg-light" style="min-width: 100px;">المجموع</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+            <tr>
+              <th scope="row" class="text-start sticky-col" style="position: sticky; right: 0; background: #fff; z-index: 1;">{{ row.teacher.full_name }}</th>
+              {% for v in row.cells %}
+                <td>{% if v %}{{ v }}{% else %}&nbsp;{% endif %}</td>
+              {% endfor %}
+              <td class="fw-bold bg-light">{{ row.total }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="{{ classes|length|add:2 }}" class="text-muted">لا توجد تكليفات لعرضها.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="table-secondary">
+            <th class="text-start sticky-col" style="position: sticky; right: 0; background: #f8f9fa;">مجموع الأعمدة</th>
+            {% for total in col_totals_list %}
+              <th>{{ total }}</th>
+            {% endfor %}
+            <th class="fw-bold">{{ grand_total }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="small text-muted mt-2">ملاحظة: الأرقام تمثل عدد الحصص الأسبوعية التي يدرّسها المعلّم لهذا الصف.</div>
+  </div>
+</div>
+
+<style>
+/* Full-width bleed inside base container */
+.full-bleed { margin-right: calc(50% - 50vw); margin-left: calc(50% - 50vw); padding-inline: 1rem; }
+@media (min-width: 992px){ .full-bleed { padding-inline: 1.25rem; } }
+/* Use most of the viewport height for the matrix area */
+.matrix-wrap { max-height: calc(100vh - 190px); overflow: auto; }
+/* Table helpers */
+.matrix-table td, .matrix-table th { vertical-align: middle; }
+.matrix-table .sticky-col { position: sticky; right: 0; }
+.matrix-table thead th { top: 0; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script>
+// Helper is server-side; no JS needed for now.
+</script>
+{% endblock %}

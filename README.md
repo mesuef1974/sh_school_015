@@ -550,3 +550,152 @@ python gen_index.py --check
   scripts\serve.ps1
   ```
 - جميع الأوامر السابقة إديمبوتنت: إذا كان المستخدم موجودًا يتم تحديث بريده/كلمته وأعلامه، وإن لم يوجد سيتم إنشاؤه.
+
+## بيئات الإعدادات وواجهات الصحة (Settings + Health)
+تم فصل إعدادات Django إلى ثلاثة ملفات في `backend/core/`:
+- `settings_base.py`: إعدادات مشتركة.
+- `settings_dev.py`: بيئة التطوير (DEBUG=True, CORS مفتوح، ALLOWED_HOSTS=*).
+- `settings_prod.py`: بيئة الإنتاج (SECURE_*, HSTS، قوائم بيضاء لـ ALLOWED_HOSTS/CSRF/CORS).
+
+المحوِّل `backend/core/settings.py` يختار الملف تلقائيًا بناءً على المتغير `DJANGO_ENV`:
+
+```powershell
+# افتراضيًا dev. لتجربة prod محليًا:
+$env:DJANGO_ENV='prod'
+$env:DJANGO_ALLOWED_HOSTS='localhost,127.0.0.1'
+python backend\manage.py runserver
+```
+
+واجهات الصحة المضافة:
+- `GET /livez` يعيد 204 عند جاهزية العملية (Liveness).
+- `GET /healthz` يفحص اتصال قاعدة البيانات ويعيد 200 أو 500 (Readiness).
+- أمر إدارة CI/CD: `python backend\manage.py healthcheck` يعيد 0 عند النجاح و1 عند الفشل (يطبع "ok" أو سبب الخطأ)، مفيد في حاويات/خدمات النظام.
+
+تلميحات أمان الإنتاج (ملخّص):
+- عيّن `DJANGO_ALLOWED_HOSTS` إلى نطاقاتك فقط (بدون بروتوكول).
+- عيّن `DJANGO_CSRF_TRUSTED_ORIGINS` مع البروتوكول `https://` لنطاقات الواجهة.
+- عيّن `DJANGO_CORS_ALLOWED_ORIGINS` لقائمة واجهات الويب المصرّح بها.
+- حافظ على TLS عبر العاكس العكسي، وفعّل HSTS (مفعل في `prod`).
+
+ملف نموذج للبيئة: `backend/.env.example` — انسخه إلى `backend/.env` وعدّل القيم.
+
+
+## ملاحظة مهمة: تحذير "You're accessing the development server over HTTPS"
+عند تشغيل الخادم التطويري بـ `runserver` ورؤية رسائل مشابهة لما يلي:
+
+```
+You're accessing the development server over HTTPS, but it only supports HTTP.
+```
+
+فهذا طبيعي لأن خادم التطوير في Django لا يدعم TLS/HTTPS. يحدث ذلك عادةً عندما يحاول المتصفح أو أداة خارجية الاتصال بالمنفذ 8000 عبر HTTPS بدل HTTP.
+
+### ماذا أفعل؟
+- استخدم رابط HTTP صريحًا: افتح `http://127.0.0.1:8000/` أو `http://localhost:8000/`.
+- إذا كان لديك إشارة مرجعية (Bookmark) على `https://127.0.0.1:8000` فاحذفها أو غيّرها إلى HTTP.
+- إن كان لديك إضافة متصفح تُجبر HTTPS (Force HTTPS)، عطّلها للمضيف المحلي.
+
+### كيف أخدم HTTPS محليًا (اختياري)
+إذا كنت تحتاج HTTPS محليًا (لاختبار ملفات تعريف الارتباط الآمنة أو HSTS)، لديك خيارات سريعة:
+
+ملاحظة مهمة: تم تمكين django-extensions تلقائيًا في بيئة التطوير (settings_dev.py) لذا أمر runserver_plus سيكون متاحًا بمجرد تثبيت الحزمة في البيئة الافتراضية.
+
+1) باستخدام django-extensions (طريقة سهلة):
+```powershell
+# داخل بيئتك الافتراضية
+pip install django-extensions
+# في حال عدم وجود شهادات dev.crt/dev.key، ولتوليدها بسرعة (يتطلب openssl):
+./scripts/make_dev_cert.ps1
+# ثم شغّل HTTPS على 8443:
+python backend\manage.py runserver_plus --cert-file backend\certs\dev.crt --key-file backend\certs\dev.key 0.0.0.0:8443
+```
+ثم افتح: https://127.0.0.1:8443/
+
+2) باستخدام Uvicorn + ASGI (بدون تغيير الكود):
+```powershell
+pip install uvicorn
+# توليد شهادة ذاتية بسرعة (يتطلب openssl من Git for Windows):
+./scripts/make_dev_cert.ps1
+# ثم شغّل Uvicorn على منفذ 8443 (لاحظ استخدام المسارات بأسلوب ويندوز ممكن أيضًا):
+python -m uvicorn backend.core.asgi:application --host 0.0.0.0 --port 8443 --ssl-keyfile backend\certs\dev.key --ssl-certfile backend\certs\dev.crt
+```
+ثم افتح: https://127.0.0.1:8443/
+
+إذا لم يتوفر لديك openssl: يمكنك استعمال HTTP العادي على المنفذ 8000، أو تثبيت Git for Windows ليوفر openssl، أو استخدام أدوات مثل mkcert. ملفات الشهادة المتوقعة تحفظ في: backend\certs\dev.key و backend\certs\dev.crt.
+
+نصيحة: اترك منفذ 8000 لـ HTTP التطويري الافتراضي، واستخدم منفذ 8443 لـ HTTPS المحلي عند الحاجة.
+
+
+## تشغيل HTTPS محليًا (اختصار)
+إذا احتجت إلى HTTPS محلي لاختبار ملفات تعريف الارتباط الآمنة أو إعدادات الأمان، استخدم السكربت الجاهز:
+
+```powershell
+# من جذر المشروع
+scripts\make_dev_cert.ps1   # مرة واحدة فقط لإنشاء backend\certs\dev.key/dev.crt
+scripts\serve_https.ps1     # يحاول تشغيل Uvicorn على 8443 مع TLS، ثم يسقط إلى runserver على 8000 عند الفشل
+```
+
+ملاحظات:
+- السكربت يحاول توليد الشهادة تلقائيًا إذا لم يجدها، باستخدام OpenSSL (المتوفر عادة مع Git for Windows). إذا لم يتوفر OpenSSL سيعرض رسالة إرشادية.
+- عند نجاح HTTPS افتح: https://127.0.0.1:8443/
+- إذا فشل التشغيل عبر Uvicorn أو الشهادات غير متوفرة، سيبدأ خادم التطوير العادي على HTTP: http://127.0.0.1:8000/
+- يمكنك التحكم في منفذ/مضيف HTTP الاحتياطي عبر متغيري البيئة: DJANGO_RUN_HOST و DJANGO_RUN_PORT.
+
+
+## تشغيل الكل دفعة واحدة (All-in-one Dev Up)
+لتشغيل كل المكوّنات محليًا بطريقة احترافية (Postgres + Redis + الهجرات + عامل RQ + الخادم HTTP/HTTPS + فحوص الصحة + فتح المتصفح):
+
+```powershell
+# من جذر المشروع
+./scripts/dev_up.ps1
+```
+
+ماذا يفعل السكربت؟
+- يفعّل .venv ويتحقق من المتطلبات، ويثبّت الأساسيات عند الحاجة.
+- يقرأ backend/.env.
+- يشغّل PostgreSQL (حاوية pg-sh-school) وRedis (حاوية redis-sh) عبر Docker.
+- يطبّق الهجرات ويؤمّن السوبر يوزر (إن توفرت متغيّراته)، ويُجري bootstrap للأدوار.
+- يفتح نافذتين: واحدة لعامل RQ، وأخرى لخادم HTTPS (Uvicorn + TLS) مع سقوط تلقائي إلى runserver.
+- يجري فحص /healthz ويفتح المتصفح على /admin و/loads.
+
+إيقاف الحاويات لاحقًا:
+```powershell
+docker stop pg-sh-school redis-sh
+```
+
+
+## إزالة تحذير "Not secure" على HTTPS محليًا
+لإزالة تحذير المتصفح أثناء التطوير على https://127.0.0.1:8443، يمكنك تثبيت الشهادة التطويرية في مخزن الشهادات الموثوق على ويندوز:
+
+```powershell
+# من جذر المشروع
+# الوثوق بالشهادة ضمن حساب المستخدم الحالي (لا يتطلب مسؤول)
+scripts/trust_dev_cert.ps1
+
+# أو استيرادها إلى مخزن الجهاز (يتطلب تشغيل PowerShell كمسؤول)
+scripts/trust_dev_cert.ps1 -Machine
+
+# لإزالة الشهادة لاحقًا (استخدم -Machine إذا كنت قد قمت بالتثبيت هناك)
+scripts/trust_dev_cert.ps1 -Untrust
+```
+ملاحظات:
+- إذا لم تكن الشهادة موجودة سيحاول السكربت إنشاء backend\certs\dev.crt عبر scripts\make_dev_cert.ps1.
+- بعد الوثوق، افتح: https://127.0.0.1:8443/admin/ وسيزول التحذير في Edge/Chrome غالبًا.
+- هذا الإجراء محلي للتطوير فقط؛ للإنتاج استخدم شهادة حقيقية من CA موثوقة.
+
+
+## تشغيل السموك (Smoke) بسرعة
+تنفيذ فحص دخولي خفيف يختبر نقاط الصحة بدون الحاجة لتشغيل خادم خارجي أو فتح متصفح.
+
+- عبر سكربت ويندوز:
+  ```powershell
+  # من جذر المشروع
+  scripts/smoke.ps1
+  ```
+- أو مباشرة عبر Django:
+  ```powershell
+  python backend\manage.py smoke
+  ```
+ما الذي يفحصه؟
+- /livez يجب أن يعيد 204.
+- /healthz يعيد 200 مع نص "ok" عندما قاعدة البيانات متاحة، أو 500 إذا كانت غير متاحة (يُعتبر مقبولًا كفحص دخولي).
+سيُنهي بخروج 0 عند النجاح و1 عند الفشل، لتكامل سهل مع CI أو سكربتات التشغيل.

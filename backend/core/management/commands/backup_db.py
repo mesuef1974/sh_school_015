@@ -8,7 +8,16 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 
-class Command(BaseCommand):
+"""
+Deprecated duplicate of the backup_db command.
+This module is kept for historical reference only. The active command
+lives under `backend/school/management/commands/backup_db.py`.
+If `core` is ever added to INSTALLED_APPS, this class has been renamed
+so it is not picked up by Django.
+"""
+
+
+class CommandDeprecated(BaseCommand):
     help = (
         "Create a full PostgreSQL database backup using the running Docker container "
         "(pg-sh-school). "

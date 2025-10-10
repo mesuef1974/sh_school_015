@@ -3,45 +3,56 @@ from django import template
 register = template.Library()
 
 
-@register.filter
-def get_item(d, key):
-    """Return d[key] for dict-like rows in table_detail template (read-only tables)."""
-    try:
-        return d.get(key)
-    except Exception:
+@register.filter(name="cls_label")
+def cls_label(value):
+    """Return a short label for a Class instance: grade-section (e.g., 7-A).
+
+    Accepts an object with attributes `grade` and `section` (like school.models.Class).
+    If section is empty/None, returns just the grade as string.
+    """
+    if value is None:
+        return ""
+    grade = getattr(value, "grade", None)
+    section = getattr(value, "section", "") or ""
+    if section:
         try:
-            return d[key]
+            section = section.strip()
         except Exception:
-            return None
+            pass
+        return f"{grade}-{section}"
+    return f"{grade}"
 
 
 @register.filter(name="get_attr")
-def get_attr(obj, field_name):
+def get_attr(obj, key):
+    """Safely get an attribute or dict item from an object in templates.
+
+    - If obj is a dict or has __getitem__, try obj[key].
+    - Then try getattr(obj, key).
+    - If key is an int-like string and obj is indexable, try integer index.
+    - Returns empty string on any failure, to keep templates resilient.
     """
-    Safely retrieve an attribute from a model instance for display in tables.
-    - Returns None if missing.
-    - For related objects and other non-primitive values, returns their string representation.
-    """
-    if obj is None or not field_name:
-        return None
-    # Dict support fallback
+    if obj is None or key is None:
+        return ""
+    # Normalize key
     try:
-        if isinstance(obj, dict):
-            return obj.get(field_name)
+        k = key
+        # 1) Mapping or sequence access
+        try:
+            return obj[k]
+        except Exception:
+            pass
+        # 2) Attribute access
+        try:
+            return getattr(obj, k)
+        except Exception:
+            pass
+        # 3) Integer index
+        try:
+            idx = int(k)
+            return obj[idx]
+        except Exception:
+            pass
     except Exception:
-        pass
-    try:
-        val = getattr(obj, field_name)
-    except Exception:
-        return None
-    try:
-        # Avoid calling callables; display as string if needed
-        if callable(val):
-            return str(val)
-        # For None
-        if val is None:
-            return None
-        # For FK or other model objects, show __str__
-        return val if isinstance(val, (int, float, bool, str)) else str(val)
-    except Exception:
-        return None
+        return ""
+    return ""

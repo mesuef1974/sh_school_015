@@ -88,7 +88,13 @@ if ($suUser -and ($suEmail -or $suPass)) {
     # Use custom management command that creates/updates quietly when already present
     python manage.py ensure_superuser
 } elseif ($suUser) {
-    Write-Host "[serve] DJANGO_SUPERUSER_USERNAME is set but neither email nor password provided; skipping ensure_superuser."
+    Write-Host "[serve] DJANGO_SUPERUSER_USERNAME is set but neither email nor password provided; attempting flag ensure only ..."
+    try { python manage.py ensure_superuser --username $suUser } catch { Write-Warning $_ }
+} else {
+    # Fallback: auto-ensure a common local admin username if present (flags only, keeps existing password)
+    $fallbackUser = 'mesuef'
+    Write-Host "[serve] No DJANGO_SUPERUSER_USERNAME in .env; attempting to ensure '$fallbackUser' (flags only) ..." -ForegroundColor DarkGray
+    try { python manage.py ensure_superuser --username $fallbackUser } catch { Write-Host "[serve] ensure_superuser fallback skipped: $($_.Exception.Message)" -ForegroundColor DarkGray }
 }
 
 # Bootstrap RBAC

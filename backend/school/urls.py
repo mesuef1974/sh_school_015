@@ -4,6 +4,8 @@ from .views import (
     data_overview,
     data_table_detail,
     export_table_csv,
+    job_status,
+    teacher_class_matrix,
 )
 
 urlpatterns = [
@@ -12,4 +14,6 @@ urlpatterns = [
     path("data/<str:table>/export", export_table_csv, name="data_export_csv"),
     path("data/<str:table>/", data_table_detail, name="data_table_detail"),
     path("loads/", teacher_loads_dashboard, name="teacher_loads_dashboard"),
+    path("loads/matrix/", teacher_class_matrix, name="teacher_class_matrix"),
+    path("jobs/<str:job_id>/", job_status, name="job_status"),
 ]
