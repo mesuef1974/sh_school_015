@@ -1,5 +1,5 @@
-from .settings_base import *  # noqa
-from .settings_base import INSTALLED_APPS as BASE_INSTALLED_APPS  # noqa: F401
+from .settings_base import *  # noqa: F401,F403
+from . import settings_base as base
 
 # Development overrides
 DEBUG = True
@@ -30,8 +30,11 @@ CSRF_TRUSTED_ORIGINS = [
     "https://localhost:8450",
 ]
 
-# Enable developer helpers
-INSTALLED_APPS = [*list(BASE_INSTALLED_APPS), "django_extensions"]
+# Enable developer helpers (avoid duplicates and preserve order)
+_base_apps = list(getattr(base, "INSTALLED_APPS", ()))
+if "django_extensions" not in _base_apps:
+    _base_apps.append("django_extensions")
+INSTALLED_APPS = _base_apps
 
 # CORS: allow all origins in development for simplicity
 CORS_ALLOW_ALL_ORIGINS = True
