@@ -1,12 +1,22 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from datetime import time as _time
 
 
 class Class(models.Model):
     name = models.CharField(max_length=100, unique=True)
     grade = models.PositiveSmallIntegerField()
     section = models.CharField(max_length=10, blank=True)
+    # School wing (جناح المدرسة)
+    wing = models.ForeignKey(
+        "Wing",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="classes",
+        help_text="الجناح الذي يتبع له هذا الصف",
+    )
     # Denormalized count of students in this class/section for fast access
     students_count = models.PositiveIntegerField(default=0, db_index=True)
     # Timestamps
@@ -235,6 +245,247 @@ class TeachingAssignment(models.Model):
             f"{self.teacher.full_name} – {self.classroom.name} – "
             f"{self.subject.name_ar} ({self.no_classes_weekly})"
         )
+
+
+# ============ Attendance and Academic Year structures ============
+
+
+class AcademicYear(models.Model):
+    name = models.CharField(max_length=20, unique=True)  # "2025-2026"
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_current = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_current"],
+                condition=models.Q(is_current=True),
+                name="one_current_year",
+            )
+        ]
+        verbose_name = "سنة دراسية"
+        verbose_name_plural = "سنوات دراسية"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Term(models.Model):
+    academic_year = models.ForeignKey(AcademicYear, on_delete=models.CASCADE, related_name="terms")
+    name = models.CharField(max_length=50)  # مثل: الفصل الأول
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_current = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        unique_together = ("academic_year", "name")
+        verbose_name = "فصل دراسي"
+        verbose_name_plural = "فصول دراسية"
+
+    def __str__(self) -> str:
+        return f"{self.academic_year.name} – {self.name}"
+
+
+class Wing(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    floor = models.CharField(max_length=20, blank=True)  # أرضي/علوي
+    notes = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        verbose_name = "جناح"
+        verbose_name_plural = "أجنحة"
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class PeriodTemplate(models.Model):
+    code = models.CharField(max_length=50, unique=True)
+    name = models.CharField(max_length=100)
+    day_of_week = models.PositiveSmallIntegerField()  # 1=Sun .. 7=Sat
+    scope = models.CharField(max_length=30, blank=True)  # ground/upper/secondary/...
+
+    class Meta:
+        verbose_name = "قالب يوم دراسي"
+        verbose_name_plural = "قوالب الأيام الدراسية"
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.code})"
+
+
+class TemplateSlot(models.Model):
+    template = models.ForeignKey(PeriodTemplate, on_delete=models.CASCADE, related_name="slots")
+    number = models.PositiveSmallIntegerField(null=True, blank=True)  # رقم الحصة
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    kind = models.CharField(max_length=20, default="lesson")  # lesson/recess/prayer
+
+    class Meta:
+        ordering = ["template", "start_time"]
+        unique_together = (("template", "number"),)
+        verbose_name = "مقطع زمني"
+        verbose_name_plural = "مقاطع زمنية"
+
+    def __str__(self) -> str:
+        label = f"حصة {self.number}" if self.number else self.kind
+        return f"{self.template.code} – {label} {self.start_time}-{self.end_time}"
+
+
+class TimetableEntry(models.Model):
+    classroom = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="timetable")
+    subject = models.ForeignKey(Subject, on_delete=models.PROTECT)
+    teacher = models.ForeignKey(Staff, on_delete=models.PROTECT)
+    day_of_week = models.PositiveSmallIntegerField()  # 1..5 (Sun..Thu)
+    period_number = models.PositiveSmallIntegerField()
+    term = models.ForeignKey(Term, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ("classroom", "day_of_week", "period_number", "term")
+        indexes = [
+            models.Index(fields=["classroom", "day_of_week", "period_number"]),
+            models.Index(fields=["teacher"]),
+        ]
+        verbose_name = "حصة مجدولة"
+        verbose_name_plural = "حصص مجدولة"
+
+    def __str__(self) -> str:
+        return f"{self.classroom} D{self.day_of_week} P{self.period_number} – {self.subject} / {self.teacher}"
+
+
+class AttendancePolicy(models.Model):
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="attendance_policies")
+    late_threshold_minutes = models.PositiveSmallIntegerField(default=5)
+    late_to_equivalent_period_minutes = models.PositiveSmallIntegerField(default=45)
+    first_two_periods_numbers = models.JSONField(default=list)  # [1,2]
+    lesson_lock_after_minutes = models.PositiveSmallIntegerField(default=120)
+    daily_lock_time = models.TimeField(default=_time(14, 30))
+    working_days = models.JSONField(default=list)  # [1,2,3,4,5]
+
+    class Meta:
+        verbose_name = "سياسة الحضور"
+        verbose_name_plural = "سياسات الحضور"
+
+    def __str__(self) -> str:
+        return f"سياسة الحضور – {self.term}"
+
+
+class AttendanceRecord(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    classroom = models.ForeignKey(Class, on_delete=models.CASCADE)
+    subject = models.ForeignKey(Subject, on_delete=models.PROTECT)
+    teacher = models.ForeignKey(Staff, on_delete=models.PROTECT)
+    term = models.ForeignKey(Term, on_delete=models.CASCADE)
+
+    date = models.DateField(db_index=True)
+    day_of_week = models.PositiveSmallIntegerField()  # 1..7
+    period_number = models.PositiveSmallIntegerField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("present", "حاضر"),
+            ("late", "متأخر"),
+            ("absent", "غائب"),
+            ("runaway", "هروب"),
+            ("excused", "معذور"),
+            ("left_early", "انصراف مبكر"),
+        ],
+    )
+    late_minutes = models.PositiveSmallIntegerField(default=0)
+    early_minutes = models.PositiveSmallIntegerField(default=0)
+
+    runaway_reason = models.CharField(max_length=30, blank=True)  # no_show | left_and_not_returned
+
+    excuse_type = models.CharField(
+        max_length=20, blank=True
+    )  # medical|official|family|transport|other
+    excuse_note = models.CharField(max_length=300, blank=True)
+
+    source = models.CharField(max_length=20, default="teacher")  # teacher/office/import
+    locked = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["student", "date"]),
+            models.Index(fields=["classroom", "date"]),
+            models.Index(fields=["teacher", "date"]),
+            models.Index(fields=["status"]),
+        ]
+        unique_together = ("student", "date", "period_number", "term")
+        verbose_name = "سجل حضور حصة"
+        verbose_name_plural = "سجلات حضور الحصص"
+
+    def __str__(self) -> str:
+        return f"{self.student} – {self.date} P{self.period_number}: {self.status}"
+
+
+class AttendanceDaily(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    date = models.DateField(db_index=True)
+    school_class = models.ForeignKey(Class, on_delete=models.PROTECT)
+    wing = models.ForeignKey(Wing, on_delete=models.SET_NULL, null=True, blank=True)
+    term = models.ForeignKey(Term, on_delete=models.CASCADE)
+
+    present_periods = models.PositiveSmallIntegerField(default=0)
+    absent_periods = models.PositiveSmallIntegerField(default=0)
+    runaway_periods = models.PositiveSmallIntegerField(default=0)
+    excused_periods = models.PositiveSmallIntegerField(default=0)
+    late_minutes = models.PositiveIntegerField(default=0)
+    early_minutes = models.PositiveIntegerField(default=0)
+
+    daily_absent_unexcused = models.BooleanField(default=False)
+    daily_excused = models.BooleanField(default=False)
+    daily_excused_partial = models.BooleanField(default=False)
+
+    locked = models.BooleanField(default=False)
+
+    class Meta:
+        unique_together = ("student", "date", "term")
+        indexes = [
+            models.Index(fields=["date"]),
+            models.Index(fields=["school_class"]),
+            models.Index(fields=["wing"]),
+        ]
+        verbose_name = "ملخص حضور يومي"
+        verbose_name_plural = "ملخصات الحضور اليومية"
+
+    def __str__(self) -> str:
+        return f"{self.student} – {self.date}"
+
+
+class AssessmentPackage(models.Model):
+    term = models.ForeignKey(Term, on_delete=models.CASCADE, related_name="assessment_packages")
+    name = models.CharField(max_length=100)
+    type = models.CharField(max_length=30, default="general")  # midterm/final/...
+    start_date = models.DateField()
+    end_date = models.DateField()
+    notes = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = "باقة اختبارات"
+        verbose_name_plural = "باقات الاختبارات"
+
+    def __str__(self) -> str:
+        return f"{self.term}: {self.name}"
+
+
+class SchoolHoliday(models.Model):
+    title = models.CharField(max_length=200)
+    start = models.DateField()
+    end = models.DateField()
+
+    class Meta:
+        verbose_name = "عطلة مدرسية"
+        verbose_name_plural = "عطل مدرسية"
+
+    def __str__(self) -> str:
+        return f"{self.title} ({self.start}→{self.end})"
 
 
 # EOF

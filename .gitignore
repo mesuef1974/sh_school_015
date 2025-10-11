@@ -28,4 +28,7 @@ build/
 *.log
 
 # Generated
-coverage/
+coverage/*.py[cod]
+backend/.env
+backups/
+*.py[cod]

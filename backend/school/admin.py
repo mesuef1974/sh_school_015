@@ -5,7 +5,25 @@ from django import forms
 from django.utils.html import format_html
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
-from .models import Class, Student, Staff, Subject, TeachingAssignment, ClassSubject
+from .models import (
+    Class,
+    Student,
+    Staff,
+    Subject,
+    TeachingAssignment,
+    ClassSubject,
+    Wing,
+    AcademicYear,
+    Term,
+    PeriodTemplate,
+    TemplateSlot,
+    TimetableEntry,
+    AttendancePolicy,
+    AttendanceRecord,
+    AttendanceDaily,
+    AssessmentPackage,
+    SchoolHoliday,
+)
 from openpyxl import load_workbook
 import re
 
@@ -19,9 +37,9 @@ class ClassSubjectInline(admin.TabularInline):
 
 @admin.register(Class)
 class ClassAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "grade", "section", "students_count")
+    list_display = ("id", "name", "grade", "section", "wing", "students_count")
     search_fields = ("name",)
-    list_filter = ("grade", "section")
+    list_filter = ("grade", "section", "wing")
     ordering = ("grade", "name")
     inlines = [ClassSubjectInline]
 
@@ -567,3 +585,127 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                     created_assignments += 1
 
         return created_assignments, created_subjects
+
+
+# ===== New admin registrations for attendance and calendar =====
+@admin.register(Wing)
+class WingAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "floor", "notes")
+    search_fields = ("name", "notes")
+    list_filter = ("floor",)
+
+
+@admin.register(AcademicYear)
+class AcademicYearAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "start_date", "end_date", "is_current")
+    list_filter = ("is_current",)
+    search_fields = ("name",)
+
+
+@admin.register(Term)
+class TermAdmin(admin.ModelAdmin):
+    list_display = ("id", "name", "academic_year", "start_date", "end_date", "is_current")
+    list_filter = ("academic_year", "is_current")
+    search_fields = ("name", "academic_year__name")
+
+
+class TemplateSlotInline(admin.TabularInline):
+    model = TemplateSlot
+    extra = 0
+    fields = ("number", "start_time", "end_time", "kind")
+
+
+@admin.register(PeriodTemplate)
+class PeriodTemplateAdmin(admin.ModelAdmin):
+    list_display = ("id", "code", "name", "day_of_week", "scope")
+    list_filter = ("day_of_week", "scope")
+    search_fields = ("code", "name", "scope")
+    inlines = [TemplateSlotInline]
+
+
+@admin.register(TimetableEntry)
+class TimetableEntryAdmin(admin.ModelAdmin):
+    list_display = ("id", "classroom", "day_of_week", "period_number", "subject", "teacher", "term")
+    list_filter = ("day_of_week", "classroom", "teacher", "subject", "term")
+    autocomplete_fields = ("classroom", "teacher", "subject", "term")
+    search_fields = ("classroom__name", "teacher__full_name", "subject__name_ar")
+
+
+@admin.register(AttendancePolicy)
+class AttendancePolicyAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "term",
+        "late_threshold_minutes",
+        "late_to_equivalent_period_minutes",
+        "first_two_periods_numbers",
+        "lesson_lock_after_minutes",
+        "daily_lock_time",
+    )
+    list_filter = ("term",)
+
+
+@admin.register(AttendanceRecord)
+class AttendanceRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "student",
+        "classroom",
+        "subject",
+        "teacher",
+        "term",
+        "date",
+        "day_of_week",
+        "period_number",
+        "status",
+        "late_minutes",
+        "early_minutes",
+        "locked",
+    )
+    list_filter = ("date", "day_of_week", "status", "classroom", "teacher", "subject", "term")
+    search_fields = (
+        "student__full_name",
+        "classroom__name",
+        "subject__name_ar",
+        "teacher__full_name",
+    )
+    autocomplete_fields = ("student", "classroom", "subject", "teacher", "term")
+
+
+@admin.register(AttendanceDaily)
+class AttendanceDailyAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "student",
+        "date",
+        "school_class",
+        "wing",
+        "term",
+        "present_periods",
+        "absent_periods",
+        "runaway_periods",
+        "excused_periods",
+        "late_minutes",
+        "early_minutes",
+        "daily_absent_unexcused",
+        "daily_excused",
+        "daily_excused_partial",
+        "locked",
+    )
+    list_filter = ("date", "school_class", "wing", "term", "daily_absent_unexcused")
+    search_fields = ("student__full_name", "school_class__name")
+    autocomplete_fields = ("student", "school_class", "wing", "term")
+
+
+@admin.register(AssessmentPackage)
+class AssessmentPackageAdmin(admin.ModelAdmin):
+    list_display = ("id", "term", "name", "type", "start_date", "end_date")
+    list_filter = ("term", "type")
+    search_fields = ("name", "term__name")
+
+
+@admin.register(SchoolHoliday)
+class SchoolHolidayAdmin(admin.ModelAdmin):
+    list_display = ("id", "title", "start", "end")
+    list_filter = ("start", "end")
+    search_fields = ("title",)

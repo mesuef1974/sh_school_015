@@ -1751,6 +1751,24 @@ def export_matrix_xlsx(request):
                     output_field=IntegerField(),
                 )
             ),
+            # Align ordering with teacher_class_matrix view
+            override_cat=Case(
+                When(full_name__icontains="وجدي", then=Value(14)),
+                When(full_name__icontains="منير", then=Value(12)),
+                When(
+                    Q(full_name__icontains="أحمد المنصف") | Q(full_name__icontains="احمد المنصف"),
+                    then=Value(12),
+                ),
+                When(full_name__icontains="السيد محمد", then=Value(9)),
+                When(full_name__icontains="محمد عدوان", then=Value(9)),
+                # Specific placement for Social Studies/History/Geography teachers
+                When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
             prefer_social=Case(
                 When(has_social__gt=0, then=Value(9)),
                 default=Value(None),
@@ -1759,9 +1777,16 @@ def export_matrix_xlsx(request):
             min_category=Case(
                 When(
                     Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
-                    then=Coalesce(F("prefer_social"), F("job_title_cat"), F("all_min"), Value(999)),
+                    then=Coalesce(
+                        F("override_cat"),
+                        F("prefer_social"),
+                        F("job_title_cat"),
+                        F("all_min"),
+                        Value(999),
+                    ),
                 ),
                 default=Coalesce(
+                    F("override_cat"),
                     F("prefer_social"),
                     F("all_min"),
                     F("non_ls_min"),
@@ -2124,6 +2149,25 @@ def export_matrix_pdf(request):
                         output_field=IntegerField(),
                     )
                 ),
+                # Align ordering with teacher_class_matrix view
+                override_cat=Case(
+                    When(full_name__icontains="وجدي", then=Value(14)),
+                    When(full_name__icontains="منير", then=Value(12)),
+                    When(
+                        Q(full_name__icontains="أحمد المنصف")
+                        | Q(full_name__icontains="احمد المنصف"),
+                        then=Value(12),
+                    ),
+                    When(full_name__icontains="السيد محمد", then=Value(9)),
+                    When(full_name__icontains="محمد عدوان", then=Value(9)),
+                    # Specific placement for Social Studies/History/Geography teachers
+                    When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                    When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                    When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                    When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                    default=Value(None),
+                    output_field=IntegerField(),
+                ),
                 prefer_social=Case(
                     When(has_social__gt=0, then=Value(9)),
                     default=Value(None),
@@ -2133,6 +2177,7 @@ def export_matrix_pdf(request):
                     When(
                         Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
                         then=Coalesce(
+                            F("override_cat"),
                             F("prefer_social"),
                             F("job_title_cat"),
                             F("all_min"),
@@ -2140,6 +2185,7 @@ def export_matrix_pdf(request):
                         ),
                     ),
                     default=Coalesce(
+                        F("override_cat"),
                         F("prefer_social"),
                         F("all_min"),
                         F("non_ls_min"),
