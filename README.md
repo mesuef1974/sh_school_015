@@ -976,7 +976,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy...
 
 ### ‏Built with ❤️ for Shahania School, Qatar
 
-**Made in Qatar 🇶🇦 | Powered by Django & PostgreSQL**
+**Made in Qatar 🇶🇦 | Powered by Sufian Mesyef - سفيان مسيف **
 
 </div>
 
