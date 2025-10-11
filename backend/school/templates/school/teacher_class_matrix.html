@@ -1,11 +1,12 @@
 {% extends "_base_maronia.html" %}
 {% load school_extras %}
-{% block title %}مارونية — {{ title }}{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 {% block content %}
 <div class="d-flex align-items-center justify-content-between mb-3 page-header">
   <h1 class="h4 mb-0">مصفوفة الأنصبة (المعلّم × الصف)</h1>
-  <div>
+  <div class="btn-group" role="group" aria-label="أوامر">
     <a class="btn btn-sm btn-outline-primary" href="{% url 'teacher_loads_dashboard' %}">العودة إلى لوحة الأنصبة</a>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'export_matrix_xlsx' %}" target="_blank" rel="noopener">تصدير Excel</a>
   </div>
 </div>
 
@@ -24,12 +25,18 @@
         </thead>
         <tbody>
           {% for row in rows %}
-            <tr>
-              <th scope="row" class="text-start sticky-col" style="position: sticky; right: 0; background: #fff; z-index: 1;">{{ row.teacher.full_name }}</th>
-              {% for v in row.cells %}
-                <td>{% if v %}{{ v }}{% else %}&nbsp;{% endif %}</td>
+            <tr data-cat="{{ row.teacher.min_category }}" class="cat-row">
+              <th scope="row" class="text-start sticky-col" style="position: sticky; right: 0; background: inherit; z-index: 1;">{{ row.teacher.full_name }}</th>
+              {% for cell in row.cells %}
+                <td class="matrix-cell {% if cell.editable %}is-editable{% endif %}"
+                    data-teacher="{{ cell.teacher_id }}"
+                    data-class="{{ cell.class_id }}"
+                    data-subjects="{{ cell.subjects|escape }}"
+                    data-editable="{{ cell.editable|yesno:'true,false' }}">
+                  <span class="cell-value">{% if cell.value %}{{ cell.value }}{% else %}&nbsp;{% endif %}</span>
+                </td>
               {% endfor %}
-              <td class="fw-bold bg-light">{{ row.total }}</td>
+              <td class="fw-bold" style="background: inherit;">{{ row.total }}</td>
             </tr>
           {% empty %}
             <tr><td colspan="{{ classes|length|add:2 }}" class="text-muted">لا توجد تكليفات لعرضها.</td></tr>
@@ -60,12 +67,237 @@
 .matrix-table td, .matrix-table th { vertical-align: middle; }
 .matrix-table .sticky-col { position: sticky; right: 0; }
 .matrix-table thead th { top: 0; }
+.matrix-cell { cursor: default; position: relative; }
+.matrix-cell.is-editable { cursor: pointer; background: inherit; box-shadow: inset 0 0 0 2px rgba(0,0,0,0.08); }
+.matrix-tooltip { position: fixed; display: none; background: rgba(0,0,0,0.8); color: #fff; padding: 6px 8px; border-radius: 6px; font-size: 12px; z-index: 9999; max-width: 260px; }
+.matrix-input { width: 48px; text-align: center; }
+/* Darker grid lines for better separation */
+.matrix-table>:not(caption)>*>* { border-color: #8a8f99 !important; }
+
+/* تلوين متناوب بين الأقسام: أخضر فاتح مطفي للفئات الفردية، وأزرق فاتح مطفي للفئات الزوجية */
+tbody tr.cat-row[data-cat="1"],
+tbody tr.cat-row[data-cat="3"],
+tbody tr.cat-row[data-cat="5"],
+tbody tr.cat-row[data-cat="7"],
+tbody tr.cat-row[data-cat="9"],
+tbody tr.cat-row[data-cat="11"],
+tbody tr.cat-row[data-cat="13"] { background-color: #d7eee5; }
+
+tbody tr.cat-row[data-cat="2"],
+tbody tr.cat-row[data-cat="4"],
+tbody tr.cat-row[data-cat="6"],
+tbody tr.cat-row[data-cat="8"],
+tbody tr.cat-row[data-cat="10"],
+tbody tr.cat-row[data-cat="12"],
+tbody tr.cat-row[data-cat="14"] { background-color: #d9e7fb; }
+/* Force all cells in colored rows to inherit the row background (full-row coloring) */
+tbody tr.cat-row > * { background: inherit !important; }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
+{{ subjects_all|json_script:"allSubjects" }}
 <script>
-// Helper is server-side; no JS needed for now.
+(function(){
+  const table = document.querySelector('.matrix-table');
+  const tooltip = document.createElement('div');
+  tooltip.className = 'matrix-tooltip';
+  document.body.appendChild(tooltip);
+
+  function showTooltip(text, x, y){
+    if (!text) return;
+    tooltip.textContent = text;
+    tooltip.style.left = (x + 12) + 'px';
+    tooltip.style.top = (y + 12) + 'px';
+    tooltip.style.display = 'block';
+  }
+  function hideTooltip(){ tooltip.style.display = 'none'; }
+
+  table.addEventListener('mouseover', function(e){
+    const td = e.target.closest('td.matrix-cell');
+    if (!td) return;
+    const subjects = td.getAttribute('data-subjects') || '';
+    if (subjects) {
+      showTooltip(subjects, e.clientX, e.clientY);
+    }
+  });
+  table.addEventListener('mousemove', function(e){
+    const td = e.target.closest('td.matrix-cell');
+    if (!td) return;
+    const subjects = td.getAttribute('data-subjects') || '';
+    if (subjects && tooltip.style.display === 'block') {
+      tooltip.style.left = (e.clientX + 12) + 'px';
+      tooltip.style.top = (e.clientY + 12) + 'px';
+    }
+  });
+  table.addEventListener('mouseout', function(e){
+    const td = e.target.closest('td.matrix-cell');
+    if (!td) return;
+    hideTooltip();
+  });
+
+  // Inline edit when editable and single subject
+  function getCookie(name) {
+    const m = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+    return m ? m.pop() : '';
+  }
+
+  // Inline editing for cells that are safely editable (single subject)
+  table.addEventListener('click', function(e){
+    const td = e.target.closest('td.matrix-cell.is-editable');
+    if (!td) return;
+    const span = td.querySelector('.cell-value');
+    const current = parseInt(span.textContent.trim() || '0', 10) || 0;
+    // Prevent multiple inputs
+    if (td.querySelector('input')) return;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0';
+    input.className = 'form-control form-control-sm matrix-input';
+    input.value = current;
+    span.style.display = 'none';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    function cleanup(){
+      input.remove();
+      span.style.display = '';
+    }
+
+    function commit(){
+      const val = parseInt(input.value || '0', 10);
+      if (isNaN(val) || val < 0) { cleanup(); return; }
+      const form = new FormData();
+      form.append('teacher_id', td.getAttribute('data-teacher'));
+      form.append('class_id', td.getAttribute('data-class'));
+      form.append('value', String(val));
+      fetch(window.location.href, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCookie('csrftoken') },
+        body: form
+      }).then(r => r.json()).then(data => {
+        if (data && data.ok) {
+          span.textContent = val === 0 ? '\u00A0' : String(val);
+        } else {
+          alert(data && data.error ? data.error : 'فشل الحفظ');
+        }
+      }).catch(() => alert('فشل الحفظ')).finally(cleanup);
+    }
+
+    input.addEventListener('keydown', function(ev){
+      if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); cleanup(); }
+    });
+    input.addEventListener('blur', function(){ cleanup(); });
+  });
+
+  // Modal for creating/updating when multiple/no subjects
+  const subjDataEl = document.getElementById('allSubjects');
+  const ALL_SUBJECTS = subjDataEl ? JSON.parse(subjDataEl.textContent || '[]') : [];
+
+  let modalEl;
+  function ensureModal(){
+    if (modalEl) return modalEl;
+    modalEl = document.createElement('div');
+    modalEl.innerHTML = `
+      <div id="assign-modal-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);display:none;z-index:1050;">
+        <div style="background:#fff;max-width:420px;margin:10vh auto;padding:16px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">إنشاء/تعديل تكليف</h6>
+            <button type="button" class="btn-close" aria-label="Close"></button>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">المادة</label>
+            <select class="form-select form-select-sm" id="am-subject"></select>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">حصص أسبوعية</label>
+            <input type="number" min="0" class="form-control form-control-sm" id="am-weekly" value="1" />
+          </div>
+          <div class="text-end">
+            <button type="button" class="btn btn-secondary btn-sm me-2" id="am-cancel">إلغاء</button>
+            <button type="button" class="btn btn-primary btn-sm" id="am-save">حفظ</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(modalEl);
+    return modalEl;
+  }
+
+  function openAssignModal(td){
+    const overlay = ensureModal().querySelector('#assign-modal-overlay');
+    const sel = overlay.querySelector('#am-subject');
+    const inp = overlay.querySelector('#am-weekly');
+    const btnClose = overlay.querySelector('.btn-close');
+    const btnCancel = overlay.querySelector('#am-cancel');
+    const btnSave = overlay.querySelector('#am-save');
+
+    const classId = td.getAttribute('data-class');
+    const teacherId = td.getAttribute('data-teacher');
+
+    // Populate subjects with ALL school subjects
+    sel.innerHTML = '';
+    if (!ALL_SUBJECTS.length){
+      sel.innerHTML = '<option value="">— لا توجد مواد في النظام —</option>';
+      inp.disabled = true;
+      btnSave.disabled = true;
+    } else {
+      inp.disabled = false;
+      btnSave.disabled = false;
+      for (const o of ALL_SUBJECTS){
+        const opt = document.createElement('option');
+        opt.value = String(o.id);
+        opt.textContent = o.name;
+        sel.appendChild(opt);
+      }
+    }
+    // Default weekly to current cell value (if any)
+    const currentVal = parseInt((td.querySelector('.cell-value')?.textContent || '').trim() || '0', 10) || 0;
+    inp.value = String(currentVal || 1);
+
+    function close(){ overlay.style.display = 'none'; }
+
+    btnClose.onclick = btnCancel.onclick = close;
+    btnSave.onclick = function(){
+      const subjectId = sel.value;
+      const val = parseInt(inp.value || '0', 10);
+      if (!subjectId){ alert('اختر المادة'); return; }
+      if (isNaN(val) || val < 0){ alert('قيمة غير صالحة'); return; }
+      const form = new FormData();
+      form.append('teacher_id', teacherId);
+      form.append('class_id', classId);
+      form.append('subject_id', subjectId);
+      form.append('value', String(val));
+      fetch(window.location.href, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': getCookie('csrftoken') },
+        body: form
+      }).then(r => r.json()).then(data => {
+        if (data && data.ok){
+          const span = td.querySelector('.cell-value');
+          if (span){ span.textContent = val === 0 ? '\u00A0' : String(val); }
+          // Mark cell editable from now on
+          td.classList.add('is-editable');
+          // Update tooltip subjects text (best effort): set to selected subject and value
+          td.setAttribute('data-subjects', sel.options[sel.selectedIndex]?.text + ' (' + val + ')');
+          close();
+        } else {
+          alert(data && data.error ? data.error : 'فشل الحفظ');
+        }
+      }).catch(() => alert('فشل الحفظ'));
+    };
+
+    overlay.style.display = 'block';
+  }
+
+  // Open modal on cells that are not inline-editable
+  table.addEventListener('click', function(e){
+    const td = e.target.closest('td.matrix-cell');
+    if (!td || td.classList.contains('is-editable')) return; // handled by inline editor
+    openAssignModal(td);
+  });
+})();
 </script>
 {% endblock %}

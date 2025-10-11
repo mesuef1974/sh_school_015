@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <title>{{ title }}</title>
+  <style>
+    @font-face {
+      font-family: 'Noto Kufi Arabic';
+      font-weight: 100 900;
+      src: url("{% static 'fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf' %}") format('truetype');
+    }
+    @font-face {
+      font-family: 'Amiri';
+      font-weight: 400;
+      src: url("{% static 'fonts/Amiri/Amiri-Regular.ttf' %}") format('truetype');
+    }
+    body { font-family: 'Noto Kufi Arabic', 'Amiri', sans-serif; font-size: 10.5px; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #8a8f99; padding: 2px; }
+    th { background: #f7f2f1; }
+    th, td { text-align: center; }
+    tbody tr[data-cat-parity="odd"] { background: #d7eee5; }
+    tbody tr[data-cat-parity="even"] { background: #d9e7fb; }
+    .t-start { text-align: start; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <table>
+    <thead>
+      <tr>
+        <th class="t-start">المعلم</th>
+        {% for c in classes %}
+          <th>{{ c|cls_label }}</th>
+        {% endfor %}
+        <th>المجموع</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+        <tr data-cat-parity="{% if r.cat|divisibleby:'2' %}even{% else %}odd{% endif %}">
+          <td class="t-start">{{ r.teacher }}</td>
+          {% for v in r.vals %}
+            <td>{% if v %}{{ v }}{% else %}{% endif %}</td>
+          {% endfor %}
+          <td><strong>{{ r.total }}</strong></td>
+        </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th class="t-start">مجموع الأعمدة</th>
+        {% for t in col_totals %}
+          <th>{{ t }}</th>
+        {% endfor %}
+        <th>{{ grand_total }}</th>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>

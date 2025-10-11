@@ -1,5 +1,5 @@
 {% extends "_base_maronia.html" %}
-{% block title %}مارونية — {{ title }}{% endblock %}
+{% block title %} {{ title }}{% endblock %}
 {% block content %}
   <div class="d-flex align-items-center justify-content-between mb-3 page-header">
     <h1 class="h4 mb-0">لوحة الأنصبة</h1>
@@ -67,6 +67,31 @@
     <a class="btn btn-sm btn-outline-primary mt-3" href="{% url 'teacher_class_matrix' %}">عرض على مصفوفة المعلّم × الصف</a>
   </div>
   {% endif %}
+
+  <style>
+    /* تلوين متناوب بين كل قسم والذي يليه: أخضر فاتح مطفي ثم أزرق فاتح مطفي بالتتابع */
+    .cat-row[data-cat="1"],
+    .cat-row[data-cat="3"],
+    .cat-row[data-cat="5"],
+    .cat-row[data-cat="7"],
+    .cat-row[data-cat="9"],
+    .cat-row[data-cat="11"],
+    .cat-row[data-cat="13"] { background-color: #d7eee5; } /* أخضر فاتح مطفي (أغمق قليلًا) */
+
+    .cat-row[data-cat="2"],
+    .cat-row[data-cat="4"],
+    .cat-row[data-cat="6"],
+    .cat-row[data-cat="8"],
+    .cat-row[data-cat="10"],
+    .cat-row[data-cat="12"],
+    .cat-row[data-cat="14"] { background-color: #d9e7fb; } /* أزرق فاتح مطفي (أغمق قليلًا) */
+
+    /* فرض تلوين الصف كاملًا: كل الخلايا ترث الخلفية */
+    .table .cat-row > * { background: inherit !important; }
+
+    /* تعتيم لون شبكة الجدول قليلاً لتمييز أقوى */
+    .table>:not(caption)>*>* { border-color: #8a8f99 !important; }
+  </style>
 
   <div class="row g-4">
     <div class="col-lg-4">
@@ -144,8 +169,9 @@
 
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div class="small text-muted">جدول التكليفات</div>
-          <div>
-            <a class="btn btn-sm btn-outline-success" href="/data/school_teachingassignment/export" target="_blank" rel="noopener" aria-label="تصدير التكليفات CSV">تصدير CSV</a>
+          <div class="btn-group" role="group" aria-label="تصدير">
+            <a class="btn btn-sm btn-outline-success" href="/data/school_teachingassignment/export" target="_blank" rel="noopener" aria-label="تصدير التكليفات CSV">CSV</a>
+            <a class="btn btn-sm btn-outline-primary" href="{% url 'export_assignments_xlsx' %}" target="_blank" rel="noopener" aria-label="تصدير Excel">Excel</a>
           </div>
         </div>
         <div id="assignments">

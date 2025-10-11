@@ -5,11 +5,23 @@ from django.urls import reverse
 from django.contrib import messages
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
+from django.db.models import (
+    Q,
+    Case,
+    When,
+    Value,
+    IntegerField,
+    Min,
+    Subquery,
+    OuterRef,
+    Sum,
+    F,
+)
 from django.db.models.deletion import ProtectedError
 from django.db import IntegrityError, connection, transaction
 from django.core.paginator import Paginator
-from django.http import Http404, StreamingHttpResponse
+from django.http import Http404, StreamingHttpResponse, JsonResponse, HttpResponse
+from django.db.models.functions import Coalesce
 from .models import (
     Class,
     Student,
@@ -119,6 +131,74 @@ class ClassSubjectForm(forms.ModelForm):
 
 class ExcelUploadForm(forms.Form):
     file = forms.FileField(label="ملف Excel للأنصبة (schasual.xlsx)")
+
+
+def _subject_category_order_expr(field_lookup: str):
+    """Return a CASE expression that maps subject Arabic names to an order index.
+    field_lookup is a dotted path to Subject.name_ar, e.g.,
+    - "subject__name_ar" when annotating TeachingAssignment
+    - "assignments__subject__name_ar" when annotating Staff over related assignments
+    """
+    # Ordered specialties from top to bottom per requirements
+    patterns = [
+        (1, ["تربية اسلامية", "التربية الاسلامية", "إسلامية", "اسلامية"]),
+        (2, ["لغة عربية", "اللغة العربية", "عربي", "العربية"]),
+        (3, ["رياضيات", "رياضيات"]),
+        (4, ["أحياء", "احياء", "علوم عامة"]),
+        (5, ["فيزياء"]),
+        (6, ["كيمياء"]),
+        (7, ["علوم"]),  # ملاحظة: "علوم عامة" التقطت في فئة (4)
+        (8, ["لغة انجليزية", "اللغة الانجليزية", "انجليزي", "إنجليزي", "إنجليزية"]),
+        (9, ["جغرافيا", "تاريخ", "اجتماع", "اجتماعية", "علوم اجتماعية"]),
+        (10, ["ادارة اعمال", "إدارة أعمال", "ادارة", "إدارة"]),
+        (11, ["مهارات حياتية", "حياتية", "مهارات"]),
+        (
+            12,
+            [
+                "تكنولوجيا",
+                "تكنولوجيا معلومات",
+                "تقنية معلومات",
+                "علوم حاسب",
+                "علوم حاسوب",
+                "حاسوب",
+                "حاسب",
+                "كمبيوتر",
+                "معلومات",
+            ],
+        ),
+        (13, ["فنون بصرية", "فنون", "رسم"]),
+        (14, ["تربية بدنية", "تربية رياضية", "بدنية"]),
+    ]
+    whens = []
+    for order, keys in patterns:
+        for k in keys:
+            whens.append(When(**{f"{field_lookup}__icontains": k}, then=Value(order)))
+    return Case(*whens, default=Value(999), output_field=IntegerField())
+
+
+def _job_title_category_order_expr(field_lookup: str):
+    """Map Staff.job_title Arabic text to the same category indices used for subjects."""
+    patterns = [
+        (1, ["اسلام", "التربية الاسلامية", "دين", "شرعية"]),
+        (2, ["لغة عربية", "عربي", "العربية"]),
+        (3, ["رياضيات", "رياضي"]),
+        (4, ["أحياء", "احياء", "علوم عامة", "علوم الحياة"]),
+        (5, ["فيزياء", "فيزي"]),
+        (6, ["كيمياء", "كيميائ"]),
+        (7, ["علوم"]),
+        (8, ["لغة انجليزية", "انجليزي", "إنجليزي", "English"]),
+        (9, ["جغرافيا", "تاريخ", "اجتماع", "اجتماعية", "علوم اجتماعية"]),
+        (10, ["ادارة", "إدارة", "اعمال", "أعمال", "إدارة أعمال"]),
+        (11, ["مهارات حياتية", "حياتية", "مهارات"]),
+        (12, ["تكنولوجيا", "تقنية معلومات", "حاسوب", "حاسب", "كمبيوتر", "معلومات"]),
+        (13, ["فنون", "رسم", "فنون بصرية"]),
+        (14, ["تربية بدنية", "رياضة", "بدنية", "رياضية"]),
+    ]
+    whens = []
+    for order, keys in patterns:
+        for k in keys:
+            whens.append(When(**{f"{field_lookup}__icontains": k}, then=Value(order)))
+    return Case(*whens, default=Value(999), output_field=IntegerField())
 
 
 @login_required
@@ -276,8 +356,99 @@ def teacher_loads_dashboard(request):
         else:
             qs = qs.order_by(field)
     else:
-        # Default order
-        qs = qs.order_by("teacher__full_name", "classroom__grade", "classroom__section")
+        # Default order: by teacher specialty category, then teacher name, then class
+        teacher_min_category = Subquery(
+            Staff.objects.filter(pk=OuterRef("teacher_id"))
+            .annotate(
+                life_skills_total=Sum(
+                    "assignments__no_classes_weekly",
+                    filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+                ),
+                non_ls_min=Min(
+                    Case(
+                        When(
+                            assignments__subject__name_ar__icontains="مهارات",
+                            then=Value(999),
+                        ),
+                        default=_subject_category_order_expr("assignments__subject__name_ar"),
+                        output_field=IntegerField(),
+                    )
+                ),
+                job_title_cat=_job_title_category_order_expr("job_title"),
+                all_min=Min(_subject_category_order_expr("assignments__subject__name_ar")),
+            )
+            .annotate(
+                # Detect presence of Social Studies/History/Geography subjects for this teacher
+                has_social=Sum(
+                    Case(
+                        When(
+                            Q(assignments__subject__name_ar__icontains="جغرافيا")
+                            | Q(assignments__subject__name_ar__icontains="تاريخ")
+                            | Q(assignments__subject__name_ar__icontains="اجتماع")
+                            | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                            then=Value(1),
+                        ),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                ),
+                override_cat=Case(
+                    When(full_name__icontains="وجدي", then=Value(14)),
+                    When(full_name__icontains="منير", then=Value(12)),
+                    When(
+                        Q(full_name__icontains="أحمد المنصف")
+                        | Q(full_name__icontains="احمد المنصف"),
+                        then=Value(12),
+                    ),
+                    When(full_name__icontains="السيد محمد", then=Value(9)),
+                    When(full_name__icontains="محمد عدوان", then=Value(9)),
+                    # Specific placement for Social Studies/History/Geography teachers
+                    When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                    When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                    When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                    When(
+                        full_name__icontains="علاء محمد عبد الهادي القضاه",
+                        then=Value(9),
+                    ),
+                    default=Value(None),
+                    output_field=IntegerField(),
+                ),
+                # Prefer Social Studies group when any such subject exists, regardless of Science also present
+                prefer_social=Case(
+                    When(has_social__gt=0, then=Value(9)),
+                    default=Value(None),
+                    output_field=IntegerField(),
+                ),
+                min_category_smart=Case(
+                    When(
+                        Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                        then=Coalesce(
+                            F("override_cat"),
+                            F("prefer_social"),
+                            F("job_title_cat"),
+                            F("all_min"),
+                            Value(999),
+                        ),
+                    ),
+                    default=Coalesce(
+                        F("override_cat"),
+                        F("prefer_social"),
+                        F("all_min"),
+                        F("non_ls_min"),
+                        F("job_title_cat"),
+                        Value(999),
+                    ),
+                    output_field=IntegerField(),
+                ),
+            )
+            .values("min_category_smart")[:1]
+        )
+        qs = qs.annotate(teacher_min_category=teacher_min_category).order_by(
+            "teacher_min_category",
+            "teacher__full_name",
+            "classroom__grade",
+            "classroom__section",
+        )
 
     # KPI stats
     today = timezone.localdate()
@@ -372,11 +543,94 @@ def teacher_loads_dashboard(request):
     def _next_dir(col: str) -> str:
         return "desc" if (_current_sort == col and _current_dir == "asc") else "asc"
 
+    # Prepare ordered teachers list for filters (teachers without assignments go last)
+    teachers_ordered = (
+        Staff.objects.all()
+        .annotate(
+            life_skills_total=Sum(
+                "assignments__no_classes_weekly",
+                filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+            ),
+            non_ls_min=Min(
+                Case(
+                    When(
+                        assignments__subject__name_ar__icontains="مهارات",
+                        then=Value(999),
+                    ),
+                    default=_subject_category_order_expr("assignments__subject__name_ar"),
+                    output_field=IntegerField(),
+                )
+            ),
+            job_title_cat=_job_title_category_order_expr("job_title"),
+            all_min=Min(_subject_category_order_expr("assignments__subject__name_ar")),
+        )
+        .annotate(
+            # Detect Social Studies subjects for preference
+            has_social=Sum(
+                Case(
+                    When(
+                        Q(assignments__subject__name_ar__icontains="جغرافيا")
+                        | Q(assignments__subject__name_ar__icontains="تاريخ")
+                        | Q(assignments__subject__name_ar__icontains="اجتماع")
+                        | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                        then=Value(1),
+                    ),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            ),
+            override_cat=Case(
+                When(full_name__icontains="وجدي", then=Value(14)),
+                When(full_name__icontains="منير", then=Value(12)),
+                When(
+                    Q(full_name__icontains="أحمد المنصف") | Q(full_name__icontains="احمد المنصف"),
+                    then=Value(12),
+                ),
+                When(full_name__icontains="السيد محمد", then=Value(9)),
+                When(full_name__icontains="محمد عدوان", then=Value(9)),
+                # Specific placement for Social Studies/History/Geography teachers
+                When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            prefer_social=Case(
+                When(has_social__gt=0, then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            min_category=Case(
+                When(
+                    Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                    then=Coalesce(
+                        F("override_cat"),
+                        F("prefer_social"),
+                        F("job_title_cat"),
+                        F("all_min"),
+                        Value(999),
+                    ),
+                ),
+                default=Coalesce(
+                    F("override_cat"),
+                    F("prefer_social"),
+                    F("all_min"),
+                    F("non_ls_min"),
+                    F("job_title_cat"),
+                    Value(999),
+                ),
+                output_field=IntegerField(),
+            ),
+        )
+        .order_by("min_category", "full_name", "id")
+    )
+
     context = {
         "form": form,
         "upload_form": up_form,
         "assignments": qs,
-        "teachers": Staff.objects.all(),
+        "teachers": teachers_ordered,
         "classes": Class.objects.all(),
         "subjects": Subject.objects.all(),
         "grades": sorted({c.grade for c in Class.objects.all()}),
@@ -425,38 +679,226 @@ def teacher_loads_dashboard(request):
 @login_required
 def teacher_class_matrix(request):
     """Matrix: rows=teachers, columns=classes, cells=sum of weekly lessons teacher gives to that class.
-    Professional RTL table with sticky headers.
+    Professional RTL table with sticky headers. Now supports inline editing for single-subject cells
+    and hover tooltips listing subjects.
     """
+    # Handle inline update POST (AJAX)
+    if request.method == "POST" and request.headers.get("x-requested-with") == "XMLHttpRequest":
+        try:
+            teacher_id = int(request.POST.get("teacher_id"))
+            class_id = int(request.POST.get("class_id"))
+            new_val = int(request.POST.get("value"))
+        except Exception:
+            return JsonResponse({"ok": False, "error": "بيانات غير صالحة"}, status=400)
+
+        # If subject_id explicitly provided (from modal), create/update that assignment directly
+        subj_id_str = request.POST.get("subject_id")
+        if subj_id_str:
+            try:
+                subject_id = int(subj_id_str)
+            except Exception:
+                return JsonResponse({"ok": False, "error": "المادة غير صالحة"}, status=400)
+            # Ensure the subject is linked to the class; create ClassSubject if missing
+            try:
+                ClassSubject.objects.get_or_create(classroom_id=class_id, subject_id=subject_id)
+                ta, created = TeachingAssignment.objects.get_or_create(
+                    teacher_id=teacher_id,
+                    classroom_id=class_id,
+                    subject_id=subject_id,
+                    defaults={"no_classes_weekly": max(0, new_val)},
+                )
+                if not created:
+                    ta.no_classes_weekly = max(0, new_val)
+                    ta.save(update_fields=["no_classes_weekly", "updated_at"])  # type: ignore
+            except Exception as e:
+                return JsonResponse({"ok": False, "error": str(e)}, status=400)
+            return JsonResponse({"ok": True, "value": ta.no_classes_weekly})
+
+        # Update if exactly one TeachingAssignment exists, otherwise allow create when none and class has a single subject
+        qs = TeachingAssignment.objects.select_related("subject").filter(
+            teacher_id=teacher_id, classroom_id=class_id
+        )
+        count = qs.count()
+        if count == 1:
+            ta = qs.first()
+            ta.no_classes_weekly = max(0, new_val)
+            try:
+                ta.save(update_fields=["no_classes_weekly", "updated_at"])  # type: ignore
+            except Exception as e:
+                return JsonResponse({"ok": False, "error": str(e)}, status=400)
+            return JsonResponse({"ok": True, "value": ta.no_classes_weekly})
+        elif count == 0:
+            # If the class has exactly one subject configured, create a new assignment for that subject
+            from django.db.models import Count
+
+            single_cs = (
+                ClassSubject.objects.filter(classroom_id=class_id)
+                .values("classroom_id")
+                .annotate(cnt=Count("id"))
+                .filter(cnt=1)
+            )
+            if single_cs.exists():
+                cs = (
+                    ClassSubject.objects.filter(classroom_id=class_id)
+                    .select_related("subject")
+                    .first()
+                )
+                try:
+                    ta, created = TeachingAssignment.objects.get_or_create(
+                        teacher_id=teacher_id,
+                        classroom_id=class_id,
+                        subject=cs.subject,
+                        defaults={"no_classes_weekly": max(0, new_val)},
+                    )
+                    if not created:
+                        ta.no_classes_weekly = max(0, new_val)
+                        ta.save(update_fields=["no_classes_weekly", "updated_at"])  # type: ignore
+                except Exception as e:
+                    return JsonResponse({"ok": False, "error": str(e)}, status=400)
+                return JsonResponse({"ok": True, "value": ta.no_classes_weekly})
+            else:
+                return JsonResponse(
+                    {
+                        "ok": False,
+                        "error": "غير قابل للتعديل: لا توجد مادة محدّدة لهذا الصف أو توجد عدة مواد. الرجاء تحديد المادة أولاً.",
+                        "count": count,
+                    },
+                    status=400,
+                )
+        else:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "غير قابل للتعديل: توجد عدة مواد لهذا المعلّم مع هذا الصف.",
+                    "count": count,
+                },
+                status=400,
+            )
+
     # Get classes (columns) sorted by grade then section then id
     classes = Class.objects.all().order_by("grade", "section", "id")
     class_list = list(classes)
 
     # Get teachers (rows) who have at least one assignment
-    # Order teachers by specialization (primary subject) then by name
-    from django.db.models import Subquery, OuterRef, Min
-
-    primary_subquery = Subquery(
-        TeachingAssignment.objects.filter(teacher_id=OuterRef("pk"))
-        .values("teacher_id")
-        .annotate(primary=Min("subject__name_ar"))
-        .values("primary")[:1]
-    )
-
+    # Order teachers by requested specialty categories then by name
+    cat_expr_for_staff = _subject_category_order_expr("assignments__subject__name_ar")
     teachers = (
         Staff.objects.filter(assignments__isnull=False)
         .distinct()
-        .annotate(primary_subject=primary_subquery)
-        .order_by("primary_subject", "full_name", "id")
+        .annotate(
+            life_skills_total=Sum(
+                "assignments__no_classes_weekly",
+                filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+            ),
+            non_ls_min=Min(
+                Case(
+                    When(
+                        assignments__subject__name_ar__icontains="مهارات",
+                        then=Value(999),
+                    ),
+                    default=cat_expr_for_staff,
+                    output_field=IntegerField(),
+                )
+            ),
+            job_title_cat=_job_title_category_order_expr("job_title"),
+            all_min=Min(cat_expr_for_staff),
+        )
+        .annotate(
+            has_social=Sum(
+                Case(
+                    When(
+                        Q(assignments__subject__name_ar__icontains="جغرافيا")
+                        | Q(assignments__subject__name_ar__icontains="تاريخ")
+                        | Q(assignments__subject__name_ar__icontains="اجتماع")
+                        | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                        then=Value(1),
+                    ),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            ),
+            override_cat=Case(
+                When(full_name__icontains="وجدي", then=Value(14)),
+                When(full_name__icontains="منير", then=Value(12)),
+                When(
+                    Q(full_name__icontains="أحمد المنصف") | Q(full_name__icontains="احمد المنصف"),
+                    then=Value(12),
+                ),
+                When(full_name__icontains="السيد محمد", then=Value(9)),
+                When(full_name__icontains="محمد عدوان", then=Value(9)),
+                # Specific placement for Social Studies/History/Geography teachers
+                When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            prefer_social=Case(
+                When(has_social__gt=0, then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            min_category=Case(
+                When(
+                    Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                    then=Coalesce(
+                        F("override_cat"),
+                        F("prefer_social"),
+                        F("job_title_cat"),
+                        F("all_min"),
+                        Value(999),
+                    ),
+                ),
+                default=Coalesce(
+                    F("override_cat"),
+                    F("prefer_social"),
+                    F("all_min"),
+                    F("non_ls_min"),
+                    F("job_title_cat"),
+                    Value(999),
+                ),
+                output_field=IntegerField(),
+            ),
+        )
+        .order_by("min_category", "full_name", "id")
     )
     teacher_list = list(teachers)
 
     # Build mapping (teacher_id, class_id) -> total weekly lessons
-    from django.db.models import Sum
 
     agg = TeachingAssignment.objects.values("teacher_id", "classroom_id").annotate(
         total=Sum("no_classes_weekly")
     )
     matrix = {(a["teacher_id"], a["classroom_id"]): (a["total"] or 0) for a in agg}
+
+    # Preload subjects per cell
+    subs_map = {}
+    for ta in (
+        TeachingAssignment.objects.select_related("subject")
+        .filter(
+            teacher_id__in=[t.id for t in teacher_list],
+            classroom_id__in=[c.id for c in class_list],
+        )
+        .order_by("subject__name_ar")
+    ):
+        key = (ta.teacher_id, ta.classroom_id)
+        subs_map.setdefault(key, []).append(
+            {
+                "id": ta.id,
+                "subject": ta.subject.name_ar,
+                "weekly": int(ta.no_classes_weekly),
+            }
+        )
+
+    # Determine subject count per class to allow safe creation when a class has a single subject
+    from django.db.models import Count as _Count
+
+    cnt_map = {
+        r["classroom_id"]: r["cnt"]
+        for r in ClassSubject.objects.values("classroom_id").annotate(cnt=_Count("id"))
+    }
+    single_subj_name_map = {}
 
     # Precompute rows (cells ordered by class_list) and row totals
     cells_by_teacher = {}
@@ -465,8 +907,35 @@ def teacher_class_matrix(request):
         row = []
         s = 0
         for c in class_list:
-            v = matrix.get((t.id, c.id), 0) or 0
-            row.append(v)
+            v = int(matrix.get((t.id, c.id), 0) or 0)
+            sublist = subs_map.get((t.id, c.id), [])
+            cs_cnt = cnt_map.get(c.id, 0)
+            editable = (len(sublist) == 1) or (len(sublist) == 0 and cs_cnt == 1)
+            # Build tooltip label; if empty but class has one subject, show that subject name
+            if sublist:
+                subjects_label = ", ".join([f"{x['subject']} ({x['weekly']})" for x in sublist])
+            else:
+                subjects_label = ""
+                if cs_cnt == 1:
+                    if c.id not in single_subj_name_map:
+                        cs_obj = (
+                            ClassSubject.objects.filter(classroom_id=c.id)
+                            .select_related("subject")
+                            .first()
+                        )
+                        single_subj_name_map[c.id] = (
+                            cs_obj.subject.name_ar if cs_obj and cs_obj.subject else ""
+                        )
+                    subjects_label = single_subj_name_map.get(c.id, "")
+            row.append(
+                {
+                    "value": v,
+                    "teacher_id": t.id,
+                    "class_id": c.id,
+                    "subjects": subjects_label,
+                    "editable": editable,
+                }
+            )
             s += v
         cells_by_teacher[t.id] = row
         row_totals[t.id] = s
@@ -476,7 +945,7 @@ def teacher_class_matrix(request):
     for idx, c in enumerate(class_list):
         s = 0
         for t in teacher_list:
-            s += cells_by_teacher[t.id][idx]
+            s += cells_by_teacher[t.id][idx]["value"]
         col_totals_list.append(s)
 
     grand_total = sum(row_totals.values())
@@ -500,7 +969,7 @@ def teacher_class_matrix(request):
         )
 
     # Coverage gaps across ClassSubject pairs: count pairs with no assignment
-    from django.db.models import Count, F, Q as _Q
+    from django.db.models import Count, Q as _Q
 
     cs = ClassSubject.objects.values("classroom_id", "subject_id").annotate(
         assignments_count=Count(
@@ -513,6 +982,11 @@ def teacher_class_matrix(request):
         if not (x.get("assignments_count") or 0):
             gaps_count += 1
 
+    # Provide all subjects for the modal selector (include all subjects taught in the school)
+    subjects_all = [
+        {"id": s.id, "name": s.name_ar} for s in Subject.objects.all().order_by("name_ar")
+    ]
+
     context = {
         "title": "مصفوفة الأنصبة — معلّم × صف",
         "rows": rows,
@@ -521,6 +995,7 @@ def teacher_class_matrix(request):
         "col_totals_list": col_totals_list,
         "grand_total": grand_total,
         "gaps_count": gaps_count,
+        "subjects_all": subjects_all,
     }
 
     return render(request, "school/teacher_class_matrix.html", context)
@@ -1059,3 +1534,814 @@ def export_table_csv(request, table):
 # Timetable and calendar features have been fully removed from this module.
 # Any previous views or utilities related to calendars or weekly timetables were
 # deleted to ensure a safe and final cleanup as requested.
+
+
+@login_required
+def export_assignments_xlsx(request):
+    """Export all teaching assignments to Excel with Arabic-friendly headers and professional styling (A3 fit, RTL, header/footer, wrap)."""
+    from openpyxl import Workbook
+    from openpyxl.utils import get_column_letter
+    from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "الأنصبة"
+
+    # RTL layout for Arabic
+    try:
+        ws.sheet_view.rightToLeft = True
+    except Exception:
+        pass
+
+    # Page setup: A3 landscape, fit to width
+    try:
+        ws.page_setup.paperSize = ws.PAPERSIZE_A3  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    # Margins (narrow)
+    ws.page_margins.left = 0.25
+    ws.page_margins.right = 0.25
+    ws.page_margins.top = 0.3
+    ws.page_margins.bottom = 0.3
+
+    headers = [
+        "المعلم",
+        "الصف",
+        "الشعبة",
+        "المادة",
+        "حصص/أسبوع",
+        "ملاحظات",
+    ]
+
+    # Styles
+    header_fill = PatternFill("solid", fgColor="F7F2F1")
+    odd_fill = PatternFill("solid", fgColor="D7EEE5")  # matches #d7eee5
+    even_fill = PatternFill("solid", fgColor="D9E7FB")  # matches #d9e7fb
+    thin = Side(style="thin", color="8A8F99")  # darker grid
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    right = Alignment(horizontal="right", vertical="center", wrap_text=True)
+    bold = Font(bold=True)
+    white_bold = Font(bold=True, color="FFFFFF")
+
+    # Banner header row (colored like site theme)
+    ws.append(["لوحة الأنصبة — جدول التكليفات"] + [None] * (len(headers) - 1))
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+    banner = ws.cell(row=1, column=1)
+    banner.fill = PatternFill("solid", fgColor="7B1E1E")  # maroon
+    banner.font = white_bold
+    banner.alignment = center
+
+    # Table header (row 2)
+    ws.append(headers)
+
+    # Style header row (row 2)
+    for col in range(1, len(headers) + 1):
+        c = ws.cell(row=2, column=col)
+        c.fill = header_fill
+        c.font = bold
+        c.alignment = center
+        c.border = border
+
+    # Freeze panes: keep banner+header and first column visible
+    ws.freeze_panes = ws["B3"]
+
+    # Order similar to dashboard default and include category for coloring
+    qs = (
+        TeachingAssignment.objects.select_related("teacher", "classroom", "subject")
+        .annotate(
+            teacher_min_category=Subquery(
+                Staff.objects.filter(pk=OuterRef("teacher_id"))
+                .annotate(
+                    all_min=Min(_subject_category_order_expr("assignments__subject__name_ar"))
+                )
+                .values("all_min")[:1]
+            )
+        )
+        .order_by(
+            "teacher_min_category",
+            "teacher__full_name",
+            "classroom__grade",
+            "classroom__section",
+        )
+    )
+
+    # Write data rows with styling starting from row 3
+    row_idx = 3
+    for a in qs.iterator():
+        ws.append(
+            [
+                a.teacher.full_name if a.teacher else "",
+                a.classroom.grade if a.classroom else "",
+                (a.classroom.section if a.classroom and a.classroom.section else ""),
+                a.subject.name_ar if a.subject else "",
+                int(a.no_classes_weekly or 0),
+                a.notes or "",
+            ]
+        )
+        # Apply fill based on category parity (match page colors)
+        cat = int(a.teacher_min_category or 999)
+        row_fill = odd_fill if (cat % 2 == 1) else even_fill
+        for col in range(1, len(headers) + 1):
+            cell = ws.cell(row=row_idx, column=col)
+            cell.border = border
+            cell.alignment = right if col in (1, 6) else center  # teacher+notes alignment
+            cell.fill = row_fill
+        row_idx += 1
+
+    # Footer banner (merged) after data
+    ws.append(
+        ["© 2025 — جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية"]
+        + [None] * (len(headers) - 1)
+    )
+    footer_row = row_idx
+    ws.merge_cells(
+        start_row=footer_row,
+        start_column=1,
+        end_row=footer_row,
+        end_column=len(headers),
+    )
+    fcell = ws.cell(row=footer_row, column=1)
+    fcell.fill = PatternFill("solid", fgColor="F7F2F1")
+    fcell.font = bold
+    fcell.alignment = center
+
+    # Autosize columns (simple heuristic)
+    for col in range(1, len(headers) + 1):
+        max_len = 0
+        for row in ws.iter_rows(min_col=col, max_col=col, min_row=2):
+            v = row[0].value
+            val_len = len(str(v)) if v is not None else 0
+            if val_len > max_len:
+                max_len = val_len
+        ws.column_dimensions[get_column_letter(col)].width = min(60, max(12, max_len + 2))
+
+    # Header/Footer text (Excel print header/footer)
+    try:
+        ws.oddHeader.right.text = "&D &T"
+        ws.oddHeader.center.text = "&Bلوحة الأنصبة — جدول التكليفات&B"
+        ws.oddFooter.left.text = ""
+        ws.oddFooter.right.text = "&P / &N"
+    except Exception:
+        try:
+            ws.header_footer.oddHeader.center.text = "&Bلوحة الأنصبة — جدول التكليفات&B"  # type: ignore
+            ws.header_footer.oddHeader.right.text = "&D &T"  # type: ignore
+            ws.header_footer.oddFooter.left.text = ""  # type: ignore
+            ws.header_footer.oddFooter.right.text = "&P / &N"  # type: ignore
+        except Exception:
+            pass
+
+    from io import BytesIO
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    resp = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    resp["Content-Disposition"] = 'attachment; filename="teaching_assignments.xlsx"'
+    return resp
+
+
+@login_required
+def export_matrix_xlsx(request):
+    """Export teacher-class matrix to Excel with Arabic support, A3 fit, colors, RTL, banner header/footer, wrapped cells, and blank empty cells."""
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+
+    # Reuse ordering logic from teacher_class_matrix
+    classes = list(Class.objects.all().order_by("grade", "section", "id"))
+    cat_expr_for_staff = _subject_category_order_expr("assignments__subject__name_ar")
+    teachers = (
+        Staff.objects.filter(assignments__isnull=False)
+        .distinct()
+        .annotate(
+            life_skills_total=Sum(
+                "assignments__no_classes_weekly",
+                filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+            ),
+            non_ls_min=Min(
+                Case(
+                    When(
+                        assignments__subject__name_ar__icontains="مهارات",
+                        then=Value(999),
+                    ),
+                    default=cat_expr_for_staff,
+                    output_field=IntegerField(),
+                )
+            ),
+            job_title_cat=_job_title_category_order_expr("job_title"),
+            all_min=Min(cat_expr_for_staff),
+        )
+        .annotate(
+            has_social=Sum(
+                Case(
+                    When(
+                        Q(assignments__subject__name_ar__icontains="جغرافيا")
+                        | Q(assignments__subject__name_ar__icontains="تاريخ")
+                        | Q(assignments__subject__name_ar__icontains="اجتماع")
+                        | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                        then=Value(1),
+                    ),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            ),
+            prefer_social=Case(
+                When(has_social__gt=0, then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            min_category=Case(
+                When(
+                    Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                    then=Coalesce(F("prefer_social"), F("job_title_cat"), F("all_min"), Value(999)),
+                ),
+                default=Coalesce(
+                    F("prefer_social"),
+                    F("all_min"),
+                    F("non_ls_min"),
+                    F("job_title_cat"),
+                    Value(999),
+                ),
+                output_field=IntegerField(),
+            ),
+        )
+        .order_by("min_category", "full_name", "id")
+    )
+
+    # Build matrix data
+    totals_by_class = {c.id: 0 for c in classes}
+    matrix = {
+        (a["teacher_id"], a["classroom_id"]): int(a["total"] or 0)
+        for a in TeachingAssignment.objects.values("teacher_id", "classroom_id").annotate(
+            total=Sum("no_classes_weekly")
+        )
+    }
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "مصفوفة الأنصبة"
+
+    # RTL layout for Arabic
+    try:
+        ws.sheet_view.rightToLeft = True
+    except Exception:
+        pass
+
+    # Page setup: A3 landscape, fit
+    try:
+        ws.page_setup.paperSize = ws.PAPERSIZE_A3  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.page_margins.left = 0.25
+    ws.page_margins.right = 0.25
+    ws.page_margins.top = 0.3
+    ws.page_margins.bottom = 0.3
+
+    # Styles
+    header_fill = PatternFill("solid", fgColor="F7F2F1")
+    odd_fill = PatternFill("solid", fgColor="D7EEE5")
+    even_fill = PatternFill("solid", fgColor="D9E7FB")
+    thin = Side(style="thin", color="8A8F99")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    right = Alignment(horizontal="right", vertical="center", wrap_text=True)
+    bold = Font(bold=True)
+    white_bold = Font(bold=True, color="FFFFFF")
+
+    def cls_label(c: Class) -> str:  # type: ignore
+        sec = (c.section or "").strip()
+        return f"{c.grade}-{sec}" if sec else str(c.grade)
+
+    header = ["المعلّم"] + [cls_label(c) for c in classes] + ["المجموع"]
+
+    # Banner header row (maroon)
+    ws.append(["مصفوفة الأنصبة — المعلّم × الصف"] + [None] * (len(header) - 1))
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(header))
+    banner = ws.cell(row=1, column=1)
+    banner.fill = PatternFill("solid", fgColor="7B1E1E")
+    banner.font = white_bold
+    banner.alignment = center
+
+    # Table header at row 2
+    ws.append(header)
+
+    # Style header row (row 2)
+    for col in range(1, len(header) + 1):
+        hc = ws.cell(row=2, column=col)
+        hc.fill = header_fill
+        hc.font = bold
+        hc.alignment = center if col != 1 else right
+        hc.border = border
+
+    # Freeze panes below header and after first column
+    ws.freeze_panes = ws["B3"]
+
+    # Data rows
+    grand_total = 0
+    row_idx = 3
+    for t in teachers:
+        row_vals = [t.full_name]
+        s = 0
+        for c in classes:
+            v = int(matrix.get((t.id, c.id), 0) or 0)
+            row_vals.append("" if v == 0 else v)  # blank for empty cells
+            s += v
+            totals_by_class[c.id] += v
+        row_vals.append(s)
+        ws.append(row_vals)
+        # Styling row
+        row_fill = odd_fill if (int(t.min_category or 999) % 2 == 1) else even_fill
+        for col in range(1, len(header) + 1):
+            cell = ws.cell(row=row_idx, column=col)
+            cell.border = border
+            cell.alignment = right if col == 1 else center
+            cell.fill = row_fill
+        row_idx += 1
+        grand_total += s
+
+    # Footer totals row (styled)
+    ws.append(["مجموع الأعمدة"] + [totals_by_class[c.id] for c in classes] + [grand_total])
+    for col in range(1, len(header) + 1):
+        cell = ws.cell(row=row_idx, column=col)
+        cell.fill = header_fill
+        cell.font = bold
+        cell.alignment = center if col != 1 else right
+        cell.border = border
+
+    # Header/Footer text in print header/footer
+    try:
+        ws.oddHeader.right.text = "&D &T"
+        ws.oddHeader.center.text = "&Bمصفوفة الأنصبة — المعلّم × الصف&B"
+        ws.oddFooter.left.text = ""
+        ws.oddFooter.right.text = "&P / &N"
+    except Exception:
+        try:
+            ws.header_footer.oddHeader.center.text = "&Bمصفوفة الأنصبة — المعلّم × الصف&B"  # type: ignore
+            ws.header_footer.oddHeader.right.text = "&D &T"  # type: ignore
+            ws.header_footer.oddFooter.left.text = ""  # type: ignore
+            ws.header_footer.oddFooter.right.text = "&P / &N"  # type: ignore
+        except Exception:
+            pass
+
+    from io import BytesIO
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    resp = HttpResponse(
+        buf.getvalue(),
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    resp["Content-Disposition"] = 'attachment; filename="teacher_class_matrix.xlsx"'
+    return resp
+
+
+@login_required
+def export_assignments_pdf(request):
+    """Export assignments to PDF.
+    Preferred: WeasyPrint (high-fidelity). Fallback: ReportLab with Arabic shaping.
+    """
+    try:
+        from weasyprint import HTML, CSS  # type: ignore
+
+        # Prepare data similar to dashboard table, include category for coloring
+        qs = (
+            TeachingAssignment.objects.select_related("teacher", "classroom", "subject")
+            .annotate(
+                teacher_min_category=Subquery(
+                    Staff.objects.filter(pk=OuterRef("teacher_id"))
+                    .annotate(
+                        all_min=Min(_subject_category_order_expr("assignments__subject__name_ar"))
+                    )
+                    .values("all_min")[:1]
+                )
+            )
+            .order_by(
+                "teacher_min_category",
+                "teacher__full_name",
+                "classroom__grade",
+                "classroom__section",
+                "subject__name_ar",
+            )
+        )
+        context = {
+            "assignments": qs,
+            "kpi_weekly_total": TeachingAssignment.objects.aggregate(
+                total=Sum("no_classes_weekly")
+            ).get("total")
+            or 0,
+            "title": "تقرير الأنصبة",
+        }
+        html = render(request, "school/export_assignments_pdf.html", context)
+        document = HTML(
+            string=html.content.decode("utf-8"),
+            base_url=request.build_absolute_uri("/"),
+        )
+        css = CSS(
+            string=(
+                "@page { size: A3 landscape; margin: 8mm } "
+                'body { font-family: "Noto Kufi Arabic", "Amiri", sans-serif; } '
+                "table { width: 100%; border-collapse: collapse } "
+                "th, td { border: 1px solid #8a8f99; padding: 3px } "
+                "th { background: #f7f2f1 } "
+                'tbody tr[data-cat="odd"] { background: #d7eee5; } '
+                'tbody tr[data-cat="even"] { background: #d9e7fb; }'
+            )
+        )
+        pdf_bytes = document.write_pdf(stylesheets=[css])
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="teaching_assignments.pdf"'
+        return resp
+    except Exception:
+        # Fallback to ReportLab (pure Python) so export works without WeasyPrint system deps
+        try:
+            from io import BytesIO
+            from pathlib import Path
+            from reportlab.pdfgen import canvas  # type: ignore
+            from reportlab.lib.pagesizes import A4, landscape  # type: ignore
+            from reportlab.pdfbase import pdfmetrics  # type: ignore
+            from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
+            import arabic_reshaper  # type: ignore
+            from bidi.algorithm import get_display  # type: ignore
+        except Exception:
+            return HttpResponse(
+                "لا يمكن إنشاء PDF حالياً لعدم توفر WeasyPrint ولا مكتبات ReportLab/Arabic. رجاءً استخدم Excel.",
+                status=503,
+                content_type="text/plain; charset=utf-8",
+            )
+
+        # Load font (Amiri from assets)
+        repo_root = Path(__file__).resolve().parents[2]
+        font_path = repo_root / "assets" / "fonts" / "Amiri" / "Amiri-Regular.ttf"
+        try:
+            pdfmetrics.registerFont(TTFont("Amiri", str(font_path)))
+            font_name = "Amiri"
+        except Exception:
+            font_name = "Helvetica"
+
+        # Fetch data
+        qs = TeachingAssignment.objects.select_related("teacher", "classroom", "subject").order_by(
+            "teacher__full_name",
+            "classroom__grade",
+            "classroom__section",
+            "subject__name_ar",
+        )
+
+        buf = BytesIO()
+        c = canvas.Canvas(buf, pagesize=landscape(A4))
+        width, height = landscape(A4)
+
+        def A(txt: str) -> str:
+            try:
+                return get_display(arabic_reshaper.reshape(txt or ""))
+            except Exception:
+                return txt or ""
+
+        # Title
+        c.setFont(font_name, 16)
+        c.drawRightString(width - 36, height - 36, A("تقرير الأنصبة"))
+
+        # Table header
+        cols = [
+            (A("المعلّم"), 220),
+            (A("الصف"), 60),
+            (A("الشعبة"), 60),
+            (A("المادة"), 200),
+            (A("حصص/أسبوع"), 80),
+        ]
+        x_right = width - 36
+        y = height - 60
+        c.setFont(font_name, 11)
+        # header row
+        x = x_right
+        for label, w in cols:
+            c.drawRightString(x, y, label)
+            x -= w
+        y -= 14
+        c.line(36, y + 6, width - 36, y + 6)
+
+        # rows with pagination
+        line_h = 13
+        rows_per_page = int((y - 40) // line_h)
+        count_on_page = 0
+        total_weekly = 0
+        for a in qs.iterator():
+            if count_on_page >= rows_per_page:
+                c.showPage()
+                c.setFont(font_name, 16)
+                c.drawRightString(width - 36, height - 36, A("تقرير الأنصبة (متابعة)"))
+                c.setFont(font_name, 11)
+                y = height - 60
+                x = x_right
+                for label, w in cols:
+                    c.drawRightString(x, y, label)
+                    x -= w
+                y -= 14
+                c.line(36, y + 6, width - 36, y + 6)
+                count_on_page = 0
+
+            vals = [
+                A(a.teacher.full_name if a.teacher else ""),
+                str(a.classroom.grade if a.classroom else ""),
+                A(a.classroom.section or "") if a.classroom else "",
+                A(a.subject.name_ar if a.subject else ""),
+                str(int(a.no_classes_weekly or 0)),
+            ]
+            x = x_right
+            for (label, w), v in zip(cols, vals):
+                c.drawRightString(x, y, v)
+                x -= w
+            y -= line_h
+            count_on_page += 1
+            total_weekly += int(a.no_classes_weekly or 0)
+
+        # Footer total
+        if y - 20 < 40:
+            c.showPage()
+            y = height - 60
+        c.setFont(font_name, 12)
+        c.drawRightString(x_right, y - 10, A(f"المجموع الإجمالي للحصص: {total_weekly}"))
+
+        c.save()
+        pdf = buf.getvalue()
+        buf.close()
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="teaching_assignments.pdf"'
+        return resp
+
+
+@login_required
+def export_matrix_pdf(request):
+    """Export teacher-class matrix to PDF.
+    Preferred: WeasyPrint; fallback to ReportLab with Arabic shaping if WeasyPrint isn't available.
+    """
+    try:
+        from weasyprint import HTML, CSS  # type: ignore
+
+        classes = list(Class.objects.all().order_by("grade", "section", "id"))
+        cat_expr_for_staff = _subject_category_order_expr("assignments__subject__name_ar")
+        teachers = (
+            Staff.objects.filter(assignments__isnull=False)
+            .distinct()
+            .annotate(
+                life_skills_total=Sum(
+                    "assignments__no_classes_weekly",
+                    filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+                ),
+                non_ls_min=Min(
+                    Case(
+                        When(
+                            assignments__subject__name_ar__icontains="مهارات",
+                            then=Value(999),
+                        ),
+                        default=cat_expr_for_staff,
+                        output_field=IntegerField(),
+                    )
+                ),
+                job_title_cat=_job_title_category_order_expr("job_title"),
+                all_min=Min(cat_expr_for_staff),
+            )
+            .annotate(
+                has_social=Sum(
+                    Case(
+                        When(
+                            Q(assignments__subject__name_ar__icontains="جغرافيا")
+                            | Q(assignments__subject__name_ar__icontains="تاريخ")
+                            | Q(assignments__subject__name_ar__icontains="اجتماع")
+                            | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                            then=Value(1),
+                        ),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                ),
+                prefer_social=Case(
+                    When(has_social__gt=0, then=Value(9)),
+                    default=Value(None),
+                    output_field=IntegerField(),
+                ),
+                min_category=Case(
+                    When(
+                        Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                        then=Coalesce(
+                            F("prefer_social"),
+                            F("job_title_cat"),
+                            F("all_min"),
+                            Value(999),
+                        ),
+                    ),
+                    default=Coalesce(
+                        F("prefer_social"),
+                        F("all_min"),
+                        F("non_ls_min"),
+                        F("job_title_cat"),
+                        Value(999),
+                    ),
+                    output_field=IntegerField(),
+                ),
+            )
+            .order_by("min_category", "full_name", "id")
+        )
+        agg = TeachingAssignment.objects.values("teacher_id", "classroom_id").annotate(
+            total=Sum("no_classes_weekly")
+        )
+        matrix = {(a["teacher_id"], a["classroom_id"]): int(a["total"] or 0) for a in agg}
+
+        def cls_label(c: Class) -> str:  # type: ignore
+            sec = (c.section or "").strip()
+            return f"{c.grade}-{sec}" if sec else str(c.grade)
+
+        rows = []
+        col_totals = [0] * len(classes)
+        grand_total = 0
+        for t in teachers:
+            vals = []
+            s = 0
+            for idx, c in enumerate(classes):
+                v = int(matrix.get((t.id, c.id), 0) or 0)
+                vals.append(v)
+                s += v
+                col_totals[idx] += v
+            grand_total += s
+            rows.append(
+                {
+                    "teacher": t.full_name,
+                    "vals": vals,
+                    "total": s,
+                    "cat": int(t.min_category or 999),
+                }
+            )
+        context = {
+            "title": "مصفوفة الأنصبة",
+            "classes": classes,
+            "cls_label": cls_label,
+            "rows": rows,
+            "col_totals": col_totals,
+            "grand_total": grand_total,
+        }
+        html = render(request, "school/export_matrix_pdf.html", context)
+        css = CSS(
+            string=(
+                "@page { size: A3 landscape; margin: 8mm } "
+                'body { font-family: "Noto Kufi Arabic", "Amiri", sans-serif; } '
+                "table { width: 100%; border-collapse: collapse; table-layout: fixed; } "
+                "th, td { border: 1px solid #8a8f99; padding: 2px } "
+                "th { background: #f7f2f1 } "
+                'tbody tr[data-cat-parity="odd"] { background: #d7eee5; } '
+                'tbody tr[data-cat-parity="even"] { background: #d9e7fb; }'
+            )
+        )
+        document = HTML(
+            string=html.content.decode("utf-8"),
+            base_url=request.build_absolute_uri("/"),
+        )
+        pdf_bytes = document.write_pdf(stylesheets=[css])
+        resp = HttpResponse(pdf_bytes, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="teacher_class_matrix.pdf"'
+        return resp
+    except Exception:
+        # Fallback ReportLab implementation
+        try:
+            from io import BytesIO
+            from pathlib import Path
+            from reportlab.pdfgen import canvas  # type: ignore
+            from reportlab.lib.pagesizes import A3, A4, landscape  # type: ignore
+            from reportlab.pdfbase import pdfmetrics  # type: ignore
+            from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
+            import arabic_reshaper  # type: ignore
+            from bidi.algorithm import get_display  # type: ignore
+        except Exception:
+            return HttpResponse(
+                "لا يمكن إنشاء PDF حالياً لعدم توفر WeasyPrint ولا مكتبات ReportLab/Arabic. رجاءً استخدم Excel.",
+                status=503,
+                content_type="text/plain; charset=utf-8",
+            )
+
+        classes = list(Class.objects.all().order_by("grade", "section", "id"))
+        cat_expr_for_staff = _subject_category_order_expr("assignments__subject__name_ar")
+        teachers = (
+            Staff.objects.filter(assignments__isnull=False)
+            .distinct()
+            .annotate(all_min=Min(cat_expr_for_staff))
+            .order_by("all_min", "full_name", "id")
+        )
+        agg = TeachingAssignment.objects.values("teacher_id", "classroom_id").annotate(
+            total=Sum("no_classes_weekly")
+        )
+        matrix = {(a["teacher_id"], a["classroom_id"]): int(a["total"] or 0) for a in agg}
+
+        use_a3 = len(classes) > 10
+        pagesize = landscape(A3 if use_a3 else A4)
+        width, height = pagesize
+
+        # Font
+        repo_root = Path(__file__).resolve().parents[2]
+        font_path = repo_root / "assets" / "fonts" / "Amiri" / "Amiri-Regular.ttf"
+        try:
+            pdfmetrics.registerFont(TTFont("Amiri", str(font_path)))
+            font_name = "Amiri"
+        except Exception:
+            font_name = "Helvetica"
+
+        def A(txt: str) -> str:
+            try:
+                return get_display(arabic_reshaper.reshape(txt or ""))
+            except Exception:
+                return txt or ""
+
+        buf = BytesIO()
+        c = canvas.Canvas(buf, pagesize=pagesize)
+
+        # Title
+        c.setFont(font_name, 16)
+        c.drawRightString(width - 36, height - 36, A("مصفوفة الأنصبة"))
+
+        # Column labels
+        c.setFont(font_name, 9 if use_a3 else 10)
+        x_right = width - 36
+        y = height - 60
+        # Teacher header at far right
+        c.drawRightString(x_right, y, A("المعلّم"))
+        # Compute column width (try to fit)
+        col_w = max(40, int((width - 120) / (len(classes) + 1)))
+        x = x_right - 100  # reserve ~100px for teacher name
+        # Class headers to the left
+        for cls in classes:
+            sec = (cls.section or "").strip()
+            lbl = f"{cls.grade}-{sec}" if sec else str(cls.grade)
+            c.drawRightString(x, y, A(lbl))
+            x -= col_w
+        c.drawRightString(x, y, A("المجموع"))
+        y -= 14
+        c.line(36, y + 6, width - 36, y + 6)
+
+        # Rows
+        line_h = 12
+        rows_per_page = int((y - 40) // line_h)
+        count_on_page = 0
+        col_totals = [0] * len(classes)
+        grand_total = 0
+        for t in teachers:
+            if count_on_page >= rows_per_page:
+                # footer partial page
+                c.showPage()
+                c.setFont(font_name, 16)
+                c.drawRightString(width - 36, height - 36, A("مصفوفة الأنصبة (متابعة)"))
+                c.setFont(font_name, 9 if use_a3 else 10)
+                y = height - 60
+                c.drawRightString(x_right, y, A("المعلّم"))
+                x = x_right - 100
+                for cls in classes:
+                    sec = (cls.section or "").strip()
+                    lbl = f"{cls.grade}-{sec}" if sec else str(cls.grade)
+                    c.drawRightString(x, y, A(lbl))
+                    x -= col_w
+                c.drawRightString(x, y, A("المجموع"))
+                y -= 14
+                c.line(36, y + 6, width - 36, y + 6)
+                count_on_page = 0
+
+            # Row values
+            row_sum = 0
+            x = x_right
+            c.drawRightString(x, y, A(t.full_name))
+            x -= 100
+            for idx, cls in enumerate(classes):
+                v = int(matrix.get((t.id, cls.id), 0) or 0)
+                row_sum += v
+                col_totals[idx] += v
+                c.drawRightString(x, y, str(v) if v else "")
+                x -= col_w
+            grand_total += row_sum
+            c.drawRightString(x, y, str(row_sum))
+            y -= line_h
+            count_on_page += 1
+
+        # Totals row
+        if y - 20 < 40:
+            c.showPage()
+            y = height - 60
+        c.setFont(font_name, 10)
+        x = x_right
+        c.drawRightString(x, y, A("مجموع الأعمدة"))
+        x -= 100
+        for idx, cls in enumerate(classes):
+            c.drawRightString(x, y, str(col_totals[idx]))
+            x -= col_w
+        c.drawRightString(x, y, str(grand_total))
+
+        c.save()
+        pdf = buf.getvalue()
+        buf.close()
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="teacher_class_matrix.pdf"'
+        return resp

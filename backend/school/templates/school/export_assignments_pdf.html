@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  {% load static %}
+  <meta charset="UTF-8">
+  <title>{{ title }}</title>
+  <style>
+    @font-face {
+      font-family: 'Noto Kufi Arabic';
+      font-weight: 100 900;
+      src: url("{% static 'fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf' %}") format('truetype');
+    }
+    @font-face {
+      font-family: 'Amiri';
+      font-weight: 400;
+      src: url("{% static 'fonts/Amiri/Amiri-Regular.ttf' %}") format('truetype');
+    }
+    body { font-family: 'Noto Kufi Arabic', 'Amiri', sans-serif; font-size: 11px; }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #8a8f99; padding: 3px; }
+    th { background: #f7f2f1; }
+    tbody tr[data-cat="odd"] { background: #d7eee5; }
+    tbody tr[data-cat="even"] { background: #d9e7fb; }
+    .footer { margin-top: 8px; font-size: 11px; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>المعلم</th>
+        <th>الصف</th>
+        <th>الشعبة</th>
+        <th>المادة</th>
+        <th>حصص/أسبوع</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for a in assignments %}
+        <tr data-cat="{% if a.teacher_min_category|divisibleby:'2' %}even{% else %}odd{% endif %}">
+          <td>{{ a.teacher.full_name }}</td>
+          <td>{{ a.classroom.grade }}</td>
+          <td>{{ a.classroom.section }}</td>
+          <td>{{ a.subject.name_ar }}</td>
+          <td>{{ a.no_classes_weekly }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" style="text-align:center; color:#888;">لا توجد بيانات</td></tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="4" style="text-align:end;">المجموع الإجمالي:</th>
+        <th>{{ kpi_weekly_total }}</th>
+      </tr>
+    </tfoot>
+  </table>
+  <div class="footer">تم التوليد بواسطة النظام — {{ title }}</div>
+</body>
+</html>

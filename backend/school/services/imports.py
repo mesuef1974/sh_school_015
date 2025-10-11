@@ -88,7 +88,13 @@ def import_teacher_loads(file_obj, *, dry_run: bool = False) -> Dict[str, Any]:
                     break
                 normed = [normalize_ar_text(v).replace(" ", "").lower() for v in vals]
                 tokens = {
-                    "teacher": {"teachername", "teacher", "اسمالمعلم", "اسمالمعلّم", "المعلم"},
+                    "teacher": {
+                        "teachername",
+                        "teacher",
+                        "اسمالمعلم",
+                        "اسمالمعلّم",
+                        "المعلم",
+                    },
                     "grade": {"grade", "الصف", "المرحلة", "الصفالدراسي"},
                     "section": {"section", "الشعبة", "الفصل"},
                     "subject": {"class", "subject", "المادة", "المواد"},
@@ -110,7 +116,13 @@ def import_teacher_loads(file_obj, *, dry_run: bool = False) -> Dict[str, Any]:
                     break
             if header_row is None:
                 header_row = 1
-                col_map = {"teacher": 0, "grade": 1, "section": 2, "subject": 3, "weekly": 4}
+                col_map = {
+                    "teacher": 0,
+                    "grade": 1,
+                    "section": 2,
+                    "subject": 3,
+                    "weekly": 4,
+                }
 
             current_teacher = None
             for row in ws.iter_rows(min_row=header_row + 1, values_only=True):

@@ -73,12 +73,28 @@ LOGGING = {
     },
     "loggers": {
         # Uvicorn runtime and server logs
-        "uvicorn.error": {"handlers": ["console_win"], "level": "INFO", "propagate": False},
+        "uvicorn.error": {
+            "handlers": ["console_win"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "uvicorn": {"handlers": ["console_win"], "level": "INFO", "propagate": False},
         # Django runserver and request logs
-        "django.server": {"handlers": ["console_win"], "level": "INFO", "propagate": False},
-        "django.request": {"handlers": ["console_win"], "level": "WARNING", "propagate": False},
+        "django.server": {
+            "handlers": ["console_win"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console_win"],
+            "level": "WARNING",
+            "propagate": False,
+        },
         # AsyncIO event loop warnings (Windows Proactor 10054 etc.)
-        "asyncio": {"handlers": ["console_win"], "level": "WARNING", "propagate": False},
+        "asyncio": {
+            "handlers": ["console_win"],
+            "level": "WARNING",
+            "propagate": False,
+        },
     },
 }

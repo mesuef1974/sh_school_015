@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة مدرسة الشحانية - معاينة RTL</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.8;
+            direction: rtl;
+            text-align: right;
+            background: #f5f5f5;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #800000;
+            border-bottom: 3px solid #FFD700;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+            font-size: 2.5em;
+        }
+
+        h2 {
+            color: #800000;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            font-size: 2em;
+            border-right: 5px solid #FFD700;
+            padding-right: 15px;
+        }
+
+        h3 {
+            color: #4A90E2;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        p {
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+
+        ul, ol {
+            margin-right: 30px;
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+            font-size: 1.05em;
+        }
+
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            direction: ltr;
+            display: inline-block;
+        }
+
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 20px 0;
+            direction: ltr;
+            text-align: left;
+        }
+
+        pre code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            direction: rtl;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: right;
+        }
+
+        th {
+            background: #800000;
+            color: white;
+            font-weight: bold;
+        }
+
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        .badges {
+            direction: ltr;
+            text-align: left;
+            margin: 20px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            margin: 0 5px;
+        }
+
+        .highlight {
+            background: #fff3cd;
+            padding: 15px;
+            border-right: 4px solid #ffc107;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+
+        .success {
+            color: #28a745;
+        }
+
+        .warning {
+            color: #ffc107;
+        }
+
+        .info {
+            color: #17a2b8;
+        }
+
+        hr {
+            border: none;
+            border-top: 2px solid #e0e0e0;
+            margin: 40px 0;
+        }
+
+        a {
+            color: #4A90E2;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 30px 0;
+        }
+
+        .toc ul {
+            list-style: none;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .emoji {
+            font-size: 1.3em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><span class="emoji">🏫</span> نظام إدارة مدرسة الشحانية - sh_school_015</h1>
+
+        <div class="badges">
+            <img src="https://img.shields.io/badge/CI-passing-success" alt="CI" class="badge">
+            <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" class="badge">
+        </div>
+
+        <p><strong>نظام إدارة مدرسية متكامل لمدرسة الشحانية الإعدادية الثانوية في قطر.</strong> يوفر إدارة شاملة للطلاب، الموظفين، الصفوف، الأنصبة التدريسية، مع واجهة عربية (RTL) احترافية وميزات تصدير متقدمة.</p>
+
+        <hr>
+
+        <div class="toc">
+            <h2><span class="emoji">📋</span> جدول المحتويات</h2>
+            <ul>
+                <li>• الميزات الرئيسية</li>
+                <li>• البنية التقنية</li>
+                <li>• المتطلبات</li>
+                <li>• التثبيت والإعداد</li>
+                <li>• التشغيل</li>
+                <li>• الميزات المتقدمة</li>
+                <li>• استيراد البيانات</li>
+                <li>• النسخ الاحتياطي</li>
+                <li>• أمثلة API</li>
+                <li>• استكشاف الأخطاء</li>
+            </ul>
+        </div>
+
+        <h2><span class="emoji">✨</span> الميزات الرئيسية</h2>
+
+        <h3><span class="emoji">🎯</span> إدارة البيانات الأساسية</h3>
+        <ul>
+            <li><strong>الطلاب</strong> - إدارة كاملة للطلاب مع الرقم الوطني، تاريخ الميلاد، الجنسية، وبيانات ولي الأمر</li>
+            <li><strong>الموظفين</strong> - إدارة المعلمين والإداريين مع التخصصات والصلاحيات</li>
+            <li><strong>الصفوف</strong> - إدارة الصفوف الدراسية والشعب</li>
+            <li><strong>المواد</strong> - إدارة المواد الدراسية مع ربطها بالصفوف</li>
+        </ul>
+
+        <h3><span class="emoji">📊</span> لوحة الأنصبة التدريسية</h3>
+        <ul>
+            <li>عرض وإدارة الأنصبة التدريسية بشكل تفاعلي</li>
+            <li>استيراد من Excel (sync/async) مع معالجة ذكية</li>
+            <li>فلترة متقدمة: معلم، صف، مادة، بحث نصي</li>
+            <li>إحصائيات KPI: إجمالي الحصص، الفجوات، التغطية</li>
+            <li><strong>تصدير Excel</strong>: ملفات احترافية بتنسيق A3 landscape</li>
+            <li><strong>تصدير PDF</strong>: دعم WeasyPrint مع fallback لـ ReportLab</li>
+        </ul>
+
+        <h3><span class="emoji">📤</span> ميزات التصدير المتقدمة</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>النوع</th>
+                    <th>المسار</th>
+                    <th>الوصف</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Excel</td>
+                    <td><code>/loads/export/assignments.xlsx</code></td>
+                    <td>تصدير جدول الأنصبة بتنسيق A3</td>
+                </tr>
+                <tr>
+                    <td>PDF</td>
+                    <td><code>/loads/export/assignments.pdf</code></td>
+                    <td>تصدير PDF للأنصبة</td>
+                </tr>
+                <tr>
+                    <td>Excel</td>
+                    <td><code>/loads/matrix/export.xlsx</code></td>
+                    <td>تصدير مصفوفة المعلمين والصفوف</td>
+                </tr>
+                <tr>
+                    <td>PDF</td>
+                    <td><code>/loads/matrix/export.pdf</code></td>
+                    <td>تصدير PDF للمصفوفة</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2><span class="emoji">🚀</span> التثبيت والإعداد</h2>
+
+        <h3>1️⃣ إعداد بيئة التطوير (Windows)</h3>
+        <p>السكربت يقوم بكل شيء تلقائياً:</p>
+
+        <pre><code># من جذر المشروع
+./scripts/dev_setup.ps1</code></pre>
+
+        <div class="highlight">
+            <p><strong>ماذا يفعل السكربت؟</strong></p>
+            <ul>
+                <li><span class="success">✅</span> ينشئ بيئة افتراضية <code>.venv</code></li>
+                <li><span class="success">✅</span> يفعّل البيئة ويحدّث pip</li>
+                <li><span class="success">✅</span> يثبّت الاعتماديات من <code>requirements-dev.txt</code></li>
+                <li><span class="success">✅</span> يشغّل فحوصات Black و Flake8</li>
+            </ul>
+        </div>
+
+        <h3>2️⃣ تشغيل السيرفر</h3>
+        <pre><code># HTTP عادي (منفذ 8000)
+./scripts/serve.ps1
+
+# HTTPS محلي (منفذ 8443)
+./scripts/serve_https.ps1</code></pre>
+
+        <h3><span class="emoji">📊</span> الوصول للنظام</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>الخدمة</th>
+                    <th>الرابط</th>
+                    <th>الوصف</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>لوحة الأنصبة</td>
+                    <td><code>http://127.0.0.1:8000/loads/</code></td>
+                    <td>الواجهة الرئيسية</td>
+                </tr>
+                <tr>
+                    <td>مصفوفة الأنصبة</td>
+                    <td><code>http://127.0.0.1:8000/loads/matrix/</code></td>
+                    <td>Teacher-Class Matrix</td>
+                </tr>
+                <tr>
+                    <td>Django Admin</td>
+                    <td><code>http://127.0.0.1:8000/admin/</code></td>
+                    <td>لوحة الإدارة</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr>
+
+        <div style="text-align: center; direction: ltr; padding: 30px; background: #f8f9fa; border-radius: 8px; margin-top: 50px;">
+            <h3>Built with ❤️ for Shahania School, Qatar</h3>
+            <p><strong>Made in Qatar 🇶🇦 | Powered by Django & PostgreSQL</strong></p>
+        </div>
+
+        <div style="margin-top: 30px; padding: 20px; background: #e7f3ff; border-radius: 8px; border-right: 4px solid #2196F3;">
+            <p><strong><span class="emoji">💡</span> ملاحظة:</strong> هذا معاينة لتنسيق RTL. الملف الأصلي <code>README.md</code> يحتوي على دعم RTL كامل ويعمل بشكل صحيح على GitHub.</p>
+            <p>افتح الملف على GitHub لرؤية التنسيق الكامل مع جميع الميزات.</p>
+        </div>
+    </div>
+</body>
+</html>

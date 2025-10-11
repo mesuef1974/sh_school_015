@@ -114,7 +114,9 @@ if (Test-Path (Join-Path $Root 'requirements-dev.txt')) {
 Write-Host "Running Black (check) ..."
 $blackCheck = & black --check gen_index.py 2>&1
 if ($LASTEXITCODE -ne 0) {
-    Write-Warning $blackCheck
+    # black output may be an array; convert to a single string for Write-Warning
+    $msg = ($blackCheck | Out-String).Trim()
+    Write-Warning $msg
     Write-Host "Applying Black formatting ..."
     black gen_index.py
 }
