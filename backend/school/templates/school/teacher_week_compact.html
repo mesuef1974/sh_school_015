@@ -1,0 +1,179 @@
+{% extends "_base_maronia.html" %}
+{% load school_extras %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+  <div>
+    <h1 class="h5 mb-1">الجدول العام للمعلمين</h1>
+    <div class="text-muted small">عرض شبكي مضغوط مشابه للنموذج المرفق — أعمدة الأيام (الأحد→الخميس) وكل يوم ٧ أعمدة للحصص</div>
+  </div>
+  <div class="btn-group" role="group">
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'teacher_week_matrix' %}">الوضع التفاعلي (سحب وإفلات)</a>
+  </div>
+</div>
+
+<div class="card p-2 p-md-3">
+  <div class="table-hero">
+    <lord-icon src="https://cdn.lordicon.com/jqeuiohk.json" trigger="loop" delay="2000" colors="primary:#7b1e1e,secondary:#c49a6c"></lord-icon>
+    <div>
+      <div class="title">شبكة الجدول الأسبوعي للمعلمين</div>
+      <div class="muted">جدول عربي احترافي باتجاه يمين-إلى-يسار مع إمكانية السحب والإفلات.</div>
+    </div>
+  </div>
+  <div class="twc-wrap">
+    <table class="table table-bordered table-sm align-middle text-center w-100 twc-table" dir="rtl">
+      <thead>
+        <tr class="twc-head-days">
+          <th class="sticky-right" rowspan="2" style="min-width: 240px;">المعلّم</th>
+          {% for d, dn in DAYS %}
+            <th colspan="7">{{ dn }}</th>
+          {% endfor %}
+        </tr>
+        <tr class="twc-head-periods">
+          {% for d, dn in DAYS %}
+            {% for p in PERIODS_DESC %}
+              <th style="width: 46px;">{{ p }}</th>
+            {% endfor %}
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in teachers %}
+        <tr>
+          <th class="sticky-right text-start">{{ t.full_name }}</th>
+          {% for d, dn in DAYS %}
+            {% for p in PERIODS_DESC %}
+              {% with e=grid|get_attr:t.id|get_attr:d|get_attr:p %}
+              <td class="twc-cell" data-teacher="{{ t.id }}" data-day="{{ d }}" data-period="{{ p }}">
+                {% if e %}
+                  <div class="twc-item" draggable="true" data-entry-id="{{ e.id }}" title="{{ e.subject.name_ar }} — {{ e.classroom.name }}">
+                    <div class="twc-chip" style="background: {{ subject_colors|get_attr:e.subject_id }}">{{ e.subject.name_ar }}</div>
+                    <div class="twc-class">{{ e.classroom.name }}</div>
+                  </div>
+                {% else %}
+                  <button type="button" class="btn btn-xs btn-outline-secondary twc-add">+</button>
+                {% endif %}
+              </td>
+              {% endwith %}
+            {% endfor %}
+          {% endfor %}
+        </tr>
+        {% empty %}
+          <tr><td colspan="{{ total_cols }}" class="text-muted">لا يوجد بيانات.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.twc-wrap{ max-height: calc(100vh - 220px); overflow:auto; }
+.twc-table{ border-collapse: collapse; font-size: 12px; }
+.twc-table th, .twc-table td { border: 1px solid #333; }
+.twc-table .twc-head-days th{ background:#f8f9fa; font-weight:700; font-size:14px; }
+.twc-table .twc-head-periods th{ background:#fafafa; font-size:12px; }
+.sticky-right{ position: sticky; right: 0; z-index: 2; background: #fff; }
+.twc-cell{ min-width: 46px; min-height: 40px; padding: 2px; }
+.btn.btn-xs{ --bs-btn-padding-y:.05rem; --bs-btn-padding-x:.25rem; --bs-btn-font-size:.7rem; }
+.twc-item{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; height:100%; cursor:grab; }
+.twc-item:active{ cursor:grabbing; }
+.twc-chip{ display:inline-block; padding:1px 4px; border-radius:999px; border:1px solid #b0bec5; font-size:11px; }
+.twc-class{ font-size:11px; }
+.twc-cell.drop-ok{ outline:2px dashed #2e7d32; outline-offset:-2px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{{ subject_colors|json_script:"SUBJECT_COLORS" }}
+<script>
+(function(){
+  const SUBJECT_COLORS = JSON.parse(document.getElementById('SUBJECT_COLORS').textContent || '{}');
+  const ASSIGN_OPTS = {
+    {% for tid, opts in assign_opts.items %}
+      "{{ tid }}": [
+        {% for o in opts %}{"class_id": {{ o.class_id }}, "subject_id": {{ o.subject_id }}, "label": "{{ o.label }}"}{% if not forloop.last %}, {% endif %}{% endfor %}
+      ]{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+  };
+  function getCookie(name){ const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
+
+  function openAdd(td){
+    const teacherId = td.getAttribute('data-teacher');
+    const day = td.getAttribute('data-day');
+    const period = td.getAttribute('data-period');
+    const opts = ASSIGN_OPTS[teacherId] || [];
+    const html = `
+      <div id="twc-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:1050;">
+        <div style="background:#fff;min-width:360px;max-width:460px;padding:14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+          <div class="d-flex align-items-center justify-content-between mb-2"><strong>إضافة حصة</strong><button class="btn btn-sm btn-light" id="twc-close">×</button></div>
+          <div class="mb-2"><label class="form-label">التكليف</label>
+            <select class="form-select form-select-sm" id="twc-asg">
+              ${opts.map(o=>`<option value="${o.class_id}|${o.subject_id}">${o.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="text-end"><button id="twc-save" class="btn btn-primary btn-sm">حفظ</button></div>
+        </div>
+      </div>`;
+    const wrap = document.createElement('div'); wrap.innerHTML = html; document.body.appendChild(wrap);
+    const overlay = document.getElementById('twc-modal');
+    function close(){ overlay.remove(); }
+    overlay.querySelector('#twc-close').onclick = close;
+    overlay.querySelector('#twc-save').onclick = function(){
+      const v = overlay.querySelector('#twc-asg').value || '';
+      const [class_id, subject_id] = v.split('|');
+      const form = new FormData();
+      form.append('teacher_id', teacherId);
+      form.append('classroom_id', class_id);
+      form.append('subject_id', subject_id);
+      form.append('day', day);
+      form.append('period', period);
+      fetch('{% url "api_timetable_add" %}', { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken': getCookie('csrftoken')}, body: form })
+        .then(r=>r.json()).then(data=>{
+          if(!data.ok){ alert(data.error||'فشل الإضافة'); return; }
+          const e = data.entry;
+          td.innerHTML = `<div class="twc-item" draggable="true" data-entry-id="${e.id}" title="${e.subject} — ${e.classroom}">
+            <div class="twc-chip" style="background: ${(SUBJECT_COLORS[String(e.subject_id)]||SUBJECT_COLORS[e.subject_id]||'#e6f4ea')}">${e.subject}</div>
+            <div class="twc-class">${e.classroom}</div>
+          </div>`;
+          close();
+        }).catch(()=>alert('خطأ في الشبكة'));
+    };
+  }
+
+  // Click add
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('.twc-add');
+    if(!btn) return;
+    const td = btn.closest('.twc-cell');
+    openAdd(td);
+  });
+
+  // Drag & drop move
+  let dragEntryId=null, dragSource=null;
+  document.addEventListener('dragstart', function(e){
+    const it = e.target.closest('.twc-item'); if(!it) return;
+    dragEntryId = it.getAttribute('data-entry-id');
+    dragSource = it.closest('.twc-cell');
+    e.dataTransfer.effectAllowed='move';
+  });
+  document.addEventListener('dragover', function(e){ const td=e.target.closest('.twc-cell'); if(!td) return; e.preventDefault(); td.classList.add('drop-ok'); });
+  document.addEventListener('dragleave', function(e){ const td=e.target.closest('.twc-cell'); if(!td) return; td.classList.remove('drop-ok'); });
+  document.addEventListener('drop', function(e){
+    const td=e.target.closest('.twc-cell'); if(!td||!dragEntryId) return; e.preventDefault();
+    const day=td.getAttribute('data-day'); const period=td.getAttribute('data-period'); const teacherId=td.getAttribute('data-teacher');
+    const form=new FormData(); form.append('entry_id', dragEntryId); form.append('day', day); form.append('period', period); form.append('target_teacher_id', teacherId);
+    fetch('{% url "api_timetable_move" %}', { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken': getCookie('csrftoken')}, body: form })
+      .then(r=>r.json()).then(data=>{
+        if(!data.ok){ alert(data.error||'فشل النقل'); return; }
+        const e=data.entry; td.classList.remove('drop-ok');
+        td.innerHTML = `<div class="twc-item" draggable="true" data-entry-id="${e.id}" title="${e.subject} — ${e.classroom}">
+          <div class="twc-chip" style="background: ${(SUBJECT_COLORS[String(e.subject_id)]||SUBJECT_COLORS[e.subject_id]||'#e6f4ea')}">${e.subject}</div>
+          <div class="twc-class">${e.classroom}</div>
+        </div>`;
+        if(dragSource && dragSource!==td){ dragSource.innerHTML='<button type="button" class="btn btn-xs btn-outline-secondary twc-add">+</button>'; }
+        dragEntryId=null; dragSource=null;
+      }).catch(()=>alert('خطأ في الشبكة'));
+  });
+})();
+</script>
+{% endblock %}

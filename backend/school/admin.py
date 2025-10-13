@@ -588,11 +588,56 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
 
 
 # ===== New admin registrations for attendance and calendar =====
+# ==== Wing admin: allow assigning existing classes to a wing (not as notes) ====
+class WingAdminForm(forms.ModelForm):
+    classes_attach = forms.ModelMultipleChoiceField(
+        label="الصفوف",
+        queryset=Class.objects.none(),  # set in __init__
+        required=False,
+        help_text="اختر الصفوف التي تتبع هذا الجناح",
+        widget=admin.widgets.FilteredSelectMultiple("الصفوف", is_stacked=False),
+    )
+
+    class Meta:
+        model = Wing
+        fields = ["name", "floor", "notes", "supervisor", "classes_attach"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Show all classes plus preselect those currently attached to this wing
+        qs = Class.objects.all().order_by("name")
+        self.fields["classes_attach"].queryset = qs
+        if self.instance and self.instance.pk:
+            self.fields["classes_attach"].initial = list(self.instance.classes.all())
+
+
 @admin.register(Wing)
 class WingAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "floor", "notes")
+    form = WingAdminForm
+    list_display = ("id", "name", "floor", "supervisor", "classes_count")
     search_fields = ("name", "notes")
     list_filter = ("floor",)
+    filter_horizontal = ()  # silence admin js expectations for FilteredSelectMultiple
+
+    def classes_count(self, obj: Wing):
+        return obj.classes.count()
+
+    classes_count.short_description = "عدد الصفوف"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Defer handling of classes to save_related where m2m-like widget is processed
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        # Update Class.wing based on selected classes
+        wing = form.instance
+        if "classes_attach" in form.cleaned_data:
+            selected = set(form.cleaned_data["classes_attach"].values_list("id", flat=True))
+            # Set the selected ones to this wing
+            Class.objects.filter(id__in=selected).update(wing=wing)
+            # Detach any previously attached classes that were unselected
+            Class.objects.filter(wing=wing).exclude(id__in=selected).update(wing=None)
 
 
 @admin.register(AcademicYear)
@@ -604,7 +649,14 @@ class AcademicYearAdmin(admin.ModelAdmin):
 
 @admin.register(Term)
 class TermAdmin(admin.ModelAdmin):
-    list_display = ("id", "name", "academic_year", "start_date", "end_date", "is_current")
+    list_display = (
+        "id",
+        "name",
+        "academic_year",
+        "start_date",
+        "end_date",
+        "is_current",
+    )
     list_filter = ("academic_year", "is_current")
     search_fields = ("name", "academic_year__name")
 
@@ -625,7 +677,15 @@ class PeriodTemplateAdmin(admin.ModelAdmin):
 
 @admin.register(TimetableEntry)
 class TimetableEntryAdmin(admin.ModelAdmin):
-    list_display = ("id", "classroom", "day_of_week", "period_number", "subject", "teacher", "term")
+    list_display = (
+        "id",
+        "classroom",
+        "day_of_week",
+        "period_number",
+        "subject",
+        "teacher",
+        "term",
+    )
     list_filter = ("day_of_week", "classroom", "teacher", "subject", "term")
     autocomplete_fields = ("classroom", "teacher", "subject", "term")
     search_fields = ("classroom__name", "teacher__full_name", "subject__name_ar")
@@ -662,7 +722,15 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
         "early_minutes",
         "locked",
     )
-    list_filter = ("date", "day_of_week", "status", "classroom", "teacher", "subject", "term")
+    list_filter = (
+        "date",
+        "day_of_week",
+        "status",
+        "classroom",
+        "teacher",
+        "subject",
+        "term",
+    )
     search_fields = (
         "student__full_name",
         "classroom__name",

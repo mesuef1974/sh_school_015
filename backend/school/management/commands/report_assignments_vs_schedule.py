@@ -3,12 +3,12 @@ from dataclasses import dataclass
 from typing import List, Dict, Tuple
 
 from django.core.management.base import BaseCommand, CommandError
-from django.db.models import Sum
+from django.db.models import Count
 
 from school.models import (
     TeachingAssignment,
     TimetableEntry,
-    CalendarTemplate,
+    Term,
 )
 
 
@@ -52,25 +52,18 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        template = None
-        if options.get("template_id"):
-            template = CalendarTemplate.objects.filter(id=options["template_id"]).first()
-            if not template:
-                raise CommandError(f"Template with id={options['template_id']} not found")
-        else:
-            tname = options.get("template_name") or "الجدول الرسمي"
-            template = CalendarTemplate.objects.filter(name=tname).first()
-            if not template:
-                raise CommandError(f"Template '{tname}' not found")
+        term = Term.objects.filter(is_current=True).first()
+        if not term:
+            raise CommandError("No current term found. Please set a current Term.")
 
         only_mismatches: bool = options.get("only_mismatches", False)
         teacher_contains = (options.get("teacher_contains") or "").strip()
 
-        # Build scheduled counts per (teacher_id, classroom_id, subject_id)
+        # Build scheduled counts per (teacher_id, classroom_id, subject_id) for current term
         scheduled_qs = (
-            TimetableEntry.objects.filter(slot__template=template)
+            TimetableEntry.objects.filter(term=term)
             .values("teacher_id", "classroom_id", "subject_id")
-            .annotate(cnt=Sum(1))
+            .annotate(cnt=Count("id"))
         )
         scheduled_map: Dict[Tuple[int, int, int], int] = {}
         for r in scheduled_qs:
@@ -118,7 +111,7 @@ class Command(BaseCommand):
 
         # Print report
         self.stdout.write(
-            self.style.NOTICE("\nتقرير مقارنة التكليفات مع الجدول — %s\n" % template.name)
+            self.style.NOTICE("\nتقرير مقارنة التكليفات مع الجدول — الفصل الحالي: %s\n" % term.name)
         )
         self.stdout.write("-" * 90)
         self.stdout.write(f"عدد التكليفات المفحوصة: {assignments.count()}\n")

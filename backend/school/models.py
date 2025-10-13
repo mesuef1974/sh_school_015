@@ -291,6 +291,15 @@ class Wing(models.Model):
     name = models.CharField(max_length=50, unique=True)
     floor = models.CharField(max_length=20, blank=True)  # أرضي/علوي
     notes = models.CharField(max_length=200, blank=True)
+    supervisor = models.ForeignKey(
+        "Staff",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_wings",
+        verbose_name="المشرف",
+        help_text="المشرف المسؤول عن الجناح",
+    )
 
     class Meta:
         verbose_name = "جناح"

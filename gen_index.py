@@ -190,10 +190,10 @@ def render_list(paths):
             size = human_size(st.st_size)
             mtime = fmt_time(st.st_mtime)
             items_html.append(
-                '          <li><a href="{0}" target="_blank" rel="noopener">{1}</a>'.format(
-                    href, text
-                )
-                + ' <span class="meta">— حجم: {0} • آخر تعديل: {1}</span></li>'.format(size, mtime)
+                (
+                    '          <li><a href="{0}" target="_blank" rel="noopener">{1}</a>'
+                    ' <span class="meta">— حجم: {2} • آخر تعديل: {3}</span></li>'
+                ).format(href, text, size, mtime)
             )
         block = [
             "      <details open>",

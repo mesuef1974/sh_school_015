@@ -1,0 +1,221 @@
+{% extends "_base_maronia.html" %}
+{% load static %}
+{% load school_extras %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+  <h1 class="h5 mb-0">{% if read_only %}جدولي الأسبوعي{% else %}جدول المعلمين الأسبوعي (المعلم × الأيام × الحصص){% endif %}</h1>
+  <div class="btn-group" role="group">
+    {% if not read_only %}
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'teacher_class_matrix' %}">مصفوفة الأنصبة</a>
+    {% endif %}
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'teacher_week_compact' %}">عرض مضغوط للطباعة</a>
+  </div>
+</div>
+
+<div class="card p-2 p-md-3">
+  <div class="mb-2 small text-muted">
+    {% if read_only %}
+      عرض فقط — لا يمكن إضافة أو تحريك الحصص.
+    {% else %}
+      انقر لإضافة حصة في خانة فارغة، أو اسحب الحصة بين الخانات لتحريكها. الألوان حسب المادة.
+    {% endif %}
+  </div>
+  <div class="tw-grid-wrap">
+    <table class="table table-bordered align-middle text-center w-100 tw-table">
+      <thead class="table-light sticky-top">
+        <tr>
+          <th class="text-start" style="min-width:220px; position:sticky; right:0; z-index:3; background:#fff;">المعلّم</th>
+          <th>الأحد</th>
+          <th>الإثنين</th>
+          <th>الثلاثاء</th>
+          <th>الأربعاء</th>
+          <th>الخميس</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in teachers %}
+          <tr>
+            <th class="text-start" style="position:sticky; right:0; background:inherit; z-index:1;">
+              {{ t.full_name }}
+            </th>
+            {% for d in DAYS %}
+              <td>
+                <div class="tw-day-col" data-teacher="{{ t.id }}" data-day="{{ d }}">
+                  {% for p in PERIODS %}
+                    {% with e=grid|get_attr:t.id|get_attr:d|get_attr:p %}
+                    <div class="tw-slot" data-period="{{ p }}" data-day="{{ d }}" data-teacher="{{ t.id }}" data-empty="{% if not e %}1{% else %}0{% endif %}">
+                      <div class="tw-slot-head">ح{{ p }}</div>
+                      {% if e %}
+                        <div class="tw-item"{% if not read_only %} draggable="true"{% endif %} data-entry-id="{{ e.id }}" title="{{ e.subject.name_ar }} — {{ e.classroom.name }}">
+                          <span class="tw-subj" style="background: {{ subject_colors|get_attr:e.subject_id }}">
+                            {{ e.subject.name_ar }}
+                          </span>
+                          <span class="tw-class">{{ e.classroom.name }}</span>
+                        </div>
+                      {% else %}
+                        {% if not read_only %}
+                          <button type="button" class="btn btn-xs btn-outline-secondary tw-add-btn">+</button>
+                        {% endif %}
+                      {% endif %}
+                    </div>
+                    {% endwith %}
+                  {% endfor %}
+                </div>
+              </td>
+            {% endfor %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-muted">لا يوجد معلمون للعرض.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+.tw-grid-wrap{ max-height: calc(100vh - 220px); overflow:auto; }
+.tw-table>:not(caption)>*>* { border-color: #8a8f99 !important; }
+.tw-day-col{ display:grid; grid-template-rows: repeat({{ PERIODS|length }}, 1fr); gap: 6px; }
+.tw-slot{ position:relative; min-height:64px; padding:4px; border:1px dashed #cfd8dc; border-radius:6px; background:#fcfcfd; }
+.tw-slot-head{ position:absolute; top:2px; inset-inline-start:4px; font-size:11px; color:#6b7280; }
+.tw-item{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; height:100%; border-radius:4px; border:1px solid #b0bec5; background:#fff; {% if not read_only %}cursor:grab;{% else %}cursor:default;{% endif %} }
+.tw-item:active{ cursor:grabbing; }
+.tw-subj{ display:inline-block; padding:2px 6px; border-radius:999px; font-size:12px; }
+.tw-class{ font-size:12px; color:#374151; }
+.tw-slot.drop-ok{ outline:2px dashed #2e7d32; }
+.btn.btn-xs{ --bs-btn-padding-y: .1rem; --bs-btn-padding-x: .25rem; --bs-btn-font-size: .75rem; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{% if not read_only %}
+{{ subject_colors|json_script:"SUBJECT_COLORS" }}
+<script>
+(function(){
+  const SUBJECT_COLORS = JSON.parse(document.getElementById('SUBJECT_COLORS').textContent || '{}');
+  // Assign options per teacher
+  const ASSIGN_OPTS = {
+    {% for tid, opts in assign_opts.items %}
+      "{{ tid }}": [
+        {% for o in opts %}{"class_id": {{ o.class_id }}, "subject_id": {{ o.subject_id }}, "label": "{{ o.label }}"}{% if not forloop.last %}, {% endif %}{% endfor %}
+      ]{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+  };
+
+  function getCookie(name){ const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
+
+  function openAddModal(slotEl){
+    const teacherId = slotEl.getAttribute('data-teacher');
+    const day = slotEl.getAttribute('data-day');
+    const period = slotEl.getAttribute('data-period');
+    const opts = ASSIGN_OPTS[teacherId] || [];
+    const html = `
+      <div id="tw-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;z-index:1050;">
+        <div style="background:#fff;min-width:360px;max-width:460px;padding:14px;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,0.25);">
+          <div class="d-flex align-items-center justify-content-between mb-2"><strong>إضافة حصة</strong><button class="btn btn-sm btn-light" id="tw-close">×</button></div>
+          <div class="mb-2"><label class="form-label">التكليف</label>
+            <select class="form-select form-select-sm" id="tw-asg">
+              ${opts.map(o=>`<option value="${o.class_id}|${o.subject_id}">${o.label}</option>`).join('')}
+            </select>
+          </div>
+          <div class="text-end"><button id="tw-save" class="btn btn-primary btn-sm">حفظ</button></div>
+        </div>
+      </div>`;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap);
+    const overlay = document.getElementById('tw-modal');
+    function close(){ overlay.remove(); }
+    overlay.querySelector('#tw-close').onclick = close;
+    overlay.querySelector('#tw-save').onclick = function(){
+      const v = overlay.querySelector('#tw-asg').value || '';
+      const [class_id, subject_id] = v.split('|');
+      const form = new FormData();
+      form.append('teacher_id', teacherId);
+      form.append('classroom_id', class_id);
+      form.append('subject_id', subject_id);
+      form.append('day', day);
+      form.append('period', period);
+      fetch('{% url "api_timetable_add" %}', {
+        method: 'POST', headers: {'X-Requested-With':'XMLHttpRequest','X-CSRFToken': getCookie('csrftoken')}, body: form
+      }).then(r=>r.json()).then(data=>{
+        if(!data.ok){ alert(data.error||'فشل الإضافة'); return; }
+        // Replace slot content
+        const e = data.entry;
+        slotEl.innerHTML = `<div class="tw-slot-head">ح${e.period}</div>
+          <div class="tw-item" draggable="true" data-entry-id="${e.id}" title="${e.subject} — ${e.classroom}">
+            <span class="tw-subj" style="background: ${ (SUBJECT_COLORS[String(e.subject_id)] || SUBJECT_COLORS[e.subject_id] || '#e6f4ea') }">${e.subject}</span>
+            <span class="tw-class">${e.classroom}</span>
+          </div>`;
+        close();
+      }).catch(()=>alert('خطأ في الشبكة'));
+    };
+  }
+
+  // Click to add
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('.tw-add-btn');
+    if (!btn) return;
+    const slot = btn.closest('.tw-slot');
+    openAddModal(slot);
+  });
+
+  // Drag and drop
+  let dragEntryId = null;
+  let dragSource = null;
+  document.addEventListener('dragstart', function(e){
+    const item = e.target.closest('.tw-item');
+    if(!item) return;
+    dragEntryId = item.getAttribute('data-entry-id');
+    dragSource = item.closest('.tw-slot');
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  document.addEventListener('dragover', function(e){
+    const slot = e.target.closest('.tw-slot');
+    if(!slot) return;
+    e.preventDefault();
+    slot.classList.add('drop-ok');
+  });
+  document.addEventListener('dragleave', function(e){
+    const slot = e.target.closest('.tw-slot');
+    if(!slot) return;
+    slot.classList.remove('drop-ok');
+  });
+  document.addEventListener('drop', function(e){
+    const slot = e.target.closest('.tw-slot');
+    if(!slot || !dragEntryId) return;
+    e.preventDefault();
+    const day = slot.getAttribute('data-day');
+    const period = slot.getAttribute('data-period');
+    const teacherId = slot.getAttribute('data-teacher');
+    const form = new FormData();
+    form.append('entry_id', dragEntryId);
+    form.append('day', day);
+    form.append('period', period);
+    form.append('target_teacher_id', teacherId);
+    fetch('{% url "api_timetable_move" %}', { method:'POST', headers:{'X-Requested-With':'XMLHttpRequest','X-CSRFToken': getCookie('csrftoken')}, body: form })
+      .then(r=>r.json()).then(data=>{
+        if(!data.ok){ alert(data.error||'فشل النقل'); return; }
+        const e = data.entry;
+        // Clear destination slot and place item
+        slot.classList.remove('drop-ok');
+        slot.innerHTML = `<div class="tw-slot-head">ح${e.period}</div>
+          <div class="tw-item" draggable="true" data-entry-id="${e.id}" title="${e.subject} — ${e.classroom}">
+            <span class="tw-subj" style="background: ${ (SUBJECT_COLORS[String(e.subject_id)] || SUBJECT_COLORS[e.subject_id] || '#e6f4ea') }">${e.subject}</span>
+            <span class="tw-class">${e.classroom}</span>
+          </div>`;
+        // Clear source slot if it still contains the dragged item
+        if (dragSource && dragSource !== slot){
+          const it = dragSource.querySelector('.tw-item');
+          if (it && it.getAttribute('data-entry-id') === String(e.id)){
+            dragSource.innerHTML = `<div class=\"tw-slot-head\">ح${dragSource.getAttribute('data-period')}</div><button type=\"button\" class=\"btn btn-xs btn-outline-secondary tw-add-btn\">+</button>`;
+          }
+        }
+        dragEntryId = null; dragSource = null;
+      }).catch(()=>alert('خطأ في الشبكة'));
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

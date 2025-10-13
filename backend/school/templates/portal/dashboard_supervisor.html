@@ -1,0 +1,41 @@
+{% extends "_base_maronia.html" %}
+{% load static %}
+{% block title %}واجهة الإشراف الطلابي{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 page-header">
+    <div>
+      <h1 class="h5 mb-1">مرحباً {{ staff.full_name|default:request.user.username }}</h1>
+      <div class="text-muted small">متابعة الانضباط والغياب وروابط سريعة</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-people fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">مراقبة الغياب</h5>
+            <p class="card-text text-muted mb-2">قريباً: عرض الغياب اليومي حسب الصف والحصة.</p>
+            <a href="{% url 'data_overview' %}" class="btn btn-sm btn-outline-secondary">فتح البيانات</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-journal-check fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">التقارير</h5>
+            <p class="card-text text-muted mb-2">تحميل تقارير مخصصة قيد التطوير.</p>
+            <a href="{% url 'teacher_week_matrix' %}" class="btn btn-sm btn-outline-secondary">مصفوفة الحصص</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أيقونات تعليمية احترافية</title>
+    <link rel="stylesheet" href="fontawesome.min.css">
+    <link rel="stylesheet" href="animate.min.css">
+    <script src="iconify.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            margin: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 40px;
+        }
+        .icon-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 30px;
+            margin-bottom: 50px;
+        }
+        .icon-box {
+            text-align: center;
+            padding: 20px;
+            border-radius: 15px;
+            background: #f8f9fa;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .icon-box:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .icon-box i, .icon-box iconify-icon {
+            display: block;
+            margin-bottom: 10px;
+            transition: transform 0.3s ease;
+        }
+        .icon-box:hover i, .icon-box:hover iconify-icon {
+            transform: scale(1.2) rotate(5deg);
+        }
+        .section-title {
+            color: #764ba2;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            margin: 30px 0 20px;
+        }
+        /* أحجام مختلفة */
+        .size-small { font-size: 24px; }
+        .size-medium { font-size: 36px; }
+        .size-large { font-size: 48px; }
+        .size-xlarge { font-size: 64px; }
+
+        /* ألوان */
+        .color-primary { color: #667eea; }
+        .color-success { color: #51cf66; }
+        .color-warning { color: #ffd43b; }
+        .color-danger { color: #ff6b6b; }
+        .color-info { color: #339af0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="animate__animated animate__fadeInDown">🎓 أيقونات تعليمية احترافية</h1>
+
+        <h2 class="section-title">📚 أيقونات التعليم الأساسية</h2>
+        <div class="icon-grid">
+            <div class="icon-box animate__animated animate__fadeIn">
+                <i class="fas fa-graduation-cap size-large color-primary"></i>
+                <p>تخرج</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn">
+                <i class="fas fa-book-open size-large color-success"></i>
+                <p>كتاب مفتوح</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn">
+                <i class="fas fa-chalkboard-teacher size-large color-info"></i>
+                <p>معلم</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn">
+                <i class="fas fa-pencil-alt size-large color-warning"></i>
+                <p>قلم</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn">
+                <i class="fas fa-user-graduate size-large color-primary"></i>
+                <p>طالب</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn">
+                <i class="fas fa-clipboard-list size-large color-danger"></i>
+                <p>قائمة مهام</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">🎯 أيقونات الأنشطة التعليمية</h2>
+        <div class="icon-grid">
+            <div class="icon-box animate__animated animate__fadeIn animate__delay-1s">
+                <iconify-icon icon="solar:book-2-bold-duotone" class="size-large color-primary"></iconify-icon>
+                <p>مكتبة</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn animate__delay-1s">
+                <iconify-icon icon="solar:notebook-bold-duotone" class="size-large color-success"></iconify-icon>
+                <p>دفتر ملاحظات</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn animate__delay-1s">
+                <iconify-icon icon="solar:calculator-bold-duotone" class="size-large color-warning"></iconify-icon>
+                <p>آلة حاسبة</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn animate__delay-1s">
+                <iconify-icon icon="solar:atom-bold-duotone" class="size-large color-info"></iconify-icon>
+                <p>علوم</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn animate__delay-1s">
+                <iconify-icon icon="solar:test-tube-bold-duotone" class="size-large color-danger"></iconify-icon>
+                <p>مختبر</p>
+            </div>
+            <div class="icon-box animate__animated animate__fadeIn animate__delay-1s">
+                <iconify-icon icon="solar:presentation-graph-bold-duotone" class="size-large color-primary"></iconify-icon>
+                <p>عرض تقديمي</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">⭐ أيقونات الإنجازات والتقييم</h2>
+        <div class="icon-grid">
+            <div class="icon-box animate__animated animate__bounceIn">
+                <i class="fas fa-trophy size-large" style="color: gold;"></i>
+                <p>كأس</p>
+            </div>
+            <div class="icon-box animate__animated animate__bounceIn">
+                <i class="fas fa-medal size-large" style="color: #cd7f32;"></i>
+                <p>ميدالية</p>
+            </div>
+            <div class="icon-box animate__animated animate__bounceIn">
+                <i class="fas fa-star size-large" style="color: #ffd700;"></i>
+                <p>نجمة</p>
+            </div>
+            <div class="icon-box animate__animated animate__bounceIn">
+                <i class="fas fa-certificate size-large color-success"></i>
+                <p>شهادة</p>
+            </div>
+            <div class="icon-box animate__animated animate__bounceIn">
+                <i class="fas fa-chart-line size-large color-info"></i>
+                <p>تقدم</p>
+            </div>
+            <div class="icon-box animate__animated animate__bounceIn">
+                <i class="fas fa-tasks size-large color-primary"></i>
+                <p>مهام</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">📝 أيقونات الاختبارات والواجبات</h2>
+        <div class="icon-grid">
+            <div class="icon-box animate__animated animate__pulse">
+                <iconify-icon icon="solar:document-text-bold-duotone" class="size-large color-primary"></iconify-icon>
+                <p>امتحان</p>
+            </div>
+            <div class="icon-box animate__animated animate__pulse">
+                <iconify-icon icon="solar:clipboard-check-bold-duotone" class="size-large color-success"></iconify-icon>
+                <p>واجب مكتمل</p>
+            </div>
+            <div class="icon-box animate__animated animate__pulse">
+                <iconify-icon icon="solar:hourglass-bold-duotone" class="size-large color-warning"></iconify-icon>
+                <p>وقت</p>
+            </div>
+            <div class="icon-box animate__animated animate__pulse">
+                <iconify-icon icon="solar:check-circle-bold-duotone" class="size-large color-success"></iconify-icon>
+                <p>صحيح</p>
+            </div>
+            <div class="icon-box animate__animated animate__pulse">
+                <iconify-icon icon="solar:close-circle-bold-duotone" class="size-large color-danger"></iconify-icon>
+                <p>خطأ</p>
+            </div>
+            <div class="icon-box animate__animated animate__pulse">
+                <iconify-icon icon="solar:calendar-mark-bold-duotone" class="size-large color-info"></iconify-icon>
+                <p>موعد تسليم</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">🎨 أحجام مختلفة للأيقونات</h2>
+        <div style="text-align: center; margin: 40px 0;">
+            <i class="fas fa-graduation-cap size-small color-primary"></i>
+            <i class="fas fa-graduation-cap size-medium color-primary"></i>
+            <i class="fas fa-graduation-cap size-large color-primary"></i>
+            <i class="fas fa-graduation-cap size-xlarge color-primary"></i>
+        </div>
+
+        <div style="text-align: center; margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+            <h3>📋 كيفية الاستخدام</h3>
+            <p><strong>FontAwesome:</strong> <code>&lt;i class="fas fa-graduation-cap"&gt;&lt;/i&gt;</code></p>
+            <p><strong>Iconify:</strong> <code>&lt;iconify-icon icon="solar:book-bold-duotone"&gt;&lt;/iconify-icon&gt;</code></p>
+            <p><strong>الأحجام:</strong> size-small, size-medium, size-large, size-xlarge</p>
+            <p><strong>الألوان:</strong> color-primary, color-success, color-warning, color-danger, color-info</p>
+            <p><strong>الحركات:</strong> animate__animated animate__fadeIn / animate__bounceIn / animate__pulse</p>
+        </div>
+    </div>
+</body>
+</html>

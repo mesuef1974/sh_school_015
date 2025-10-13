@@ -981,3 +981,36 @@ Permission is hereby granted, free of charge, to any person obtaining a copy...
 </div>
 
 </div>
+
+---
+
+## ‏❓ ماذا الآن؟
+
+إذا وصلت إلى هنا وتتساءل: "ماذا الآن؟" فهذه الخطوات السريعة ستجعلك ترى نظام الصلاحيات يعمل فعليًا:
+
+<div dir="ltr">
+
+```powershell
+# 1) تطبيق الهجرات
+python backend/manage.py migrate
+
+# 2) إنشاء/ضمان السوبر يوزر (اختياري إذا تم مسبقًا)
+python backend/manage.py ensure_superuser --username admin --email admin@school.qa
+
+# 3) تهيئة الأدوار والصلاحيات (RBAC)
+python backend/manage.py setup_roles
+
+# 4) تشغيل الخادم
+python backend/manage.py runserver 0.0.0.0:8000
+```
+
+</div>
+
+- من لوحة الإدارة /admin/ قم بإسناد المستخدمين إلى المجموعات المناسبة:
+  - Wing Supervisor: اعتماد الحضور والسلوك (ضمن الجناح – يتم تقييده لاحقًا على مستوى الواجهة/الـAPI).
+  - Homeroom Teacher و Subject Teacher: تسجيل الحضور لصفوفهم/حصصهم.
+  - School Nurse / Counselor Social / Counselor Psych / Special Support Supervisor: تم إنشاء المجموعات وجاهزة، وستُستكمل أذوناتها تلقائيًا عند إضافة نماذجها لاحقًا وإعادة تشغيل أمر setup_roles.
+
+- للمزيد من التفاصيل حول تصميم الصلاحيات راجع الملف: الصلاحياتRBAC.md
+
+ملاحظة: أمر setup_roles آمن لإعادة التشغيل في أي وقت، ويضيف فقط الأذونات المتاحة حاليًا من مخطط قاعدة البيانات دون حذف شيء.

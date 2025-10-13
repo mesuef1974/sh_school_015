@@ -1,0 +1,230 @@
+{% extends "_base_maronia.html" %}
+{% load static %}
+{% block title %}إدخال الغياب — المعلم{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+  <div>
+    <h1 class="h5 mb-1">إدخال الغياب على مستوى الحصص</h1>
+    <div class="text-muted small">واجهة مهنية لتمييز حالات الطلاب لكل حصة (١ إلى ٧) — الحالة الافتراضية: حاضر</div>
+  </div>
+</div>
+
+<div class="card p-3" dir="rtl">
+  <form id="filters" class="row g-2 align-items-end mb-2">
+    <div class="col-auto">
+      <label class="form-label">التاريخ</label>
+      <input type="date" class="form-control form-control-sm" name="date" value="{{ today|date:'Y-m-d' }}">
+    </div>
+    <div class="col-auto">
+      <label class="form-label">الصف</label>
+      <select class="form-select form-select-sm" id="class_id" name="class_id" data-selected="{{ selected_class_id }}">
+        {% for asn in teacher_assignments %}
+          <option value="{{ asn.classroom.id }}">{{ asn.classroom.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-auto">
+      <button type="button" id="reload-btn" class="btn btn-sm btn-outline-primary">تحديث</button>
+    </div>
+    <div class="col-auto ms-auto">
+      <button type="button" id="save-btn" class="btn btn-sm btn-success">حفظ التغييرات</button>
+    </div>
+  </form>
+
+  <div class="table-hero">
+    <lord-icon src="https://cdn.lordicon.com/hrjifpbq.json" trigger="loop" delay="1500" colors="primary:#7b1e1e,secondary:#c49a6c"></lord-icon>
+    <div>
+      <div class="title">جدول حضور وغياب الطلاب</div>
+      <div class="muted">تتبُّع ذكي لحالة كل طالب في كل حصة مع تلوين دلالي.</div>
+    </div>
+  </div>
+
+  <div class="table-responsive" style="max-height: calc(100vh - 300px); overflow:auto;">
+    <table id="att-table" class="table table-bordered table-sm align-middle text-center" style="width:auto;">
+      <thead>
+        <tr>
+          <th class="sticky-right-1" rowspan="2" style="width:48px; min-width:48px;">#</th>
+          <th class="sticky-right-2 text-start" rowspan="2" style="min-width: 200px;">الطالب</th>
+          <th colspan="7">الحصص</th>
+        </tr>
+        <tr>
+          {% for p in "1234567" %}
+            <th style="width: 56px;">حصة {{ forloop.counter }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for st in students %}
+          <tr data-student-id="{{ st.id }}">
+            <th class="sticky-right-1">{{ forloop.counter }}</th>
+            <th class="sticky-right-2 text-start">{{ st.full_name }}</th>
+            {% for p in "1234567" %}
+              <td class="att-cell" data-period="{{ forloop.counter }}">
+                <div class="cell-display"></div>
+                <select class="cell-editor form-select form-select-sm" hidden>
+                  <option value="">—</option>
+                  <option value="absent">غائب</option>
+                  <option value="late">متأخر</option>
+                  <option value="runaway:left_and_not_returned">خرج ولم يعد</option>
+                  <option value="excused:official">دوام ولكن خارج الفصل</option>
+                </select>
+              </td>
+            {% endfor %}
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="text-muted">اختر صفاً لعرض الطلاب.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="small text-muted mt-2">التلميح: انقر على الخلية لتغيير الحالة. اللون يعكس الحالة بمجرد الحفظ.</div>
+</div>
+
+<style>
+.sticky-right-1{ position: sticky; right: 0; z-index: 3; background: #fff; }
+.sticky-right-2{ position: sticky; right: 48px; z-index: 2; background: #fff; }
+#att-table { width: auto; }
+#att-table th, #att-table td { padding: .25rem .35rem; white-space: nowrap; }
+.att-cell{ min-width: 56px; min-height: 40px; position: relative; }
+.att-cell.present{ background: #f8fff8; }
+.att-cell.absent{ background: #ffebee; }
+.att-cell.late{ background: #fff3e0; }
+.att-cell.excused{ background: #e3f2fd; }
+.att-cell.runaway{ background: #f3e5f5; }
+.cell-display{ font-size: 12px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  function getCookie(name){ const m=document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)'); return m?m.pop():''; }
+  const table = document.getElementById('att-table');
+  const pending = new Map(); // key: `${studentId}:${period}` -> payload
+
+  function statusLabel(status, extra){
+    if(!status) return '';
+    switch(status){
+      case 'absent': return 'غائب';
+      case 'late': return 'متأخر';
+      case 'runaway': return 'خرج ولم يعد';
+      case 'excused': return 'خارج الفصل';
+      default: return status;
+    }
+  }
+
+  function paintCell(td, status){
+    td.classList.remove('present','absent','late','excused','runaway');
+    if(!status){ td.classList.add('present'); return; }
+    td.classList.add(status);
+  }
+
+  function setCell(studentId, period, value, td){
+    const key = `${studentId}:${period}`;
+    if (!value){ pending.delete(key); paintCell(td, 'present'); td.querySelector('.cell-display').textContent=''; return; }
+    const [status, extra] = String(value).split(':');
+    const item = { student_id: +studentId, period_number: +period, status };
+    if (status === 'runaway') item.runaway_reason = extra || 'left_and_not_returned';
+    if (status === 'excused') item.excuse_type = extra || 'official';
+    pending.set(key, item);
+    paintCell(td, status);
+    td.querySelector('.cell-display').textContent = statusLabel(status, extra);
+  }
+
+  table.addEventListener('click', function(e){
+    const td = e.target.closest('.att-cell'); if(!td) return;
+    const editor = td.querySelector('.cell-editor'); const disp = td.querySelector('.cell-display');
+    editor.hidden = false; editor.focus();
+    editor.onchange = function(){
+      const tr = td.closest('tr'); const studentId = tr.getAttribute('data-student-id');
+      const period = td.getAttribute('data-period');
+      setCell(studentId, period, editor.value, td);
+      editor.hidden = true; editor.blur();
+    };
+    editor.onblur = function(){ setTimeout(()=>{ editor.hidden = true; }, 150); };
+  });
+
+  async function loadStudents(classId){
+    const tbody = table.querySelector('tbody');
+    if(!classId){ tbody.innerHTML = '<tr><td colspan="9" class="text-muted">اختر صفاً لعرض الطلاب.</td></tr>'; return false; }
+    const res = await fetch(`{% url 'api_attendance_students' %}?class_id=${classId}`);
+    if(!res.ok){ tbody.innerHTML = '<tr><td colspan="9" class="text-muted">تعذر تحميل الطلاب.</td></tr>'; return false; }
+    const data = await res.json();
+    const students = data.students || [];
+    if(students.length === 0){ tbody.innerHTML = '<tr><td colspan="9" class="text-muted">لا يوجد طلاب لهذا الصف.</td></tr>'; return true; }
+    const rows = students.map((st, idx)=>{
+      let tds = '';
+      for(let p=1;p<=7;p++){
+        tds += `<td class="att-cell" data-period="${p}">\
+<div class="cell-display"></div>\
+<select class="cell-editor form-select form-select-sm" hidden>\
+  <option value="">—</option>\
+  <option value="absent">غائب</option>\
+  <option value="late">متأخر</option>\
+  <option value="runaway:left_and_not_returned">خرج ولم يعد</option>\
+  <option value="excused:official">دوام ولكن خارج الفصل</option>\
+</select>\
+</td>`;
+      }
+      return `<tr data-student-id="${st.id}"><th class="sticky-right-1">${idx+1}</th><th class="sticky-right-2 text-start">${st.full_name}</th>${tds}</tr>`;
+    }).join('');
+    tbody.innerHTML = rows;
+    return true;
+  }
+
+  async function reload(){
+    const classId = document.getElementById('class_id').value;
+    const date = document.querySelector('input[name="date"]').value;
+    if(!classId || !date) return;
+    // Always refresh students when class changes or on reload
+    await loadStudents(classId);
+    const res = await fetch(`{% url 'api_attendance_records' %}?class_id=${classId}&date=${date}`);
+    if(!res.ok) return;
+    const data = await res.json();
+    const mp = new Map(data.records.map(r=>[`${r.student_id}:${r.period_number}`, r]));
+    table.querySelectorAll('tbody tr').forEach(tr=>{
+      const sid = tr.getAttribute('data-student-id');
+      tr.querySelectorAll('.att-cell').forEach(td=>{
+        const p = td.getAttribute('data-period');
+        const r = mp.get(`${sid}:${p}`);
+        const disp = td.querySelector('.cell-display');
+        if(r){ paintCell(td, r.status); disp.textContent = statusLabel(r.status); }
+        else { paintCell(td, 'present'); disp.textContent=''; }
+        const editor = td.querySelector('.cell-editor');
+        if(editor) editor.value = r? r.status : '';
+      });
+    });
+    pending.clear();
+  }
+
+  async function saveAll(){
+    const classId = document.getElementById('class_id').value;
+    const date = document.querySelector('input[name="date"]').value;
+    const records = Array.from(pending.values());
+    if(!classId || !date){ alert('يرجى اختيار الصف والتاريخ.'); return; }
+    if(records.length===0){ alert('لا توجد تغييرات للحفظ.'); return; }
+    const res = await fetch("{% url 'api_attendance_bulk_save' %}", {
+      method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':getCookie('csrftoken')},
+      body: JSON.stringify({ class_id: +classId, date, records })
+    });
+    if(!res.ok){ alert('فشل الحفظ'); return; }
+    const data = await res.json();
+    if(data.saved>=0){ alert('تم الحفظ بنجاح'); pending.clear(); }
+    else { alert('فشل الحفظ'); }
+  }
+
+  document.getElementById('reload-btn').addEventListener('click', reload);
+  document.getElementById('class_id').addEventListener('change', reload);
+  document.querySelector('input[name="date"]').addEventListener('change', reload);
+  document.getElementById('save-btn').addEventListener('click', saveAll);
+
+  // تهيئة أولية: اضبط الصف المختار إن وُجد
+  const sel = document.getElementById('class_id');
+  const pre = sel.dataset.selected;
+  if (pre) { sel.value = String(pre); }
+  reload();
+})();
+</script>
+{% endblock %}

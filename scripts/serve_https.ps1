@@ -1,7 +1,6 @@
 #requires -Version 5.1
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
 # Move to project root (parent of this script directory)
 $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $Root

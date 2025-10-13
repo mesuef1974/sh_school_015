@@ -1,12 +1,116 @@
 {% extends "admin/base.html" %}
 {% load i18n static %}
 
-{# Keep default branding #}
+{% block title %}مدرسة الشحّانية — لوحة الإدارة{% endblock %}
+
 {% block branding %}
-  {{ block.super }}
+  <div id="branding" class="branding">
+    <h1 id="site-name" class="animate__animated animate__fadeInDown">
+      <a href="{% url 'admin:index' %}">لوحة الإدارة — مدرسة الشحّانية</a>
+    </h1>
+  </div>
 {% endblock %}
 
-{# Remove global shortcuts to deprecated timetable/calendar features #}
-{% block nav-global %}
+{# Inject our local icon libraries and light theming #}
+{% block extrahead %}
   {{ block.super }}
+  <link rel="stylesheet" href="/assets/fontawesome.min.css">
+  <link rel="stylesheet" href="/assets/animate.min.css">
+  <script src="/assets/iconify.min.js"></script>
+  <style>
+    :root{
+      --admin-primary:#7b1e1e; /* maroon */
+      --admin-accent:#c49a6c;
+    }
+    .branding h1, .branding h1 a{ display:flex; align-items:center; gap:.5rem; }
+    .branding h1:before{
+      content: "\f549"; /* fa-school */
+      font: var(--fa-font-solid);
+      color: var(--admin-accent);
+      transform: translateY(1px);
+    }
+    #header{ background-image: linear-gradient(90deg, var(--admin-primary), #5d1111); }
+    #branding h1, #user-tools a{ text-shadow: none; }
+
+    /* Breadcrumbs icon */
+    div.breadcrumbs:before{
+      content:"\f5da"; /* fa-route */
+      font: var(--fa-font-solid);
+      margin-inline-end:.4rem; opacity:.8;
+    }
+
+    /* Common admin action links */
+    .object-tools a.addlink:before,
+    .addlink:before{ content:"\2b"; font: var(--fa-font-solid); margin-inline-end:.35rem; }
+    .deletelink:before{ content:"\f1f8"; font: var(--fa-font-solid); margin-inline-end:.35rem; color:#b91c1c; }
+    .changelink:before{ content:"\f044"; font: var(--fa-font-solid); margin-inline-end:.35rem; }
+    .viewlink:before{ content:"\f06e"; font: var(--fa-font-regular); margin-inline-end:.35rem; }
+
+    /* Submit row primary button */
+    .submit-row .default{ position:relative; }
+    .submit-row .default:before{ content:"\f00c"; font: var(--fa-font-solid); margin-inline-end:.4rem; }
+
+    /* Animated hover for buttons */
+    .submit-row .button, .submit-row .default, .object-tools a{
+      transition: transform .18s ease, box-shadow .18s ease;
+    }
+    .submit-row .button:hover, .submit-row .default:hover, .object-tools a:hover{
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(0,0,0,.12);
+    }
+
+    /* App list icons (generic) */
+    .app-auth:before{ content:"\f3ed"; font: var(--fa-font-solid); margin-inline-end:.4rem; color:var(--admin-accent); }
+    .app-sessions:before{ content:"\f1da"; font: var(--fa-font-solid); margin-inline-end:.4rem; color:var(--admin-accent); }
+    .app-school:before{ content:"\f549"; font: var(--fa-font-solid); margin-inline-end:.4rem; color:var(--admin-accent); }
+    .app-list .module h2{ display:flex; align-items:center; }
+
+    /* Icons for inline add/remove */
+    .inline-deletelink:before{ content:"\f2ed"; font: var(--fa-font-solid); margin-inline-end:.35rem; }
+    /* Iconify injected icons */
+    .admin-ico{ color: var(--admin-accent); }
+  </style>
+  <script>
+    // Progressive enhancement: inject SVG icons via local Iconify for all admin pages
+    (function(){
+      function prependIcon(el, name){
+        try{
+          if(!el) return;
+          if(el.querySelector && el.querySelector('iconify-icon')) return;
+          var i = document.createElement('iconify-icon');
+          i.setAttribute('icon', name);
+          i.setAttribute('aria-hidden','true');
+          i.className = 'admin-ico animate__animated animate__fadeInUp';
+          i.style.marginInlineEnd = '.35rem';
+          if(el.firstChild){ el.insertBefore(i, el.firstChild); } else { el.appendChild(i); }
+        }catch(e){ /* no-op */ }
+      }
+      function run(){
+        // Breadcrumbs
+        var bc = document.querySelector('div.breadcrumbs');
+        if(bc) prependIcon(bc, 'mdi:route');
+        // Add / Delete / Change / View links
+        document.querySelectorAll('.object-tools a.addlink, a.addlink').forEach(function(el){ prependIcon(el, 'mdi:plus'); });
+        document.querySelectorAll('a.deletelink, .deletelink').forEach(function(el){ prependIcon(el, 'mdi:trash-can'); });
+        document.querySelectorAll('a.changelink, .changelink').forEach(function(el){ prependIcon(el, 'mdi:pencil'); });
+        document.querySelectorAll('a.viewlink, .viewlink').forEach(function(el){ prependIcon(el, 'mdi:eye-outline'); });
+        // Submit primary button
+        document.querySelectorAll('.submit-row .default').forEach(function(el){ prependIcon(el, 'mdi:check-circle'); });
+        // Inline delete buttons
+        document.querySelectorAll('.inline-deletelink').forEach(function(el){ prependIcon(el, 'mdi:trash-can'); });
+        // App/module headers
+        document.querySelectorAll('.app-list .module h2').forEach(function(h){ prependIcon(h, 'mdi:school'); });
+      }
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', run);
+      } else { run(); }
+    })();
+  </script>
+{% endblock %}
+
+{# Add a subtle animated greeting next to user #}
+{% block usertools %}
+  <div id="user-tools" class="animate__animated animate__fadeIn">
+    {{ block.super }}
+  </div>
 {% endblock %}

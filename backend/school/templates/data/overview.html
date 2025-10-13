@@ -1,10 +1,101 @@
 {% extends "_base_maronia.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
+  <style>
+    /* حجم ومحاذاة الأيقونات المتحركة */
+    .anim-icon { width: 28px; height: 28px; vertical-align: -6px; margin-inline: .25rem; }
+    .anim-sm { width: 22px; height: 22px; vertical-align: -4px; }
+    .li-fallback { display:none; }
+    /* إذا تعذّر تحميل مكتبة lordicon، أظهر بديل Bootstrap */
+    html:not(.lordicon-ready) .li-fallback { display:inline; }
+    html:not(.lordicon-ready) lord-icon { display:none; }
+  </style>
+  <script>
+    // وسم الـ HTML عند نجاح تحميل مكتبة lordicon (موجودة في القالب الأساسي)
+    window.addEventListener('DOMContentLoaded', function(){
+      if (window.lordicon) { document.documentElement.classList.add('lordicon-ready'); }
+    });
+  </script>
   <div class="d-flex align-items-center mb-4 page-header">
     <div>
-      <h1 class="h3 mb-1"><i class="bi bi-database-fill text-accent me-1"></i> معاينة قاعدة البيانات</h1>
+      <h1 class="h3 mb-1">
+        <lord-icon class="anim-icon" src="https://cdn.lordicon.com/cqofjexf.json" trigger="hover" colors="primary:#c49a6c,secondary:#7b1e1e" aria-label="قاعدة البيانات"></lord-icon>
+        <i class="bi bi-database-fill text-accent me-1 li-fallback"></i>
+        معاينة قاعدة البيانات
+      </h1>
       <div class="text-muted">كل الجداول ومحتوياتها</div>
+    </div>
+  </div>
+
+  <!-- روابط سريعة لصفحات الجداول الاحترافية -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-4">
+      <a class="text-decoration-none" href="{% url 'teacher_week_matrix' %}">
+        <div class="card card-hover h-100">
+          <div class="card-body d-flex align-items-start justify-content-between">
+            <div>
+              <div class="fw-bold">
+                <lord-icon class="anim-icon" src="https://cdn.lordicon.com/mecwbjnp.json" trigger="hover" colors="primary:#198754,secondary:#0a3622" aria-label="التقويم"></lord-icon>
+                <i class="bi bi-calendar3 text-success me-1 li-fallback"></i>
+                جدول المعلّمين الأسبوعي (أيام × حصص)
+              </div>
+              <div class="text-muted small">تفاعلي — إضافة ونقل الحصص بالسحب والإفلات</div>
+            </div>
+            <span class="badge bg-success-subtle text-success">فتح</span>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <a class="text-decoration-none" href="{% url 'teacher_week_compact' %}">
+        <div class="card card-hover h-100">
+          <div class="card-body d-flex align-items-start justify-content-between">
+            <div>
+              <div class="fw-bold">
+                <lord-icon class="anim-icon" src="https://cdn.lordicon.com/abwrkdvl.json" trigger="hover" colors="primary:#6c757d,secondary:#343a40" aria-label="جدول"></lord-icon>
+                <i class="bi bi-table text-secondary me-1 li-fallback"></i>
+                جدول المعلّمين — عرض مضغوط
+              </div>
+              <div class="text-muted small">شكل شبكي للطباعة (أيام × ٧ حصص)</div>
+            </div>
+            <span class="badge bg-secondary-subtle text-secondary">فتح</span>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <a class="text-decoration-none" href="{% url 'teacher_class_matrix' %}">
+        <div class="card card-hover h-100">
+          <div class="card-body d-flex align-items-start justify-content-between">
+            <div>
+              <div class="fw-bold">
+                <lord-icon class="anim-icon" src="https://cdn.lordicon.com/qwjfapmb.json" trigger="hover" colors="primary:#0d6efd,secondary:#052c65" aria-label="مصفوفة"></lord-icon>
+                <i class="bi bi-grid-3x3-gap-fill text-primary me-1 li-fallback"></i>
+                مصفوفة الأنصبة (معلّم × صف)
+              </div>
+              <div class="text-muted small">عرض شامل مع تعديل سريع للأعداد</div>
+            </div>
+            <span class="badge bg-primary-subtle text-primary">فتح</span>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <a class="text-decoration-none" href="/admin/">
+        <div class="card card-hover h-100">
+          <div class="card-body d-flex align-items-start justify-content-between">
+            <div>
+              <div class="fw-bold">
+                <lord-icon class="anim-icon" src="https://cdn.lordicon.com/akbwczov.json" trigger="hover" colors="primary:#212529,secondary:#000000" aria-label="لوحة التحكم"></lord-icon>
+                <i class="bi bi-shield-lock-fill text-dark me-1 li-fallback"></i>
+                لوحة تحكم المدير
+              </div>
+              <div class="text-muted small">إدارة البيانات والتكليفات</div>
+            </div>
+            <span class="badge bg-dark-subtle text-dark">فتح</span>
+          </div>
+        </div>
+      </a>
     </div>
   </div>
 
@@ -18,10 +109,21 @@
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
               <div>
-                <div class="fw-bold"><i class="bi bi-table text-accent me-1"></i> {{ t.name }}</div>
-                <div class="text-muted small"><i class="bi bi-123 me-1"></i> عدد الصفوف: {{ t.count|default:'—' }}</div>
+                <div class="fw-bold">
+                  <lord-icon class="anim-icon" src="https://cdn.lordicon.com/iqytlvst.json" trigger="hover" colors="primary:#c49a6c,secondary:#7b1e1e" aria-label="جدول"></lord-icon>
+                  <i class="bi bi-table text-accent me-1 li-fallback"></i>
+                  {{ t.name }}
+                </div>
+                <div class="text-muted small">
+                  <lord-icon class="anim-sm" src="https://cdn.lordicon.com/qzkqnuod.json" trigger="hover" colors="primary:#6c757d,secondary:#343a40" aria-label="عدد"></lord-icon>
+                  <i class="bi bi-123 me-1 li-fallback"></i>
+                  عدد الصفوف: {{ t.count|default:'—' }}
+                </div>
               </div>
-              <span class="badge badge-accent"><i class="bi bi-eye-fill me-1"></i> عرض</span>
+              <span class="badge badge-accent">
+                <lord-icon class="anim-sm" src="https://cdn.lordicon.com/oqhlhtfq.json" trigger="hover" colors="primary:#ffffff,secondary:#ffffff" aria-label="عرض"></lord-icon>
+                <i class="bi bi-eye-fill me-1 li-fallback"></i> عرض
+              </span>
             </div>
           </div>
         </div>

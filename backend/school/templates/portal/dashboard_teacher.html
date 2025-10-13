@@ -1,0 +1,54 @@
+{% extends "_base_maronia.html" %}
+{% load static %}
+{% block title %}واجهة المعلم{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 page-header">
+    <div>
+      <h1 class="h5 mb-1">مرحباً {{ staff.full_name|default:request.user.username }}</h1>
+      <div class="text-muted small">هذه واجهة المعلم — وصول سريع لأهم المهام اليومية</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-clipboard-check fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">إدخال الغياب</h5>
+            <p class="card-text text-muted mb-2">تسجيل حضور/غياب الطلاب على مستوى الحصص.</p>
+            <a href="{% url 'teacher_attendance_page' %}" class="btn btn-sm btn-maron">اذهب للواجهة</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-calendar-week fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">جدولي الأسبوعي</h5>
+            <p class="card-text text-muted mb-2">عرض الحصص المكلف بها خلال الأسبوع.</p>
+            <a href="{% url 'teacher_week_compact' %}" class="btn btn-sm btn-outline-secondary">عرض الجدول</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-bar-chart-line fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">لوحات وإحصاءات</h5>
+            <p class="card-text text-muted mb-2">قريباً: مؤشرات حضور الطلاب حسب الصف والحصة.</p>
+            <a href="{% url 'teacher_week_matrix' %}" class="btn btn-sm btn-outline-secondary">معاينة موسعة</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

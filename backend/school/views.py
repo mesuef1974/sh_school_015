@@ -29,6 +29,9 @@ from .models import (
     Subject,
     TeachingAssignment,
     ClassSubject,
+    TimetableEntry,
+    AttendanceRecord,
+    Term,
 )
 from .serializers import (
     ClassSerializer,
@@ -40,7 +43,12 @@ from .serializers import (
 )
 import re
 from openpyxl import load_workbook
+from datetime import date as _date, time as _time
+from django.views.decorators.http import require_POST
+from django.contrib.auth import logout
+from django.views.decorators.cache import never_cache
 from .services.imports import import_teacher_loads
+from .models import Wing
 
 
 class ClassViewSet(ModelViewSet):
@@ -1001,6 +1009,310 @@ def teacher_class_matrix(request):
     return render(request, "school/teacher_class_matrix.html", context)
 
 
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def teacher_week_matrix(request):
+    """Interactive weekly timetable matrix.
+    - For admins/managers: full matrix with edit capabilities (via APIs).
+    - For teachers: show ONLY their own timetable and in read-only mode (no edit/move UI).
+    """
+    from .models import Term, TimetableEntry  # lazy import to avoid circulars
+
+    term = Term.objects.filter(is_current=True).first()
+    if not term:
+        messages.error(request, "لا يوجد فصل دراسي حالي.")
+        return redirect("data_overview")
+
+    # Detect staff and role
+    staff = Staff.objects.filter(user=request.user).first()
+    is_teacher = bool(staff and staff.role == "teacher")
+
+    # Teachers to show
+    if is_teacher:
+        teachers = [staff]
+    else:
+        teacher_ids_with_entries = set(
+            TimetableEntry.objects.filter(term=term).values_list("teacher_id", flat=True)
+        )
+        teacher_qs = (
+            Staff.objects.filter(Q(assignments__isnull=False) | Q(id__in=teacher_ids_with_entries))
+            .distinct()
+            .order_by("full_name")
+        )
+        teachers = list(teacher_qs)
+
+    # Build grid per teacher: [day 1..5][period 1..7] -> entry or None
+    DAYS = [1, 2, 3, 4, 5]
+    PERIODS = [1, 2, 3, 4, 5, 6, 7]
+
+    # Load entries for term (limited to current teacher when is_teacher)
+    e_qs = TimetableEntry.objects.filter(term=term)
+    if is_teacher:
+        e_qs = e_qs.filter(teacher_id=staff.id)
+    entries = list(e_qs.select_related("classroom", "subject", "teacher"))
+
+    # Index by teacher/day/period
+    grid = {t.id: {d: {p: None for p in PERIODS} for d in DAYS} for t in teachers}
+    for e in entries:
+        if e.teacher_id in grid and e.day_of_week in DAYS and e.period_number in PERIODS:
+            grid[e.teacher_id][e.day_of_week][e.period_number] = e
+
+    # Teacher assignments options: per teacher list of (class_id, subject_id, label)
+    asg_opts = {}
+    for t in teachers:
+        opts = (
+            TeachingAssignment.objects.filter(teacher=t)
+            .select_related("classroom", "subject")
+            .order_by("classroom__grade", "classroom__section", "subject__name_ar")
+        )
+        asg_opts[t.id] = [
+            {
+                "class_id": a.classroom_id,
+                "subject_id": a.subject_id,
+                "label": f"{a.classroom.name} – {a.subject.name_ar}",
+            }
+            for a in opts
+        ]
+
+    # Colors for subjects (stable per subject id)
+    all_subjects = Subject.objects.all().order_by("name_ar")
+    subject_colors = {}
+    for s in all_subjects:
+        h = (s.id * 47) % 360
+        subject_colors[s.id] = f"hsl({h}, 60%, 85%)"
+
+    context = {
+        "title": "الجدول الأسبوعي",
+        "teachers": teachers,
+        "grid": grid,
+        "DAYS": DAYS,
+        "PERIODS": PERIODS,
+        "subject_colors": subject_colors,
+        "assign_opts": asg_opts,
+        "term": term,
+        "read_only": is_teacher,
+    }
+    return render(request, "school/teacher_week_matrix.html", context)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def teacher_week_compact(request):
+    """Compact, print-friendly weekly timetable matching the provided sheet layout.
+    Rows = teachers. Columns = grouped by day (Sun..Thu), each group has 7 period columns.
+    Cells show the classroom label and are color-coded by subject. Admin-only, with add/move.
+    """
+    from .models import Term, TimetableEntry  # lazy import
+
+    term = Term.objects.filter(is_current=True).first()
+    if not term:
+        messages.error(request, "لا يوجد فصل دراسي حالي.")
+        return redirect("data_overview")
+
+    # Teachers to show
+    teacher_ids_with_entries = set(
+        TimetableEntry.objects.filter(term=term).values_list("teacher_id", flat=True)
+    )
+    teacher_qs = (
+        Staff.objects.filter(Q(assignments__isnull=False) | Q(id__in=teacher_ids_with_entries))
+        .distinct()
+        .order_by("full_name")
+    )
+    teachers = list(teacher_qs)
+
+    # Grid: teacher -> (day,period) -> entry
+    DAYS = [
+        (1, "الأحد"),
+        (2, "الإثنين"),
+        (3, "الثلاثاء"),
+        (4, "الأربعاء"),
+        (5, "الخميس"),
+    ]
+    PERIODS = [1, 2, 3, 4, 5, 6, 7]
+
+    entries = list(
+        TimetableEntry.objects.filter(term=term).select_related("classroom", "subject", "teacher")
+    )
+
+    # Nested grid: teacher -> day -> period -> entry
+    grid = {t.id: {d: {p: None for p in PERIODS} for d in [1, 2, 3, 4, 5]} for t in teachers}
+    for e in entries:
+        if e.teacher_id in grid and e.day_of_week in [1, 2, 3, 4, 5] and e.period_number in PERIODS:
+            grid[e.teacher_id][e.day_of_week][e.period_number] = e
+
+    # Assignment options for add modal (same as matrix view)
+    asg_opts = {}
+    for t in teachers:
+        opts = (
+            TeachingAssignment.objects.filter(teacher=t)
+            .select_related("classroom", "subject")
+            .order_by("classroom__grade", "classroom__section", "subject__name_ar")
+        )
+        asg_opts[t.id] = [
+            {
+                "class_id": a.classroom_id,
+                "subject_id": a.subject_id,
+                "label": f"{a.classroom.name} – {a.subject.name_ar}",
+            }
+            for a in opts
+        ]
+
+    # Subject colors
+    all_subjects = Subject.objects.all().order_by("name_ar")
+    subject_colors = {}
+    for s in all_subjects:
+        h = (s.id * 47) % 360
+        subject_colors[s.id] = f"hsl({h}, 60%, 85%)"
+
+    total_cols = 1 + (len(DAYS) * 7)
+    context = {
+        "title": "الجدول العام للمعلمين — عرض مضغوط",
+        "teachers": teachers,
+        "grid": grid,
+        "DAYS": DAYS,
+        # Period headers descending like the sample image (7..1)
+        "PERIODS_DESC": list(reversed(PERIODS)),
+        "PERIODS": PERIODS,
+        "subject_colors": subject_colors,
+        "assign_opts": asg_opts,
+        "term": term,
+        "total_cols": total_cols,
+    }
+    return render(request, "school/teacher_week_compact.html", context)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def api_timetable_add(request):
+    """Add/replace a TimetableEntry for a teacher at (day, period).
+    Admin-only (teachers are forbidden).
+    """
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST فقط"}, status=405)
+    from .models import Term, TimetableEntry
+
+    # Forbid teachers from editing the timetable
+    staff = Staff.objects.filter(user=request.user).first()
+    if staff and staff.role == "teacher":
+        return JsonResponse({"ok": False, "error": "ممنوع للمعلمين"}, status=403)
+
+    term = Term.objects.filter(is_current=True).first()
+    if not term:
+        return JsonResponse({"ok": False, "error": "لا يوجد فصل حالي"}, status=400)
+    try:
+        teacher_id = int(request.POST.get("teacher_id") or "0")
+        classroom_id = int(request.POST.get("classroom_id") or "0")
+        subject_id = int(request.POST.get("subject_id") or "0")
+        day = int(request.POST.get("day") or "0")
+        period = int(request.POST.get("period") or "0")
+    except Exception:
+        return JsonResponse({"ok": False, "error": "بيانات غير صالحة"}, status=400)
+    if not (teacher_id and classroom_id and subject_id and day and period):
+        return JsonResponse({"ok": False, "error": "حقول ناقصة"}, status=400)
+
+    # Replace conflicts: any entry for same teacher or same classroom at (day,period)
+    with transaction.atomic():
+        TimetableEntry.objects.filter(
+            term=term, day_of_week=day, period_number=period, teacher_id=teacher_id
+        ).delete()
+        TimetableEntry.objects.filter(
+            term=term, day_of_week=day, period_number=period, classroom_id=classroom_id
+        ).delete()
+        e = TimetableEntry.objects.create(
+            classroom_id=classroom_id,
+            subject_id=subject_id,
+            teacher_id=teacher_id,
+            day_of_week=day,
+            period_number=period,
+            term=term,
+        )
+    return JsonResponse(
+        {
+            "ok": True,
+            "entry": {
+                "id": e.id,
+                "teacher_id": teacher_id,
+                "classroom": e.classroom.name,
+                "classroom_id": classroom_id,
+                "subject": e.subject.name_ar,
+                "subject_id": subject_id,
+                "day": day,
+                "period": period,
+            },
+        }
+    )
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def api_timetable_move(request):
+    """Move/reassign an existing TimetableEntry to another slot (and optionally another teacher).
+    Admin-only (teachers are forbidden).
+    POST: entry_id, target_teacher_id (optional), day, period. Replaces conflicts at target.
+    """
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "POST فقط"}, status=405)
+    from .models import Term, TimetableEntry
+
+    # Forbid teachers from editing the timetable
+    staff = Staff.objects.filter(user=request.user).first()
+    if staff and staff.role == "teacher":
+        return JsonResponse({"ok": False, "error": "ممنوع للمعلمين"}, status=403)
+
+    term = Term.objects.filter(is_current=True).first()
+    if not term:
+        return JsonResponse({"ok": False, "error": "لا يوجد فصل حالي"}, status=400)
+    try:
+        entry_id = int(request.POST.get("entry_id") or "0")
+        day = int(request.POST.get("day") or "0")
+        period = int(request.POST.get("period") or "0")
+        target_teacher_id = request.POST.get("target_teacher_id")
+        target_teacher_id = int(target_teacher_id) if target_teacher_id else None
+    except Exception:
+        return JsonResponse({"ok": False, "error": "بيانات غير صالحة"}, status=400)
+    if not (entry_id and day and period):
+        return JsonResponse({"ok": False, "error": "حقول ناقصة"}, status=400)
+
+    try:
+        e = TimetableEntry.objects.select_for_update().get(id=entry_id, term=term)
+    except TimetableEntry.DoesNotExist:
+        return JsonResponse({"ok": False, "error": "الحصة غير موجودة"}, status=404)
+
+    with transaction.atomic():
+        new_teacher_id = target_teacher_id or e.teacher_id
+        # Replace conflicts at destination for same teacher or same class
+        TimetableEntry.objects.filter(
+            term=term, day_of_week=day, period_number=period, teacher_id=new_teacher_id
+        ).exclude(id=e.id).delete()
+        TimetableEntry.objects.filter(
+            term=term,
+            day_of_week=day,
+            period_number=period,
+            classroom_id=e.classroom_id,
+        ).exclude(id=e.id).delete()
+        # Apply move
+        e.teacher_id = new_teacher_id
+        e.day_of_week = day
+        e.period_number = period
+        e.save(update_fields=["teacher_id", "day_of_week", "period_number"])  # type: ignore
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "entry": {
+                "id": e.id,
+                "teacher_id": e.teacher_id,
+                "classroom": e.classroom.name,
+                "classroom_id": e.classroom_id,
+                "subject": e.subject.name_ar,
+                "subject_id": e.subject_id,
+                "day": e.day_of_week,
+                "period": e.period_number,
+            },
+        }
+    )
+
+
 def _normalize_ar_text(s: str) -> str:
     if s is None:
         return ""
@@ -1238,6 +1550,52 @@ def _staff_only(user):
 
 
 @login_required
+def portal_home(request):
+    """بوابة أمامية مهنية بحسب الدور — مدير/معلم/مشرف طلابي..."""
+    staff = (
+        Staff.objects.filter(user=request.user).first() if request.user.is_authenticated else None
+    )
+    # إذا لم يكن مرتبطاً بكادر، أظهر لوحة عامة بسيطة
+    if not staff:
+        ctx = {"title": "الواجهة الرئيسية"}
+        return render(request, "portal/dashboard_generic.html", ctx)
+
+    role = staff.role or ""
+    # توجيه حسب الدور
+    if role == "teacher":
+        return render(
+            request,
+            "portal/dashboard_teacher.html",
+            {"title": "واجهة المعلم", "staff": staff},
+        )
+    elif role in {
+        "school_principal",
+        "academic_vice",
+        "administrative_vice",
+        "admin",
+        "developer",
+    }:
+        return render(
+            request,
+            "portal/dashboard_manager.html",
+            {"title": "واجهة الإدارة", "staff": staff},
+        )
+    elif role in {"student_observer", "supervisor", "coordinator", "academic_advisor"}:
+        return render(
+            request,
+            "portal/dashboard_supervisor.html",
+            {"title": "واجهة الإشراف الطلابي", "staff": staff},
+        )
+    else:
+        # افتراضي: لوحة عامة
+        return render(
+            request,
+            "portal/dashboard_generic.html",
+            {"title": "لوحة المستخدم", "staff": staff},
+        )
+
+
+@login_required
 def job_status(request, job_id: str):
     """Simple job status page for background imports."""
     try:
@@ -1266,6 +1624,14 @@ def job_status(request, job_id: str):
 @user_passes_test(_staff_only)
 @login_required
 def data_overview(request):
+    # Redirect teachers to the attendance entry page by default
+    try:
+        staff = Staff.objects.filter(user=request.user, role="teacher").first()
+        if staff:
+            return redirect("teacher_attendance_page")
+    except Exception:
+        pass
+
     # Denylist sensitive tables by prefix or exact names
     deny_exact = {"django_session"}
     deny_prefixes = ("auth_", "django_", "admin_")
@@ -2164,7 +2530,10 @@ def export_matrix_pdf(request):
                     When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
                     When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
                     When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
-                    When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                    When(
+                        full_name__icontains="علاء محمد عبد الهادي القضاه",
+                        then=Value(9),
+                    ),
                     default=Value(None),
                     output_field=IntegerField(),
                 ),
@@ -2391,3 +2760,299 @@ def export_matrix_pdf(request):
         resp = HttpResponse(pdf, content_type="application/pdf")
         resp["Content-Disposition"] = 'attachment; filename="teacher_class_matrix.pdf"'
         return resp
+
+
+# --- Attendance entry page and APIs (teacher) ---
+
+
+@login_required
+def teacher_attendance_page(request):
+    # التأكد من أن المستخدم مرتبط بكادر ومعه دور معلم
+    staff = Staff.objects.filter(user=request.user, role="teacher").first()
+    if not staff:
+        messages.error(request, "هذه الصفحة مخصصة للمعلمين فقط.")
+        return redirect("data_overview")
+
+    # الصفوف المكلّف بها هذا المعلم (مميّزة حسب الصف فقط)
+    assignments = (
+        TeachingAssignment.objects.filter(teacher=staff)
+        .select_related("classroom")
+        .order_by("classroom", "classroom__name")
+        .distinct("classroom")
+    )
+    selected_class_id = request.GET.get("class_id")
+    if not selected_class_id and assignments:
+        selected_class_id = str(assignments[0].classroom_id)
+    selected_date_str = request.GET.get("date") or _date.today().isoformat()
+    try:
+        selected_date = _date.fromisoformat(selected_date_str)
+    except Exception:
+        selected_date = _date.today()
+
+    students = []
+    if selected_class_id:
+        students = list(
+            Student.objects.filter(class_fk_id=selected_class_id, active=True).order_by("full_name")
+        )
+
+    ctx = {
+        "title": "إدخال الغياب (المعلم)",
+        "teacher_assignments": assignments,
+        "students": students,
+        "today": selected_date,
+        "selected_class_id": selected_class_id,
+    }
+    return render(request, "school/teacher_attendance.html", ctx)
+
+
+@login_required
+def api_attendance_records(request):
+    staff = Staff.objects.filter(user=request.user, role="teacher").first()
+    if not staff:
+        return JsonResponse({"error": "forbidden"}, status=403)
+    try:
+        class_id = int(request.GET.get("class_id") or "0")
+        dt = _date.fromisoformat(request.GET.get("date"))
+    except Exception:
+        return JsonResponse({"error": "bad_request"}, status=400)
+
+    # تحقّق صلاحية الوصول للصف
+    if not TeachingAssignment.objects.filter(teacher=staff, classroom_id=class_id).exists():
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    term = get_active_term(dt)
+    qs = AttendanceRecord.objects.filter(classroom_id=class_id, date=dt, term=term)
+    data = [
+        {
+            "student_id": r.student_id,
+            "period_number": r.period_number,
+            "status": r.status,
+            "runaway_reason": r.runaway_reason,
+            "excuse_type": r.excuse_type,
+        }
+        for r in qs
+    ]
+    return JsonResponse({"records": data})
+
+
+@login_required
+def api_attendance_students(request):
+    """إرجاع قائمة طلاب الصف المحدد للمعلم الحالي (للواجهة الديناميكية)."""
+    staff = Staff.objects.filter(user=request.user, role="teacher").first()
+    if not staff:
+        return JsonResponse({"error": "forbidden"}, status=403)
+    try:
+        class_id = int(request.GET.get("class_id") or "0")
+    except Exception:
+        return JsonResponse({"error": "bad_request"}, status=400)
+
+    if not class_id:
+        return JsonResponse({"students": []})
+
+    # تحقق أن المعلم مكلف بهذا الصف
+    if not TeachingAssignment.objects.filter(teacher=staff, classroom_id=class_id).exists():
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    st_qs = Student.objects.filter(class_fk_id=class_id, active=True).order_by("full_name")
+    students = [{"id": s.id, "full_name": s.full_name} for s in st_qs]
+    return JsonResponse({"students": students})
+
+
+@require_POST
+@login_required
+def api_attendance_bulk_save(request):
+    import json as _json
+
+    staff = Staff.objects.filter(user=request.user, role="teacher").first()
+    if not staff:
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    try:
+        payload = _json.loads(request.body or "{}")
+        class_id = int(payload.get("class_id") or 0)
+        dt = _date.fromisoformat(payload.get("date"))
+        items = payload.get("records", [])
+    except Exception:
+        return JsonResponse({"error": "bad_request"}, status=400)
+
+    if not class_id or not items:
+        return JsonResponse({"error": "empty"}, status=400)
+
+    # تحقّق صلاحية المعلم على الصف
+    if not TeachingAssignment.objects.filter(teacher=staff, classroom_id=class_id).exists():
+        return JsonResponse({"error": "forbidden"}, status=403)
+
+    term = get_active_term(dt)
+    period_times = get_period_times(dt)
+    subject_map = get_subject_per_period(class_id, dt)
+
+    saved = 0
+    for item in items:
+        try:
+            st_id = int(item["student_id"])
+            p = int(item["period_number"])
+            status = item["status"]
+        except Exception:
+            continue
+        defaults = {
+            "classroom_id": class_id,
+            "teacher": staff,
+            "term": term,
+            "date": dt,
+            "day_of_week": dt.isoweekday(),
+            "period_number": p,
+            "start_time": period_times.get(p, (_time(0, 0), _time(0, 1)))[0],
+            "end_time": period_times.get(p, (_time(0, 0), _time(0, 1)))[1],
+            "status": status,
+            "late_minutes": item.get("late_minutes", 0),
+            "early_minutes": item.get("early_minutes", 0),
+            "runaway_reason": item.get("runaway_reason", ""),
+            "excuse_type": item.get("excuse_type", ""),
+            "source": "teacher",
+        }
+        subj_id = subject_map.get(p) or get_default_subject_id()
+        if subj_id:
+            defaults["subject_id"] = subj_id
+        try:
+            AttendanceRecord.objects.update_or_create(
+                student_id=st_id,
+                date=dt,
+                period_number=p,
+                term=term,
+                defaults=defaults,
+            )
+            saved += 1
+        except Exception:
+            continue
+
+    try:
+        update_daily_aggregates(class_id, dt, term)
+    except Exception:
+        pass
+
+    return JsonResponse({"saved": saved})
+
+
+# --- Helpers ---
+
+
+def get_active_term(dt: _date):
+    # أبسط اختيار: أول ترم يغطي التاريخ أو آخر ترم مضاف
+    t = Term.objects.filter(start_date__lte=dt, end_date__gte=dt).order_by("-start_date").first()
+    if not t:
+        t = Term.objects.order_by("-start_date").first()
+    return t
+
+
+def get_period_times(dt: _date):
+    # لاحقاً يمكن ربطها بـ PeriodTemplate. حالياً نعيد أوقات افتراضية.
+    base = [
+        (8, 0),
+        (8, 50),
+        (8, 50),
+        (9, 40),
+        (9, 50),
+        (10, 40),
+        (10, 50),
+        (11, 40),
+        (11, 50),
+        (12, 40),
+        (12, 50),
+        (13, 40),
+        (13, 50),
+        (14, 40),
+    ]
+    res = {}
+    for i in range(7):
+        s_h, s_m = base[i * 2]
+        e_h, e_m = base[i * 2 + 1]
+        res[i + 1] = (_time(s_h, s_m), _time(e_h, e_m))
+    return res
+
+
+def get_subject_per_period(class_id: int, dt: _date):
+    term = get_active_term(dt)
+    day = dt.isoweekday()
+    mp = {}
+    for e in TimetableEntry.objects.filter(classroom_id=class_id, day_of_week=day, term=term):
+        mp[int(e.period_number)] = e.subject_id
+    return mp
+
+
+def get_default_subject_id():
+    # إن لم تتوفر مادة من الجدول، اختر أول مادة فعّالة
+    s = Subject.objects.filter(is_active=True).order_by("id").first()
+    return s.id if s else None
+
+
+def update_daily_aggregates(class_id: int, dt: _date, term: Term):
+    # Placeholder لعملية التجميع اليومي لاحقاً
+    return None
+
+
+# --- Auth utilities (GET-friendly logout) ---
+
+
+@never_cache
+def logout_to_login(request):
+    """Logout via GET and redirect to unified login page.
+    Provides a GET-friendly logout endpoint to avoid 405 errors from Django's default LogoutView.
+    """
+    try:
+        logout(request)
+    except Exception:
+        # Never block logout on unexpected errors
+        pass
+    return redirect("login")
+
+
+@never_cache
+def root_router(request):
+    """Root router: avoid LoginView at "/" to prevent redirect loops.
+    - Authenticated users → portal_home
+    - Anonymous users → login
+    """
+    if request.user.is_authenticated:
+        return redirect("portal_home")
+    return redirect("login")
+
+
+# ================= Wings pages =================
+@login_required
+def wings_overview(request):
+    wings = Wing.objects.all().order_by("id")
+    return render(request, "school/wings.html", {"wings": wings})
+
+
+@login_required
+def wing_detail(request, wing_id: int):
+    try:
+        wing = Wing.objects.get(pk=wing_id)
+    except Wing.DoesNotExist:
+        raise Http404("الجناح غير موجود")
+
+    if request.method == "POST":
+        sup_id = request.POST.get("supervisor_id")
+        if sup_id == "" or sup_id is None:
+            wing.supervisor = None
+            wing.save(update_fields=["supervisor"])
+            messages.success(request, "تم إزالة تعيين المشرف لهذا الجناح")
+            return redirect("wing_detail", wing_id=wing.id)
+        try:
+            staff_obj = Staff.objects.get(pk=sup_id)
+            wing.supervisor = staff_obj
+            wing.save(update_fields=["supervisor"])
+            messages.success(request, "تم تحديث المشرف المسؤول عن الجناح")
+            return redirect("wing_detail", wing_id=wing.id)
+        except Staff.DoesNotExist:
+            messages.error(request, "المعلم المحدد غير موجود")
+
+    staff_list = Staff.objects.all().order_by("full_name", "id")
+    return render(
+        request,
+        "school/wing_detail.html",
+        {
+            "wing": wing,
+            "staff_list": staff_list,
+        },
+    )

@@ -15,7 +15,6 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-from django.contrib import admin
 from django.urls import path, include, re_path
 from django.conf import settings
 from django.views.generic import RedirectView
@@ -26,10 +25,14 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from school.auth import CustomTokenObtainPairView
 from pathlib import Path
 
+# Use restricted admin site that allows only superusers or Staff with role 'admin'
+from school.admin_site import restricted_admin_site
+
 # Paths outside backend/ we might want to expose during development (DEBUG)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DOC_DIR = PROJECT_ROOT / "DOC"
 BACKEND_DIR = PROJECT_ROOT / "backend"
+ASSETS_DIR = PROJECT_ROOT / "assets"
 PROJECT_ROOT_DIR = PROJECT_ROOT  # for serving index.html
 
 # --- Health endpoints ---
@@ -64,7 +67,7 @@ urlpatterns = [
     path("livez", livez, name="livez"),
     path("healthz", healthz, name="healthz"),
     path("favicon.ico", favicon, name="favicon"),
-    path("admin/", admin.site.urls),
+    path("admin/", restricted_admin_site.urls),
     path("", include("school.urls")),
     # Friendly docs endpoints (development only)
     path("index", RedirectView.as_view(url="/docs/", permanent=False)),
@@ -87,6 +90,12 @@ if settings.DEBUG:
             static_serve,
             {"document_root": str(DOC_DIR)},
         ),
+        # Serve project assets under /assets/* for local development
+        re_path(
+            r"^assets/(?P<path>.*)$",
+            static_serve,
+            {"document_root": str(ASSETS_DIR)},
+        ),
         # Serve the OpenAPI YAML from backend/ in development
         path(
             "backend/schema.yaml",
@@ -101,6 +110,23 @@ if settings.DEBUG:
         path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
         path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     ]
+    # Serve Font Awesome webfonts at /webfonts/* from the installed package during DEBUG
+    try:
+        import fontawesomefree as _fa  # type: ignore
+
+        FA_WEBFONTS_DIR = (
+            Path(_fa.__file__).resolve().parent / "static" / "fontawesomefree" / "webfonts"
+        )
+    except Exception:
+        FA_WEBFONTS_DIR = None
+    if "FA_WEBFONTS_DIR" in locals() and FA_WEBFONTS_DIR and FA_WEBFONTS_DIR.exists():
+        urlpatterns += [
+            re_path(
+                r"^webfonts/(?P<path>.*)$",
+                static_serve,
+                {"document_root": str(FA_WEBFONTS_DIR)},
+            ),
+        ]
 else:
     urlpatterns += [
         path("api/", include("school.api.urls")),

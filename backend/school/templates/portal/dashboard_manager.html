@@ -1,0 +1,63 @@
+{% extends "_base_maronia.html" %}
+{% load static %}
+{% block title %}واجهة الإدارة{% endblock %}
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 page-header">
+    <div>
+      <h1 class="h5 mb-1">مرحباً {{ staff.full_name|default:request.user.username }}</h1>
+      <div class="text-muted small">واجهة المدير والإداريين — نظرة عامة وروابط سريعة</div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-4">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-table fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">كل الجداول</h5>
+            <p class="card-text text-muted mb-2">استعراض بيانات النظام مع إمكانية التعديل والتحكم.</p>
+            <a href="{% url 'data_overview' %}" class="btn btn-sm btn-maron">فتح لوحة البيانات</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-diagram-3 fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">لوحة الأنصبة</h5>
+            <p class="card-text text-muted mb-2">معاينة تكاليف المعلمين وتوزيع الحصص.</p>
+            <a href="{% url 'teacher_loads_dashboard' %}" class="btn btn-sm btn-outline-secondary">فتح</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card h-100 card-hover">
+        <div class="card-body d-flex align-items-center">
+          <i class="bi bi-file-earmark-arrow-down fs-1 text-accent ms-3"></i>
+          <div>
+            <h5 class="card-title mb-1">تقارير وملفات</h5>
+            <p class="card-text text-muted mb-2">تصدير الجداول والأنصبة إلى Excel/PDF.</p>
+            <div class="d-flex flex-wrap gap-2">
+              <a href="{% url 'export_assignments_xlsx' %}" class="btn btn-sm btn-outline-secondary">أنصبة Excel</a>
+              <a href="{% url 'export_assignments_pdf' %}" class="btn btn-sm btn-outline-secondary">أنصبة PDF</a>
+              <a href="{% url 'export_matrix_xlsx' %}" class="btn btn-sm btn-outline-secondary">مصفوفة Excel</a>
+              <a href="{% url 'export_matrix_pdf' %}" class="btn btn-sm btn-outline-secondary">مصفوفة PDF</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="alert alert-info mt-3 mb-0" role="alert">
+    <i class="bi bi-info-circle me-1"></i> يمكنكم دائماً الوصول إلى لوحة الإدارة الكاملة عبر /admin عند الحاجة، لكن هذه الواجهة الأمامية مخصصة للاستخدام اليومي وتوحيد هوية الموقع.
+  </div>
+</div>
+{% endblock %}

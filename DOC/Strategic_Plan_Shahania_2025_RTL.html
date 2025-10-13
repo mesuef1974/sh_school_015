@@ -10,6 +10,11 @@
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
+    <!-- Icons and animation -->
+    <link rel="stylesheet" href="../assets/fontawesome.min.css" />
+    <link rel="stylesheet" href="../assets/animate.min.css" />
+    <script src="../assets/iconify.min.js"></script>
+
     <style>
       @font-face {
         font-family: "NotoKufiArabic-Local";
@@ -49,6 +54,13 @@
       .btn.outline{ background:#fff; color:var(--primary); border:1px solid var(--primary-700); }
       .btn.alt{ background:#374151; }
       .muted{ color:var(--muted); }
+      .ico{ margin-inline-start:6px; vertical-align:middle; }
+      .toc i{ color: var(--primary-900); margin-inline-start:6px; }
+      h2 .ico{ color: var(--primary-700); }
+      .list-ico{ color: var(--ok); margin-inline-start:8px; }
+      .warn-ico{ color: var(--warn); margin-inline-start:8px; }
+      .danger-ico{ color: var(--danger); margin-inline-start:8px; }
+      .info-ico{ color: var(--info); margin-inline-start:8px; }
 
       .panel{ background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:16px; margin:12px 0; box-shadow:var(--shadow); }
       h2{ color:var(--primary); font-size:18px; margin-top:0; }
@@ -76,46 +88,46 @@
         <div class="brand">
           <img src="../assets/img/logo.png" alt="شعار المدرسة" onerror="this.src='../assets/img/logo.png'" />
           <div>
-            <h1>الخطة الاستراتيجية الشاملة 2025 — مدرسة الشحّانية</h1>
+            <h1><i class="fas fa-school ico" aria-hidden="true"></i> الخطة الاستراتيجية الشاملة 2025 — مدرسة الشحّانية</h1>
             <p>وثيقة تنفيذية احترافية مبنية على TOGAF/ITIL/ISO/OWASP/WCAG مع دعم RTL كامل </p>
           </div>
         </div>
       </header>
 
       <div class="toolbar no-print" role="group" aria-label="أدوات">
-        <button class="btn" onclick="exportPDF()">تصدير PDF</button>
-        <button class="btn outline" onclick="window.print()">طباعة</button>
-        <a class="btn alt" href="Unified_Maroon_RTL.html" target="_blank" rel="noopener">اللوحة التنفيذية الموحدة</a>
-        <a class="btn outline" href="STRATEGY_2025_PRO_ar.md" target="_blank" rel="noopener">المصدر النصي (Markdown)</a>
+        <button class="btn" onclick="exportPDF()"><i class="fas fa-file-pdf ico" aria-hidden="true"></i> تصدير PDF</button>
+        <button class="btn outline" onclick="window.print()"><i class="fas fa-print ico" aria-hidden="true"></i> طباعة</button>
+        <a class="btn alt" href="Unified_Maroon_RTL.html" target="_blank" rel="noopener"><i class="fas fa-tachometer-alt ico" aria-hidden="true"></i> اللوحة التنفيذية الموحدة</a>
+        <a class="btn outline" href="STRATEGY_2025_PRO_ar.md" target="_blank" rel="noopener"><i class="fas fa-code ico" aria-hidden="true"></i> المصدر النصي (Markdown)</a>
         <span class="badge" id="today"></span>
       </div>
 
       <section class="panel toc" aria-labelledby="toc-title">
         <h2 id="toc-title">جدول المحتويات</h2>
         <ul>
-          <li><a href="#vision">1) الرؤية والقيمة</a></li>
-          <li><a href="#principles">2) المبادئ المرجعية</a></li>
-          <li><a href="#okrs">3) الأهداف والنتائج (OKRs)</a></li>
-          <li><a href="#scope">4) النطاق وخارجه</a></li>
-          <li><a href="#governance">5) الحوكمة والمسؤوليات</a></li>
-          <li><a href="#architecture">6) الاستراتيجية المعمارية</a></li>
-          <li><a href="#security">7) الأمن والخصوصية</a></li>
-          <li><a href="#data">8) استراتيجية البيانات</a></li>
-          <li><a href="#quality">9) الجودة والاختبارات</a></li>
-          <li><a href="#devops">10) DevOps/CI-CD</a></li>
-          <li><a href="#ux">11) UX/RTL/Accessibility</a></li>
-          <li><a href="#roadmap">12) خارطة الطريق (12 شهرًا)</a></li>
-          <li><a href="#kpis">13) KPIs & SLO/SLAs</a></li>
-          <li><a href="#risks">14) سجل المخاطر</a></li>
-          <li><a href="#success">15) معايير النجاح</a></li>
-          <li><a href="#final-8">الخطة النهائية المختصرة (8 أسابيع)</a></li>
-          <li><a href="#templates-plan">خطة تحويل الواجهة إلى قوالب Django</a></li>
+          <li><a href="#vision"><i class="fas fa-eye" aria-hidden="true"></i> 1) الرؤية والقيمة</a></li>
+          <li><a href="#principles"><i class="fas fa-gem" aria-hidden="true"></i> 2) المبادئ المرجعية</a></li>
+          <li><a href="#okrs"><i class="fas fa-bullseye" aria-hidden="true"></i> 3) الأهداف والنتائج (OKRs)</a></li>
+          <li><a href="#scope"><i class="fas fa-project-diagram" aria-hidden="true"></i> 4) النطاق وخارجه</a></li>
+          <li><a href="#governance"><i class="fas fa-sitemap" aria-hidden="true"></i> 5) الحوكمة والمسؤوليات</a></li>
+          <li><a href="#architecture"><i class="fas fa-drafting-compass" aria-hidden="true"></i> 6) الاستراتيجية المعمارية</a></li>
+          <li><a href="#security"><i class="fas fa-shield-alt" aria-hidden="true"></i> 7) الأمن والخصوصية</a></li>
+          <li><a href="#data"><i class="fas fa-database" aria-hidden="true"></i> 8) استراتيجية البيانات</a></li>
+          <li><a href="#quality"><i class="fas fa-check-circle" aria-hidden="true"></i> 9) الجودة والاختبارات</a></li>
+          <li><a href="#devops"><i class="fas fa-cogs" aria-hidden="true"></i> 10) DevOps/CI-CD</a></li>
+          <li><a href="#ux"><i class="fas fa-universal-access" aria-hidden="true"></i> 11) UX/RTL/Accessibility</a></li>
+          <li><a href="#roadmap"><i class="fas fa-road" aria-hidden="true"></i> 12) خارطة الطريق (12 شهرًا)</a></li>
+          <li><a href="#kpis"><i class="fas fa-chart-line" aria-hidden="true"></i> 13) KPIs & SLO/SLAs</a></li>
+          <li><a href="#risks"><i class="fas fa-exclamation-triangle" aria-hidden="true"></i> 14) سجل المخاطر</a></li>
+          <li><a href="#success"><i class="fas fa-trophy" aria-hidden="true"></i> 15) معايير النجاح</a></li>
+          <li><a href="#final-8"><i class="fas fa-rocket" aria-hidden="true"></i> الخطة النهائية المختصرة (8 أسابيع)</a></li>
+          <li><a href="#templates-plan"><i class="fas fa-layer-group" aria-hidden="true"></i> خطة تحويل الواجهة إلى قوالب Django</a></li>
         </ul>
       </section>
 
       <main id="doc" role="main" aria-label="الخطة الاستراتيجية">
         <section id="vision" class="panel">
-          <h2>1) الرؤية والقيمة</h2>
+          <h2><i class="fas fa-eye ico" aria-hidden="true"></i> 1) الرؤية والقيمة</h2>
           <ul>
             <li>منصة مدرسية عربية موحّدة، آمنة، قابلة للتوسع، بدعم RTL كامل وتجربة متميزة للأدوار: المدير، المعلّم، الطالب، وليّ الأمر.</li>
             <li>تحويل بيانات اليوم الدراسي (حضور/درجات/تنبيهات) إلى قرارات عبر لوحات مؤشرات تقود الأداء والتحسين.</li>
@@ -123,7 +135,7 @@
         </section>
 
         <section id="principles" class="panel">
-          <h2>2) المبادئ المرجعية</h2>
+          <h2><i class="fas fa-gem ico" aria-hidden="true"></i> 2) المبادئ المرجعية</h2>
           <ul>
             <li>البساطة أولًا ثم القابلية للتوسع.</li>
             <li>الأمن بالتصميم، والمراقبة بالافتراض.</li>
@@ -135,7 +147,7 @@
         </section>
 
         <section id="okrs" class="panel">
-          <h2>3) الأهداف والنتائج (OKRs)</h2>
+          <h2><i class="fas fa-bullseye ico" aria-hidden="true"></i> 3) الأهداف والنتائج (OKRs)</h2>
           <ul>
             <li>الهدف 1: تسليم MVP خلال 12 أسبوعًا.
               <ul>
@@ -161,7 +173,7 @@
         </section>
 
         <section id="scope" class="panel">
-          <h2>4) النطاق وخارجه</h2>
+          <h2><i class="fas fa-project-diagram ico" aria-hidden="true"></i> 4) النطاق وخارجه</h2>
           <ul>
             <li>في النطاق (عام 1): Django/DRF + PostgreSQL، RBAC، استيراد/تصدير، قوالب RTL + صفحة موحّدة، مراقبة وأمن أساسيان.</li>
             <li>خارج النطاق: SPA وتطبيق جوّال وSSO/OIDC إلا بطلب صريح؛ تُرحّل للمرحلة التالية.</li>
@@ -170,7 +182,7 @@
         </section>
 
         <section id="governance" class="panel">
-          <h2>5) الحوكمة والمسؤوليات (RACI + Cadence)</h2>
+          <h2><i class="fas fa-sitemap ico" aria-hidden="true"></i> 5) الحوكمة والمسؤوليات (RACI + Cadence)</h2>
           <ul>
             <li>اجتماعات: أسبوعية للتسليم وشهرية للتوجيه.</li>
             <li>RACI مختصر:
@@ -186,7 +198,7 @@
         </section>
 
         <section id="architecture" class="panel">
-          <h2>6) الاستراتيجية المعمارية (Target Architecture)</h2>
+          <h2><i class="fas fa-drafting-compass ico" aria-hidden="true"></i> 6) الاستراتيجية المعمارية (Target Architecture)</h2>
           <ul>
             <li>Modular Monolith (Django/DRF) بطبقات: Domain · Application · API · Infra.</li>
             <li>PostgreSQL + فهارس + سياسات أرشفة/احتفاظ.</li>
@@ -197,7 +209,7 @@
         </section>
 
         <section id="security" class="panel">
-          <h2>7) الأمن والخصوصية</h2>
+          <h2><i class="fas fa-shield-alt ico" aria-hidden="true"></i> 7) الأمن والخصوصية</h2>
           <ul>
             <li>JWT (SimpleJWT) + RBAC (Scopes + Constraints).</li>
             <li>كلمات المرور: Argon2id/Bcrypt، تدوير المفاتيح، قصر عمر الرموز.</li>
@@ -208,7 +220,7 @@
         </section>
 
         <section id="data" class="panel">
-          <h2>8) استراتيجية البيانات</h2>
+          <h2><i class="fas fa-database ico" aria-hidden="true"></i> 8) استراتيجية البيانات</h2>
           <ul>
             <li>نمذجة: Users/Students/Staff/Classes/Subjects/Enrollments/Attendance/Grades.</li>
             <li>مفاتيح UUID، استخدام JSONB، فهارس على الأعمدة الحرجة.</li>
@@ -217,7 +229,7 @@
         </section>
 
         <section id="quality" class="panel">
-          <h2>9) الجودة والاختبارات</h2>
+          <h2><i class="fas fa-check-circle ico" aria-hidden="true"></i> 9) الجودة والاختبارات</h2>
           <ul>
             <li>Unit + Integration + E2E مبسّط للمسارات الحرجة.</li>
             <li>أدوات: ruff/black/isort/pytest، تقارير تغطية، فحوصات أمن (Bandit/Trivy).</li>
@@ -227,7 +239,7 @@
         </section>
 
         <section id="devops" class="panel">
-          <h2>10) DevOps/CI-CD</h2>
+          <h2><i class="fas fa-cogs ico" aria-hidden="true"></i> 10) DevOps/CI-CD</h2>
           <ul>
             <li>فروع Git: main (محمي) · develop · feature/*</li>
             <li>بايبلاين: Lint → Test → Security Scan → Package → Deploy (staging) → Smoke → Prod.</li>
@@ -236,14 +248,14 @@
         </section>
 
         <section id="ux" class="panel">
-          <h2>11) UX/RTL/Accessibility</h2>
+          <h2><i class="fas fa-universal-access ico" aria-hidden="true"></i> 11) UX/RTL/Accessibility</h2>
           <ul>
             <li>RTL افتراضيًا، خطوط عربية محلية (NotoKufi/Amiri)، تباين WCAG AA، دعم لوحة المفاتيح والقرّاء.</li>
           </ul>
         </section>
 
         <section id="roadmap" class="panel">
-          <h2>12) خارطة الطريق (12 شهرًا)</h2>
+          <h2><i class="fas fa-road ico" aria-hidden="true"></i> 12) خارطة الطريق (12 شهرًا)</h2>
           <ul>
             <li>الشهر 1: تأسيس المشروع، الإعدادات، خطوط CI، معايير الكود.</li>
             <li>2–3: CRUD + JWT + RBAC + استيراد/تصدير + لوحة RTL.</li>
@@ -254,7 +266,7 @@
         </section>
 
         <section id="kpis" class="panel">
-          <h2>13) KPIs & SLO/SLAs</h2>
+          <h2><i class="fas fa-chart-line ico" aria-hidden="true"></i> 13) KPIs & SLO/SLAs</h2>
           <ul>
             <li>أداء: P95 ≤ 300ms · أخطاء API ≤ 0.5%</li>
             <li>موثوقية: 99.9% توافر شهري</li>
@@ -264,24 +276,24 @@
         </section>
 
         <section id="risks" class="panel">
-          <h2>14) سجل المخاطر</h2>
+          <h2><i class="fas fa-exclamation-triangle ico" aria-hidden="true"></i> 14) سجل المخاطر</h2>
           <ul>
-            <li>مسارات بأسماء فيها فراغات → خطة: إعادة تسمية وتحديث الروابط لاحقًا.</li>
-            <li>اعتماد على CDN → خطة: نسخ محلية/Bundling.</li>
-            <li>حساسية بيانات Excel → خطة: عينات مجهولة وتقييد الوصول.</li>
-            <li>محدودية موارد → خطة: تركيز MVP وتأجيل SPA.</li>
+            <li><i class="fas fa-exclamation-circle warn-ico" aria-hidden="true"></i> مسارات بأسماء فيها فراغات → خطة: إعادة تسمية وتحديث الروابط لاحقًا.</li>
+            <li><i class="fas fa-exclamation-circle warn-ico" aria-hidden="true"></i> اعتماد على CDN → خطة: نسخ محلية/Bundling.</li>
+            <li><i class="fas fa-exclamation-circle warn-ico" aria-hidden="true"></i> حساسية بيانات Excel → خطة: عينات مجهولة وتقييد الوصول.</li>
+            <li><i class="fas fa-exclamation-circle warn-ico" aria-hidden="true"></i> محدودية موارد → خطة: تركيز MVP وتأجيل SPA.</li>
           </ul>
         </section>
 
         <section id="success" class="panel">
-          <h2>15) معايير النجاح</h2>
+          <h2><i class="fas fa-trophy ico" aria-hidden="true"></i> 15) معايير النجاح</h2>
           <ul>
-            <li>استيفاء OKRs + DoD، ورضا أصحاب المصلحة ≥ 8/10 في UAT.</li>
+            <li><i class="fas fa-check-circle list-ico" aria-hidden="true"></i> استيفاء OKRs + DoD، ورضا أصحاب المصلحة ≥ 8/10 في UAT.</li>
           </ul>
         </section>
 
         <section id="final-8" class="panel">
-          <h2>الخطة النهائية (8 أسابيع) — التنفيذ المختصر</h2>
+          <h2><i class="fas fa-rocket ico" aria-hidden="true"></i> الخطة النهائية (8 أسابيع) — التنفيذ المختصر</h2>
           <ol>
             <li>الأسبوع 1: Django + PostgreSQL + Models كاملة + Basic API (CRUD) — اختبار عبر Postman.</li>
             <li>الأسبوع 2: JWT + RBAC (Groups/Permissions) + ربط Frontend المبدئي بقوالب Django.</li>
@@ -296,7 +308,7 @@
         </section>
 
         <section id="templates-plan" class="panel">
-          <h2>خطة تحويل الواجهة إلى قوالب Django</h2>
+          <h2><i class="fas fa-layer-group ico" aria-hidden="true"></i> خطة تحويل الواجهة إلى قوالب Django</h2>
           <ul>
             <li>base.html: الرأس/الأقدام، الألوان، إعداد RTL.</li>
             <li>includes/_tabs.html: شريط التبويب.</li>
@@ -308,7 +320,7 @@
         </section>
 
         <section class="panel" aria-label="ملاحظات ختامية">
-          <h2>ملاحظات ختامية وروابط</h2>
+          <h2><i class="fas fa-link ico" aria-hidden="true"></i> ملاحظات ختامية وروابط</h2>
           <ul>
             <li>اللوحة التنفيذية (نسخة HTML تفاعلية): <a href="Unified_Maroon_RTL.html">DOC/Unified_Maroon_RTL.html</a></li>
             <li>المصدر النصي الكامل: <a href="STRATEGY_2025_PRO_ar.md">DOC/STRATEGY_2025_PRO_ar.md</a></li>

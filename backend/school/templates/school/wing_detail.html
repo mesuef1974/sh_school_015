@@ -1,0 +1,61 @@
+{% extends "portal/dashboard_generic.html" %}
+{% load static %}
+{% block title %}{{ wing.name }}{% endblock %}
+{% block content %}
+<div class="container" dir="rtl">
+  <div class="d-flex justify-content-between align-items-center mt-3 mb-3">
+    <h2 class="m-0">{{ wing.name }}{% if wing.floor %} — {{ wing.floor }}{% endif %}</h2>
+    <a href="{% url 'wings_overview' %}" class="btn btn-secondary">عودة إلى الأجنحة</a>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-header">تعيين المشرف المسؤول عن الجناح</div>
+    <div class="card-body">
+      <form method="post" class="row g-2">
+        {% csrf_token %}
+        <div class="col-md-8">
+          <select class="form-select" name="supervisor_id">
+            <option value="">— بدون مشرف —</option>
+            {% for s in staff_list %}
+              <option value="{{ s.id }}" {% if wing.supervisor and s.id == wing.supervisor.id %}selected{% endif %}>
+                {{ s.full_name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4 d-grid">
+          <button type="submit" class="btn btn-primary">حفظ</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">قائمة المعلمين</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped m-0">
+          <thead>
+            <tr>
+              <th style="width: 80px;">#</th>
+              <th>الاسم</th>
+              <th>التخصص</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in staff_list %}
+              <tr>
+                <td>{{ s.id }}</td>
+                <td>{{ s.name_ar|default:s.name_en|default:s.username }}</td>
+                <td>{{ s.role|default:"" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3" class="text-center p-3">لا يوجد أفراد ستاف.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

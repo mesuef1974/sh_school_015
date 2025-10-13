@@ -117,8 +117,11 @@ STATICFILES_DIRS = [
 if DEBUG:
     WHITENOISE_USE_FINDERS = True
 
-# Redirect login_required to the admin login page (we don't have /accounts/login/)
-LOGIN_URL = "/admin/login/"
+# Unified auth URLs
+# Redirect login_required to the unified login page
+LOGIN_URL = "/accounts/login/"
+# After successful login, redirect users to the role-based portal home ("/") unless ?next= is provided
+LOGIN_REDIRECT_URL = "/"
 
 # REST Framework & JWT
 REST_FRAMEWORK = {

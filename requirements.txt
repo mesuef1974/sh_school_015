@@ -76,3 +76,5 @@ zopfli==0.2.3.post1
 reportlab==4.2.5
 arabic-reshaper==3.0.0
 python-bidi==0.6.0
+django-icons==24.4
+fontawesomefree==5.15.4

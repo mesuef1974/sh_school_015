@@ -1,0 +1,21 @@
+{% extends "_base_maronia.html" %}
+{% block title %}الواجهة الرئيسية{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <div class="text-center mb-4">
+    <h1 class="h4 animate__animated animate__fadeInDown"><i class="fas fa-hand-sparkles text-accent me-1"></i> مرحباً بك</h1>
+    <p class="text-muted">هذه واجهة عامة. سيتم إظهار واجهة مخصصة عند ربط المستخدم بكادر داخل المدرسة.</p>
+  </div>
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card card-hover">
+        <div class="card-body">
+          <h5 class="card-title">لوحة البيانات</h5>
+          <p class="card-text text-muted">استعراض بيانات النظام للمستخدمين المخولين.</p>
+          <a href="{% url 'data_overview' %}" class="btn btn-maron btn-sm">فتح</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
