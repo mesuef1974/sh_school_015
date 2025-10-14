@@ -6,7 +6,7 @@
 <div class="d-flex align-items-center justify-content-between mb-3 page-header">
   <div>
     <h1 class="h5 mb-1">إدخال الغياب على مستوى الحصص</h1>
-    <div class="text-muted small">واجهة مهنية لتمييز حالات الطلاب لكل حصة (١ إلى ٧) — الحالة الافتراضية: حاضر</div>
+    <div class="text-muted small">واجهة مهنية لتمييز حالات الطلاب لكل حصة (١ إلى ٧) — الحالة الافتراضية: فارغة، ويمكنك تحضير الجميع بزر واحد</div>
   </div>
 </div>
 
@@ -26,6 +26,9 @@
     </div>
     <div class="col-auto">
       <button type="button" id="reload-btn" class="btn btn-sm btn-outline-primary">تحديث</button>
+    </div>
+    <div class="col-auto">
+      <button type="button" id="present-all-btn" class="btn btn-sm btn-outline-success">تحضير الجميع</button>
     </div>
     <div class="col-auto ms-auto">
       <button type="button" id="save-btn" class="btn btn-sm btn-success">حفظ التغييرات</button>
@@ -50,7 +53,7 @@
         </tr>
         <tr>
           {% for p in "1234567" %}
-            <th style="width: 56px;">حصة {{ forloop.counter }}</th>
+            <th style="width: 110px; min-width: 110px;">حصة {{ forloop.counter }}</th>
           {% endfor %}
         </tr>
       </thead>
@@ -61,13 +64,12 @@
             <th class="sticky-right-2 text-start">{{ st.full_name }}</th>
             {% for p in "1234567" %}
               <td class="att-cell" data-period="{{ forloop.counter }}">
-                <div class="cell-display"></div>
-                <select class="cell-editor form-select form-select-sm" hidden>
-                  <option value="">—</option>
+                <select class="cell-editor form-select form-select-sm">
+                  <option value=""></option>
+                  <option value="present">حاضر</option>
                   <option value="absent">غائب</option>
                   <option value="late">متأخر</option>
-                  <option value="runaway:left_and_not_returned">خرج ولم يعد</option>
-                  <option value="excused:official">دوام ولكن خارج الفصل</option>
+                  <option value="runaway">هروب</option>
                 </select>
               </td>
             {% endfor %}
@@ -87,7 +89,7 @@
 .sticky-right-2{ position: sticky; right: 48px; z-index: 2; background: #fff; }
 #att-table { width: auto; }
 #att-table th, #att-table td { padding: .25rem .35rem; white-space: nowrap; }
-.att-cell{ min-width: 56px; min-height: 40px; position: relative; }
+.att-cell{ min-width: 110px; min-height: 40px; position: relative; }
 .att-cell.present{ background: #f8fff8; }
 .att-cell.absent{ background: #ffebee; }
 .att-cell.late{ background: #fff3e0; }
@@ -109,41 +111,32 @@
     switch(status){
       case 'absent': return 'غائب';
       case 'late': return 'متأخر';
-      case 'runaway': return 'خرج ولم يعد';
-      case 'excused': return 'خارج الفصل';
+      case 'runaway': return 'هروب';
       default: return status;
     }
   }
 
   function paintCell(td, status){
     td.classList.remove('present','absent','late','excused','runaway');
-    if(!status){ td.classList.add('present'); return; }
+    if(!status){ return; }
     td.classList.add(status);
   }
 
   function setCell(studentId, period, value, td){
     const key = `${studentId}:${period}`;
-    if (!value){ pending.delete(key); paintCell(td, 'present'); td.querySelector('.cell-display').textContent=''; return; }
-    const [status, extra] = String(value).split(':');
+    if (!value){ pending.delete(key); paintCell(td, null); return; }
+    const status = String(value);
     const item = { student_id: +studentId, period_number: +period, status };
-    if (status === 'runaway') item.runaway_reason = extra || 'left_and_not_returned';
-    if (status === 'excused') item.excuse_type = extra || 'official';
     pending.set(key, item);
     paintCell(td, status);
-    td.querySelector('.cell-display').textContent = statusLabel(status, extra);
   }
 
-  table.addEventListener('click', function(e){
-    const td = e.target.closest('.att-cell'); if(!td) return;
-    const editor = td.querySelector('.cell-editor'); const disp = td.querySelector('.cell-display');
-    editor.hidden = false; editor.focus();
-    editor.onchange = function(){
-      const tr = td.closest('tr'); const studentId = tr.getAttribute('data-student-id');
-      const period = td.getAttribute('data-period');
-      setCell(studentId, period, editor.value, td);
-      editor.hidden = true; editor.blur();
-    };
-    editor.onblur = function(){ setTimeout(()=>{ editor.hidden = true; }, 150); };
+  table.addEventListener('change', function(e){
+    const editor = e.target.closest('.cell-editor'); if(!editor) return;
+    const td = editor.closest('.att-cell'); if(!td) return;
+    const tr = td.closest('tr'); const studentId = tr.getAttribute('data-student-id');
+    const period = td.getAttribute('data-period');
+    setCell(studentId, period, editor.value, td);
   });
 
   async function loadStudents(classId){
@@ -158,13 +151,12 @@
       let tds = '';
       for(let p=1;p<=7;p++){
         tds += `<td class="att-cell" data-period="${p}">\
-<div class="cell-display"></div>\
-<select class="cell-editor form-select form-select-sm" hidden>\
-  <option value="">—</option>\
+<select class="cell-editor form-select form-select-sm">\
+  <option value=""></option>\
+  <option value="present">حاضر</option>\
   <option value="absent">غائب</option>\
   <option value="late">متأخر</option>\
-  <option value="runaway:left_and_not_returned">خرج ولم يعد</option>\
-  <option value="excused:official">دوام ولكن خارج الفصل</option>\
+  <option value="runaway">هروب</option>\
 </select>\
 </td>`;
       }
@@ -189,9 +181,8 @@
       tr.querySelectorAll('.att-cell').forEach(td=>{
         const p = td.getAttribute('data-period');
         const r = mp.get(`${sid}:${p}`);
-        const disp = td.querySelector('.cell-display');
-        if(r){ paintCell(td, r.status); disp.textContent = statusLabel(r.status); }
-        else { paintCell(td, 'present'); disp.textContent=''; }
+        if(r){ paintCell(td, r.status); }
+        else { paintCell(td, null); }
         const editor = td.querySelector('.cell-editor');
         if(editor) editor.value = r? r.status : '';
       });
@@ -215,10 +206,23 @@
     else { alert('فشل الحفظ'); }
   }
 
+  function markAllPresent(){
+    table.querySelectorAll('tbody tr').forEach(tr=>{
+      const sid = tr.getAttribute('data-student-id');
+      tr.querySelectorAll('.att-cell').forEach(td=>{
+        const editor = td.querySelector('.cell-editor');
+        const p = td.getAttribute('data-period');
+        if(editor){ editor.value = 'present'; }
+        setCell(sid, p, 'present', td);
+      });
+    });
+  }
+
   document.getElementById('reload-btn').addEventListener('click', reload);
   document.getElementById('class_id').addEventListener('change', reload);
   document.querySelector('input[name="date"]').addEventListener('change', reload);
   document.getElementById('save-btn').addEventListener('click', saveAll);
+  document.getElementById('present-all-btn').addEventListener('click', markAllPresent);
 
   // تهيئة أولية: اضبط الصف المختار إن وُجد
   const sel = document.getElementById('class_id');

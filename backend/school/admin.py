@@ -721,6 +721,7 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
         "late_minutes",
         "early_minutes",
         "locked",
+        "updated_at",
     )
     list_filter = (
         "date",
