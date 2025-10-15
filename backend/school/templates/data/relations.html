@@ -1,0 +1,63 @@
+{% extends "_base_maronia.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+  <div>
+    <h1 class="h4 mb-1">خريطة علائقية لقاعدة البيانات</h1>
+    <div class="text-muted small">عرض بصري احترافي يوضح العلاقات بين جداول التطبيق (school)</div>
+  </div>
+  <div class="btn-group" role="group">
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'data_overview' %}">كل الجداول</a>
+    <button id="btn-download-svg" class="btn btn-sm btn-outline-secondary" type="button">تنزيل SVG</button>
+  </div>
+</div>
+
+<div class="card p-2 p-md-3">
+  <div class="row g-3 mb-2 align-items-stretch">
+    <div class="col-12 col-lg-7">
+      <div class="small text-muted">تستخدم هذه الصفحة Mermaid.js لتوليد مخطط ER بشكل مباشر من نماذج Django.</div>
+    </div>
+    <div class="col-12 col-lg-5">
+      <div class="p-2 border rounded-3 bg-light h-100">
+        <div class="d-flex flex-wrap gap-3 small">
+          <div><span class="text-muted">المحرك:</span> <strong>{% if db_info %}{{ db_info.vendor|default:'—' }}{% else %}—{% endif %}</strong></div>
+          <div><span class="text-muted">قاعدة البيانات:</span> <strong>{% if db_info %}{{ db_info.name|default:'—' }}{% else %}—{% endif %}</strong></div>
+          <div class="w-100 w-md-auto"><span class="text-muted">الإصدار:</span> <strong class="text-truncate d-inline-block" style="max-width: 380px;" title="{% if db_info %}{{ db_info.version }}{% endif %}">{% if db_info and db_info.version %}{{ db_info.version }}{% else %}—{% endif %}</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ratio ratio-21x9 bg-light border rounded" style="min-height: 420px;">
+    <div id="er-wrap" class="p-2 overflow-auto" dir="ltr">
+      <pre class="mermaid" id="er-src" style="white-space: pre;">{{ mermaid }}</pre>
+    </div>
+  </div>
+</div>
+
+<style>
+/* دعم RTL للمحتوى العام مع إبقاء الرسم LTR لقراءة أسهل للأسماء اللاتينية */
+#er-wrap svg { width: 100%; height: 100%; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+{{ block.super }}
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+(function(){
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: true, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default' });
+  }
+  // تنزيل SVG
+  document.getElementById('btn-download-svg').addEventListener('click', function(){
+    const svg = document.querySelector('#er-wrap svg');
+    if(!svg){ alert('الرسم غير جاهز بعد.'); return; }
+    const xml = new XMLSerializer().serializeToString(svg);
+    const blob = new Blob([xml], {type: 'image/svg+xml'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='db_relations.svg'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 500);
+  });
+})();
+</script>
+{% endblock %}

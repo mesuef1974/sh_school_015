@@ -30,6 +30,40 @@
   <!-- روابط سريعة لصفحات الجداول الاحترافية -->
   <div class="row g-3 mb-4">
     <div class="col-md-6 col-lg-4">
+      <a class="text-decoration-none" href="{% url 'data_relations' %}">
+        <div class="card card-hover h-100">
+          <div class="card-body d-flex align-items-start justify-content-between">
+            <div>
+              <div class="fw-bold">
+                <lord-icon class="anim-icon" src="https://cdn.lordicon.com/qtqvorle.json" trigger="hover" colors="primary:#c49a6c,secondary:#7b1e1e" aria-label="العلاقات"></lord-icon>
+                <i class="bi bi-diagram-3-fill text-accent me-1 li-fallback"></i>
+                خريطة علاقات قاعدة البيانات
+              </div>
+              <div class="text-muted small">رسم ER يوضّح الترابط بين الجداول</div>
+            </div>
+            <span class="badge bg-accent-subtle text-accent">فتح</span>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <a class="text-decoration-none" href="{% url 'data_db_audit' %}">
+        <div class="card card-hover h-100">
+          <div class="card-body d-flex align-items-start justify-content-between">
+            <div>
+              <div class="fw-bold">
+                <lord-icon class="anim-icon" src="https://cdn.lordicon.com/uecgmesg.json" trigger="hover" colors="primary:#198754,secondary:#0a3622" aria-label="تدقيق"></lord-icon>
+                <i class="bi bi-clipboard2-check text-success me-1 li-fallback"></i>
+                تدقيق أفضل الممارسات
+              </div>
+              <div class="text-muted small">اقتراحات قيود وفهارس لتحسين الأداء والجودة</div>
+            </div>
+            <span class="badge bg-success-subtle text-success">فتح</span>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-md-6 col-lg-4">
       <a class="text-decoration-none" href="{% url 'teacher_week_matrix' %}">
         <div class="card card-hover h-100">
           <div class="card-body d-flex align-items-start justify-content-between">

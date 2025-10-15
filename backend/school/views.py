@@ -49,6 +49,12 @@ from django.contrib.auth import logout
 from django.views.decorators.cache import never_cache
 from .services.imports import import_teacher_loads
 from .models import Wing
+from django.conf import settings
+import os
+import io
+from .services.timetable_import import import_timetable_csv
+from .services.timetable_ocr import try_extract_csv_from_pdf, try_extract_csv_from_image
+from .services.ocr_table_parser import parse_ocr_raw_to_csv
 
 
 class ClassViewSet(ModelViewSet):
@@ -787,6 +793,25 @@ def teacher_class_matrix(request):
     classes = Class.objects.all().order_by("grade", "section", "id")
     class_list = list(classes)
 
+    # Build aggregated columns by label (grade-section) to avoid duplicate columns for same label
+    def _cls_label(c: Class) -> str:  # type: ignore[name-defined]
+        sec = (c.section or "").strip()
+        return f"{c.grade}-{sec}" if sec else str(c.grade)
+
+    columns_map = {}
+    columns_order = []
+    for c in class_list:
+        label = _cls_label(c)
+        if label not in columns_map:
+            columns_map[label] = {"label": label, "ids": [c.id], "title": c.name}
+            columns_order.append(label)
+        else:
+            columns_map[label]["ids"].append(c.id)
+            # If multiple classes share the same label, concatenate names for tooltip/title clarity
+            columns_map[label]["title"] = columns_map[label]["title"] + ", " + c.name
+
+    columns = [columns_map[lbl] for lbl in columns_order]
+
     # Get teachers (rows) who have at least one assignment
     # Order teachers by requested specialty categories then by name
     cat_expr_for_staff = _subject_category_order_expr("assignments__subject__name_ar")
@@ -908,38 +933,64 @@ def teacher_class_matrix(request):
     }
     single_subj_name_map = {}
 
-    # Precompute rows (cells ordered by class_list) and row totals
+    # Precompute rows (cells ordered by aggregated columns) and row totals
     cells_by_teacher = {}
     row_totals = {}
     for t in teacher_list:
         row = []
         s = 0
-        for c in class_list:
-            v = int(matrix.get((t.id, c.id), 0) or 0)
-            sublist = subs_map.get((t.id, c.id), [])
-            cs_cnt = cnt_map.get(c.id, 0)
-            editable = (len(sublist) == 1) or (len(sublist) == 0 and cs_cnt == 1)
-            # Build tooltip label; if empty but class has one subject, show that subject name
-            if sublist:
-                subjects_label = ", ".join([f"{x['subject']} ({x['weekly']})" for x in sublist])
+        for col in columns:
+            ids = col["ids"]
+            # Sum across all classes sharing the same label
+            v = 0
+            combined_subs = []
+            for cid in ids:
+                v += int(matrix.get((t.id, cid), 0) or 0)
+                sl = subs_map.get((t.id, cid), [])
+                if sl:
+                    # Tag with class id for clarity when multiple
+                    for x in sl:
+                        combined_subs.append(
+                            {"subject": x["subject"], "weekly": x["weekly"], "class_id": cid}
+                        )
+            # Editable only when a single underlying class and the same rules as before
+            if len(ids) == 1:
+                cid = ids[0]
+                sublist = subs_map.get((t.id, cid), [])
+                cs_cnt = cnt_map.get(cid, 0)
+                editable = (len(sublist) == 1) or (len(sublist) == 0 and cs_cnt == 1)
+                # Build tooltip label; if empty but class has one subject, show that subject name
+                if sublist:
+                    subjects_label = ", ".join([f"{x['subject']} ({x['weekly']})" for x in sublist])
+                else:
+                    subjects_label = ""
+                    if cs_cnt == 1:
+                        if cid not in single_subj_name_map:
+                            cs_obj = (
+                                ClassSubject.objects.filter(classroom_id=cid)
+                                .select_related("subject")
+                                .first()
+                            )
+                            single_subj_name_map[cid] = (
+                                cs_obj.subject.name_ar if cs_obj and cs_obj.subject else ""
+                            )
+                        subjects_label = single_subj_name_map.get(cid, "")
+                class_id_for_cell = cid
             else:
-                subjects_label = ""
-                if cs_cnt == 1:
-                    if c.id not in single_subj_name_map:
-                        cs_obj = (
-                            ClassSubject.objects.filter(classroom_id=c.id)
-                            .select_related("subject")
-                            .first()
-                        )
-                        single_subj_name_map[c.id] = (
-                            cs_obj.subject.name_ar if cs_obj and cs_obj.subject else ""
-                        )
-                    subjects_label = single_subj_name_map.get(c.id, "")
+                editable = False
+                # Build combined tooltip
+                if combined_subs:
+                    subjects_label = "; ".join(
+                        [f"{x['subject']} ({x['weekly']})" for x in combined_subs]
+                    )
+                else:
+                    subjects_label = ""
+                class_id_for_cell = 0  # aggregated; not directly editable
             row.append(
                 {
                     "value": v,
                     "teacher_id": t.id,
-                    "class_id": c.id,
+                    "class_id": class_id_for_cell,
                     "subjects": subjects_label,
                     "editable": editable,
                 }
@@ -948,22 +999,15 @@ def teacher_class_matrix(request):
         cells_by_teacher[t.id] = row
         row_totals[t.id] = s
 
-    # Column totals in class order
+    # Column totals in columns order
     col_totals_list = []
-    for idx, c in enumerate(class_list):
+    for idx, _col in enumerate(columns):
         s = 0
         for t in teacher_list:
             s += cells_by_teacher[t.id][idx]["value"]
         col_totals_list.append(s)
 
     grand_total = sum(row_totals.values())
-
-    # Labels for columns: grade-section (e.g., 7-A)
-    def _cls_label(c: Class) -> str:  # type: ignore[name-defined]
-        sec = (c.section or "").strip()
-        if sec:
-            return f"{c.grade}-{sec}"
-        return str(c.grade)
 
     # Build rows for easier templating
     rows = []
@@ -998,8 +1042,7 @@ def teacher_class_matrix(request):
     context = {
         "title": "مصفوفة الأنصبة — معلّم × صف",
         "rows": rows,
-        "classes": class_list,
-        "cls_label": _cls_label,
+        "columns": columns,
         "col_totals_list": col_totals_list,
         "grand_total": grand_total,
         "gaps_count": gaps_count,
@@ -1036,8 +1079,84 @@ def teacher_week_matrix(request):
         )
         teacher_qs = (
             Staff.objects.filter(Q(assignments__isnull=False) | Q(id__in=teacher_ids_with_entries))
+            .annotate(
+                life_skills_total=Sum(
+                    "assignments__no_classes_weekly",
+                    filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+                ),
+                non_ls_min=Min(
+                    Case(
+                        When(
+                            assignments__subject__name_ar__icontains="مهارات",
+                            then=Value(999),
+                        ),
+                        default=_subject_category_order_expr("assignments__subject__name_ar"),
+                        output_field=IntegerField(),
+                    )
+                ),
+                job_title_cat=_job_title_category_order_expr("job_title"),
+                all_min=Min(_subject_category_order_expr("assignments__subject__name_ar")),
+            )
+            .annotate(
+                has_social=Sum(
+                    Case(
+                        When(
+                            Q(assignments__subject__name_ar__icontains="جغرافيا")
+                            | Q(assignments__subject__name_ar__icontains="تاريخ")
+                            | Q(assignments__subject__name_ar__icontains="اجتماع")
+                            | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                            then=Value(1),
+                        ),
+                        default=Value(0),
+                        output_field=IntegerField(),
+                    )
+                ),
+                override_cat=Case(
+                    When(full_name__icontains="وجدي", then=Value(14)),
+                    When(full_name__icontains="منير", then=Value(12)),
+                    When(
+                        Q(full_name__icontains="أحمد المنصف")
+                        | Q(full_name__icontains="احمد المنصف"),
+                        then=Value(12),
+                    ),
+                    When(full_name__icontains="السيد محمد", then=Value(9)),
+                    When(full_name__icontains="محمد عدوان", then=Value(9)),
+                    When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                    When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                    When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                    When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                    default=Value(None),
+                    output_field=IntegerField(),
+                ),
+                prefer_social=Case(
+                    When(has_social__gt=0, then=Value(9)),
+                    default=Value(None),
+                    output_field=IntegerField(),
+                ),
+                min_category=Case(
+                    When(
+                        Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                        then=Coalesce(
+                            F("override_cat"),
+                            F("prefer_social"),
+                            F("job_title_cat"),
+                            F("all_min"),
+                            Value(999),
+                        ),
+                    ),
+                    default=Coalesce(
+                        F("override_cat"),
+                        F("prefer_social"),
+                        F("all_min"),
+                        F("non_ls_min"),
+                        F("job_title_cat"),
+                        Value(999),
+                    ),
+                    output_field=IntegerField(),
+                ),
+            )
             .distinct()
-            .order_by("full_name")
+            .order_by("min_category", "full_name", "id")
         )
         teachers = list(teacher_qs)
 
@@ -1086,6 +1205,10 @@ def teacher_week_matrix(request):
         "teachers": teachers,
         "grid": grid,
         "DAYS": DAYS,
+        "DAYS_RTL": list(reversed(DAYS)),
+        "DAY_NAMES": {1: "الأحد", 2: "الإثنين", 3: "الثلاثاء", 4: "الأربعاء", 5: "الخميس"},
+        # Present periods in descending order in UI (7 → 1) while keeping grid keys as 1..7
+        "PERIODS_DESC": list(reversed(PERIODS)),
         "PERIODS": PERIODS,
         "subject_colors": subject_colors,
         "assign_opts": asg_opts,
@@ -1115,8 +1238,84 @@ def teacher_week_compact(request):
     )
     teacher_qs = (
         Staff.objects.filter(Q(assignments__isnull=False) | Q(id__in=teacher_ids_with_entries))
+        .exclude(full_name="يوسف يعقوب")
+        .annotate(
+            life_skills_total=Sum(
+                "assignments__no_classes_weekly",
+                filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+            ),
+            non_ls_min=Min(
+                Case(
+                    When(
+                        assignments__subject__name_ar__icontains="مهارات",
+                        then=Value(999),
+                    ),
+                    default=_subject_category_order_expr("assignments__subject__name_ar"),
+                    output_field=IntegerField(),
+                )
+            ),
+            job_title_cat=_job_title_category_order_expr("job_title"),
+            all_min=Min(_subject_category_order_expr("assignments__subject__name_ar")),
+        )
+        .annotate(
+            has_social=Sum(
+                Case(
+                    When(
+                        Q(assignments__subject__name_ar__icontains="جغرافيا")
+                        | Q(assignments__subject__name_ar__icontains="تاريخ")
+                        | Q(assignments__subject__name_ar__icontains="اجتماع")
+                        | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                        then=Value(1),
+                    ),
+                    default=Value(0),
+                    output_field=IntegerField(),
+                )
+            ),
+            override_cat=Case(
+                When(full_name__icontains="وجدي", then=Value(14)),
+                When(full_name__icontains="منير", then=Value(12)),
+                When(
+                    Q(full_name__icontains="أحمد المنصف") | Q(full_name__icontains="احمد المنصف"),
+                    then=Value(12),
+                ),
+                When(full_name__icontains="السيد محمد", then=Value(9)),
+                When(full_name__icontains="محمد عدوان", then=Value(9)),
+                When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            prefer_social=Case(
+                When(has_social__gt=0, then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            min_category=Case(
+                When(
+                    Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                    then=Coalesce(
+                        F("override_cat"),
+                        F("prefer_social"),
+                        F("job_title_cat"),
+                        F("all_min"),
+                        Value(999),
+                    ),
+                ),
+                default=Coalesce(
+                    F("override_cat"),
+                    F("prefer_social"),
+                    F("all_min"),
+                    F("non_ls_min"),
+                    F("job_title_cat"),
+                    Value(999),
+                ),
+                output_field=IntegerField(),
+            ),
+        )
         .distinct()
-        .order_by("full_name")
+        .order_by("min_category", "full_name", "id")
     )
     teachers = list(teacher_qs)
 
@@ -1170,6 +1369,7 @@ def teacher_week_compact(request):
         "teachers": teachers,
         "grid": grid,
         "DAYS": DAYS,
+        "DAYS_RTL": list(reversed(DAYS)),
         # Period headers descending like the sample image (7..1)
         "PERIODS_DESC": list(reversed(PERIODS)),
         "PERIODS": PERIODS,
@@ -1179,6 +1379,220 @@ def teacher_week_compact(request):
         "total_cols": total_cols,
     }
     return render(request, "school/teacher_week_compact.html", context)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def timetable_source_image(request):
+    # Support multiple possible filenames per user uploads (prioritize Arabic legacy name)
+    candidate_names = [
+        "الجدول العام.jpg",
+        "الجدول العام.jpeg",
+        "الجدول العام.png",
+        "time_table.png",
+        "time_table.jpg",
+        "time_table.jpeg",
+    ]
+    base_dir = os.path.abspath(os.path.join(settings.BASE_DIR, "..", "DOC", "school_DATA"))
+    path = None
+    for name in candidate_names:
+        p = os.path.join(base_dir, name)
+        if os.path.exists(p):
+            path = p
+            break
+    if not path:
+        raise Http404("الصورة غير موجودة")
+
+    # Guess content type by extension
+    import mimetypes
+
+    content_type = mimetypes.guess_type(path)[0] or "image/jpeg"
+
+    def file_iter():
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+
+    return StreamingHttpResponse(file_iter(), content_type=content_type)
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def timetable_source_pdf(request):
+    # Support both the Arabic legacy name and the new file name (prioritize Arabic)
+    candidate_names = [
+        "الجدول العام.pdf",
+        "time_table.pdf",
+    ]
+    base_dir = os.path.abspath(os.path.join(settings.BASE_DIR, "..", "DOC", "school_DATA"))
+    path = None
+    for name in candidate_names:
+        p = os.path.join(base_dir, name)
+        if os.path.exists(p):
+            path = p
+            break
+    if not path:
+        raise Http404("الملف غير موجود")
+
+    def file_iter():
+        with open(path, "rb") as f:
+            while True:
+                chunk = f.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+
+    return StreamingHttpResponse(file_iter(), content_type="application/pdf")
+
+
+class TimetableImageImportForm(forms.Form):
+    csv_text = forms.CharField(
+        label="بيانات CSV (انسخ من الجدول)",
+        widget=forms.Textarea(
+            attrs={
+                "rows": 18,
+                "dir": "rtl",
+                "style": "font-family:monospace; direction: rtl; unicode-bidi: plaintext; text-align: right;",
+            }
+        ),
+    )
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def timetable_import_from_image(request):
+    # Prefill from template if exists
+    template_path = os.path.abspath(
+        os.path.join(settings.BASE_DIR, "..", "DOC", "school_DATA", "timetable_template.csv")
+    )
+    template_text = "teacher,class,subject,day,period\n"  # fallback header
+    try:
+        if os.path.exists(template_path):
+            with open(template_path, "r", encoding="utf-8-sig") as f:
+                template_text = f.read()
+    except Exception:
+        pass
+
+    if request.method == "POST":
+        action = request.POST.get("action", "import")
+        if action == "auto":
+            # Auto-extract via OCR/PDF
+            # existing logic below
+            # Try to auto-extract CSV from PDF first, then image as fallback
+            base_dir = os.path.abspath(os.path.join(settings.BASE_DIR, "..", "DOC", "school_DATA"))
+            pdf_candidates = [
+                "الجدول العام.pdf",
+                "time_table.pdf",
+            ]
+            img_candidates = [
+                "الجدول العام.jpg",
+                "الجدول العام.jpeg",
+                "الجدول العام.png",
+                "time_table.png",
+                "time_table.jpg",
+                "time_table.jpeg",
+            ]
+            pdf_path = next(
+                (
+                    os.path.join(base_dir, n)
+                    for n in pdf_candidates
+                    if os.path.exists(os.path.join(base_dir, n))
+                ),
+                None,
+            )
+            img_path = next(
+                (
+                    os.path.join(base_dir, n)
+                    for n in img_candidates
+                    if os.path.exists(os.path.join(base_dir, n))
+                ),
+                None,
+            )
+            csv_text = ""
+            warn = ""
+            if pdf_path:
+                csv_text, warn = try_extract_csv_from_pdf(pdf_path)
+            if not csv_text and img_path:
+                csv_text, warn = try_extract_csv_from_image(img_path)
+            if csv_text:
+                form = TimetableImageImportForm(initial={"csv_text": csv_text})
+                messages.info(
+                    request, "تمت محاولة الاستخراج الآلي. يرجى المراجعة ثم الضغط على استيراد."
+                )
+                if warn:
+                    messages.warning(request, warn)
+            else:
+                form = TimetableImageImportForm(initial={"csv_text": template_text})
+                messages.error(request, warn or "تعذر الاستخراج الآلي. الرجاء إدخال CSV يدويًا.")
+        elif action == "parse_raw":
+            raw_text = request.POST.get("raw_text", "")
+            if not raw_text.strip():
+                form = TimetableImageImportForm(initial={"csv_text": template_text})
+                messages.error(request, "الرجاء لصق النص الخام الملتقط أولاً.")
+            else:
+                try:
+                    csv_text, warns = parse_ocr_raw_to_csv(raw_text)
+                    form = TimetableImageImportForm(initial={"csv_text": csv_text})
+                    messages.success(request, "تم تحويل النص الخام إلى CSV — راجع ثم اضغط استيراد.")
+                    for w in warns[:20]:
+                        messages.warning(request, w)
+                    if len(warns) > 20:
+                        messages.info(request, f"إشعارات إضافية: {len(warns)-20} …")
+                except Exception as e:
+                    form = TimetableImageImportForm(initial={"csv_text": template_text})
+                    messages.error(request, f"تعذر التحويل: {e}")
+        else:
+            form = TimetableImageImportForm(request.POST)
+            if form.is_valid():
+                csv_text = form.cleaned_data["csv_text"] or ""
+                if not csv_text.strip():
+                    messages.error(request, "الرجاء لصق بيانات CSV أولاً.")
+                else:
+                    try:
+                        summary = import_timetable_csv(io.StringIO(csv_text), dry_run=False)
+                        messages.success(
+                            request,
+                            f"تم الاستيراد: مضاف {summary.get('created', 0)}, مستبدل {summary.get('replaced', 0)}, متخطى {summary.get('skipped', 0)}",
+                        )
+                        if summary.get("errors"):
+                            messages.warning(request, "\n".join(summary["errors"]))
+                        return redirect("teacher_week_compact")
+                    except Exception as e:
+                        messages.error(request, f"فشل الاستيراد: {e}")
+    else:
+        form = TimetableImageImportForm(initial={"csv_text": template_text})
+
+    # Detect which source files are available to show helpful captions
+    base_dir = os.path.abspath(os.path.join(settings.BASE_DIR, "..", "DOC", "school_DATA"))
+    img_candidates = [
+        "الجدول العام.jpg",
+        "الجدول العام.jpeg",
+        "الجدول العام.png",
+        "time_table.png",
+        "time_table.jpg",
+        "time_table.jpeg",
+    ]
+    pdf_candidates = [
+        "الجدول العام.pdf",
+        "time_table.pdf",
+    ]
+    source_image_name = next(
+        (n for n in img_candidates if os.path.exists(os.path.join(base_dir, n))), None
+    )
+    source_pdf_name = next(
+        (n for n in pdf_candidates if os.path.exists(os.path.join(base_dir, n))), None
+    )
+
+    context = {
+        "title": "استيراد الجدول من صورة/بي دي إف",
+        "form": form,
+        "source_image_name": source_image_name,
+        "source_pdf_name": source_pdf_name,
+    }
+    return render(request, "school/timetable_import_from_image.html", context)
 
 
 @login_required
@@ -1233,6 +1647,7 @@ def api_timetable_add(request):
                 "id": e.id,
                 "teacher_id": teacher_id,
                 "classroom": e.classroom.name,
+                "classroom_label": f"{e.classroom.grade}-{e.classroom.section}",
                 "classroom_id": classroom_id,
                 "subject": e.subject.name_ar,
                 "subject_id": subject_id,
@@ -1303,6 +1718,7 @@ def api_timetable_move(request):
                 "id": e.id,
                 "teacher_id": e.teacher_id,
                 "classroom": e.classroom.name,
+                "classroom_label": f"{e.classroom.grade}-{e.classroom.section}",
                 "classroom_id": e.classroom_id,
                 "subject": e.subject.name_ar,
                 "subject_id": e.subject_id,
@@ -1660,6 +2076,116 @@ def data_overview(request):
         "tables": table_stats,
     }
     return render(request, "data/overview.html", context)
+
+
+@user_passes_test(_staff_only)
+@login_required
+def data_relations(request):
+    """Visual ER-style diagram of the core app (school) database relations.
+    Produces a Mermaid ER diagram string from Django model metadata.
+    Adds live database info (engine/name/version) — handy for PostgreSQL environments.
+    """
+    try:
+        from django.apps import apps
+        from django.db.models import ForeignKey, OneToOneField, ManyToManyField
+    except Exception:
+        return render(
+            request,
+            "data/relations.html",
+            {"title": "العلاقات بين الجداول", "mermaid": "erDiagram\n", "db_info": None},
+        )
+
+    # Collect DB info (engine/vendor, name, version if supported)
+    db_info = None
+    try:
+        vendor = connection.vendor  # 'postgresql', 'sqlite', 'mysql', ...
+        settings_dict = getattr(connection, "settings_dict", {}) or {}
+        db_name = settings_dict.get("NAME")
+        db_ver = None
+        if vendor == "postgresql":
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT version();")
+                row = cursor.fetchone()
+                db_ver = row[0] if row else None
+        elif vendor == "mysql":
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT VERSION();")
+                row = cursor.fetchone()
+                db_ver = row[0] if row else None
+        else:
+            # Some backends expose server_version via connection
+            db_ver = getattr(connection, "server_version", None)
+        db_info = {"vendor": vendor, "name": db_name, "version": db_ver}
+    except Exception:
+        db_info = None
+
+    app_label = "school"
+    models = [m for m in apps.get_app_config(app_label).get_models()]
+
+    # Build entities and relations
+    entities = []  # list of (ModelName, [fields])
+    rels = []  # list of (left, left_card, right_card, right, label)
+
+    def model_alias(m):
+        return m.__name__
+
+    for m in models:
+        # Collect main fields (exclude many-to-many auto tables)
+        flds = []
+        for f in m._meta.get_fields():
+            try:
+                if hasattr(f, "many_to_many") and f.many_to_many and not f.concrete:
+                    continue
+                if getattr(f, "auto_created", False) and not getattr(f, "concrete", False):
+                    continue
+                name = getattr(f, "name", getattr(f, "attname", str(f)))
+                if isinstance(f, (ForeignKey, OneToOneField)):
+                    # For Mermaid erDiagram, avoid arrows/special syntax in field names
+                    # Show FK/O2O field as a plain attribute (relations are rendered separately)
+                    flds.append(name)
+                else:
+                    flds.append(name)
+            except Exception:
+                continue
+        entities.append((model_alias(m), flds))
+
+        # Relations: FK and O2O from this model to target
+        for f in m._meta.get_fields():
+            try:
+                if isinstance(f, ForeignKey):
+                    rels.append((model_alias(m), "}o", "||", model_alias(f.related_model), f.name))
+                elif isinstance(f, OneToOneField):
+                    rels.append((model_alias(m), "||", "||", model_alias(f.related_model), f.name))
+                elif isinstance(f, ManyToManyField):
+                    # many-to-many (skip auto-created through models displayed as entities anyway)
+                    rels.append((model_alias(m), "}o", "o{", model_alias(f.related_model), f.name))
+            except Exception:
+                continue
+
+    # Compose Mermaid erDiagram
+    lines = ["erDiagram"]
+    for name, flds in sorted(entities, key=lambda x: x[0]):
+        lines.append(f"  {name} {{")
+        # Keep only up to 12 fields to avoid clutter
+        for fld in flds[:12]:
+            # Mermaid expects type name first, but we can fake with string
+            lines.append(f"    string {fld}")
+        lines.append("  }")
+    # Relations (deduplicate)
+    seen = set()
+    for a, lc, rc, b, label in rels:
+        key = (a, lc, rc, b, label)
+        if key in seen:
+            continue
+        seen.add(key)
+        # Mermaid ER labels should not be quoted; keep simple ASCII labels
+        # Also ensure label has no spaces or special characters (field names from Django are safe)
+        lines.append(f"  {a} {lc}--{rc} {b} : {label}")
+
+    mermaid_src = "\n".join(lines)
+
+    context = {"title": "العلاقات بين الجداول", "mermaid": mermaid_src, "db_info": db_info}
+    return render(request, "data/relations.html", context)
 
 
 @user_passes_test(_staff_only)
@@ -3056,3 +3582,382 @@ def wing_detail(request, wing_id: int):
             "staff_list": staff_list,
         },
     )
+
+
+@login_required
+def assignments_vs_timetable(request):
+    """Compare teacher TeachingAssignment weekly loads vs actual weekly counts in TimetableEntry.
+    Shows only differences (shortage/surplus or missing/extra) grouped by teacher.
+    """
+    # Current term for timetable comparison (if missing, treat timetable as empty)
+    term = Term.objects.filter(is_current=True).first()
+
+    # Aggregated assignments per teacher/class/subject
+    a_qs = TeachingAssignment.objects.values("teacher_id", "classroom_id", "subject_id").annotate(
+        weekly=Sum("no_classes_weekly")
+    )
+    a_map = {
+        (r["teacher_id"], r["classroom_id"], r["subject_id"]): int(r["weekly"] or 0) for r in a_qs
+    }
+
+    # Aggregated timetable per teacher/class/subject for the current term
+    if term:
+        from django.db.models import Count
+
+        t_qs = (
+            TimetableEntry.objects.filter(term=term)
+            .values("teacher_id", "classroom_id", "subject_id")
+            .annotate(weekly=Count("id"))
+        )
+    else:
+        t_qs = []
+    t_map = {
+        (r["teacher_id"], r["classroom_id"], r["subject_id"]): int(r["weekly"] or 0) for r in t_qs
+    }
+
+    # Union keys to detect extras/missing
+    keys = set(a_map.keys()) | set(t_map.keys())
+
+    # Load name maps
+    teacher_ids = sorted({k[0] for k in keys})
+    class_ids = sorted({k[1] for k in keys})
+    subject_ids = sorted({k[2] for k in keys})
+    teachers = {s.id: s for s in Staff.objects.filter(id__in=teacher_ids)}
+    classes = {c.id: c for c in Class.objects.filter(id__in=class_ids)}
+    subjects = {s.id: s for s in Subject.objects.filter(id__in=subject_ids)}
+
+    # Build differences grouped by teacher
+    rows_by_teacher = {}
+    teacher_totals = {}
+    teachers_with_diff = set()
+
+    for k in sorted(keys):
+        tid, cid, sid = k
+        a = a_map.get(k, 0)
+        t = t_map.get(k, 0)
+        if a != t:
+            teachers_with_diff.add(tid)
+            diff = t - a
+            rows_by_teacher.setdefault(tid, []).append(
+                {
+                    "class": classes.get(cid),
+                    "subject": subjects.get(sid),
+                    "assign_weekly": a,
+                    "timetable_weekly": t,
+                    "diff": diff,
+                }
+            )
+        # accumulate totals per teacher for summary
+        tot = teacher_totals.setdefault(tid, {"assign": 0, "time": 0})
+        tot["assign"] += a
+        tot["time"] += t
+
+    # Build list of teachers for template (only those with any differences)
+    teacher_items = []
+    for tid in sorted(
+        teachers_with_diff, key=lambda i: (teachers.get(i).full_name if teachers.get(i) else "")
+    ):
+        t = teachers.get(tid)
+        diffs = rows_by_teacher.get(tid, [])
+        # sort diffs by class then subject name
+        diffs.sort(
+            key=lambda r: (
+                (
+                    (r["class"].grade, r["class"].section, r["class"].name)
+                    if r["class"]
+                    else (0, "", "")
+                ),
+                r["subject"].name_ar if r["subject"] else "",
+            )
+        )
+        totals = teacher_totals.get(tid, {"assign": 0, "time": 0})
+        totals["diff"] = totals["time"] - totals["assign"]
+        teacher_items.append(
+            {
+                "teacher": t,
+                "diffs": diffs,
+                "totals": totals,
+            }
+        )
+
+    # KPIs
+    kpi_total_teachers = len(set(teacher_ids))
+    kpi_with_diff = len(teachers_with_diff)
+    kpi_no_diff = kpi_total_teachers - kpi_with_diff
+
+    context = {
+        "title": "مقارنة التكليفات مع الجداول",
+        "term": term,
+        "teacher_items": teacher_items,
+        "kpi_total_teachers": kpi_total_teachers,
+        "kpi_with_diff": kpi_with_diff,
+        "kpi_no_diff": kpi_no_diff,
+    }
+
+    return render(request, "school/assignments_vs_timetable.html", context)
+
+
+# === DB Audit / Best Practices ===
+
+
+@user_passes_test(_staff_only)
+@login_required
+def data_db_audit(request):
+    """Lightweight DB best-practices audit for the 'school' app.
+    Runs introspection-based checks and suggests constraints/indexes improvements.
+    Safe: read-only; no migrations applied automatically.
+    """
+    # DB info
+    try:
+        vendor = connection.vendor
+        settings_dict = getattr(connection, "settings_dict", {}) or {}
+        db_name = settings_dict.get("NAME")
+        db_ver = None
+        if vendor == "postgresql":
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT version();")
+                row = cursor.fetchone()
+                db_ver = row[0] if row else None
+        elif vendor == "mysql":
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT VERSION();")
+                row = cursor.fetchone()
+                db_ver = row[0] if row else None
+        else:
+            db_ver = getattr(connection, "server_version", None)
+        db_info = {"vendor": vendor, "name": db_name, "version": db_ver}
+    except Exception:
+        db_info = {"vendor": None, "name": None, "version": None}
+
+    # Resolve table names
+    term_tbl = Term._meta.db_table
+    tten_tbl = TimetableEntry._meta.db_table
+    atre_tbl = AttendanceRecord._meta.db_table
+    tasg_tbl = TeachingAssignment._meta.db_table
+    stud_tbl = Student._meta.db_table
+
+    passes = []
+    suggestions = []
+
+    def add_pass(title, detail):
+        passes.append({"title": title, "detail": detail})
+
+    def add_sug(title, detail, hint=None):
+        suggestions.append({"title": title, "detail": detail, "hint": hint})
+
+    # Fetch constraints and indexes per table
+    introspection = connection.introspection
+    constraints = {}
+    with connection.cursor() as cursor:
+        for tbl in [term_tbl, tten_tbl, atre_tbl, tasg_tbl, stud_tbl]:
+            try:
+                constraints[tbl] = introspection.get_constraints(cursor, tbl)
+            except Exception:
+                constraints[tbl] = {}
+
+    def has_named(tbl, name_substr):
+        for cname in constraints.get(tbl, {}).keys():
+            if name_substr.lower() in cname.lower():
+                return True
+        return False
+
+    def has_index_with_columns(tbl, cols_exact_order):
+        cols_exact_order = [c.lower() for c in cols_exact_order]
+        for cname, cinfo in constraints.get(tbl, {}).items():
+            try:
+                if cinfo.get("index"):
+                    cols = [c.lower() for c in (cinfo.get("columns") or [])]
+                    if cols == cols_exact_order:
+                        return True
+            except Exception:
+                continue
+        return False
+
+    # 1) Term: one current term per academic year (conditional unique)
+    if has_named(term_tbl, "one_current_term_per_year"):
+        add_pass("ترم واحد حالي لكل سنة دراسية", "قيد فريد مشروط موجود (one_current_term_per_year)")
+    else:
+        add_sug(
+            "ترم واحد حالي لكل سنة دراسية",
+            "يفضل إضافة UniqueConstraint مشروط لضمان وجود ترم حالي واحد لكل سنة.",
+            hint=(
+                "from django.db import migrations, models\n\n"
+                "migrations.AddConstraint(\n"
+                "    model_name='term',\n"
+                "    constraint=models.UniqueConstraint(\n"
+                "        fields=['academic_year', 'is_current'],\n"
+                "        condition=models.Q(is_current=True),\n"
+                "        name='one_current_term_per_year',\n"
+                "    ),\n"
+                ")"
+            ),
+        )
+
+    # 2) TimetableEntry: bounds checks and composite indexes
+    if has_named(tten_tbl, "tt_day_between_1_5"):
+        add_pass("قيد CHECK على اليوم", "day_of_week بين 1 و 5")
+    else:
+        add_sug(
+            "قيد CHECK على اليوم",
+            "ضبط المجال ليكون اليوم بين الأحد والخميس (1..5).",
+            hint=(
+                "migrations.AddConstraint(\n"
+                "    model_name='timetableentry',\n"
+                "    constraint=models.CheckConstraint(\n"
+                "        check=models.Q(day_of_week__gte=1) & models.Q(day_of_week__lte=5),\n"
+                "        name='tt_day_between_1_5',\n"
+                "    ),\n"
+                ")"
+            ),
+        )
+    if has_named(tten_tbl, "tt_period_between_1_7"):
+        add_pass("قيد CHECK على رقم الحصة", "period_number بين 1 و 7")
+    else:
+        add_sug(
+            "قيد CHECK على رقم الحصة",
+            "ضبط المجال ليكون رقم الحصة بين 1 و 7.",
+            hint=(
+                "migrations.AddConstraint(\n"
+                "    model_name='timetableentry',\n"
+                "    constraint=models.CheckConstraint(\n"
+                "        check=models.Q(period_number__gte=1) & models.Q(period_number__lte=7),\n"
+                "        name='tt_period_between_1_7',\n"
+                "    ),\n"
+                ")"
+            ),
+        )
+
+    if has_index_with_columns(tten_tbl, ["term_id", "teacher_id", "day_of_week", "period_number"]):
+        add_pass(
+            "فهرس مركب (term,teacher,day,period)", "يوجد فهرس يغطي نمط الاستعلام الشائع للمعلم"
+        )
+    else:
+        add_sug(
+            "فهرس مركب لجدول الحصص (حسب المعلم)",
+            "يسّرع استعلامات مصفوفة الجدول والتقارير.",
+            hint=(
+                "migrations.AddIndex(\n"
+                "    model_name='timetableentry',\n"
+                "    index=models.Index(fields=['term','teacher','day_of_week','period_number'], name='tt_term_teacher_day_period_idx'),\n"
+                ")"
+            ),
+        )
+
+    if has_index_with_columns(
+        tten_tbl, ["term_id", "classroom_id", "day_of_week", "period_number"]
+    ):
+        add_pass("فهرس مركب (term,class,day,period)", "يوجد فهرس يغطي نمط الاستعلام الشائع للصف")
+    else:
+        add_sug(
+            "فهرس مركب لجدول الحصص (حسب الصف)",
+            "يسّرع التحقق من التعارضات واستعلامات العرض حسب الصف.",
+            hint=(
+                "migrations.AddIndex(\n"
+                "    model_name='timetableentry',\n"
+                "    index=models.Index(fields=['term','classroom','day_of_week','period_number'], name='tt_term_class_day_period_idx'),\n"
+                ")"
+            ),
+        )
+
+    # 3) AttendanceRecord: bounds and composite indexes
+    if has_named(atre_tbl, "att_day_between_1_7"):
+        add_pass("قيد CHECK على اليوم (الحضور)", "day_of_week بين 1 و 7")
+    else:
+        add_sug(
+            "قيد CHECK على اليوم (الحضور)",
+            "تحسين جودة البيانات لسجلات الحضور.",
+            hint=(
+                "migrations.AddConstraint(\n"
+                "    model_name='attendancerecord',\n"
+                "    constraint=models.CheckConstraint(\n"
+                "        check=models.Q(day_of_week__gte=1) & models.Q(day_of_week__lte=7),\n"
+                "        name='att_day_between_1_7',\n"
+                "    ),\n"
+                ")"
+            ),
+        )
+    if has_named(atre_tbl, "att_period_between_1_7"):
+        add_pass("قيد CHECK على رقم الحصة (الحضور)", "period_number بين 1 و 7")
+    else:
+        add_sug(
+            "قيد CHECK على رقم الحصة (الحضور)",
+            "ضبط المجال لرقم الحصة.",
+            hint=(
+                "migrations.AddConstraint(\n"
+                "    model_name='attendancerecord',\n"
+                "    constraint=models.CheckConstraint(\n"
+                "        check=models.Q(period_number__gte=1) & models.Q(period_number__lte=7),\n"
+                "        name='att_period_between_1_7',\n"
+                "    ),\n"
+                ")"
+            ),
+        )
+
+    if has_index_with_columns(atre_tbl, ["classroom_id", "date", "period_number", "term_id"]):
+        add_pass("فهرس مركب حضور (class,date,period,term)", "جاهز")
+    else:
+        add_sug(
+            "فهرس مركب للحضور (class,date,period,term)",
+            "يسّرع تقارير اليوميات وإدخالات الحضور.",
+            hint=(
+                "migrations.AddIndex(\n"
+                "    model_name='attendancerecord',\n"
+                "    index=models.Index(fields=['classroom','date','period_number','term'], name='attrec_class_date_period_term_idx'),\n"
+                ")"
+            ),
+        )
+
+    if has_index_with_columns(atre_tbl, ["student_id", "date", "term_id"]):
+        add_pass("فهرس مركب حضور (student,date,term)", "جاهز")
+    else:
+        add_sug(
+            "فهرس مركب للحضور (student,date,term)",
+            "يسّرع استعلامات الطالب عبر التاريخ.",
+            hint=(
+                "migrations.AddIndex(\n"
+                "    model_name='attendancerecord',\n"
+                "    index=models.Index(fields=['student','date','term'], name='attrec_student_date_term_idx'),\n"
+                ")"
+            ),
+        )
+
+    # 4) TeachingAssignment already has unique_together; suggest composite (teacher,classroom) if frequent
+    # We cannot know workload pattern here; provide soft suggestion only if index missing and vendor=postgresql
+    if not has_index_with_columns(tasg_tbl, ["teacher_id", "classroom_id"]):
+        add_sug(
+            "فهرس مركب للتكليفات (teacher,classroom)",
+            "اختياري بحسب نمط الاستعلام؛ مفيد للجداول الكبيرة.",
+            hint=(
+                "migrations.AddIndex(\n"
+                "    model_name='teachingassignment',\n"
+                "    index=models.Index(fields=['teacher','classroom'], name='ta_teacher_class_idx'),\n"
+                ")"
+            ),
+        )
+    else:
+        add_pass("فهرس مركب للتكليفات", "(teacher,classroom) موجود")
+
+    # 5) Optional search improvements (Arabic names)
+    add_sug(
+        "فهرس Trigram لأسماء الطلاب (اختياري)",
+        "لتحسين البحث التقريبي عن الأسماء العربية (PostgreSQL + pg_trgm).",
+        hint=(
+            "-- PostgreSQL\nCREATE EXTENSION IF NOT EXISTS pg_trgm;\n"
+            "CREATE INDEX CONCURRENTLY IF NOT EXISTS student_name_trgm\n"
+            "  ON %s USING GIN (full_name gin_trgm_ops);" % stud_tbl
+        ),
+    )
+
+    from datetime import datetime as _dt
+
+    context = {
+        "title": "تدقيق قاعدة البيانات",
+        "db_info": db_info,
+        "now": _dt.now().strftime("%Y-%m-%d %H:%M"),
+        "passes": passes,
+        "suggestions": suggestions,
+        "checks_total": len(passes) + len(suggestions),
+        "checks_ok": len(passes),
+        "checks_warn": len(suggestions),
+    }
+    return render(request, "data/audit.html", context)

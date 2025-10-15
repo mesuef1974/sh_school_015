@@ -1,0 +1,112 @@
+{% extends "_base_maronia.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+  <h1 class="h4 mb-0">مقارنة التكليفات مع الجداول</h1>
+  <div class="btn-group" role="group" aria-label="أوامر">
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'teacher_loads_dashboard' %}">لوحة الأنصبة</a>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'teacher_class_matrix' %}">مصفوفة الأنصبة</a>
+  </div>
+</div>
+
+<div class="card p-3">
+  <div class="row g-3">
+    <div class="col-12 col-md-4">
+      <div class="p-3 border rounded-3 bg-light h-100">
+        <div class="text-muted small">الفصل الحالي</div>
+        <div class="fw-bold">{% if term %}{{ term }}{% else %}غير محدد{% endif %}</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="p-3 border rounded-3 bg-light h-100">
+        <div class="text-muted small">عدد المعلّمين الكلي</div>
+        <div class="fw-bold">{{ kpi_total_teachers }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="p-3 border rounded-3 bg-light h-100">
+        <div class="text-muted small">مطابقة تامة</div>
+        <div class="fw-bold text-success">{{ kpi_no_diff }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="p-3 border rounded-3 bg-light h-100">
+        <div class="text-muted small">يوجد فروقات</div>
+        <div class="fw-bold text-danger">{{ kpi_with_diff }}</div>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  {% if teacher_items %}
+    <div class="accordion" id="diffsAccordion">
+      {% for item in teacher_items %}
+        {% with t=item.teacher totals=item.totals diffs=item.diffs %}
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="hdr{{ t.id }}">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#col{{ t.id }}" aria-expanded="false" aria-controls="col{{ t.id }}">
+              <span class="me-2">{{ t.full_name }}</span>
+              <span class="badge bg-secondary me-2">التكليف: {{ totals.assign }}</span>
+              <span class="badge bg-info text-dark me-2">الجدول: {{ totals.time }}</span>
+              {% if totals.diff == 0 %}
+                <span class="badge bg-success">مطابقة</span>
+              {% elif totals.diff > 0 %}
+                <span class="badge bg-warning text-dark">+{{ totals.diff }} زيادة</span>
+              {% else %}
+                <span class="badge bg-danger">{{ totals.diff }} نقص</span>
+              {% endif %}
+            </button>
+          </h2>
+          <div id="col{{ t.id }}" class="accordion-collapse collapse" aria-labelledby="hdr{{ t.id }}" data-bs-parent="#diffsAccordion">
+            <div class="accordion-body">
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle text-center" style="direction: rtl;">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="text-start">الصف</th>
+                      <th>المادة</th>
+                      <th>التكليف أسبوعياً</th>
+                      <th>الجدول أسبوعياً</th>
+                      <th>الفرق</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for r in diffs %}
+                      <tr>
+                        <td class="text-start">{% if r.class %}{{ r.class.name }}{% else %}-{% endif %}</td>
+                        <td>{% if r.subject %}{{ r.subject.name_ar }}{% else %}-{% endif %}</td>
+                        <td>{{ r.assign_weekly }}</td>
+                        <td>{{ r.timetable_weekly }}</td>
+                        <td>
+                          {% if r.diff == 0 %}
+                            <span class="badge bg-success">مطابقة</span>
+                          {% elif r.diff > 0 %}
+                            <span class="badge bg-warning text-dark">+{{ r.diff }} زيادة</span>
+                          {% else %}
+                            <span class="badge bg-danger">{{ r.diff }} نقص</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% empty %}
+                      <tr><td colspan="5" class="text-muted">لا توجد فروقات.</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="small text-muted">الفرق = الجدول - التكليف.</div>
+            </div>
+          </div>
+        </div>
+        {% endwith %}
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-success mb-0">لا توجد فروقات بين التكليفات والجداول. كل شيء متطابق 🎉</div>
+  {% endif %}
+</div>
+
+<style>
+.accordion-button .badge { margin-inline-start: .5rem; }
+</style>
+{% endblock %}

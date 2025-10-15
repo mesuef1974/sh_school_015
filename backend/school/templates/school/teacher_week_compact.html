@@ -26,13 +26,13 @@
         <tr class="twc-head-days">
           <th class="sticky-right" rowspan="2" style="min-width: 240px;">المعلّم</th>
           {% for d, dn in DAYS %}
-            <th colspan="7">{{ dn }}</th>
+            <th class="day-idx-{{ forloop.counter0 }}" colspan="7">{{ dn }}</th>
           {% endfor %}
         </tr>
         <tr class="twc-head-periods">
           {% for d, dn in DAYS %}
-            {% for p in PERIODS_DESC %}
-              <th style="width: 46px;">{{ p }}</th>
+            {% for p in PERIODS %}
+              <th class="day-idx-{{ forloop.parentloop.counter0 }} {% if forloop.first %}group-start {% endif %}{% if forloop.last %}group-end{% endif %}" style="width: 46px;">{{ p }}</th>
             {% endfor %}
           {% endfor %}
         </tr>
@@ -40,15 +40,15 @@
       <tbody>
         {% for t in teachers %}
         <tr>
-          <th class="sticky-right text-start">{{ t.full_name }}</th>
+          <th class="sticky-right text-start"><span class="twc-teacher-name">{{ t.full_name }}</span></th>
           {% for d, dn in DAYS %}
-            {% for p in PERIODS_DESC %}
+            {% for p in PERIODS %}
               {% with e=grid|get_attr:t.id|get_attr:d|get_attr:p %}
-              <td class="twc-cell" data-teacher="{{ t.id }}" data-day="{{ d }}" data-period="{{ p }}">
+              <td class="twc-cell day-idx-{{ forloop.parentloop.counter0 }} {% if forloop.first %}group-start {% endif %}{% if forloop.last %}group-end{% endif %}" data-teacher="{{ t.id }}" data-day="{{ d }}" data-period="{{ p }}">
                 {% if e %}
                   <div class="twc-item" draggable="true" data-entry-id="{{ e.id }}" title="{{ e.subject.name_ar }} — {{ e.classroom.name }}">
                     <div class="twc-chip" style="background: {{ subject_colors|get_attr:e.subject_id }}">{{ e.subject.name_ar }}</div>
-                    <div class="twc-class">{{ e.classroom.name }}</div>
+                    <div class="twc-class">{{ e.classroom|cls_label }}</div>
                   </div>
                 {% else %}
                   <button type="button" class="btn btn-xs btn-outline-secondary twc-add">+</button>
@@ -72,7 +72,9 @@
 .twc-table th, .twc-table td { border: 1px solid #333; }
 .twc-table .twc-head-days th{ background:#f8f9fa; font-weight:700; font-size:14px; }
 .twc-table .twc-head-periods th{ background:#fafafa; font-size:12px; }
+/* Thick separators between day groups and teacher column */
 .sticky-right{ position: sticky; right: 0; z-index: 2; background: #fff; }
+.sticky-left{ position: sticky; left: 0; z-index: 2; background: #fff; }
 .twc-cell{ min-width: 46px; min-height: 40px; padding: 2px; }
 .btn.btn-xs{ --bs-btn-padding-y:.05rem; --bs-btn-padding-x:.25rem; --bs-btn-font-size:.7rem; }
 .twc-item{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; height:100%; cursor:grab; }
@@ -80,6 +82,17 @@
 .twc-chip{ display:inline-block; padding:1px 4px; border-radius:999px; border:1px solid #b0bec5; font-size:11px; }
 .twc-class{ font-size:11px; }
 .twc-cell.drop-ok{ outline:2px dashed #2e7d32; outline-offset:-2px; }
+/* Bigger teacher name (3x) */
+.twc-teacher-name{ font-size:1em; font-weight:600; line-height:1.1; display:inline-block; }
+
+/* Day column pastel backgrounds (muted cool tones) */
+.twc-table th.day-idx-0, .twc-table td.day-idx-0 { background-color: #fff7cc; } /* Yellow */
+.twc-table th.day-idx-1, .twc-table td.day-idx-1 { background-color: #e6f4ea; } /* Green */
+.twc-table th.day-idx-2, .twc-table td.day-idx-2 { background-color: #fde2e2; } /* Red */
+.twc-table th.day-idx-3, .twc-table td.day-idx-3 { background-color: #e7f0ff; } /* Blue */
+.twc-table th.day-idx-4, .twc-table td.day-idx-4 { background-color: #ffe8d1; } /* Orange */
+.twc-table th.day-idx-5, .twc-table td.day-idx-5 { background-color: #efe7ff; } /* Purple */
+.twc-table th.day-idx-6, .twc-table td.day-idx-6 { background-color: #e0f2fe; } /* Blue (again) */
 </style>
 {% endblock %}
 
@@ -131,9 +144,9 @@
         .then(r=>r.json()).then(data=>{
           if(!data.ok){ alert(data.error||'فشل الإضافة'); return; }
           const e = data.entry;
-          td.innerHTML = `<div class="twc-item" draggable="true" data-entry-id="${e.id}" title="${e.subject} — ${e.classroom}">
+          td.innerHTML = `<div class="twc-item" draggable="true" data-entry-id="${e.id}" title="${e.subject} — ${e.classroom_label||e.classroom}">
             <div class="twc-chip" style="background: ${(SUBJECT_COLORS[String(e.subject_id)]||SUBJECT_COLORS[e.subject_id]||'#e6f4ea')}">${e.subject}</div>
-            <div class="twc-class">${e.classroom}</div>
+            <div class="twc-class">${e.classroom_label||e.classroom}</div>
           </div>`;
           close();
         }).catch(()=>alert('خطأ في الشبكة'));

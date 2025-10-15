@@ -6,6 +6,7 @@
   <h1 class="h4 mb-0">مصفوفة الأنصبة (المعلّم × الصف)</h1>
   <div class="btn-group" role="group" aria-label="أوامر">
     <a class="btn btn-sm btn-outline-primary" href="{% url 'teacher_loads_dashboard' %}">العودة إلى لوحة الأنصبة</a>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'assignments_vs_timetable' %}">مقارنة التكليفات والجداول</a>
     <a class="btn btn-sm btn-outline-primary" href="{% url 'export_matrix_xlsx' %}" target="_blank" rel="noopener">تصدير Excel</a>
   </div>
 </div>
@@ -17,8 +18,8 @@
         <thead class="table-light sticky-top" style="position: sticky; top: 0; z-index: 2;">
           <tr>
             <th class="text-start sticky-col" style="position: sticky; right: 0; z-index: 3; min-width: 240px; background: #fff;">المعلّم</th>
-            {% for c in classes %}
-              <th title="{{ c.name }}" style="min-width: 76px; white-space: nowrap;">{{ c|cls_label }}</th>
+            {% for c in columns %}
+              <th title="{{ c.title }}" style="min-width: 76px; white-space: nowrap;">{{ c.label }}</th>
             {% endfor %}
             <th class="bg-light" style="min-width: 100px;">المجموع</th>
           </tr>
@@ -39,7 +40,7 @@
               <td class="fw-bold" style="background: inherit;">{{ row.total }}</td>
             </tr>
           {% empty %}
-            <tr><td colspan="{{ classes|length|add:2 }}" class="text-muted">لا توجد تكليفات لعرضها.</td></tr>
+            <tr><td colspan="{{ columns|length|add:2 }}" class="text-muted">لا توجد تكليفات لعرضها.</td></tr>
           {% endfor %}
         </tbody>
         <tfoot>

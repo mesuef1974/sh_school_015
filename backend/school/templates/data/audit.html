@@ -1,0 +1,85 @@
+{% extends "_base_maronia.html" %}
+{% block title %}تدقيق قاعدة البيانات — أفضل الممارسات{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+  <div>
+    <h1 class="h4 mb-1">تدقيق قاعدة البيانات (Best Practices)</h1>
+    <div class="text-muted small">فحص آلي وخفيف يقترح تحسينات احترافية على المخطط والفهارس</div>
+  </div>
+  <div class="btn-group" role="group">
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'data_overview' %}">كل الجداول</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'data_relations' %}">خريطة العلاقات</a>
+  </div>
+</div>
+
+<div class="card p-2 p-md-3">
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="p-2 border rounded-3 bg-light h-100 small">
+        <div><span class="text-muted">المحرك:</span> <strong>{{ db_info.vendor|default:'—' }}</strong></div>
+        <div><span class="text-muted">قاعدة البيانات:</span> <strong>{{ db_info.name|default:'—' }}</strong></div>
+        <div class="text-truncate" title="{{ db_info.version|default:'' }}"><span class="text-muted">الإصدار:</span> <strong>{{ db_info.version|default:'—' }}</strong></div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="p-2 border rounded-3 bg-light h-100 small">
+        <div><span class="text-muted">تاريخ التدقيق:</span> <strong>{{ now }}</strong></div>
+        <div><span class="text-muted">عدد الفحوصات:</span> <strong>{{ checks_total }}</strong></div>
+        <div><span class="text-muted">المطابق:</span> <strong class="text-success">{{ checks_ok }}</strong> — <span class="text-muted">الاقتراحات:</span> <strong class="text-danger">{{ checks_warn }}</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-6">
+      <div class="border rounded-3 p-2">
+        <h2 class="h6 mb-2">مطابق لأفضل الممارسات</h2>
+        {% if passes %}
+          <ul class="list-group list-group-flush small">
+            {% for it in passes %}
+              <li class="list-group-item d-flex justify-content-between align-items-start">
+                <div class="me-2">
+                  <div class="fw-bold">{{ it.title }}</div>
+                  <div class="text-muted">{{ it.detail }}</div>
+                </div>
+                <span class="badge bg-success-subtle text-success">OK</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="text-muted small">لا يوجد عناصر حالياً.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-12 col-xl-6">
+      <div class="border rounded-3 p-2">
+        <h2 class="h6 mb-2">اقتراحات تحسين</h2>
+        {% if suggestions %}
+          <ul class="list-group list-group-flush small">
+            {% for it in suggestions %}
+              <li class="list-group-item">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div class="me-2">
+                    <div class="fw-bold">{{ it.title }}</div>
+                    <div class="text-muted">{{ it.detail }}</div>
+                  </div>
+                  <span class="badge bg-danger-subtle text-danger">اقتراح</span>
+                </div>
+                {% if it.hint %}
+                  <pre class="mt-2 mb-0 bg-light p-2 rounded" dir="ltr" style="white-space: pre-wrap; font-size: 12px;">{{ it.hint }}</pre>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="text-muted small">لا توجد اقتراحات — رائع!</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-3 small text-muted">
+    ملاحظة: هذا التدقيق لا يُجري تغييرات تلقائياً؛ الهدف تزويدك برؤية وتحسينات عملية. بعض الفحوصات تتطلب PostgreSQL تحديداً.
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="container" style="max-width: 1300px;">
+  <h2 class="mt-3 mb-3">{{ title }}</h2>
+  {% if messages %}
+    <div class="mb-3">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="row g-3">
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">المرجع (الصورة/البي دي إف)</div>
+        <div class="card-body" style="max-height: 75vh; overflow: auto;">
+          <p class="text-muted">تم العثور على الملفات داخل DOC/school_DATA. استخدمها كمرجع لنسخ الجدول.</p>
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <small class="text-muted">الصورة المستخدمة: {{ source_image_name|default:"—" }}</small>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Zoom controls">
+              <a class="btn btn-outline-secondary" href="{% url 'timetable_source_image' %}" target="_blank">فتح الصورة في تبويب جديد</a>
+              <button type="button" class="btn btn-outline-secondary" onclick="ttZoom(0.9)">تصغير</button>
+              <button type="button" class="btn btn-outline-secondary" onclick="ttZoom(1.1)">تكبير</button>
+              <button type="button" class="btn btn-outline-secondary" onclick="ttZoom(0)">100%</button>
+            </div>
+          </div>
+          <img id="ttImage" src="{% url 'timetable_source_image' %}" alt="الجدول العام" class="img-fluid mb-3 border" style="max-width:100%;" />
+          <div class="d-flex align-items-center justify-content-between mt-2">
+            <small class="text-muted">ملف PDF (إن وُجد): {{ source_pdf_name|default:"—" }}</small>
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'timetable_source_pdf' %}" target="_blank">فتح PDF في تبويب جديد</a>
+          </div>
+          <object data="{% url 'timetable_source_pdf' %}" type="application/pdf" width="100%" height="600px">
+            <p>لا يمكن عرض PDF في هذا المتصفح. <a href="{% url 'timetable_source_pdf' %}" target="_blank">افتح الملف هنا</a>.</p>
+          </object>
+        </div>
+        <script>
+          (function(){
+            let scale = 1;
+            window.ttZoom = function(f){
+              const img = document.getElementById('ttImage');
+              if (!img) return;
+              if (f === 0) { scale = 1; }
+              else { scale = Math.max(0.3, Math.min(4, scale * f)); }
+              img.style.transformOrigin = 'top right';
+              img.style.transform = 'scale(' + scale + ')';
+            };
+          })();
+        </script>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card">
+        <div class="card-header">إدخال الجدول بصيغة CSV</div>
+        <div class="card-body">
+          <p class="mb-2">انسخ الصفوف من الصورة وألصقها هنا وفق الأعمدة التالية:</p>
+          <pre class="bg-light p-2 border">teacher,class,subject,day,period</pre>
+          <ul>
+            <li>teacher: الاسم الكامل للمعلم كما هو في النظام</li>
+            <li>class: رقم الصف بالشكل 7-1 أو اسم الفصل المخزن</li>
+            <li>subject: اسم المادة بالعربية</li>
+            <li>day: من 1 إلى 5 أو اسم اليوم بالعربية</li>
+            <li>period: من 1 إلى 7</li>
+          </ul>
+          <form method="post" class="mb-2" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="action" value="auto" />
+            <button type="submit" class="btn btn-sm btn-outline-primary">محاولة استخراج آلي من PDF/الصورة</button>
+            <small class="text-muted ms-2">اختياري — يتطلب pdfplumber لملف PDF أو pytesseract للصورة.</small>
+          </form>
+
+          <div class="mb-3">
+            <label class="form-label">لدي نص خام مثل المثال المرسل (تم التقاط صف خام...)</label>
+            <form method="post" class="mb-2" novalidate>
+              {% csrf_token %}
+              <input type="hidden" name="action" value="parse_raw" />
+              <textarea name="raw_text" class="form-control" rows="6" dir="rtl" placeholder="ألصق هنا النص الخام كما هو من النسخ"></textarea>
+              <div class="mt-2 d-flex align-items-center gap-2">
+                <button type="submit" class="btn btn-sm btn-outline-success">تحويل النص الخام إلى CSV</button>
+                <small class="text-muted">سيتم مطابقة أسماء المعلمين والصفوف تلقائيًا، مع استخدام teacher_mapping.csv إن وُجد.</small>
+              </div>
+            </form>
+          </div>
+
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+              {{ form.csv_text }}
+            </div>
+            <div class="d-flex gap-2">
+              <input type="hidden" name="action" value="import" />
+              <button type="submit" class="btn btn-primary">استيراد الآن</button>
+              <a class="btn btn-outline-secondary" href="{% url 'teacher_week_compact' %}">عرض الجدول العام</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
