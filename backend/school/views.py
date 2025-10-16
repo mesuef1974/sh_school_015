@@ -2184,7 +2184,50 @@ def data_relations(request):
 
     mermaid_src = "\n".join(lines)
 
-    context = {"title": "العلاقات بين الجداول", "mermaid": mermaid_src, "db_info": db_info}
+    # Optional: collect constraints and indexes to reflect latest updates
+    constraints = None
+    indexes = None
+    try:
+        if connection.vendor == "postgresql":
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT t.relname AS table,
+                           c.conname AS name,
+                           pg_get_constraintdef(c.oid) AS def
+                    FROM pg_constraint c
+                    JOIN pg_class t ON t.oid = c.conrelid
+                    JOIN pg_namespace n ON n.oid = t.relnamespace
+                    WHERE n.nspname='public' AND t.relname LIKE 'school_%'
+                    ORDER BY t.relname, c.conname
+                    """
+                )
+                constraints = [
+                    {"table": r[0], "name": r[1], "def": r[2]} for r in cursor.fetchall() or []
+                ]
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT tablename, indexname, indexdef
+                    FROM pg_indexes
+                    WHERE schemaname='public' AND tablename LIKE 'school_%'
+                    ORDER BY tablename, indexname
+                    """
+                )
+                indexes = [
+                    {"table": r[0], "name": r[1], "def": r[2]} for r in cursor.fetchall() or []
+                ]
+    except Exception:
+        constraints = None
+        indexes = None
+
+    context = {
+        "title": "العلاقات بين الجداول",
+        "mermaid": mermaid_src,
+        "db_info": db_info,
+        "constraints": constraints,
+        "indexes": indexes,
+    }
     return render(request, "data/relations.html", context)
 
 
@@ -3725,9 +3768,26 @@ def data_db_audit(request):
                 db_ver = row[0] if row else None
         else:
             db_ver = getattr(connection, "server_version", None)
-        db_info = {"vendor": vendor, "name": db_name, "version": db_ver}
+        host = settings_dict.get("HOST") or "127.0.0.1"
+        port = settings_dict.get("PORT") or "5432"
+        user = settings_dict.get("USER") or "postgres"
+        db_info = {
+            "vendor": vendor,
+            "name": db_name,
+            "version": db_ver,
+            "host": host,
+            "port": str(port),
+            "user": user,
+        }
     except Exception:
-        db_info = {"vendor": None, "name": None, "version": None}
+        db_info = {
+            "vendor": None,
+            "name": None,
+            "version": None,
+            "host": None,
+            "port": None,
+            "user": None,
+        }
 
     # Resolve table names
     term_tbl = Term._meta.db_table
@@ -3737,13 +3797,18 @@ def data_db_audit(request):
     stud_tbl = Student._meta.db_table
 
     passes = []
-    suggestions = []
+    suggestions_core = []
+    suggestions_opt = []
 
     def add_pass(title, detail):
         passes.append({"title": title, "detail": detail})
 
-    def add_sug(title, detail, hint=None):
-        suggestions.append({"title": title, "detail": detail, "hint": hint})
+    def add_sug(title, detail, hint=None, optional=False):
+        item = {"title": title, "detail": detail, "hint": hint, "optional": optional}
+        if optional:
+            suggestions_opt.append(item)
+        else:
+            suggestions_core.append(item)
 
     # Fetch constraints and indexes per table
     introspection = connection.introspection
@@ -3933,6 +3998,7 @@ def data_db_audit(request):
                 "    index=models.Index(fields=['teacher','classroom'], name='ta_teacher_class_idx'),\n"
                 ")"
             ),
+            optional=True,
         )
     else:
         add_pass("فهرس مركب للتكليفات", "(teacher,classroom) موجود")
@@ -3946,18 +4012,23 @@ def data_db_audit(request):
             "CREATE INDEX CONCURRENTLY IF NOT EXISTS student_name_trgm\n"
             "  ON %s USING GIN (full_name gin_trgm_ops);" % stud_tbl
         ),
+        optional=True,
     )
 
     from datetime import datetime as _dt
+
+    suggestions_all = suggestions_core + suggestions_opt
 
     context = {
         "title": "تدقيق قاعدة البيانات",
         "db_info": db_info,
         "now": _dt.now().strftime("%Y-%m-%d %H:%M"),
         "passes": passes,
-        "suggestions": suggestions,
-        "checks_total": len(passes) + len(suggestions),
+        "suggestions": suggestions_all,
+        "suggestions_core_count": len(suggestions_core),
+        "suggestions_opt_count": len(suggestions_opt),
+        "checks_total": len(passes) + len(suggestions_all),
         "checks_ok": len(passes),
-        "checks_warn": len(suggestions),
+        "checks_warn": len(suggestions_all),
     }
     return render(request, "data/audit.html", context)

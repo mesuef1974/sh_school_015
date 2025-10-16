@@ -1,6 +1,25 @@
 {% extends "_base_maronia.html" %}
 {% load static %}
 {% block title %}واجهة الإدارة{% endblock %}
+{% block extra_head %}
+<style>
+  body.portal-bg::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image: url('{% static "img/portal_bg.png" %}');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: -1;
+  }
+</style>
+<script>
+  document.addEventListener('DOMContentLoaded', function(){ document.body.classList.add('portal-bg'); });
+</script>
+{% endblock %}
 {% block content %}
 <div class="container py-3">
   <div class="d-flex align-items-center justify-content-between mb-3 page-header">

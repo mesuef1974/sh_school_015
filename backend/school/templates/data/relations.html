@@ -1,18 +1,22 @@
 {% extends "_base_maronia.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 page-header">
+<div class="d-flex align-items-center justify-content-between mb-3 page-header" data-aos="fade-down">
   <div>
-    <h1 class="h4 mb-1">خريطة علائقية لقاعدة البيانات</h1>
+    <h1 class="h4 mb-1 d-flex align-items-center gap-2">
+      <lord-icon src="https://cdn.lordicon.com/akuwjdzh.json" trigger="hover" colors="primary:#7b1e1e,secondary:#c49a6c" style="width:36px;height:36px"></lord-icon>
+      خريطة علائقية لقاعدة البيانات
+    </h1>
     <div class="text-muted small">عرض بصري احترافي يوضح العلاقات بين جداول التطبيق (school)</div>
   </div>
   <div class="btn-group" role="group">
-    <a class="btn btn-sm btn-outline-primary" href="{% url 'data_overview' %}">كل الجداول</a>
-    <button id="btn-download-svg" class="btn btn-sm btn-outline-secondary" type="button">تنزيل SVG</button>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'data_overview' %}" data-bs-toggle="tooltip" data-bs-title="عرض كل الجداول"><i class="bi bi-table"></i> <span class="d-none d-sm-inline">كل الجداول</span></a>
+    <button id="btn-download-svg" class="btn btn-sm btn-outline-secondary" type="button" aria-label="تنزيل المخطط كملف SVG" data-bs-toggle="tooltip" data-bs-title="تنزيل كملف SVG"><i class="bi bi-filetype-svg"></i> <span class="d-none d-sm-inline">SVG</span></button>
+    <button id="btn-download-png" class="btn btn-sm btn-outline-secondary" type="button" aria-label="تنزيل المخطط كصورة PNG" data-bs-toggle="tooltip" data-bs-title="تنزيل كصورة PNG"><i class="bi bi-image"></i> <span class="d-none d-sm-inline">PNG</span></button>
   </div>
 </div>
 
-<div class="card p-2 p-md-3">
+<div class="card p-2 p-md-3" data-aos="fade-up">
   <div class="row g-3 mb-2 align-items-stretch">
     <div class="col-12 col-lg-7">
       <div class="small text-muted">تستخدم هذه الصفحة Mermaid.js لتوليد مخطط ER بشكل مباشر من نماذج Django.</div>
@@ -27,37 +31,245 @@
       </div>
     </div>
   </div>
-  <div class="ratio ratio-21x9 bg-light border rounded" style="min-height: 420px;">
-    <div id="er-wrap" class="p-2 overflow-auto" dir="ltr">
+  <div class="ratio ratio-21x9 bg-light border rounded position-relative" style="min-height: 420px;">
+    <div id="er-loading" class="position-absolute top-50 start-50 translate-middle text-muted small" aria-live="polite">جاري توليد المخطط…</div>
+    <div id="er-wrap" class="p-2 overflow-auto" dir="ltr" aria-label="منطقة مخطط العلاقات">
       <pre class="mermaid" id="er-src" style="white-space: pre;">{{ mermaid }}</pre>
+    </div>
+  </div>
+  <div class="row g-2 mt-2">
+    <div class="col-12 col-lg-8 small">
+      <div class="p-2 border rounded-3 bg-light h-100">
+        <div class="fw-bold mb-1">الأسطورة</div>
+        <div>المربعات تمثّل الجداول (Entities) وتعرض أسماء الحقول. الخطوط تمثّل العلاقات:
+          <span class="badge bg-secondary">FK</span> مفتاح أجنبي،
+          <span class="badge bg-secondary">O2O</span> واحد-لواحد،
+          <span class="badge bg-secondary">M2M</span> متعدد-لمتعدد.
+        </div>
+        <div class="input-group input-group-sm mt-2" style="max-width: 380px;">
+          <span class="input-group-text">بحث</span>
+          <input id="er-search" class="form-control" placeholder="ابحث عن جدول… (student, timetable, …)"/>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-4">
+      <div class="d-flex gap-2 justify-content-lg-end">
+        <button id="btn-copy-src" class="btn btn-sm btn-outline-secondary" type="button">نسخ النص المصدري</button>
+        <button id="btn-rerender" class="btn btn-sm btn-outline-secondary" type="button">إعادة توليد الرسم</button>
+      </div>
     </div>
   </div>
 </div>
 
+{% if constraints or indexes %}
+<div class="card mt-3 p-2 p-md-3" data-aos="fade-up">
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <div class="fw-bold">القيود والفهارس (مستقاة مباشرةً من قاعدة البيانات)</div>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'data_db_audit' %}">تدقيق القاعدة</a>
+  </div>
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="p-2 border rounded-3 bg-light h-100">
+        <div class="fw-semibold mb-1">القيود (Constraints)</div>
+        {% if constraints %}
+          <div class="small text-muted mb-2">عدد: {{ constraints|length }}</div>
+          <ul class="small mb-0" style="max-height: 220px; overflow:auto;">
+            {% for c in constraints %}
+              <li><code>{{ c.table }}</code> • <span class="text-muted">{{ c.name }}</span> — <span dir="ltr">{{ c.def }}</span></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="small text-muted">لا توجد بيانات قيود متاحة لهذا المحرك.</div>
+        {% endif %}
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="p-2 border rounded-3 bg-light h-100">
+        <div class="fw-semibold mb-1">الفهارس (Indexes)</div>
+        {% if indexes %}
+          <div class="small text-muted mb-2">عدد: {{ indexes|length }}</div>
+          <ul class="small mb-0" style="max-height: 220px; overflow:auto;">
+            {% for i in indexes %}
+              <li><code>{{ i.table }}</code> • <span class="text-muted">{{ i.name }}</span> — <span dir="ltr">{{ i.def }}</span></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <div class="small text-muted">لا توجد بيانات فهارس متاحة لهذا المحرك.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <style>
 /* دعم RTL للمحتوى العام مع إبقاء الرسم LTR لقراءة أسهل للأسماء اللاتينية */
 #er-wrap svg { width: 100%; height: 100%; }
+/* إبراز نتائج البحث */
+#er-wrap svg g.match rect { stroke: #198754 !important; stroke-width: 2.2px; }
+#er-wrap svg g.match text { fill: #198754 !important; font-weight: 700; }
+/* طباعة أنيقة */
+@media print {
+  .page-header, #btn-download-svg, #btn-download-png, #btn-copy-src, #btn-rerender, #er-search { display: none !important; }
+  #er-wrap { height: auto !important; overflow: visible !important; }
+}
 </style>
 {% endblock %}
 
 {% block extra_js %}
 {{ block.super }}
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.4/dist/mermaid.min.js"></script>
 <script>
 (function(){
+  // تهيئة Mermaid بمعيار أمني صارم وثيم ديناميكي
   if (window.mermaid) {
-    mermaid.initialize({ startOnLoad: true, theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default' });
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: 'strict',
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default'
+    });
   }
+  const loading = document.getElementById('er-loading');
+  function hideLoading(){ if (loading) loading.style.display='none'; }
+  // أخفِ مؤشر التحميل بعد أول إطار عرض
+  if (document.readyState === 'complete') { requestAnimationFrame(hideLoading); } else {
+    window.addEventListener('load', ()=>requestAnimationFrame(hideLoading));
+  }
+
+  // وظيفة مساعدة: إضافة بيانات تعريف للـ SVG
+  function withMetadata(svgText){
+    try {
+      const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+      const m = doc.createElementNS('http://www.w3.org/2000/svg','metadata');
+      m.textContent = `DB: {{ db_info.name|default:'-' }} | Engine: {{ db_info.vendor|default:'-' }} | Version: {{ db_info.version|default:'' }} | Generated: ${new Date().toISOString()}`;
+      doc.documentElement.insertBefore(m, doc.documentElement.firstChild);
+      return new XMLSerializer().serializeToString(doc);
+    } catch { return svgText; }
+  }
+
   // تنزيل SVG
-  document.getElementById('btn-download-svg').addEventListener('click', function(){
+  document.getElementById('btn-download-svg').addEventListener('click', async function(){
+    const pre = document.getElementById('er-src');
+    const src = pre ? (pre.innerText || pre.textContent || '') : '';
+    if (window.mermaid && typeof window.mermaid.render === 'function' && src.trim().length > 0) {
+      try {
+        const out = await window.mermaid.render('er-diagram-export', src);
+        let svgText = out.svg;
+        // تأكد من وجود viewBox لأجل العرض الخارجي الصحيح
+        if (typeof DOMParser !== 'undefined') {
+          const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+          const svgEl = doc.documentElement;
+          if (!svgEl.getAttribute('viewBox')) {
+            const w = parseFloat(svgEl.getAttribute('width')) || 1200;
+            const h = parseFloat(svgEl.getAttribute('height')) || 800;
+            svgEl.setAttribute('viewBox', `0 0 ${w} ${h}`);
+            svgEl.removeAttribute('width');
+            svgEl.removeAttribute('height');
+            svgText = new XMLSerializer().serializeToString(svgEl);
+          }
+        }
+        svgText = withMetadata(svgText);
+        const blob = new Blob([svgText], {type: 'image/svg+xml'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href=url; a.download='db_relations.svg'; a.click();
+        setTimeout(()=>URL.revokeObjectURL(url), 500);
+        return;
+      } catch (e) {
+        console.warn('mermaid.render export failed, falling back to DOM svg', e);
+      }
+    }
+    // Fallback: serialize DOM SVG
     const svg = document.querySelector('#er-wrap svg');
     if(!svg){ alert('الرسم غير جاهز بعد.'); return; }
-    const xml = new XMLSerializer().serializeToString(svg);
+    try {
+      if (!svg.getAttribute('viewBox')) {
+        const bbox = svg.getBBox();
+        if (bbox && isFinite(bbox.width) && isFinite(bbox.height)) {
+          svg.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
+          svg.removeAttribute('width');
+          svg.removeAttribute('height');
+        }
+      }
+    } catch(_) {}
+    let xml = new XMLSerializer().serializeToString(svg);
+    xml = withMetadata(xml);
     const blob = new Blob([xml], {type: 'image/svg+xml'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href=url; a.download='db_relations.svg'; a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 500);
   });
+
+  // تنزيل PNG من SVG الحالي
+  document.getElementById('btn-download-png').addEventListener('click', async function(){
+    const svg = document.querySelector('#er-wrap svg'); if(!svg){ alert('لم يتم توليد الرسم بعد'); return; }
+    try{
+      if(!svg.getAttribute('viewBox')){ const bb=svg.getBBox(); svg.setAttribute('viewBox',`${bb.x} ${bb.y} ${bb.width} ${bb.height}`); }
+      svg.removeAttribute('width'); svg.removeAttribute('height');
+      const xml = new XMLSerializer().serializeToString(svg);
+      const urlSvg = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+      const img = new Image();
+      img.onload = function(){
+        const scale = 2; // دقة أعلى
+        const canvas = document.createElement('canvas');
+        canvas.width = this.width*scale; canvas.height = this.height*scale;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scale, scale); ctx.drawImage(this, 0, 0);
+        canvas.toBlob(b=>{
+          if(!b){ alert('تعذّر إنشاء PNG'); return; }
+          const url = URL.createObjectURL(b);
+          const a = document.createElement('a'); a.href=url; a.download='db_relations.png'; a.click();
+          setTimeout(()=>URL.revokeObjectURL(url), 1000);
+        });
+      };
+      img.onerror = ()=>alert('تعذّر تحميل الرسم كصورة');
+      img.src = urlSvg;
+    }catch(e){ alert('تعذّر إنشاء PNG'); }
+  });
+
+  // نسخ النص المصدري
+  document.getElementById('btn-copy-src').addEventListener('click', function(){
+    const pre = document.getElementById('er-src');
+    if(!pre){ alert('غير متاح الآن'); return; }
+    const text = pre.innerText || pre.textContent || '';
+    navigator.clipboard.writeText(text).then(()=>{
+      this.textContent = 'نُسخ';
+      setTimeout(()=>this.textContent='نسخ النص المصدري', 1500);
+    }).catch(()=>alert('تعذّر النسخ'));
+  });
+
+  // بحث فوري لتظليل الجداول
+  (function(){
+    const inp = document.getElementById('er-search');
+    const wrap = document.getElementById('er-wrap');
+    function highlight(q){
+      const svg = wrap.querySelector('svg'); if(!svg) return;
+      svg.querySelectorAll('g.match').forEach(el=>el.classList.remove('match'));
+      if(!q) return;
+      const texts = svg.querySelectorAll('text');
+      texts.forEach(t=>{
+        const name = (t.textContent||'').toLowerCase();
+        if (name.includes(q.toLowerCase())) {
+          const g = t.closest('g');
+          g && g.classList.add('match');
+        }
+      });
+    }
+    let t; inp && inp.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(()=>highlight(inp.value), 200); });
+  })();
+
+  // إعادة توليد الرسم (Debounced)
+  (function(){
+    let busy = false;
+    document.getElementById('btn-rerender').addEventListener('click', async function(){
+      if (busy || !window.mermaid) return;
+      busy = true; this.disabled = true;
+      const pre = document.getElementById('er-src');
+      const container = document.getElementById('er-wrap');
+      container.querySelectorAll('svg').forEach(el=>el.remove());
+      try { await mermaid.init(undefined, pre); } catch(e){ alert('تعذّر التوليد'); }
+      this.disabled = false; busy = false;
+    });
+  })();
 })();
 </script>
 {% endblock %}

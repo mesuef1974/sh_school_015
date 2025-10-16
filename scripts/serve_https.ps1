@@ -1,120 +1,221 @@
 #requires -Version 5.1
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-# Move to project root (parent of this script directory)
+
+# ------------- Constants / Defaults -------------
+$DEFAULT_TLS_PORT        = 8443
+$TLS_PROBE_RANGE         = 8443..8450
+$DEFAULT_LOG_LEVEL       = 'info'
+$DEFAULT_HTTP_HOST       = '0.0.0.0'
+$DEFAULT_HTTP_PORT       = '8000'
+$DEV_CERT_REL_DIR        = 'backend\certs'
+$DEV_KEY_NAME            = 'dev.key'
+$DEV_CRT_NAME            = 'dev.crt'
+$ENV_REL_PATH            = 'backend\.env'
+$MAKE_CERT_REL_PATH      = 'scripts\make_dev_cert.ps1'
+$UVICORN_APP             = 'core.asgi:application'
+$UVICORN_APP_DIR         = 'backend'
+$VENV_WIN_ACTIVATE_REL   = '.venv\Scripts\Activate.ps1'
+
+# ------------- Location / Venv -------------
 $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $Root
 
-# Optional: activate virtual environment if available
-$VenvActivate = Join-Path $Root '.venv\Scripts\Activate.ps1'
+$VenvActivate = Join-Path $Root $VENV_WIN_ACTIVATE_REL
 if (Test-Path -Path $VenvActivate) {
   try { . $VenvActivate } catch { }
 }
 
-# Paths
-$CertDir = Join-Path $Root 'backend\certs'
-$KeyPath = Join-Path $CertDir 'dev.key'
-$CrtPath = Join-Path $CertDir 'dev.crt'
+# ------------- Paths -------------
+$CertDir = Join-Path $Root $DEV_CERT_REL_DIR
+$KeyPath = Join-Path $CertDir $DEV_KEY_NAME
+$CrtPath = Join-Path $CertDir $DEV_CRT_NAME
+$EnvFile = Join-Path $Root $ENV_REL_PATH
+$MakeCert = Join-Path $Root $MAKE_CERT_REL_PATH
 
 Write-Host "== Local HTTPS helper (Uvicorn) ==" -ForegroundColor Cyan
-Write-Host "Looking for certificates at:`n  $KeyPath`n  $CrtPath" -ForegroundColor Gray
+Write-Host ("Looking for certificates at:`n  {0}`n  {1}" -f $KeyPath, $CrtPath) -ForegroundColor Gray
 
-# --- Preflight: ensure DB is migrated and a superuser exists ---
-# Parse backend/.env for optional superuser values
-$EnvFile = Join-Path $Root 'backend\.env'
-$envVars = @{}  # Always initialize to avoid StrictMode errors when .env is missing or unreadable
-if (Test-Path -Path $EnvFile) {
+# ------------- Helpers -------------
+function Read-DotEnv {
+  param([string]$Path)
+  $result = @{}
+  if (-not (Test-Path -Path $Path)) { return $result }
   try {
-    Get-Content $EnvFile | Where-Object { $_ -and ($_ -notmatch '^\s*#') } | ForEach-Object {
-      if ($_ -match '^(?<k>[^=\s]+)=(?<v>.*)$') { $envVars[$Matches['k'].Trim()] = $Matches['v'].Trim() }
+    Get-Content $Path | Where-Object { $_ -and ($_ -notmatch '^\s*#') } | ForEach-Object {
+      if ($_ -match '^(?<k>[^=\s]+)=(?<v>.*)$') {
+        $result[$Matches['k'].Trim()] = $Matches['v'].Trim()
+      }
     }
-  } catch { Write-Warning "Failed to read backend/.env: $($_.Exception.Message)" }
-}
-
-# Apply migrations (idempotent)
-try {
-  Write-Host "Applying Django migrations (preflight) ..." -ForegroundColor DarkGray
-  python backend\manage.py migrate | Out-Null
-} catch { Write-Warning "migrate failed (continuing): $($_.Exception.Message)" }
-
-# Ensure superuser (use .env if available, otherwise fallback username 'mesuef')
-try {
-  if ($envVars -and $envVars['DJANGO_SUPERUSER_USERNAME']) {
-    $env:DJANGO_SUPERUSER_USERNAME = $envVars['DJANGO_SUPERUSER_USERNAME']
-    if ($envVars['DJANGO_SUPERUSER_EMAIL']) { $env:DJANGO_SUPERUSER_EMAIL = $envVars['DJANGO_SUPERUSER_EMAIL'] }
-    if ($envVars['DJANGO_SUPERUSER_PASSWORD']) { $env:DJANGO_SUPERUSER_PASSWORD = $envVars['DJANGO_SUPERUSER_PASSWORD'] }
-    Write-Host ("Ensuring superuser '{0}' from .env ..." -f $envVars['DJANGO_SUPERUSER_USERNAME']) -ForegroundColor DarkGray
-    python backend\manage.py ensure_superuser | Out-Null
-  } else {
-    Write-Host "Ensuring fallback superuser 'mesuef' (flags only) ..." -ForegroundColor DarkGray
-    python backend\manage.py ensure_superuser --username mesuef | Out-Null
-  }
-} catch { Write-Host "ensure_superuser skipped: $($_.Exception.Message)" -ForegroundColor DarkGray }
-
-# Ensure certs exist (best-effort auto-generate)
-if (-not ((Test-Path -Path $KeyPath) -and (Test-Path -Path $CrtPath))) {
-  Write-Host "Certificates not found. Attempting to generate via scripts\\make_dev_cert.ps1 ..." -ForegroundColor Yellow
-  $MakeCert = Join-Path $Root 'scripts\make_dev_cert.ps1'
-  if (Test-Path -Path $MakeCert) {
-    try {
-      & "powershell" -NoProfile -ExecutionPolicy Bypass -File $MakeCert
-    } catch {
-      Write-Warning "make_dev_cert.ps1 failed: $($_.Exception.Message)"
-    }
-  } else {
-    Write-Warning "Helper script not found: $MakeCert"
-  }
-}
-
-# Determine TLS port. Allow override via DJANGO_TLS_PORT; auto-pick a free one if busy.
-$BaseTlsPort = if ($Env:DJANGO_TLS_PORT) { [int]$Env:DJANGO_TLS_PORT } else { 8443 }
-function Test-PortInUse([int]$Port){
-  try { (Test-NetConnection -ComputerName '127.0.0.1' -Port $Port -WarningAction SilentlyContinue).TcpTestSucceeded } catch { $false }
-}
-$TlsPort = $BaseTlsPort
-if (Test-PortInUse $TlsPort) {
-  foreach ($p in (8443..8450)) { if (-not (Test-PortInUse $p)) { $TlsPort = $p; break } }
-}
-
-# Try to start Uvicorn with TLS
-# Allow overriding log level via DJANGO_UVICORN_LOG_LEVEL (default: info)
-$LogLevel = if ($Env:DJANGO_UVICORN_LOG_LEVEL) { $Env:DJANGO_UVICORN_LOG_LEVEL } else { 'info' }
-
-# Friendly hint before launching
-$suName = if ($envVars -and $envVars['DJANGO_SUPERUSER_USERNAME']) { $envVars['DJANGO_SUPERUSER_USERNAME'] } else { 'mesuef' }
-Write-Host ("Admin login URL: https://127.0.0.1:{0}/admin/  (user: {1})" -f $TlsPort, $suName) -ForegroundColor DarkGray
-
-$UvicornArgs = @(
-  '-m','uvicorn','--app-dir','backend','core.asgi:application',
-  '--host','0.0.0.0','--port',"$TlsPort",
-  '--ssl-keyfile', $KeyPath,
-  '--ssl-certfile', $CrtPath,
-  '--lifespan','off',
-  '--log-level', $LogLevel
-)
-
-$canTryTls = (Test-Path -Path $KeyPath) -and (Test-Path -Path $CrtPath)
-if ($canTryTls) {
-  Write-Host ("Starting HTTPS server on https://0.0.0.0:{0} (Uvicorn + TLS) ..." -f $TlsPort) -ForegroundColor Green
-  try {
-    # Run in-foreground; if it exits with error, we will fall back to Django dev server
-    python @UvicornArgs
-    $code = $LASTEXITCODE
   } catch {
-    $code = 1
+    Write-Warning ("Failed to read {0}: {1}" -f $Path, $_.Exception.Message)
   }
-  if ($code -eq 0) {
-    exit 0
+  return $result
+}
+
+function Invoke-DjangoMigrate {
+  try {
+    Write-Host "Applying Django migrations (preflight) ..." -ForegroundColor DarkGray
+    python backend\manage.py migrate | Out-Null
+  } catch {
+    Write-Warning ("migrate failed (continuing): {0}" -f $_.Exception.Message)
+  }
+}
+
+function Ensure-Superuser {
+  param([hashtable]$DotEnv)
+  try {
+    if ($DotEnv -and $DotEnv['DJANGO_SUPERUSER_USERNAME']) {
+      $env:DJANGO_SUPERUSER_USERNAME = $DotEnv['DJANGO_SUPERUSER_USERNAME']
+      if ($DotEnv['DJANGO_SUPERUSER_EMAIL'])    { $env:DJANGO_SUPERUSER_EMAIL    = $DotEnv['DJANGO_SUPERUSER_EMAIL'] }
+      if ($DotEnv['DJANGO_SUPERUSER_PASSWORD']) { $env:DJANGO_SUPERUSER_PASSWORD = $DotEnv['DJANGO_SUPERUSER_PASSWORD'] }
+      Write-Host ("Ensuring superuser '{0}' from .env ..." -f $DotEnv['DJANGO_SUPERUSER_USERNAME']) -ForegroundColor DarkGray
+      python backend\manage.py ensure_superuser | Out-Null
+    } else {
+      Write-Host "Ensuring fallback superuser 'mesuef' (flags only) ..." -ForegroundColor DarkGray
+      python backend\manage.py ensure_superuser --username mesuef | Out-Null
+    }
+  } catch {
+    Write-Host ("ensure_superuser skipped: {0}" -f $_.Exception.Message) -ForegroundColor DarkGray
+  }
+}
+
+function New-DevCertificatesIfMissing {
+  param([string]$Key,[string]$Crt,[string]$GeneratorPath)
+  if ((Test-Path -Path $Key) -and (Test-Path -Path $Crt)) { return }
+  Write-Host "Certificates not found. Attempting to generate via scripts\make_dev_cert.ps1 ..." -ForegroundColor Yellow
+  if (Test-Path -Path $GeneratorPath) {
+    try {
+      & "powershell" -NoProfile -ExecutionPolicy Bypass -File $GeneratorPath
+    } catch {
+      Write-Warning ("make_dev_cert.ps1 failed: {0}" -f $_.Exception.Message)
+    }
   } else {
-    Write-Warning "Uvicorn HTTPS exited with code $code. Falling back to Django runserver (HTTP)."
+    Write-Warning ("Helper script not found: {0}" -f $GeneratorPath)
+  }
+}
+
+function Test-PortInUse {
+  param([int]$Port)
+  try {
+    return (Test-NetConnection -ComputerName '127.0.0.1' -Port $Port -WarningAction SilentlyContinue).TcpTestSucceeded
+  } catch { return $false }
+}
+
+function Get-AvailableTlsPort {
+  param([int]$Preferred,[int[]]$ProbeRange)
+  if (-not (Test-PortInUse -Port $Preferred)) { return $Preferred }
+  foreach ($p in $ProbeRange) { if (-not (Test-PortInUse -Port $p)) { return $p } }
+  return $Preferred
+}
+
+function Start-UvicornTls {
+  param(
+    [int]$Port,
+    [string]$KeyFile,
+    [string]$CertFile,
+    [string]$LogLevel,
+    [string]$App,
+    [string]$AppDir
+  )
+  $args = @(
+    '-m','uvicorn','--app-dir', $AppDir, $App,
+    '--host','0.0.0.0','--port',"$Port",
+    '--ssl-keyfile', $KeyFile,
+    '--ssl-certfile', $CertFile,
+    '--lifespan','off',
+    '--log-level', $LogLevel
+  )
+  Write-Host ("Starting HTTPS server on https://0.0.0.0:{0} (Uvicorn + TLS) ..." -f $Port) -ForegroundColor Green
+  try {
+    python @args
+    return $LASTEXITCODE
+  } catch {
+    return 1
+  }
+}
+
+function Start-DjangoRunserver {
+  param([string]$ServerHost, [string]$ServerPort)
+  $url = ("http://{0}:{1}" -f $ServerHost, $ServerPort)
+  Write-Host "Starting plain HTTP dev server at $url ..." -ForegroundColor Yellow
+  python backend\manage.py runserver ("{0}:{1}" -f $ServerHost, $ServerPort)
+}
+
+# ------------- Quick Health Check -------------
+function Test-PythonAvailable {
+  try {
+    $null = Get-Command python -ErrorAction Stop
+    return $true
+  } catch {
+    Write-Warning "Python not found on PATH. Ensure virtualenv is activated: .\\.venv\\Scripts\\Activate.ps1"
+    return $false
+  }
+}
+function Test-DjangoManage {
+  try {
+    python backend\manage.py --version | Out-Null
+    return $true
+  } catch {
+    Write-Warning ("Django manage.py not runnable: {0}" -f $_.Exception.Message)
+    return $false
+  }
+}
+function Start-HealthCheck {
+  param(
+    [bool]$TlsExpected,
+    [string]$KeyFile,
+    [string]$CertFile,
+    [int]$TlsPort
+  )
+  $ok = $true
+  if (-not (Test-PythonAvailable)) { $ok = $false }
+  if (-not (Test-DjangoManage))   { $ok = $false }
+  if ($TlsExpected) {
+    if (-not (Test-Path -Path $KeyFile)) { Write-Warning ("TLS key not found: {0}" -f $KeyFile); $ok = $false }
+    if (-not (Test-Path -Path $CertFile)) { Write-Warning ("TLS cert not found: {0}" -f $CertFile); $ok = $false }
+    try {
+      $inUse = (Test-NetConnection -ComputerName '127.0.0.1' -Port $TlsPort -WarningAction SilentlyContinue).TcpTestSucceeded
+      if ($inUse) { Write-Warning ("TLS port {0} already in use." -f $TlsPort) }
+    } catch { }
+  }
+  return $ok
+}
+
+# ------------- Preflight -------------
+$DotEnv = Read-DotEnv -Path $EnvFile
+Invoke-DjangoMigrate
+Ensure-Superuser -DotEnv $DotEnv
+
+# ------------- Certs -------------
+New-DevCertificatesIfMissing -Key $KeyPath -Crt $CrtPath -GeneratorPath $MakeCert
+$CanTryTls = (Test-Path -Path $KeyPath) -and (Test-Path -Path $CrtPath)
+
+# ------------- Port / Logging -------------
+$BaseTlsPort   = if ($Env:DJANGO_TLS_PORT) { [int]$Env:DJANGO_TLS_PORT } else { $DEFAULT_TLS_PORT }
+$TlsPort       = Get-AvailableTlsPort -Preferred $BaseTlsPort -ProbeRange $TLS_PROBE_RANGE
+$LogLevel      = if ($Env:DJANGO_UVICORN_LOG_LEVEL) { $Env:DJANGO_UVICORN_LOG_LEVEL } else { $DEFAULT_LOG_LEVEL }
+$SuperuserName = if ($DotEnv -and $DotEnv['DJANGO_SUPERUSER_USERNAME']) { $DotEnv['DJANGO_SUPERUSER_USERNAME'] } else { 'mesuef' }
+Write-Host ("Admin login URL: https://127.0.0.1:{0}/admin/  (user: {1})" -f $TlsPort, $SuperuserName) -ForegroundColor DarkGray
+
+# ------------- Start Server -------------
+if ($CanTryTls) {
+  if (-not (Start-HealthCheck -TlsExpected $true -KeyFile $KeyPath -CertFile $CrtPath -TlsPort $TlsPort)) {
+    Write-Host "Preflight checks failed; falling back to Django runserver (HTTP)." -ForegroundColor DarkYellow
+  } else {
+    $exitCode = Start-UvicornTls -Port $TlsPort -KeyFile $KeyPath -CertFile $CrtPath -LogLevel $LogLevel -App $UVICORN_APP -AppDir $UVICORN_APP_DIR
+    if ($exitCode -eq 0) { exit 0 }
+    Write-Warning ("Uvicorn HTTPS exited with code {0}. Falling back to Django runserver (HTTP)." -f $exitCode)
   }
 } else {
   Write-Warning "TLS certs not available. Falling back to Django runserver (HTTP)."
 }
 
-# Fallback: plain HTTP dev server
-$HostHttp = if ($Env:DJANGO_RUN_HOST) { $Env:DJANGO_RUN_HOST } else { '0.0.0.0' }
-$PortHttp = if ($Env:DJANGO_RUN_PORT) { $Env:DJANGO_RUN_PORT } else { '8000' }
-$Url = ("http://{0}:{1}" -f $HostHttp, $PortHttp)
-Write-Host "Starting plain HTTP dev server at $Url ..." -ForegroundColor Yellow
-python backend\manage.py runserver "$($HostHttp):$($PortHttp)"
+$ServerHost = if ($Env:DJANGO_RUN_HOST) { $Env:DJANGO_RUN_HOST } else { $DEFAULT_HTTP_HOST }
+$ServerPort = if ($Env:DJANGO_RUN_PORT) { $Env:DJANGO_RUN_PORT } else { $DEFAULT_HTTP_PORT }
+
+if (-not (Start-HealthCheck -TlsExpected $false -KeyFile $null -CertFile $null -TlsPort 0)) {
+  Write-Warning "Cannot start Django runserver due to failed preflight (Python/Django not ready)."
+} else {
+  Start-DjangoRunserver -ServerHost $ServerHost -ServerPort $ServerPort
+}

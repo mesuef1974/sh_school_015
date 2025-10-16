@@ -9,6 +9,19 @@
     /* إذا تعذّر تحميل مكتبة lordicon، أظهر بديل Bootstrap */
     html:not(.lordicon-ready) .li-fallback { display:inline; }
     html:not(.lordicon-ready) lord-icon { display:none; }
+    /* بطاقات الجداول */
+    .tbl-card .badge { border-radius: 999px; }
+    .card-hover{ transition: transform .12s ease, box-shadow .12s ease; }
+    .card-hover:hover{ transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.08); }
+    /* شريط أدوات لاصق على الشاشات الكبيرة */
+    @media (min-width: 992px){
+      #data-toolbar{ position: sticky; top: 64px; z-index: 10; background: transparent; }
+    }
+    /* طباعة: إخفاء عناصر الواجهة والتركيز على المحتوى */
+    @media print{
+      .page-header, #data-toolbar, nav, .btn, .input-group { display: none !important; }
+      .card { box-shadow: none !important; border: 1px solid #ccc; }
+    }
   </style>
   <script>
     // وسم الـ HTML عند نجاح تحميل مكتبة lordicon (موجودة في القالب الأساسي)
@@ -16,19 +29,51 @@
       if (window.lordicon) { document.documentElement.classList.add('lordicon-ready'); }
     });
   </script>
-  <div class="d-flex align-items-center mb-4 page-header">
+  <div class="d-flex align-items-center justify-content-between mb-4 page-header" data-aos="fade-down">
     <div>
-      <h1 class="h3 mb-1">
+      <h1 class="h3 mb-1 d-flex align-items-center gap-2">
         <lord-icon class="anim-icon" src="https://cdn.lordicon.com/cqofjexf.json" trigger="hover" colors="primary:#c49a6c,secondary:#7b1e1e" aria-label="قاعدة البيانات"></lord-icon>
         <i class="bi bi-database-fill text-accent me-1 li-fallback"></i>
         معاينة قاعدة البيانات
       </h1>
-      <div class="text-muted">كل الجداول ومحتوياتها</div>
+      <div class="text-muted small">كل الجداول ومحتوياتها</div>
+    </div>
+    <div class="d-none d-md-flex gap-2">
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'data_relations' %}" data-bs-toggle="tooltip" data-bs-title="خريطة العلاقات"><i class="bi bi-diagram-3"></i></a>
+      <a class="btn btn-sm btn-outline-secondary" href="{% url 'data_db_audit' %}" data-bs-toggle="tooltip" data-bs-title="تدقيق القاعدة"><i class="bi bi-clipboard2-check"></i></a>
+      <a class="btn btn-sm btn-outline-secondary" href="/admin/" target="_blank" data-bs-toggle="tooltip" data-bs-title="لوحة الإدارة"><i class="bi bi-shield-lock"></i></a>
+    </div>
+  </div>
+
+  <div id="data-toolbar" class="row g-2 g-md-3 mb-4 align-items-center" data-aos="fade-up">
+    <div class="col-12 col-md-4">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text"><i class="bi bi-search"></i> بحث</span>
+        <input id="q" class="form-control" placeholder="ابحث عن جدول… (student, timetable, …)" autocomplete="off"/>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <select id="filter-category" class="form-select form-select-sm" aria-label="تصفية حسب الفئة">
+        <option value="">كل الفئات</option>
+        <option value="core">بيانات أساسية</option>
+        <option value="junction">جداول ربط</option>
+        <option value="time">جداول زمنية</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <select id="sort" class="form-select form-select-sm" aria-label="ترتيب النتائج">
+        <option value="name">الاسم (أ-ي)</option>
+        <option value="rows">عدد الصفوف (الأكبر)</option>
+        <option value="updated">آخر تحديث</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-2 text-md-end small text-muted">
+      <span id="result-count">—</span>
     </div>
   </div>
 
   <!-- روابط سريعة لصفحات الجداول الاحترافية -->
-  <div class="row g-3 mb-4">
+  <div class="row g-3 mb-4" data-aos="fade-up">
     <div class="col-md-6 col-lg-4">
       <a class="text-decoration-none" href="{% url 'data_relations' %}">
         <div class="card card-hover h-100">
@@ -135,11 +180,11 @@
 
 
   {% if tables %}
-  <div class="row g-3">
+  <div id="tbl-grid" class="row g-3" data-aos="fade-up">
     {% for t in tables %}
-    <div class="col-md-6 col-lg-4">
-      <a class="text-decoration-none" href="{% url 'data_table_detail' t.name %}">
-        <div class="card card-hover h-100">
+    <div class="col-md-6 col-lg-4 tbl-card" data-name="{{ t.name|lower }}" data-rows="{{ t.count|default:0 }}" data-updated="{{ t.updated_ts|default:0 }}" data-kind="{{ t.kind|default:'' }}">
+      <a class="text-decoration-none" href="{% url 'data_table_detail' t.name %}" aria-label="عرض جدول {{ t.name }}">
+        <div class="card card-hover h-100" tabindex="0" role="link">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center">
               <div>
@@ -166,6 +211,83 @@
     {% endfor %}
   </div>
   {% else %}
-  <div class="alert alert-info">لا توجد جداول لعرضها.</div>
+  <div class="card border-0 text-center py-5 bg-light" data-aos="fade-up">
+    <div class="card-body">
+      <i class="bi bi-inboxes text-secondary" style="font-size:42px"></i>
+      <div class="mt-2 mb-3">لا توجد جداول لعرضها حاليًا.</div>
+      <a href="/admin/" class="btn btn-sm btn-outline-secondary">لوحة الإدارة</a>
+    </div>
+  </div>
   {% endif %}
+
+  <script>
+    // بحث + فلاتر + فرز + عداد + اختصار لوحة المفاتيح
+    (function(){
+      const q = document.getElementById('q');
+      const grid = document.getElementById('tbl-grid');
+      const cat = document.getElementById('filter-category');
+      const sort = document.getElementById('sort');
+      const counter = document.getElementById('result-count');
+      if(!grid) return;
+      let t;
+      function apply(){
+        const val = (q?.value||'').trim().toLowerCase();
+        const c   = (cat?.value||'');
+        const cards = Array.from(grid.querySelectorAll('.tbl-card'));
+        let visible = 0;
+        cards.forEach(card=>{
+          const name = (card.dataset.name||'');
+          const k    = (card.dataset.kind||'');
+          const show = (!val || name.includes(val)) && (!c || c===k);
+          card.style.display = show ? '' : 'none';
+          if(show) visible++;
+        });
+        if(counter) counter.textContent = `نتائج: ${visible}`;
+        if(sort){
+          const by = sort.value;
+          const vCards = cards.filter(c=>c.style.display!== 'none');
+          vCards.sort((a,b)=>{
+            if(by==='rows') return (+b.dataset.rows||0) - (+a.dataset.rows||0);
+            if(by==='updated') return (+b.dataset.updated||0) - (+a.dataset.updated||0);
+            return a.dataset.name.localeCompare(b.dataset.name, 'ar');
+          });
+          vCards.forEach(c=>grid.appendChild(c));
+        }
+      }
+      ['input','change'].forEach(ev=>{
+        [q,cat,sort].forEach(el=> el && el.addEventListener(ev, ()=>{ clearTimeout(t); t=setTimeout(apply,120); }));
+      });
+      document.addEventListener('keydown', (e)=>{
+        if(e.key==='/' && !/input|textarea|select/i.test(document.activeElement.tagName)){
+          e.preventDefault(); q?.focus();
+        }
+      });
+      apply();
+    })();
+  </script>
 {% endblock %}
+
+  <script>
+    // توزيع أيقونات Lordicon متنوعة على بطاقات الجداول لإحساس شبكي احترافي
+    (function(){
+      const grid = document.getElementById('tbl-grid');
+      if(!grid) return;
+      const icons = [
+        'https://cdn.lordicon.com/iqytlvst.json', // table
+        'https://cdn.lordicon.com/qhviklyi.json', // chart
+        'https://cdn.lordicon.com/qtqvorle.json', // network
+        'https://cdn.lordicon.com/qzkqnuod.json', // counter
+        'https://cdn.lordicon.com/mecwbjnp.json', // calendar
+        'https://cdn.lordicon.com/abwrkdvl.json', // grid
+        'https://cdn.lordicon.com/akbwczov.json', // shield
+        'https://cdn.lordicon.com/oqhlhtfq.json'  // eye
+      ];
+      const cards = grid.querySelectorAll('.tbl-card');
+      let i = 0;
+      cards.forEach(card=>{
+        const icon = card.querySelector('lord-icon.anim-icon');
+        if(icon){ icon.setAttribute('src', icons[i % icons.length]); }
+        i++;
+      });
+    })();
+  </script>

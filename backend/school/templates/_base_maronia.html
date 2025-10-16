@@ -7,6 +7,7 @@
   <title>{% block title %}لوحة البيانات{% endblock %}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet" />
   <link rel="stylesheet" href="/assets/fontawesome.min.css" />
   <link rel="stylesheet" href="/assets/animate.min.css" />
   <link rel="icon" href="{% static 'img/favicon.ico' %}" />
@@ -79,6 +80,70 @@
     .table-hero .muted { color:#666; font-size:.9rem; }
     .table-hero lord-icon { width:40px; height:40px; }
   </style>
+  <style>
+    /* Spacing helpers */
+    .section-auto { margin-block: 1rem; }
+    .gap-6 { gap: 2.5rem !important; }
+    .px-section { padding-inline: min(3vw, 24px) !important; }
+
+    /* Card / panel helpers */
+    .auto-card, .card { box-shadow: 0 6px 24px rgba(0,0,0,.06); border-radius: .75rem; background: #fff; }
+    .auto-card:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,.08); }
+    .soft-shadow { box-shadow: 0 4px 16px rgba(0,0,0,.05) !important; }
+    .elevate:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(0,0,0,.1); }
+
+    /* Text helpers */
+    .lead-muted { color:#6c757d; font-size: .95rem; }
+    .text-balance { text-wrap: balance; }
+    .truncate { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .word-break { word-break: break-word; }
+
+    /* Scroll helpers */
+    .table-wrap, .scroll-x { overflow-x:auto; }
+    .scroll-y { overflow-y:auto; }
+
+    /* Selection helpers */
+    .no-select { user-select: none; -webkit-user-select: none; }
+
+    /* Page header subtle gradient and radius */
+    .page-header { background: linear-gradient(90deg, rgba(196,154,108,.08), rgba(123,30,30,.04)); border-radius: .5rem; }
+
+    /* Print: avoid cutting tables and hide decorative elements */
+    @media print {
+      .no-print, [data-aos], .navbar, footer { display: none !important; }
+      .table-wrap, .scroll-x, .scroll-y { overflow: visible !important; }
+      .card, .auto-card { box-shadow: none !important; border: 1px solid #ddd; }
+    }
+
+    /* Reduced motion respect */
+    @media (prefers-reduced-motion: reduce) {
+      .auto-card:hover, .elevate:hover { transform: none; }
+    }
+  </style>
+  <style>
+    /* Ensure elements are visible before AOS initializes */
+    html:not(.aos-ready) [data-aos] { opacity: 1 !important; transform: none !important; }
+  </style>
+  <style>
+    /* Lordicon fallback: show Bootstrap icon if Lordicon is unavailable */
+    html:not(.lordicon-ready) .li-fallback { display: inline !important; }
+    html:not(.lordicon-ready) lord-icon { display: none !important; }
+  </style>
+  <style>
+    /* Global site background image overlay (50% opacity) */
+    body.site-bg::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background-image: url('{% static "img/portal_bg.png" %}');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      opacity: 0.5; /* 50% */
+      pointer-events: none;
+      z-index: -1;
+    }
+  </style>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -144,6 +209,151 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+  <script>
+    (function(){
+      // Mark lordicon readiness for fallbacks
+      if (window.lordicon) { document.documentElement.classList.add('lordicon-ready'); }
+      // Mark AOS readiness to control pre-init visibility
+      document.documentElement.classList.add('aos-ready');
+
+      // Enable Bootstrap tooltips globally (idempotent)
+      const tooltipTriggerList = Array.prototype.slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      tooltipTriggerList.forEach(function (el) { try { new bootstrap.Tooltip(el); } catch(_){} });
+
+      // Global background activation: use site-bg unless a page sets 'portal-bg'
+      document.addEventListener('DOMContentLoaded', function(){
+        if (!document.body.classList.contains('portal-bg')) {
+          document.body.classList.add('site-bg');
+        }
+      });
+
+      // Initialize AOS animations lazily
+      if (window.AOS) {
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        AOS.init({
+          duration: reduceMotion ? 0 : 600,
+          easing: 'ease-out',
+          once: false,
+          mirror: true,
+          startEvent: 'DOMContentLoaded',
+          disable: reduceMotion
+        });
+        try { window.addEventListener('load', function(){ AOS.refreshHard(); }); } catch(_){}
+        try { document.addEventListener('htmx:afterSwap', function(){ AOS.refreshHard(); }); } catch(_){}
+      }
+
+      // Auto-enhancer: decorate common blocks across pages without modifying each template
+      function autoEnhance(){
+        try {
+          // Page headers: add AOS if missing
+          document.querySelectorAll('.page-header').forEach(function(h){
+            if (!h.getAttribute('data-aos')) { h.setAttribute('data-aos', 'fade-down'); }
+          });
+          // Cards: subtle fade-up (avoid applying to generic .row to prevent layout glitches)
+          document.querySelectorAll('.card').forEach(function(el){
+            if (!el.getAttribute('data-aos')) { el.setAttribute('data-aos', 'fade-up'); }
+          });
+          // Tables: ensure wrapped and sticky headers
+          document.querySelectorAll('table.table').forEach(function(tbl){
+            try {
+              // sticky head is handled by CSS in base; ensure container scroll when needed
+              if (!tbl.closest('.table-wrap')){
+                const wrap = document.createElement('div');
+                wrap.className = 'table-wrap';
+                const parent = tbl.parentNode; parent.insertBefore(wrap, tbl); wrap.appendChild(tbl);
+              }
+            } catch(_){}
+          });
+
+          // Inject default animated icon into page headers if missing (site identity everywhere)
+          document.querySelectorAll('.page-header .h1, .page-header h1, .page-header .h2, .page-header h2').forEach(function(h){
+            try {
+              if (!h.querySelector('lord-icon')){
+                const li = document.createElement('lord-icon');
+                li.setAttribute('src','https://cdn.lordicon.com/kndkiwmf.json');
+                li.setAttribute('trigger','hover');
+                li.setAttribute('colors','primary:#c49a6c,secondary:#7b1e1e');
+                li.style.width='28px'; li.style.height='28px';
+                const fallback = document.createElement('i');
+                fallback.className = 'bi bi-stars text-accent me-1 li-fallback';
+                h.classList.add('d-flex','align-items-center','gap-2');
+                h.prepend(fallback);
+                h.prepend(li);
+              }
+            } catch(_){}
+          });
+
+          // Arabic aria and labels if missing
+          document.querySelectorAll('nav[aria-label]:not([aria-label*="العرض"])').forEach(function(n){
+            // leave existing aria labels; this is conservative
+          });
+        } catch(_){}
+      }
+
+      // Global micro-utilities
+      function initUtilities(){
+        try {
+          // 1) Copy-to-clipboard: elements with [data-copy] or .js-copy[data-target]
+          document.addEventListener('click', function(e){
+            const t1 = e.target.closest('[data-copy]');
+            const t2 = e.target.closest('.js-copy');
+            let text = null;
+            if (t1) {
+              text = t1.getAttribute('data-copy') || '';
+            } else if (t2) {
+              const sel = t2.getAttribute('data-target');
+              const el = sel ? document.querySelector(sel) : null;
+              if (el) { text = (el.innerText || el.textContent || '').trim(); }
+            }
+            if (text) {
+              try {
+                navigator.clipboard.writeText(text).then(()=>{
+                  const prev = (t1||t2).textContent;
+                  (t1||t2).textContent = 'نُسخ';
+                  setTimeout(()=>{ (t1||t2).textContent = prev; }, 1200);
+                });
+              } catch(_){ /* ignore */ }
+            }
+          });
+
+          // 2) External links hardening
+          const origin = location.origin;
+          document.querySelectorAll('a[href^="http"]:not([data-internal])').forEach(function(a){
+            try {
+              if (!a.href.startsWith(origin)) {
+                if (!a.target) a.target = '_blank';
+                const rel = (a.getAttribute('rel')||'').split(' ').filter(Boolean);
+                if (!rel.includes('noopener')) rel.push('noopener');
+                if (!rel.includes('noreferrer')) rel.push('noreferrer');
+                a.setAttribute('rel', rel.join(' '));
+              }
+            } catch(_){ }
+          });
+
+          // 3) HTMX tiny top progress bar
+          if (window.htmx && !document.getElementById('htmx-progress')){
+            const bar = document.createElement('div');
+            bar.id = 'htmx-progress';
+            bar.style.cssText = 'position:fixed;inset-inline-start:0;top:0;height:3px;width:0;background:linear-gradient(90deg,#c49a6c,#7b1e1e);z-index:2147483647;transition:width .3s ease,opacity .4s ease;opacity:0;';
+            document.body.appendChild(bar);
+            const start = ()=>{ bar.style.opacity='1'; bar.style.width='15%'; setTimeout(()=>{ bar.style.width='55%'; }, 150); };
+            const end = ()=>{ bar.style.width='100%'; setTimeout(()=>{ bar.style.opacity='0'; bar.style.width='0'; }, 350); };
+            document.body.addEventListener('htmx:beforeRequest', start);
+            document.body.addEventListener('htmx:afterOnLoad', end);
+            document.body.addEventListener('htmx:responseError', end);
+          }
+        } catch(_){ }
+      }
+
+      if (document.readyState === 'complete' || document.readyState === 'interactive') {
+        autoEnhance();
+        initUtilities();
+      } else {
+        document.addEventListener('DOMContentLoaded', function(){ autoEnhance(); initUtilities(); });
+      }
+    })();
+  </script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>
