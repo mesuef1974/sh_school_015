@@ -2388,11 +2388,14 @@ def data_table_detail(request, table):
         columns = [col.name for col in description]
 
     order_sql = ""
-    if order and order.lstrip("-") in columns:
-        col = order.lstrip("-")
-        direction = "DESC" if order.startswith("-") else "ASC"
-        order_sql = f' ORDER BY "{col}" {direction}'
-
+    if order:
+        raw_col = order.lstrip("-")
+        if raw_col in columns:
+            # Only use trusted column names and two allowed directions
+            direction = "DESC" if order.startswith("-") else "ASC"
+            # Build ORDER BY clause using only validated names and directions
+            order_sql = ' ORDER BY "{}" {}'.format(raw_col, direction)
+        # else: ignore ordering if column name is not valid
     where_sql = ""
     params = []
     if q:
