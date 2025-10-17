@@ -1069,96 +1069,101 @@ def teacher_week_matrix(request):
     # Detect staff and role
     staff = Staff.objects.filter(user=request.user).first()
     is_teacher = bool(staff and staff.role == "teacher")
+    # Determine management capability via roles
+    try:
+        role_names = set(request.user.groups.values_list("name", flat=True))
+    except Exception:
+        role_names = set()
+    can_manage_timetable = bool(
+        getattr(request.user, "is_superuser", False)
+        or role_names.intersection({"principal", "academic_deputy", "timetable_manager"})
+    )
 
-    # Teachers to show
-    if is_teacher:
-        teachers = [staff]
-    else:
-        teacher_ids_with_entries = set(
-            TimetableEntry.objects.filter(term=term).values_list("teacher_id", flat=True)
+    # Teachers to show (requirement: teachers can view the full general timetable read-only)
+    teacher_ids_with_entries = set(
+        TimetableEntry.objects.filter(term=term).values_list("teacher_id", flat=True)
+    )
+    teacher_qs = (
+        Staff.objects.filter(Q(assignments__isnull=False) | Q(id__in=teacher_ids_with_entries))
+        .annotate(
+            life_skills_total=Sum(
+                "assignments__no_classes_weekly",
+                filter=Q(assignments__subject__name_ar__icontains="مهارات"),
+            ),
+            non_ls_min=Min(
+                Case(
+                    When(
+                        assignments__subject__name_ar__icontains="مهارات",
+                        then=Value(999),
+                    ),
+                    default=_subject_category_order_expr("assignments__subject__name_ar"),
+                    output_field=IntegerField(),
+                )
+            ),
+            job_title_cat=_job_title_category_order_expr("job_title"),
+            all_min=Min(_subject_category_order_expr("assignments__subject__name_ar")),
         )
-        teacher_qs = (
-            Staff.objects.filter(Q(assignments__isnull=False) | Q(id__in=teacher_ids_with_entries))
-            .annotate(
-                life_skills_total=Sum(
-                    "assignments__no_classes_weekly",
-                    filter=Q(assignments__subject__name_ar__icontains="مهارات"),
-                ),
-                non_ls_min=Min(
-                    Case(
-                        When(
-                            assignments__subject__name_ar__icontains="مهارات",
-                            then=Value(999),
-                        ),
-                        default=_subject_category_order_expr("assignments__subject__name_ar"),
-                        output_field=IntegerField(),
-                    )
-                ),
-                job_title_cat=_job_title_category_order_expr("job_title"),
-                all_min=Min(_subject_category_order_expr("assignments__subject__name_ar")),
-            )
-            .annotate(
-                has_social=Sum(
-                    Case(
-                        When(
-                            Q(assignments__subject__name_ar__icontains="جغرافيا")
-                            | Q(assignments__subject__name_ar__icontains="تاريخ")
-                            | Q(assignments__subject__name_ar__icontains="اجتماع")
-                            | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
-                            then=Value(1),
-                        ),
-                        default=Value(0),
-                        output_field=IntegerField(),
-                    )
-                ),
-                override_cat=Case(
-                    When(full_name__icontains="وجدي", then=Value(14)),
-                    When(full_name__icontains="منير", then=Value(12)),
+        .annotate(
+            has_social=Sum(
+                Case(
                     When(
-                        Q(full_name__icontains="أحمد المنصف")
-                        | Q(full_name__icontains="احمد المنصف"),
-                        then=Value(12),
+                        Q(assignments__subject__name_ar__icontains="جغرافيا")
+                        | Q(assignments__subject__name_ar__icontains="تاريخ")
+                        | Q(assignments__subject__name_ar__icontains="اجتماع")
+                        | Q(assignments__subject__name_ar__icontains="علوم اجتماعية"),
+                        then=Value(1),
                     ),
-                    When(full_name__icontains="السيد محمد", then=Value(9)),
-                    When(full_name__icontains="محمد عدوان", then=Value(9)),
-                    When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
-                    When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
-                    When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
-                    When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
-                    default=Value(None),
+                    default=Value(0),
                     output_field=IntegerField(),
+                )
+            ),
+            override_cat=Case(
+                When(full_name__icontains="وجدي", then=Value(14)),
+                When(full_name__icontains="منير", then=Value(12)),
+                When(
+                    Q(full_name__icontains="أحمد المنصف") | Q(full_name__icontains="احمد المنصف"),
+                    then=Value(12),
                 ),
-                prefer_social=Case(
-                    When(has_social__gt=0, then=Value(9)),
-                    default=Value(None),
-                    output_field=IntegerField(),
-                ),
-                min_category=Case(
-                    When(
-                        Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
-                        then=Coalesce(
-                            F("override_cat"),
-                            F("prefer_social"),
-                            F("job_title_cat"),
-                            F("all_min"),
-                            Value(999),
-                        ),
-                    ),
-                    default=Coalesce(
+                When(full_name__icontains="السيد محمد", then=Value(9)),
+                When(full_name__icontains="محمد عدوان", then=Value(9)),
+                When(full_name__icontains="محمد عبدالعزيز يونس عدوان", then=Value(9)),
+                When(full_name__icontains="محمد عبدالله عارف العجلوني", then=Value(9)),
+                When(full_name__icontains="على ضيف الله حمد على", then=Value(9)),
+                When(full_name__icontains="علاء محمد عبد الهادي القضاه", then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            prefer_social=Case(
+                When(has_social__gt=0, then=Value(9)),
+                default=Value(None),
+                output_field=IntegerField(),
+            ),
+            min_category=Case(
+                When(
+                    Q(life_skills_total__lte=2) & Q(non_ls_min__isnull=True),
+                    then=Coalesce(
                         F("override_cat"),
                         F("prefer_social"),
-                        F("all_min"),
-                        F("non_ls_min"),
                         F("job_title_cat"),
+                        F("all_min"),
                         Value(999),
                     ),
-                    output_field=IntegerField(),
                 ),
-            )
-            .distinct()
-            .order_by("min_category", "full_name", "id")
+                default=Coalesce(
+                    F("override_cat"),
+                    F("prefer_social"),
+                    F("all_min"),
+                    F("non_ls_min"),
+                    F("job_title_cat"),
+                    Value(999),
+                ),
+                output_field=IntegerField(),
+            ),
         )
-        teachers = list(teacher_qs)
+        .distinct()
+        .order_by("min_category", "full_name", "id")
+    )
+    teachers = list(teacher_qs)
 
     # Build grid per teacher: [day 1..5][period 1..7] -> entry or None
     DAYS = [1, 2, 3, 4, 5]
@@ -1206,14 +1211,14 @@ def teacher_week_matrix(request):
         "grid": grid,
         "DAYS": DAYS,
         "DAYS_RTL": list(reversed(DAYS)),
-        "DAY_NAMES": {1: "الأحد", 2: "الإثنين", 3: "الثلاثاء", 4: "الأربعاء", 5: "الخميس"},
-        # Present periods in descending order in UI (7 → 1) while keeping grid keys as 1..7
-        "PERIODS_DESC": list(reversed(PERIODS)),
+        "DAY_NAMES": {1: "الأحد", 2: "الاثنين", 3: "الثلاثاء", 4: "الأربعاء", 5: "الخميس"},
+        # Present periods in ascending order in UI (1 → 7)
+        "PERIODS_DESC": PERIODS,
         "PERIODS": PERIODS,
         "subject_colors": subject_colors,
         "assign_opts": asg_opts,
         "term": term,
-        "read_only": is_teacher,
+        "read_only": (not can_manage_timetable),
     }
     return render(request, "school/teacher_week_matrix.html", context)
 
@@ -1322,7 +1327,7 @@ def teacher_week_compact(request):
     # Grid: teacher -> (day,period) -> entry
     DAYS = [
         (1, "الأحد"),
-        (2, "الإثنين"),
+        (2, "الاثنين"),
         (3, "الثلاثاء"),
         (4, "الأربعاء"),
         (5, "الخميس"),
@@ -1370,8 +1375,8 @@ def teacher_week_compact(request):
         "grid": grid,
         "DAYS": DAYS,
         "DAYS_RTL": list(reversed(DAYS)),
-        # Period headers descending like the sample image (7..1)
-        "PERIODS_DESC": list(reversed(PERIODS)),
+        # Period headers ascending (1..7) per new requirement
+        "PERIODS_DESC": PERIODS,
         "PERIODS": PERIODS,
         "subject_colors": subject_colors,
         "assign_opts": asg_opts,
@@ -3364,12 +3369,37 @@ def teacher_attendance_page(request):
             Student.objects.filter(class_fk_id=selected_class_id, active=True).order_by("full_name")
         )
 
+    # حساب الحصص المسموحة اليوم ونافذة التحرير
+    editable_periods = []
+    close_at_map = {}
+    allowed_periods_today = []
+    server_now_iso = None
+    try:
+        from django.utils import timezone
+
+        if selected_class_id:
+            editable_set, close_map, allowed = get_editable_periods_for_teacher(
+                staff, int(selected_class_id), selected_date
+            )
+            editable_periods = sorted(list(int(p) for p in editable_set))
+            # serialize datetimes to isoformat strings
+            close_at_map = {str(k): v.isoformat() for k, v in close_map.items()}
+            allowed_periods_today = sorted(list(int(p) for p in allowed))
+        server_now_iso = timezone.localtime().isoformat()
+    except Exception:
+        pass
+
     ctx = {
         "title": "إدخال الغياب (المعلم)",
         "teacher_assignments": assignments,
         "students": students,
         "today": selected_date,
         "selected_class_id": selected_class_id,
+        "editable_periods": editable_periods,
+        "close_at_map": close_at_map,
+        "allowed_periods_today": allowed_periods_today,
+        "server_now": server_now_iso,
+        "staff_role": getattr(staff, "role", ""),
     }
     return render(request, "school/teacher_attendance.html", ctx)
 
@@ -3441,6 +3471,7 @@ def api_attendance_bulk_save(request):
         class_id = int(payload.get("class_id") or 0)
         dt = _date.fromisoformat(payload.get("date"))
         items = payload.get("records", [])
+        submit_and_lock = bool(payload.get("submit_and_lock", False))
     except Exception:
         return JsonResponse({"error": "bad_request"}, status=400)
 
@@ -3455,6 +3486,20 @@ def api_attendance_bulk_save(request):
     period_times = get_period_times(dt)
     subject_map = get_subject_per_period(class_id, dt)
 
+    # حصص المعلم المسموحة اليوم + نافذة التحرير الحالية
+    editable_periods, _close_map, allowed_today = get_editable_periods_for_teacher(
+        staff, class_id, dt
+    )
+    # إن كان المستخدم مشرف جناح، اسمح له بالتحرير لجميع الحصص بدون تقييد نافذة الزمن
+    try:
+        staff_role = getattr(staff, "role", "")
+    except Exception:
+        staff_role = ""
+    if staff_role == "wing_supervisor":
+        # periods 1..12 كحد أعلى منطقي
+        editable_periods = set(range(1, 13))
+        allowed_today = set(range(1, 13))
+
     saved = 0
     for item in items:
         try:
@@ -3463,6 +3508,21 @@ def api_attendance_bulk_save(request):
             status = item["status"]
         except Exception:
             continue
+
+        # 1) يجب أن تكون الحصة ضمن جدول المعلم اليوم لهذا الصف
+        if p not in allowed_today:
+            continue
+        # 2) يجب أن تكون ضمن النافذة الزمنية للتحرير
+        if p not in editable_periods:
+            continue
+
+        # احترام السجلات المقفلة (ما عدا مشرف الجناح)
+        existing = AttendanceRecord.objects.filter(
+            student_id=st_id, date=dt, period_number=p, term=term
+        ).first()
+        if existing and existing.locked and staff_role != "wing_supervisor":
+            continue
+
         defaults = {
             "classroom_id": class_id,
             "teacher": staff,
@@ -3477,7 +3537,7 @@ def api_attendance_bulk_save(request):
             "early_minutes": item.get("early_minutes", 0),
             "runaway_reason": item.get("runaway_reason", ""),
             "excuse_type": item.get("excuse_type", ""),
-            "source": "teacher",
+            "source": ("supervisor" if staff_role == "wing_supervisor" else "teacher"),
         }
         subj_id = subject_map.get(p) or get_default_subject_id()
         if subj_id:
@@ -3493,6 +3553,15 @@ def api_attendance_bulk_save(request):
             saved += 1
         except Exception:
             continue
+
+    if submit_and_lock:
+        try:
+            # اقفل السجلات التي أنشأها هذا المعلم لهذا الصف/اليوم ضمن حصصه
+            AttendanceRecord.objects.filter(
+                classroom_id=class_id, date=dt, term=term, period_number__in=list(allowed_today)
+            ).update(locked=True)
+        except Exception:
+            pass
 
     try:
         update_daily_aggregates(class_id, dt, term)
@@ -3514,7 +3583,33 @@ def get_active_term(dt: _date):
 
 
 def get_period_times(dt: _date):
-    # لاحقاً يمكن ربطها بـ PeriodTemplate. حالياً نعيد أوقات افتراضية.
+    """Return period start/end times for a given date using PeriodTemplate/TemplateSlot when available.
+    Falls back to static defaults if no templates are defined.
+    Returns: dict[int, (time, time)] mapping period_number -> (start_time, end_time)
+    """
+    from .models import PeriodTemplate, TemplateSlot  # local import to avoid circulars
+
+    dow = dt.isoweekday()  # 1=Sun .. 7=Sat
+    res = {}
+    try:
+        tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=dow).values_list("id", flat=True))
+        if tpl_ids:
+            slots = (
+                TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                .exclude(number__isnull=True)
+                .order_by("number", "start_time")
+            )
+            for s in slots:
+                # last one wins if duplicates; templates should be consistent
+                res[int(s.number)] = (s.start_time, s.end_time)
+    except Exception:
+        # if DB not migrated/available, ignore and use fallback
+        res = {}
+
+    if res:
+        return res
+
+    # Fallback static schedule (7 periods)
     base = [
         (8, 0),
         (8, 50),
@@ -3531,12 +3626,12 @@ def get_period_times(dt: _date):
         (13, 50),
         (14, 40),
     ]
-    res = {}
+    fallback = {}
     for i in range(7):
         s_h, s_m = base[i * 2]
         e_h, e_m = base[i * 2 + 1]
-        res[i + 1] = (_time(s_h, s_m), _time(e_h, e_m))
-    return res
+        fallback[i + 1] = (_time(s_h, s_m), _time(e_h, e_m))
+    return fallback
 
 
 def get_subject_per_period(class_id: int, dt: _date):
@@ -3546,6 +3641,48 @@ def get_subject_per_period(class_id: int, dt: _date):
     for e in TimetableEntry.objects.filter(classroom_id=class_id, day_of_week=day, term=term):
         mp[int(e.period_number)] = e.subject_id
     return mp
+
+
+def get_editable_periods_for_teacher(staff: Staff, class_id: int, dt: _date):
+    """Return (editable_set, close_at_map, allowed_periods_today)
+    - allowed_periods_today: periods the teacher teaches for that class on dt
+    - editable_set: subset of allowed that is currently within [start, start+lock_minutes]
+    - close_at_map: period -> close datetime (timezone-aware)
+    """
+    from django.utils import timezone
+    from datetime import datetime, timedelta
+
+    # Teacher's periods for this class today
+    term = get_active_term(dt)
+    dow = dt.isoweekday()
+    allowed = set(
+        TimetableEntry.objects.filter(
+            teacher=staff, classroom_id=class_id, day_of_week=dow, term=term
+        ).values_list("period_number", flat=True)
+    )
+    period_times = get_period_times(dt)
+    # Get policy
+    try:
+        from .models import AttendancePolicy
+
+        pol = AttendancePolicy.objects.filter(term=term).order_by("-id").first()
+        lock_min = pol.lesson_lock_after_minutes if pol else 120
+    except Exception:
+        lock_min = 120
+    now = timezone.localtime()
+    editable = set()
+    close_at = {}
+    for p in allowed:
+        p = int(p)
+        if p not in period_times:
+            continue
+        start_t, _end_t = period_times[p]
+        start_dt = timezone.make_aware(datetime.combine(dt, start_t), now.tzinfo)
+        close_dt = start_dt + timedelta(minutes=lock_min)
+        close_at[str(p)] = close_dt
+        if start_dt <= now <= close_dt:
+            editable.add(p)
+    return editable, close_at, allowed
 
 
 def get_default_subject_id():
@@ -3591,6 +3728,40 @@ def root_router(request):
 def wings_overview(request):
     wings = Wing.objects.all().order_by("id")
     return render(request, "school/wings.html", {"wings": wings})
+
+
+@login_required
+def wing_dashboard(request):
+    """Minimal Wing Supervisor dashboard.
+    - Restrict to Staff.role == 'wing_supervisor'
+    - List classes under the supervisor's managed wings
+    - Provide quick open link to attendance editor (reuses teacher page with supervisor powers)
+    """
+    staff = Staff.objects.filter(user=request.user).first()
+    if not staff or getattr(staff, "role", "") != "wing_supervisor":
+        return HttpResponse("مسموح فقط لمشرف الجناح", status=403)
+
+    # Classes under wings managed by this supervisor
+    classes_qs = Class.objects.filter(wing__supervisor=staff).order_by("grade", "section", "name")
+    classes = list(classes_qs)
+
+    # Today and server time
+    try:
+        from django.utils import timezone as _tz
+
+        today = _tz.localdate()
+        server_now = _tz.localtime().isoformat()
+    except Exception:
+        today = None
+        server_now = ""
+
+    context = {
+        "title": "لوحة مشرف الجناح",
+        "classes": classes,
+        "today": today,
+        "server_now": server_now,
+    }
+    return render(request, "school/wing_dashboard.html", context)
 
 
 @login_required

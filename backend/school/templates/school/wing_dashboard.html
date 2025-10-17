@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}لوحة مشرف الجناح{% endblock %}
+
+{% block content %}
+<div class="container py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="mb-0">لوحة مشرف الجناح</h3>
+    <small class="text-muted">زمن الخادم: {{ server_now }}</small>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header">فتح إدخال الغياب السريع</div>
+    <div class="card-body">
+      {% if classes %}
+      <form id="quick-open" class="row gy-2 gx-2 align-items-end" action="{% url 'teacher_attendance_page' %}" method="get">
+        <div class="col-sm-5 col-md-4">
+          <label class="form-label">اختر الصف</label>
+          <select name="class_id" id="class_id" class="form-select" required>
+            {% for c in classes %}
+            <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-4 col-md-3">
+          <label class="form-label">التاريخ</label>
+          <input type="date" class="form-control" name="date" value="{{ today|date:'Y-m-d' }}" required />
+        </div>
+        <div class="col-sm-3 col-md-3">
+          <button type="submit" class="btn btn-primary">فتح محرر الغياب</button>
+        </div>
+      </form>
+      {% else %}
+      <div class="alert alert-info mb-0">لا توجد صفوف مرتبطة بأجنحة تُشرف عليها حالياً.</div>
+      {% endif %}
+      <small class="text-muted d-block mt-2">ملاحظة: سيتم فتح محرر الغياب الحالي، وبما أنك مشرف جناح ستتمكن من التحرير الكامل لأي حصة.</small>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">صفوفي تحت الإشراف</div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th style="width:60px">#</th>
+            <th>الصف</th>
+            <th>الجناح</th>
+            <th style="width:220px">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in classes %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ c.name }}</td>
+            <td>{{ c.wing.name if c.wing }}</td>
+            <td>
+              <a class="btn btn-outline-primary btn-sm" href="{% url 'teacher_attendance_page' %}?class_id={{ c.id }}&date={{ today|date:'Y-m-d' }}">
+                فتح محرر الغياب لليوم
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-center text-muted">لا يوجد صفوف</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

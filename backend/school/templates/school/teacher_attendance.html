@@ -106,6 +106,33 @@
   const table = document.getElementById('att-table');
   const pending = new Map(); // key: `${studentId}:${period}` -> payload
 
+  // Server-provided constraints
+  const EDITABLE_PERIODS = new Set(JSON.parse('{{ editable_periods|default:"[]"|escapejs }}'));
+  const ALLOWED_PERIODS_TODAY = new Set(JSON.parse('{{ allowed_periods_today|default:"[]"|escapejs }}'));
+  const CLOSE_AT_MAP = JSON.parse('{{ close_at_map|default:"{}"|escapejs }}');
+  const SERVER_NOW_ISO = JSON.parse('{{ server_now|default:"\"\""|escapejs }}');
+  const STAFF_ROLE = '{{ staff_role|default:"" }}';
+
+  function applyEditability(){
+    // Wing supervisor can always edit
+    const supervisor = STAFF_ROLE === 'wing_supervisor';
+    table.querySelectorAll('tbody tr').forEach(tr=>{
+      tr.querySelectorAll('.att-cell').forEach(td=>{
+        const p = Number(td.getAttribute('data-period'));
+        const editor = td.querySelector('.cell-editor');
+        let editable;
+        if (supervisor){
+          editable = true;
+        } else {
+          const allowed = ALLOWED_PERIODS_TODAY.size===0 ? true : ALLOWED_PERIODS_TODAY.has(p);
+          editable = EDITABLE_PERIODS.size===0 ? allowed : (allowed && EDITABLE_PERIODS.has(p));
+        }
+        if(editor){ editor.disabled = !editable; }
+        td.classList.toggle('bg-light', !editable);
+      });
+    });
+  }
+
   function statusLabel(status, extra){
     if(!status) return '';
     switch(status){
@@ -188,6 +215,7 @@
       });
     });
     pending.clear();
+    applyEditability();
   }
 
   async function saveAll(){
@@ -212,7 +240,7 @@
       tr.querySelectorAll('.att-cell').forEach(td=>{
         const editor = td.querySelector('.cell-editor');
         const p = td.getAttribute('data-period');
-        if(editor){ editor.value = 'present'; }
+        if(editor && !editor.disabled){ editor.value = 'present'; }
         setCell(sid, p, 'present', td);
       });
     });

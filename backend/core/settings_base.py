@@ -41,8 +41,10 @@ INSTALLED_APPS = [
     "rest_framework",
     "corsheaders",
     "django_rq",
+    "rest_framework_simplejwt.token_blacklist",
     # Local app
     "school",
+    "apps.attendance",
 ]
 
 MIDDLEWARE = [
@@ -90,6 +92,7 @@ DATABASES = {
         "PORT": os.getenv("PG_PORT", "5432"),
     }
 }
+
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -155,6 +158,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Feature flags / toggles
 # Hide/disable Excel imports in UI and views when True
 DISABLE_IMPORTS = os.getenv("DISABLE_IMPORTS", "False").lower() == "true"
+# Enable serving/redirecting to the new SPA frontend when ready (kept False by default for safety)
+FRONTEND_SPA_ENABLED = os.getenv("FRONTEND_SPA_ENABLED", "False").lower() == "true"
 
 # RQ (Redis Queue) configuration for background jobs
 REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")

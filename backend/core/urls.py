@@ -69,6 +69,8 @@ urlpatterns = [
     path("favicon.ico", favicon, name="favicon"),
     path("admin/", restricted_admin_site.urls),
     path("", include("school.urls")),
+    # API v1 (new apps)
+    path("api/v1/", include("apps.attendance.urls")),
     # Friendly docs endpoints (development only)
     path("index", RedirectView.as_view(url="/docs/", permanent=False)),
 ]

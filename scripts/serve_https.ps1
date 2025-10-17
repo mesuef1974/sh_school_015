@@ -53,12 +53,25 @@ function Read-DotEnv {
   return $result
 }
 
-function Invoke-DjangoMigrate {
+function Invoke-DjangoMigrateIfNeeded {
   try {
-    Write-Host "Applying Django migrations (preflight) ..." -ForegroundColor DarkGray
-    python backend\manage.py migrate | Out-Null
+    # Check if there are unapplied migrations; if none, skip the heavy migrate step
+    Write-Host "Checking Django migrations status ..." -ForegroundColor DarkGray
+    $plan = python backend\manage.py showmigrations --plan 2>$null
+    if ($LASTEXITCODE -ne 0 -or -not $plan) {
+      Write-Host "showmigrations failed - running migrate to be safe." -ForegroundColor DarkYellow
+      python backend\manage.py migrate --noinput | Out-Null
+      return
+    }
+    if ($plan -match "\[ \]") {
+      Write-Host "Applying Django migrations (changes detected) ..." -ForegroundColor DarkGray
+      python backend\manage.py migrate --noinput | Out-Null
+    } else {
+      Write-Host "Migrations up-to-date - skipping migrate." -ForegroundColor DarkGray
+    }
   } catch {
-    Write-Warning ("migrate failed (continuing): {0}" -f $_.Exception.Message)
+    Write-Warning ("migrate probe failed - running migrate anyway: {0}" -f $_.Exception.Message)
+    try { python backend\manage.py migrate --noinput | Out-Null } catch { Write-Warning ("migrate failed: {0}" -f $_.Exception.Message) }
   }
 }
 
@@ -120,13 +133,13 @@ function Start-UvicornTls {
   )
   $args = @(
     '-m','uvicorn','--app-dir', $AppDir, $App,
-    '--host','0.0.0.0','--port',"$Port",
+    '--host','127.0.0.1','--port',"$Port",
     '--ssl-keyfile', $KeyFile,
     '--ssl-certfile', $CertFile,
     '--lifespan','off',
     '--log-level', $LogLevel
   )
-  Write-Host ("Starting HTTPS server on https://0.0.0.0:{0} (Uvicorn + TLS) ..." -f $Port) -ForegroundColor Green
+  Write-Host ("Starting HTTPS server on https://127.0.0.1:{0} (Uvicorn + TLS) ..." -f $Port) -ForegroundColor Green
   try {
     python @args
     return $LASTEXITCODE
@@ -182,9 +195,56 @@ function Start-HealthCheck {
   return $ok
 }
 
+function Test-DjangoDbConnection {
+  try {
+    # Build a small Python probe that ensures backend/ is on sys.path, sets DJANGO_SETTINGS_MODULE,
+    # calls django.setup(), and verifies DB connectivity via SELECT 1. Exits with code 0 on success.
+    $BackendPath = Join-Path $Root 'backend'
+    $BackendPathEsc = $BackendPath -replace '\\','\\'
+    $code = @"
+import os, sys
+backend_path = r'$BackendPathEsc'
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+# Ensure settings
+os.environ.setdefault('DJANGO_SETTINGS_MODULE','core.settings')
+try:
+    import django
+    django.setup()
+    from django.db import connection
+    with connection.cursor() as c:
+        c.execute('SELECT 1')
+        c.fetchone()
+    print('OK')
+    raise SystemExit(0)
+except Exception as e:
+    # Do not spam full trace during PowerShell probe; non-zero exit code is enough
+    raise SystemExit(1)
+"@
+    $tmp = New-TemporaryFile
+    Set-Content -Path $tmp -Value $code -Encoding UTF8
+    $output = & python $tmp 2>$null
+    $exit = $LASTEXITCODE
+    Remove-Item $tmp -ErrorAction SilentlyContinue
+    if ($exit -eq 0 -and ($output -match 'OK')) { return $true } else { return $false }
+  } catch {
+    return $false
+  }
+}
+
 # ------------- Preflight -------------
 $DotEnv = Read-DotEnv -Path $EnvFile
-Invoke-DjangoMigrate
+
+# Ensure DEBUG=true by default in local dev if not explicitly set
+if (-not $Env:DJANGO_DEBUG -or $Env:DJANGO_DEBUG -eq '') { $Env:DJANGO_DEBUG = 'true' }
+
+# Probe DB connectivity; require PostgreSQL (no SQLite fallback)
+if (-not (Test-DjangoDbConnection)) {
+  Write-Error -Message "Failed to connect to PostgreSQL. Ensure PostgreSQL is running and PG_* settings are set in backend/.env, then retry."
+  exit 1
+}
+
+Invoke-DjangoMigrateIfNeeded
 Ensure-Superuser -DotEnv $DotEnv
 
 # ------------- Certs -------------
@@ -196,6 +256,18 @@ $BaseTlsPort   = if ($Env:DJANGO_TLS_PORT) { [int]$Env:DJANGO_TLS_PORT } else { 
 $TlsPort       = Get-AvailableTlsPort -Preferred $BaseTlsPort -ProbeRange $TLS_PROBE_RANGE
 $LogLevel      = if ($Env:DJANGO_UVICORN_LOG_LEVEL) { $Env:DJANGO_UVICORN_LOG_LEVEL } else { $DEFAULT_LOG_LEVEL }
 $SuperuserName = if ($DotEnv -and $DotEnv['DJANGO_SUPERUSER_USERNAME']) { $DotEnv['DJANGO_SUPERUSER_USERNAME'] } else { 'mesuef' }
+
+# Persist selected TLS port for other tools (e.g., dev_all.ps1) and display clear info
+try {
+  $RuntimeDir = Join-Path $Root 'backend\.runtime'
+  if (-not (Test-Path -Path $RuntimeDir)) { New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null }
+  $PortFile = Join-Path $RuntimeDir 'https_port.txt'
+  Set-Content -Path $PortFile -Value $TlsPort -Encoding ASCII
+} catch { }
+
+if ($TlsPort -ne $BaseTlsPort) {
+  Write-Host ("Note: Preferred port {0} was busy; selected free port {1}." -f $BaseTlsPort, $TlsPort) -ForegroundColor DarkYellow
+}
 Write-Host ("Admin login URL: https://127.0.0.1:{0}/admin/  (user: {1})" -f $TlsPort, $SuperuserName) -ForegroundColor DarkGray
 
 # ------------- Start Server -------------

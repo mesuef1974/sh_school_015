@@ -1,0 +1,123 @@
+<template>
+  <div class="container py-3">
+    <div class="row justify-content-center">
+      <div class="col-12 col-lg-8">
+        <div class="card p-3 mb-3">
+          <div class="d-flex align-items-center mb-3">
+            <h2 class="h5 mb-0">ملفي الشخصي</h2>
+            <span class="ms-auto"></span>
+            <button class="btn btn-sm btn-outline-danger" @click.prevent="onLogout">
+              <i class="bi bi-box-arrow-right"></i>
+              تسجيل الخروج
+            </button>
+          </div>
+          <div v-if="auth.loading">جاري التحميل…</div>
+          <div v-else>
+            <div class="row g-3">
+              <div class="col-12 col-md-6">
+                <div class="form-floating">
+                  <input type="text" class="form-control" :value="auth.profile?.username" readonly id="fldUsername" />
+                  <label for="fldUsername">اسم المستخدم</label>
+                </div>
+              </div>
+              <div class="col-12 col-md-6">
+                <div class="form-floating">
+                  <input type="text" class="form-control" :value="auth.profile?.full_name" readonly id="fldFullname" />
+                  <label for="fldFullname">الاسم الكامل</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label">الأدوار</label>
+                <div>
+                  <span v-for="r in auth.profile?.roles || []" :key="r" class="badge text-bg-secondary me-1">{{ r }}</span>
+                  <span v-if="(auth.profile?.roles || []).length === 0" class="text-muted">لا توجد أدوار محددة</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-3">
+          <h2 class="h6 mb-3">تغيير كلمة المرور</h2>
+          <form @submit.prevent="onChangePassword" class="row g-3">
+            <div class="col-12 col-md-6">
+              <label class="form-label">كلمة المرور الحالية</label>
+              <input v-model="current" type="password" class="form-control" required autocomplete="current-password" />
+            </div>
+            <div class="col-12 col-md-6"></div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">كلمة المرور الجديدة</label>
+              <input v-model="new1" type="password" class="form-control" required autocomplete="new-password" />
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">تأكيد كلمة المرور الجديدة</label>
+              <input v-model="new2" type="password" class="form-control" required autocomplete="new-password" />
+            </div>
+            <div class="col-12 d-flex align-items-center gap-2">
+              <button class="btn btn-maron" :disabled="saving">حفظ</button>
+              <span v-if="msg" :class="{'text-success': success, 'text-danger': !success}">{{ msg }}</span>
+            </div>
+            <ul v-if="errors.length" class="text-danger small mb-0">
+              <li v-for="(e,i) in errors" :key="i">{{ e }}</li>
+            </ul>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { onMounted, ref } from 'vue';
+import { useAuthStore } from '../stores/auth';
+import { changePassword, logout } from '../../shared/api/client';
+import { useRouter } from 'vue-router';
+
+const auth = useAuthStore();
+const router = useRouter();
+const current = ref('');
+const new1 = ref('');
+const new2 = ref('');
+const saving = ref(false);
+const msg = ref('');
+const success = ref(false);
+const errors = ref<string[]>([]);
+
+onMounted(async () => {
+  if (!auth.profile && !auth.loading) {
+    try { await auth.loadProfile(); } catch { /* ignore */ }
+  }
+});
+
+async function onChangePassword() {
+  saving.value = true; msg.value=''; success.value=false; errors.value = [];
+  try {
+    const res = await changePassword({ current_password: current.value, new_password1: new1.value, new_password2: new2.value });
+    msg.value = res.detail || 'تم تغيير كلمة المرور بنجاح';
+    success.value = true;
+    current.value = new1.value = new2.value = '';
+  } catch (e: any) {
+    const d = e?.response?.data;
+    if (d?.errors && Array.isArray(d.errors)) {
+      errors.value = d.errors;
+      msg.value = '';
+    } else {
+      msg.value = d?.detail || 'تعذر تغيير كلمة المرور';
+    }
+    success.value = false;
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function onLogout() {
+  try { await logout(); } finally {
+    auth.clear();
+    router.replace({ name: 'login' });
+  }
+}
+</script>
+
+<style scoped>
+.card { border-radius: .75rem; box-shadow: 0 6px 24px rgba(0,0,0,.06); }
+</style>

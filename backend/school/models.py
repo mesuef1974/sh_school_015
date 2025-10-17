@@ -158,6 +158,75 @@ class Staff(models.Model):
     def __str__(self) -> str:
         return self.full_name
 
+    # --- RBAC sync: keep auth.groups in sync with Staff.role ---
+    def _sync_role_group(self):
+        """Ensure that the related user's auth Group membership reflects Staff.role.
+        - Maps Staff.role -> canonical Group name used by the API (lowercase snake names).
+        - Creates the Group if missing.
+        - Removes user from other role-groups defined by this mapping to avoid stale roles.
+        """
+        if not getattr(self, "user_id", None):
+            return
+        try:
+            from django.contrib.auth.models import Group
+        except Exception:
+            return
+        # Canonical mapping from Staff.role -> Group name used by our RBAC checks
+        ROLE_TO_GROUP = {
+            "teacher": "teacher",
+            "school_principal": "principal",
+            "academic_vice": "academic_deputy",
+            "administrative_vice": "administrative_deputy",
+            "supervisor": "wing_supervisor",
+            "coordinator": "subject_coordinator",
+            "developer": "developer",
+            "admin": "admin",
+            "administrative": "staff",
+            "staff": "staff",
+        }
+        target_group_name = ROLE_TO_GROUP.get(self.role)
+        if not target_group_name:
+            # Roles without RBAC mapping are ignored (no automatic groups)
+            return
+        # Ensure canonical group exists
+        target_group, _ = Group.objects.get_or_create(name=target_group_name)
+        user = self.user
+        # Build set of all managed role groups; we will remove all then add the target
+        managed_group_names = set(ROLE_TO_GROUP.values())
+        # Also remove common titlecase variants to avoid duplicates, if present
+        title_variants = {
+            "Teacher",
+            "Wing Supervisor",
+            "Subject Coordinator",
+            "Principal",
+            "Academic Deputy",
+            "Administrative Deputy",
+            "Admin",
+            "Developer",
+            "Staff",
+        }
+        managed_group_names |= {g for g in title_variants}
+        # Remove user from all managed groups except the target
+        try:
+            current = set(user.groups.values_list("name", flat=True))
+            to_remove = [g for g in current if g in managed_group_names and g != target_group_name]
+            if to_remove:
+                user.groups.remove(*Group.objects.filter(name__in=to_remove))
+        except Exception:
+            pass
+        # Finally, add the target if not already present
+        if not user.groups.filter(name=target_group.name).exists():
+            user.groups.add(target_group)
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # After saving (to ensure we have PK and potential user relation), sync groups
+        try:
+            self._sync_role_group()
+        except Exception:
+            # Never block saving due to RBAC synchronization issues
+            pass
+
 
 class Subject(models.Model):
     name_ar = models.CharField("اسم المادة", max_length=150, unique=True)

@@ -27,6 +27,7 @@ from .views import (
     root_router,
     wings_overview,
     wing_detail,
+    wing_dashboard,
     assignments_vs_timetable,
     data_relations,
     data_db_audit,
@@ -99,4 +100,5 @@ urlpatterns = [
     # Wings pages
     path("wings/", wings_overview, name="wings_overview"),
     path("wings/<int:wing_id>/", wing_detail, name="wing_detail"),
+    path("wing/dashboard/", wing_dashboard, name="wing_dashboard"),
 ]
