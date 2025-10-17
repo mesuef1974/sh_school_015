@@ -52,11 +52,13 @@ def user_can_access_class(user, class_id: int) -> bool:
     if "principal" in roles or "academic_deputy" in roles:
         return True
 
-    if "teacher" in roles and staff is not None and TeachingAssignment is not None:
+    # Allow any mapped Staff with a direct TeachingAssignment for the class (no hard dependency on 'teacher' group)
+    if staff is not None and TeachingAssignment is not None:
         try:
-            return TeachingAssignment.objects.filter(
+            if TeachingAssignment.objects.filter(
                 teacher_id=staff.id, classroom_id=class_id
-            ).exists()
+            ).exists():
+                return True
         except Exception:
             return False
 
