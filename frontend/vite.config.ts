@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [vue()],
   server: {
     port: 5173,
-    strictPort: true,
+    strictPort: false,
     proxy: {
       '/api': {
         // Backend dev server runs via HTTPS (Uvicorn TLS) by default from serve_https.ps1

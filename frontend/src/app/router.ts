@@ -2,7 +2,6 @@ import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router';
 import HomePage from '../home/HomePage.vue';
 import TeacherAttendance from '../features/attendance/pages/TeacherAttendance.vue';
 import LoginPage from './pages/LoginPage.vue';
-import { TOKEN_STORAGE_KEY } from '../shared/api/client';
 import { useAuthStore } from './stores/auth';
 
 const routes: RouteRecordRaw[] = [
@@ -29,13 +28,14 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   if (to.meta?.requiresAuth) {
-    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!token) {
-      return { name: 'login', query: { next: to.fullPath } };
-    }
     const auth = useAuthStore();
+    // Attempt to ensure profile is loaded; if it fails (e.g., 401), redirect to login
     if (!auth.profile) {
-      try { await auth.loadProfile(); } catch { /* ignore: backend may be down */ }
+      try {
+        await auth.loadProfile();
+      } catch {
+        return { name: 'login', query: { next: to.fullPath } };
+      }
     }
     const required = (to.meta as any).requiredRoles as string[] | undefined;
     if (required && required.length) {

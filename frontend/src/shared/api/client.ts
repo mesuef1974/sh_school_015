@@ -1,6 +1,17 @@
 import axios from 'axios';
 
+// Backward-compat key (kept for a transitional period). Avoid using localStorage for access tokens.
 export const TOKEN_STORAGE_KEY = 'sh_school_token';
+
+// In-memory access token holder (preferred over localStorage)
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+  if (!token) {
+    try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch {}
+  }
+}
 
 export const api = axios.create({
   baseURL: '/api',
@@ -8,9 +19,9 @@ export const api = axios.create({
   timeout: 8000 // fail fast in dev if backend is down
 });
 
-// Attach Authorization header if token exists
+// Attach Authorization header if token exists (in-memory preferred; fallback to localStorage if present)
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  const token = accessToken || localStorage.getItem(TOKEN_STORAGE_KEY);
   if (token) {
     config.headers = config.headers || {};
     (config.headers as any)['Authorization'] = `Bearer ${token}`;
@@ -18,16 +29,47 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Simple 401 handler: redirect to /login
+// Automatic refresh on 401 (once), then redirect to /login on failure
+let refreshing: Promise<string | null> | null = null;
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err?.response?.status === 401 && location.pathname !== '/login') {
+  async (err) => {
+    const status = err?.response?.status;
+    const original = err?.config || {};
+    if (status === 401 && !original._retry) {
+      original._retry = true;
+      try {
+        refreshing = refreshing ?? refreshAccessToken();
+        const newToken = await refreshing.finally(() => (refreshing = null));
+        if (newToken) {
+          setAccessToken(newToken);
+          original.headers = original.headers || {};
+          original.headers['Authorization'] = `Bearer ${newToken}`;
+          return api(original);
+        }
+      } catch {}
+    }
+    if (status === 401 && location.pathname !== '/login') {
+      // Could not refresh → redirect to login
       window.location.href = '/login';
     }
     return Promise.reject(err);
   }
 );
+
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    // Prefer HttpOnly cookie on server. If not available yet, fallback to stored refresh (temporary)
+    const storedRefresh = localStorage.getItem('sh_school_refresh');
+    const body = storedRefresh ? { refresh: storedRefresh } : {};
+    const res = await axios.post('/api/token/refresh/', body, { withCredentials: true });
+    const data = res.data as { access?: string };
+    if (data?.access) { return data.access; }
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 export async function getAttendanceStudents(params: { class_id: number; date?: string }) {
   const res = await api.get('/v1/attendance/students/', { params });
@@ -65,24 +107,29 @@ export async function postAttendanceBulkSave(payload: { class_id: number; date: 
 }
 
 export async function login(username: string, password: string) {
-  const res = await axios.post('/api/token/', { username, password });
-  const data = res.data as { access: string; refresh: string };
-  localStorage.setItem(TOKEN_STORAGE_KEY, data.access);
-  localStorage.setItem('sh_school_refresh', data.refresh);
+  const res = await axios.post('/api/token/', { username, password }, { withCredentials: true });
+  const data = res.data as { access: string; refresh?: string };
+  // Store access in-memory (preferred)
+  setAccessToken(data.access);
+  // Transitional: keep refresh if backend still returns it and cookie not yet configured
+  if (data.refresh) {
+    try { localStorage.setItem('sh_school_refresh', data.refresh); } catch {}
+  }
+  // Clear any persisted access token from older versions
+  try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch {}
   return data;
 }
 
 export async function logout() {
   try {
     const refresh = localStorage.getItem('sh_school_refresh');
-    if (refresh) {
-      await api.post('/logout/', { refresh });
-    }
+    const body = refresh ? { refresh } : {};
+    await api.post('/logout/', body);
   } catch {
     // ignore errors on logout to be resilient
   } finally {
-    localStorage.removeItem(TOKEN_STORAGE_KEY);
-    localStorage.removeItem('sh_school_refresh');
+    setAccessToken(null);
+    try { localStorage.removeItem('sh_school_refresh'); } catch {}
   }
 }
 

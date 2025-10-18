@@ -1,0 +1,13 @@
+{
+  "name": "منصة المدرسة",
+  "short_name": "School",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F6EDE6",
+  "theme_color": "#7B1E1E",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "/assets/brand-icon.svg", "sizes": "64x64", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

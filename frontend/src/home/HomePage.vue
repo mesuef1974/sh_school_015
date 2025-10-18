@@ -10,7 +10,7 @@
       <div class="d-flex gap-2">
         <RouterLink v-if="isTeacher || isSuper" class="btn btn-sm btn-maron" to="/attendance/teacher">غياب اليوم</RouterLink>
         <RouterLink v-if="isTeacher || isSuper" class="btn btn-sm btn-maron-outline" to="/attendance/teacher/history">سجل الغياب</RouterLink>
-        <RouterLink v-if="hasRole('wing_supervisor') || isSuper" class="btn btn-sm btn-maron-outline" to="/wing/dashboard">لوحة الجناح</RouterLink>
+        <RouterLink v-if="(hasRole('wing_supervisor') && !isTeacher) || isSuper" class="btn btn-sm btn-maron-outline" to="/wing/dashboard">لوحة الجناح</RouterLink>
       </div>
     </header>
 

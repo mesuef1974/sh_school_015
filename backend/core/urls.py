@@ -21,8 +21,7 @@ from django.views.generic import RedirectView
 from django.views.static import serve as static_serve
 from django.http import HttpResponse
 from django.db import connection
-from rest_framework_simplejwt.views import TokenRefreshView
-from school.auth import CustomTokenObtainPairView
+from school.auth import CustomTokenObtainPairView, CustomTokenRefreshView
 from pathlib import Path
 
 # Use restricted admin site that allows only superusers or Staff with role 'admin'
@@ -110,7 +109,7 @@ if settings.DEBUG:
         path("api/", include("school.api.urls")),
         path("api-auth/", include("rest_framework.urls")),
         path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
-        path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+        path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     ]
     # Serve Font Awesome webfonts at /webfonts/* from the installed package during DEBUG
     try:
@@ -133,7 +132,7 @@ else:
     urlpatterns += [
         path("api/", include("school.api.urls")),
         path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
-        path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+        path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     ]
 
 # django-rq dashboard (development only for now)

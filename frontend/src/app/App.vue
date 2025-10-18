@@ -9,10 +9,10 @@
         </div>
         <span class="flex-fill"></span>
         <RouterLink to="/">الرئيسية</RouterLink>
-        <RouterLink v-if="isAssignedTeacher || isSuper" to="/attendance/teacher">تسجيل الغياب</RouterLink>
-        <RouterLink v-if="isAssignedTeacher || isSuper" to="/timetable/teacher">جدولي</RouterLink>
-        <RouterLink v-if="isAssignedTeacher || isSuper" to="/attendance/teacher/history">سجل الغياب</RouterLink>
-        <RouterLink v-if="hasRole('wing_supervisor') || isSuper" to="/wing/dashboard">مشرف الجناح</RouterLink>
+        <RouterLink v-if="isTeacher || isSuper" to="/attendance/teacher">تسجيل الغياب</RouterLink>
+        <RouterLink v-if="isTeacher || isSuper" to="/timetable/teacher">جدولي</RouterLink>
+        <RouterLink v-if="isTeacher || isSuper" to="/attendance/teacher/history">سجل الغياب</RouterLink>
+        <RouterLink v-if="(hasRole('wing_supervisor') && !isTeacher) || isSuper" to="/wing/dashboard">مشرف الجناح</RouterLink>
         <RouterLink v-if="hasRole('subject_coordinator') || isSuper" to="/subject/dashboard">منسق المادة</RouterLink>
         <RouterLink v-if="hasRole('principal') || isSuper" to="/principal/dashboard">مدير المدرسة</RouterLink>
         <RouterLink v-if="hasRole('academic_deputy') || isSuper" to="/academic/dashboard">المدير الأكاديمي</RouterLink>
@@ -60,7 +60,7 @@ const schoolNameSrc = '/assets/img/school_name.png';
 const auth = useAuthStore();
 const hasRole = (r: string) => auth.roles.includes(r);
 const isSuper = computed(() => !!auth.profile?.is_superuser);
-const isAssignedTeacher = computed(() => !!auth.profile?.hasTeachingAssignments);
+const isTeacher = computed(() => auth.roles.includes('teacher'));
 
 async function onLogout() {
   await logout();

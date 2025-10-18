@@ -20,6 +20,7 @@ export const useAuthStore = defineStore('auth', {
     error: '' as string
   }),
   getters: {
+    isAuthenticated: (state) => !!state.profile,
     roles(state) { return state.profile?.roles ?? []; },
     hasRole: (state) => (role: string) => !!state.profile?.roles?.includes(role),
     hasAnyRole: (state) => (roles: string[]) => roles.some(r => state.profile?.roles?.includes(r))

@@ -148,9 +148,19 @@ REST_FRAMEWORK = {
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+
+# Refresh cookie settings (used by school.auth views)
+SIMPLE_JWT_REFRESH_COOKIE_NAME = os.getenv("SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token")
+SIMPLE_JWT_REFRESH_COOKIE_SAMESITE = os.getenv("SIMPLE_JWT_REFRESH_COOKIE_SAMESITE", "Lax")
+SIMPLE_JWT_REFRESH_COOKIE_SECURE = (
+    os.getenv("SIMPLE_JWT_REFRESH_COOKIE_SECURE", "True").lower() == "true"
+)
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
