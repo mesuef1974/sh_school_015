@@ -225,8 +225,20 @@ $remoteTrim = ($Remote | ForEach-Object { $_.Trim() })
 try { $existingRemote = (git remote get-url origin) } catch { $existingRemote = '' }
 if ([string]::IsNullOrWhiteSpace($remoteTrim)) {
   if ($existingRemote) {
-    Write-Info "Using existing remote 'origin': $existingRemote"
-    $resolvedRemote = $existingRemote
+    $existingTrim = ($existingRemote | ForEach-Object { $_.Trim() })
+    $existingIsCommonMistake = @('main','master','upstream','mean') -contains $existingTrim
+    $existingLooksValid = ($existingTrim -match $httpPattern -or $existingTrim -match $sshPattern -or $existingTrim -match $sshUrlPattern)
+    if ($existingIsCommonMistake -or -not $existingLooksValid) {
+      Write-Warn "Existing remote 'origin' points to '$existingRemote', which is not a valid Git remote URL."
+      Write-Host "[USAGE] Please provide -Remote with a full Git URL to fix the origin, for example:" -ForegroundColor Yellow
+      Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
+      Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
+      Write-Host "Or fix it directly: git remote set-url origin <URL>" -ForegroundColor Gray
+      exit 1
+    } else {
+      Write-Info "Using existing remote 'origin': $existingRemote"
+      $resolvedRemote = $existingRemote
+    }
   } else {
     Write-Warn "No -Remote provided and no existing 'origin' remote is configured."
     Write-Host "[USAGE] Provide -Remote with a full Git URL, or configure origin first." -ForegroundColor Yellow
