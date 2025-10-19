@@ -9,20 +9,20 @@
       <span class="ms-auto"></span>
     </header>
 
-    <form @submit.prevent="loadData" class="row g-3 align-items-end mb-3 glass-form p-3">
-      <div class="col-12 col-md-3">
-        <label class="form-label">الصف</label>
+    <form @submit.prevent="loadData" class="toolbar-inline mb-3 glass-form p-3">
+      <div class="field-inline">
+        <label class="form-label mb-0">الصف:</label>
         <select v-model.number="classId" required class="form-select">
           <option :value="null" disabled>اختر الصف</option>
           <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name || ('صف #' + c.id) }}</option>
         </select>
       </div>
-      <div class="col-12 col-md-3">
-        <label class="form-label">التاريخ</label>
+      <div class="field-inline">
+        <label class="form-label mb-0">التاريخ:</label>
         <input type="date" v-model="dateStr" class="form-control" @change="onDateChange" />
       </div>
-      <div class="col-12 col-md-3">
-        <label class="form-label">حصة اليوم</label>
+      <div class="field-inline">
+        <label class="form-label mb-0">حصة اليوم:</label>
         <select v-model.number="periodNo" class="form-select" @change="onPickPeriod">
           <option :value="null">— لا شيء —</option>
           <option v-for="p in todayPeriods" :key="p.period_number" :value="p.period_number">
@@ -30,11 +30,10 @@
           </option>
         </select>
       </div>
-      <div class="col-12 col-md-3 d-flex gap-2 flex-wrap">
-        <button type="submit" class="btn btn-maron flex-grow-1">تحميل</button>
-        <button type="button" class="btn btn-maron-outline flex-grow-1" :disabled="!students.length" @click="setAll('present')">تعيين الجميع حاضر</button>
-        <button type="button" class="btn btn-outline-secondary flex-grow-1" :disabled="!students.length" @click="setAll('absent')">تعيين الجميع غائب</button>
-      </div>
+      <button type="submit" class="btn btn-maron">تحميل</button>
+      <button type="button" class="btn btn-maron-outline" :disabled="!students.length" @click="setAll('present')">تعيين الجميع حاضر</button>
+      <button type="button" class="btn btn-outline-secondary" :disabled="!students.length" @click="setAll('absent')">تعيين الجميع غائب</button>
+      <button type="button" class="btn btn-maron" :disabled="saving || !students.length" @click="save">حفظ</button>
     </form>
 
     <div v-if="loading" class="loader-line"></div>
@@ -52,78 +51,121 @@
           <span class="chip">متأخر: {{ classKpis.late ?? 0 }}</span>
           <span class="chip">هروب: {{ classKpis.runaway ?? 0 }}</span>
           <span class="chip">إذن خروج: {{ classKpis.excused ?? 0 }}</span>
-          <template v-if="students.length">
-            <span class="chip muted">الإجمالي: {{ totalStudents }}</span>
-            <span class="chip muted">حاضر: {{ presentCount }}</span>
-            <span class="chip muted">غائب: {{ absentCount }}</span>
-            <span class="chip muted">متأخر: {{ lateCount }}</span>
-            <span class="chip muted">هروب: {{ runawayCount }}</span>
-            <span class="chip muted">إذن خروج: {{ excusedCount }}</span>
-          </template>
         </div>
       </div>
       <div v-if="students.length === 0" class="auto-card p-3">لا يوجد طلاب.</div>
-      <div v-else class="auto-card p-0">
-        <div class="table-toolbar d-flex align-items-center gap-2 p-2 border-bottom">
-          <div class="fw-bold">سجل اليوم</div>
-          <span class="ms-auto small text-muted">{{ dateStr }}</span>
+      <div v-else class="students-two-col">
+        <div class="auto-card p-0">
+          <div class="table-responsive">
+            <table class="table table-hover table-card align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width:60px">#</th>
+                  <th>الطالب</th>
+                  <th style="width:180px">الحالة</th>
+                  <th>ملاحظة</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(s, idx) in studentsLeft" :key="s.id">
+                  <td>{{ idx + 1 }}</td>
+                  <td>{{ s.full_name }}</td>
+                  <td>
+                    <select v-model="recordMap[s.id].status" class="form-select">
+                      <option value=""></option>
+                      <option value="present">حاضر</option>
+                      <option value="absent">غائب</option>
+                      <option value="late">متأخر</option>
+                      <option value="excused">إذن خروج</option>
+                      <option value="runaway">هروب</option>
+                      <option value="left_early">انصراف مبكر</option>
+                    </select>
+                  </td>
+                  <td>
+                    <div v-if="recordMap[s.id].status === 'excused'" class="d-flex flex-wrap gap-3 align-items-center">
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">إدارة</span>
+                      </label>
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">مشرف الجناح</span>
+                      </label>
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">الممرض</span>
+                      </label>
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">حمام</span>
+                      </label>
+                    </div>
+                    <div v-else>
+                      <input type="text" v-model="recordMap[s.id].note" placeholder="اختياري" class="form-control" />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-responsive">
-          <table class="table table-hover table-card align-middle mb-0">
-            <thead>
-              <tr>
-                <th style="width:60px">#</th>
-                <th>الطالب</th>
-                <th style="width:180px">الحالة</th>
-                <th>ملاحظة</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(s, idx) in students" :key="s.id">
-                <td>{{ idx + 1 }}</td>
-                <td>{{ s.full_name }}</td>
-                <td>
-                  <select v-model="recordMap[s.id].status" class="form-select">
-                    <option value=""></option>
-                    <option value="present">حاضر</option>
-                    <option value="absent">غائب</option>
-                    <option value="late">متأخر</option>
-                    <option value="excused">إذن خروج</option>
-                    <option value="runaway">هروب</option>
-                    <option value="left_early">انصراف مبكر</option>
-                  </select>
-                </td>
-                <td>
-                  <div v-if="recordMap[s.id].status === 'excused'" class="d-flex flex-wrap gap-3 align-items-center">
-                    <label class="form-check form-check-inline m-0">
-                      <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" />
-                      <span class="form-check-label">إدارة</span>
-                    </label>
-                    <label class="form-check form-check-inline m-0">
-                      <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" />
-                      <span class="form-check-label">مشرف الجناح</span>
-                    </label>
-                    <label class="form-check form-check-inline m-0">
-                      <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" />
-                      <span class="form-check-label">الممرض</span>
-                    </label>
-                    <label class="form-check form-check-inline m-0">
-                      <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
-                      <span class="form-check-label">حمام</span>
-                    </label>
-                  </div>
-                  <div v-else>
-                    <input type="text" v-model="recordMap[s.id].note" placeholder="اختياري" class="form-control" />
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="auto-card p-0">
+          <div class="table-responsive">
+            <table class="table table-hover table-card align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width:60px">#</th>
+                  <th>الطالب</th>
+                  <th style="width:180px">الحالة</th>
+                  <th>ملاحظة</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(s, idx) in studentsRight" :key="s.id">
+                  <td>{{ idx + leftCount + 1 }}</td>
+                  <td>{{ s.full_name }}</td>
+                  <td>
+                    <select v-model="recordMap[s.id].status" class="form-select">
+                      <option value=""></option>
+                      <option value="present">حاضر</option>
+                      <option value="absent">غائب</option>
+                      <option value="late">متأخر</option>
+                      <option value="excused">إذن خروج</option>
+                      <option value="runaway">هروب</option>
+                      <option value="left_early">انصراف مبكر</option>
+                    </select>
+                  </td>
+                  <td>
+                    <div v-if="recordMap[s.id].status === 'excused'" class="d-flex flex-wrap gap-3 align-items-center">
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">إدارة</span>
+                      </label>
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">مشرف الجناح</span>
+                      </label>
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">الممرض</span>
+                      </label>
+                      <label class="form-check form-check-inline m-0">
+                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
+                        <span class="form-check-label">حمام</span>
+                      </label>
+                    </div>
+                    <div v-else>
+                      <input type="text" v-model="recordMap[s.id].note" placeholder="اختياري" class="form-control" />
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-        <div class="sticky-actions d-flex align-items-center gap-3 p-2 border-top">
-          <button @click="save" :disabled="saving" class="btn btn-maron">حفظ</button>
-          <span v-if="saveMsg" class="msg">{{ saveMsg }}</span>
-        </div>
+      </div>
+      <div class="sticky-actions d-flex align-items-center gap-3 p-2 border-top">
+        <span v-if="saveMsg" class="msg">{{ saveMsg }}</span>
       </div>
     </div>
   </section>
@@ -163,6 +205,11 @@ const absentCount = computed(() => Object.values(recordMap).filter(r => r.status
 const lateCount = computed(() => Object.values(recordMap).filter(r => r.status === 'late').length);
 const runawayCount = computed(() => Object.values(recordMap).filter(r => r.status === 'runaway').length);
 const excusedCount = computed(() => Object.values(recordMap).filter(r => r.status === 'excused').length);
+
+// Split students into two nearly equal columns
+const leftCount = computed(() => Math.ceil(students.value.length / 2));
+const studentsLeft = computed(() => students.value.slice(0, leftCount.value));
+const studentsRight = computed(() => students.value.slice(leftCount.value));
 
 function setAll(st: ''|'present'|'absent'|'late'|'excused'|'runaway'|'left_early') {
   for (const s of students.value) {
@@ -355,9 +402,27 @@ onMounted(async () => {
 .table-card thead th { position: sticky; top: 0; background: #fafbfc; z-index: 1; }
 .table-card tbody tr:hover { background: #fcfcff; }
 .table-card select.form-select { min-width: 150px; }
-.table-responsive { max-height: 60vh; overflow: auto; }
+.table-responsive { overflow-x: auto; }
 .table-toolbar { background: rgba(255,255,255,0.65); }
 .sticky-actions { position: sticky; bottom: 0; background: rgba(255,255,255,0.85); }
+
+/* Toolbar for filters and actions: wrap on small screens, single line on large without horizontal scroll */
+.toolbar-inline { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; overflow: visible; white-space: normal; }
+.toolbar-inline .field-inline { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.toolbar-inline .form-select, .toolbar-inline .form-control { min-width: 140px; flex: 0 1 auto; }
+.toolbar-inline .btn { flex: 0 1 auto; }
+@media (min-width: 992px) {
+  .toolbar-inline { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+  .toolbar-inline > * { min-width: 0; }
+  .toolbar-inline .form-select, .toolbar-inline .form-control { min-width: 120px; }
+}
+
+/* Two-column students grid (full-bleed) */
+.students-two-col { display: grid; grid-template-columns: 1fr; gap: 16px; width: 100vw; margin-inline: calc(50% - 50vw); padding-inline: 12px; box-sizing: border-box; }
+@media (min-width: 992px) { /* lg breakpoint */
+  .students-two-col { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+}
+.students-two-col > .auto-card { width: 100%; }
 
 .loader-line {
   height: 3px;
@@ -369,8 +434,13 @@ onMounted(async () => {
 </style>
 
 <style scoped>
-/* توحيد عرض البوكسات والمسافات بينهما داخل شبكة الصفحة */
+/* السماح بالتمرير على مستوى الصفحة بدلاً من الجدول */
+.page-grid { grid-template-rows: auto auto auto auto; }
+/* إزالة القيود التي تمنع تمدد المكونات وظهور تمرير الصفحة */
 .page-grid > * { margin: 0 !important; }
+/* الحفاظ على عرض المكونات بالكامل */
 .page-grid .auto-card { width: 100%; }
 .page-grid .glass-form, .page-grid .glass-header { width: 100%; }
+/* عدم تحويل بطاقة الجدول إلى flex لتجنب تمرير داخلي */
+.page-grid .auto-card.p-0 { }
 </style>
