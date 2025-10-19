@@ -1,5 +1,5 @@
-ة#requires -Version 5.1
-<#!
+#requires -Version 5.1
+<#
 .SYNOPSIS
   Force-publish the project to GitHub using professional, safe defaults.
 
@@ -51,6 +51,11 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Validate remote parameter quickly to catch common typos
+if ($Remote -match '^\s*mean\s*$') {
+  throw "The provided -Remote value appears to be 'mean' (likely a typo). Please pass a valid Git remote URL, e.g., https://github.com/ORG/REPO.git or git@github.com:ORG/REPO.git."
+}
 
 # Move to project root (parent of this script directory)
 $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -207,6 +212,15 @@ if ($hasChanges) {
 # 7) Configure remote
 Write-Step "Setting remote 'origin' to $Remote"
 if (-not $DryRun) {
+  # Fix common mistake: a remote accidentally named 'mean'
+  try {
+    $remotes = (git remote).Trim().Split([Environment]::NewLine) | Where-Object { $_ -ne '' }
+  } catch { $remotes = @() }
+  if ($remotes -and ($remotes -contains 'mean') -and -not ($remotes -contains 'origin')) {
+    Write-Warn "Detected remote named 'mean'. Renaming it to 'origin'."
+    try { git remote rename mean origin | Out-Null } catch { Write-Warn "Failed to rename remote 'mean' to 'origin': $($_.Exception.Message)" }
+  }
+
   $existingRemote = ''
   try { $existingRemote = (git remote get-url origin) } catch { $existingRemote = '' }
   if ($existingRemote) {
