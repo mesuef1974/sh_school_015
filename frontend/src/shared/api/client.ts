@@ -1,16 +1,13 @@
 import axios from 'axios';
+import { enqueueAttendance, flushAttendanceQueue, initOfflineQueue, type AttendanceBulkItem } from '../offline/queue';
 
 // Backward-compat key (kept for a transitional period). Avoid using localStorage for access tokens.
-export const TOKEN_STORAGE_KEY = 'sh_school_token';
 
 // In-memory access token holder (preferred over localStorage)
 let accessToken: string | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
-  if (!token) {
-    try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch {}
-  }
 }
 
 export const api = axios.create({
@@ -19,9 +16,14 @@ export const api = axios.create({
   timeout: 8000 // fail fast in dev if backend is down
 });
 
-// Attach Authorization header if token exists (in-memory preferred; fallback to localStorage if present)
+// Initialize offline queue to auto-flush queued attendance on connectivity regain
+initOfflineQueue(async (p: AttendanceBulkItem) => {
+  await api.post('/v1/attendance/bulk_save/', p);
+});
+
+// Attach Authorization header if token exists (in-memory only)
 api.interceptors.request.use((config) => {
-  const token = accessToken || localStorage.getItem(TOKEN_STORAGE_KEY);
+  const token = accessToken;
   if (token) {
     config.headers = config.headers || {};
     (config.headers as any)['Authorization'] = `Bearer ${token}`;
@@ -76,14 +78,19 @@ export async function getAttendanceStudents(params: { class_id: number; date?: s
   return res.data as { students: any[]; date: string; class_id: number };
 }
 
-export async function getAttendanceRecords(params: { class_id: number; date?: string }) {
+export async function getAttendanceRecords(params: { class_id: number; date?: string; period_number?: number | null }) {
   const res = await api.get('/v1/attendance/records/', { params });
-  return res.data as { records: { student_id: number; status: string; note?: string | null }[]; date: string; class_id: number };
+  return res.data as { records: { student_id: number; status: string; note?: string | null; exit_reasons?: string | string[] | null }[]; date: string; class_id: number; period_number?: number | null };
+}
+
+export async function getAttendanceHistory(params: { class_id: number; from?: string; to?: string; page?: number; page_size?: number }) {
+  const res = await api.get('/v1/attendance/history/', { params });
+  return res.data as { count: number; page: number; page_size: number; from: string; to: string; class_id: number; results: { date: string; student_id: number; student_name?: string | null; status: string; note?: string | null }[] };
 }
 
 export async function getAttendanceSummary(params: { scope?: 'teacher'|'wing'|'school'; date?: string; class_id?: number; wing_id?: number } = {}) {
   const res = await api.get('/v1/attendance/summary/', { params });
-  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent: number; late: number; excused: number }; top_classes: { class_id: number; present_pct: number }[]; worst_classes: { class_id: number; present_pct: number }[] };
+  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent: number; late: number; excused: number }; top_classes: { class_id: number; class_name?: string | null; present_pct: number }[]; worst_classes: { class_id: number; class_name?: string | null; present_pct: number }[] };
 }
 
 export async function getTeacherClasses() {
@@ -101,9 +108,23 @@ export async function getTeacherTimetableWeekly() {
   return res.data as { days: Record<string, { period_number: number; classroom_id: number; classroom_name?: string; subject_id: number; subject_name?: string; start_time?: string; end_time?: string }[]>; meta: any };
 }
 
-export async function postAttendanceBulkSave(payload: { class_id: number; date: string; records: { student_id: number; status: string; note?: string | null }[] }) {
-  const res = await api.post('/v1/attendance/bulk_save/', payload);
-  return res.data as { saved: number };
+export async function postAttendanceBulkSave(payload: { class_id: number; date: string; period_number?: number; records: { student_id: number; status: string; note?: string | null; exit_reasons?: string | string[] }[] }) {
+  try {
+    const res = await api.post('/v1/attendance/bulk_save/', payload);
+    return res.data as { saved: number };
+  } catch (e: any) {
+    // Network-level failure → queue for later sync (offline-first behavior)
+    const hasResponse = !!e?.response;
+    if (!hasResponse) {
+      try { enqueueAttendance(payload as AttendanceBulkItem); } catch {}
+      return { saved: payload.records.length, queued: true } as any;
+    }
+    throw e;
+  }
+}
+
+export async function flushAttendanceQueueNow() {
+  return flushAttendanceQueue(async (p) => (await api.post('/v1/attendance/bulk_save/', p)).data);
 }
 
 export async function login(username: string, password: string) {
@@ -115,8 +136,6 @@ export async function login(username: string, password: string) {
   if (data.refresh) {
     try { localStorage.setItem('sh_school_refresh', data.refresh); } catch {}
   }
-  // Clear any persisted access token from older versions
-  try { localStorage.removeItem(TOKEN_STORAGE_KEY); } catch {}
   return data;
 }
 

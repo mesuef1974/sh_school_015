@@ -62,21 +62,56 @@ def favicon(request):
     return HttpResponse(svg, content_type="image/svg+xml")
 
 
+# Explicit 404 for removed attendance export endpoints (placed first to mask any router actions)
+
+
+def _export_removed(request):
+    return HttpResponse(status=404)
+
+
 urlpatterns = [
+    re_path(
+        r"^api/v1/attendance/history-export/?$",
+        _export_removed,
+        name="attendance-history-export-removed",
+    ),
+    re_path(
+        r"^api/v1/attendance/history/export/?$",
+        _export_removed,
+        name="attendance-history-export-removed-compat",
+    ),
     path("livez", livez, name="livez"),
     path("healthz", healthz, name="healthz"),
     path("favicon.ico", favicon, name="favicon"),
     path("admin/", restricted_admin_site.urls),
-    path("", include("school.urls")),
     # API v1 (new apps)
     path("api/v1/", include("apps.attendance.urls")),
+    path("", include("school.urls")),
     # Friendly docs endpoints (development only)
     path("index", RedirectView.as_view(url="/docs/", permanent=False)),
 ]
 
 # Development-only static serving for docs and the top-level index.html
 if settings.DEBUG:
+    # Diagnostic endpoint to dump URL patterns (helps during routing issues)
+    def _dump_urls(request):
+        try:
+            from django.urls import get_resolver
+
+            resolver = get_resolver()
+            patterns = []
+            for p in resolver.url_patterns:
+                try:
+                    patterns.append(str(p.pattern))
+                except Exception:
+                    patterns.append(repr(p))
+            text = "\n".join(patterns)
+            return HttpResponse(text, content_type="text/plain")
+        except Exception as e:
+            return HttpResponse(f"error: {e}", content_type="text/plain", status=500)
+
     urlpatterns += [
+        path("api/v1/__urls__", _dump_urls, name="debug_dump_urls"),
         # Serve the generated docs landing at /docs/
         path(
             "docs/",

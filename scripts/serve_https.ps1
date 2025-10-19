@@ -139,6 +139,23 @@ function Start-UvicornTls {
     '--lifespan','off',
     '--log-level', $LogLevel
   )
+  # Enable hot reload in local development unless explicitly disabled
+  $enableReload = $false
+  try {
+    $isDebug = $Env:DJANGO_DEBUG -and ($Env:DJANGO_DEBUG.ToLower() -ne 'false' -and $Env:DJANGO_DEBUG -ne '0')
+    $reloadVar = $Env:DJANGO_UVICORN_RELOAD
+    if ($reloadVar) {
+      $enableReload = ($reloadVar.ToLower() -ne 'false' -and $reloadVar -ne '0')
+    } else {
+      $enableReload = [bool]$isDebug
+    }
+  } catch { $enableReload = $false }
+  if ($enableReload) {
+    $args += @('--reload','--reload-dir', $AppDir)
+    Write-Host 'Uvicorn auto-reload is ENABLED (DJANGO_UVICORN_RELOAD, DJANGO_DEBUG).' -ForegroundColor DarkGray
+  } else {
+    Write-Host 'Uvicorn auto-reload is DISABLED.' -ForegroundColor DarkGray
+  }
   Write-Host ("Starting HTTPS server on https://127.0.0.1:{0} (Uvicorn + TLS) ..." -f $Port) -ForegroundColor Green
   try {
     python @args
@@ -257,12 +274,14 @@ $TlsPort       = Get-AvailableTlsPort -Preferred $BaseTlsPort -ProbeRange $TLS_P
 $LogLevel      = if ($Env:DJANGO_UVICORN_LOG_LEVEL) { $Env:DJANGO_UVICORN_LOG_LEVEL } else { $DEFAULT_LOG_LEVEL }
 $SuperuserName = if ($DotEnv -and $DotEnv['DJANGO_SUPERUSER_USERNAME']) { $DotEnv['DJANGO_SUPERUSER_USERNAME'] } else { 'mesuef' }
 
-# Persist selected TLS port for other tools (e.g., dev_all.ps1) and display clear info
+# Persist selected TLS port and origin for other tools (e.g., dev_all.ps1) and display clear info
 try {
   $RuntimeDir = Join-Path $Root 'backend\.runtime'
   if (-not (Test-Path -Path $RuntimeDir)) { New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null }
   $PortFile = Join-Path $RuntimeDir 'https_port.txt'
   Set-Content -Path $PortFile -Value $TlsPort -Encoding ASCII
+  $OriginFile = Join-Path $RuntimeDir 'dev_origin.txt'
+  Set-Content -Path $OriginFile -Value ("https://127.0.0.1:{0}" -f $TlsPort) -Encoding ASCII
 } catch { }
 
 if ($TlsPort -ne $BaseTlsPort) {
@@ -285,6 +304,14 @@ if ($CanTryTls) {
 
 $ServerHost = if ($Env:DJANGO_RUN_HOST) { $Env:DJANGO_RUN_HOST } else { $DEFAULT_HTTP_HOST }
 $ServerPort = if ($Env:DJANGO_RUN_PORT) { $Env:DJANGO_RUN_PORT } else { $DEFAULT_HTTP_PORT }
+
+# Update origin file for HTTP fallback so tools can adjust
+try {
+  $RuntimeDir = Join-Path $Root 'backend\.runtime'
+  if (-not (Test-Path -Path $RuntimeDir)) { New-Item -ItemType Directory -Force -Path $RuntimeDir | Out-Null }
+  $OriginFile = Join-Path $RuntimeDir 'dev_origin.txt'
+  Set-Content -Path $OriginFile -Value ("http://{0}:{1}" -f '127.0.0.1', $ServerPort) -Encoding ASCII
+} catch { }
 
 if (-not (Start-HealthCheck -TlsExpected $false -KeyFile $null -CertFile $null -TlsPort 0)) {
   Write-Warning "Cannot start Django runserver due to failed preflight (Python/Django not ready)."

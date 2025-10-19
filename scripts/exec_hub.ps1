@@ -22,7 +22,7 @@
 
 Param(
   [Parameter(Position=0,Mandatory=$false)]
-  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test')]
+  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test','history:smoke')]
   [string]$Task,
 
   [switch]$List,
@@ -34,7 +34,10 @@ Param(
   [Parameter(Mandatory=$false)] [string]$BaseUrl,
   [Parameter(Mandatory=$false)] [string]$Username,
   [Parameter(Mandatory=$false)] [string]$Password,
-  [switch]$SkipCertificateCheck
+  [switch]$SkipCertificateCheck,
+
+  # Passthrough for smoke scripts
+  [Parameter(Mandatory=$false)] [int]$HttpPort
 )
 
 # Capture any unbound arguments to forward (e.g., to login_test.ps1)
@@ -129,9 +132,22 @@ function Task-SmokeTest {
   $script = 'scripts/dev_smoke.ps1'
   Write-Header 'smoke:test'
   if (-not (Test-Path $script)) { Write-Error "Missing $script"; return }
-  $cmd = "pwsh -File $script -HttpsOnly"
+  $forward = @('-HttpsOnly')
+  if ($PSBoundParameters.ContainsKey('HttpPort') -and $HttpPort) { $forward += @('-HttpPort', $HttpPort) }
+  $cmd = "pwsh -File $script $($forward -join ' ')"
   if (Simulate $cmd) { return }
-  & pwsh -File $script -HttpsOnly
+  & pwsh -File $script @forward
+}
+
+function Task-HistorySmoke {
+  $script = 'scripts/history_smoke.ps1'
+  Write-Header 'history:smoke'
+  if (-not (Test-Path $script)) { Write-Error "Missing $script"; return }
+  $forward = @('-HttpsOnly')
+  if ($PSBoundParameters.ContainsKey('HttpPort') -and $HttpPort) { $forward += @('-HttpPort', $HttpPort) }
+  $cmd = "pwsh -File $script $($forward -join ' ')"
+  if (Simulate $cmd) { return }
+  & pwsh -File $script @forward
 }
 
 function Task-LoginTest {
@@ -159,6 +175,7 @@ function Show-List {
     @{Key='worker:start';Desc='Start RQ worker on queue "default"'}
     @{Key='audit:full';Desc='Django checks + migrations status + healthcheck'}
     @{Key='smoke:test';Desc='Quick HTTPS smoke: /livez, /healthz, and 401 for protected API'}
+    @{Key='history:smoke';Desc='Quick HTTPS smoke for attendance history: expect 401 without token'}
     @{Key='login:test';Desc='Obtain JWT, call /api/me, trigger refresh; prints a concise auth report'}
   )
   $rows | ForEach-Object { Write-Host ("- {0} : {1}" -f $_.Key, $_.Desc) }
@@ -175,12 +192,13 @@ if ($Help) { Show-Help; exit 0 }
 if ($List -or -not $Task) { Show-List; exit 0 }
 
 switch ($Task) {
-  'dev:setup'    { Task-DevSetup }
-  'dev:up'       { Task-DevUp }
-  'dev:all'      { Task-DevAll }
-  'worker:start' { Task-WorkerStart }
-  'audit:full'   { Task-AuditFull }
-  'smoke:test'   { Task-SmokeTest }
-  'login:test'   { Task-LoginTest }
-  default        { Write-Error "Unknown task: $Task"; exit 1 }
+  'dev:setup'     { Task-DevSetup }
+  'dev:up'        { Task-DevUp }
+  'dev:all'       { Task-DevAll }
+  'worker:start'  { Task-WorkerStart }
+  'audit:full'    { Task-AuditFull }
+  'smoke:test'    { Task-SmokeTest }
+  'history:smoke' { Task-HistorySmoke }
+  'login:test'    { Task-LoginTest }
+  default         { Write-Error "Unknown task: $Task"; exit 1 }
 }

@@ -468,7 +468,7 @@ class AttendanceRecord(models.Model):
             ("late", "متأخر"),
             ("absent", "غائب"),
             ("runaway", "هروب"),
-            ("excused", "معذور"),
+            ("excused", "إذن خروج"),
             ("left_early", "انصراف مبكر"),
         ],
     )
@@ -477,10 +477,21 @@ class AttendanceRecord(models.Model):
 
     runaway_reason = models.CharField(max_length=30, blank=True)  # no_show | left_and_not_returned
 
+    # Generic excuse fields (legacy)
     excuse_type = models.CharField(
         max_length=20, blank=True
     )  # medical|official|family|transport|other
     excuse_note = models.CharField(max_length=300, blank=True)
+
+    # Unified human-readable note column (stores free notes and exit permission text)
+    note = models.CharField(max_length=300, blank=True)
+
+    # New: exit permission details (إذن خروج)
+    exit_reasons = models.CharField(
+        max_length=200, blank=True, default=""
+    )  # comma-separated tags: admin,wing,nurse,restroom
+    exit_left_at = models.DateTimeField(null=True, blank=True)
+    exit_returned_at = models.DateTimeField(null=True, blank=True)
 
     source = models.CharField(max_length=20, default="teacher")  # teacher/office/import
     locked = models.BooleanField(default=False)

@@ -1,6 +1,7 @@
 #requires -Version 5.1
 Param(
-  [switch]$HttpsOnly
+  [switch]$HttpsOnly,
+  [int]$HttpPort = 8000
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -31,6 +32,17 @@ function Test-Endpoint($Label, $Url, [switch]$SkipCert) {
   }
 }
 
+function Test-TcpOpen($Host, [int]$Port, [int]$TimeoutMs = 800) {
+  try {
+    $client = New-Object System.Net.Sockets.TcpClient
+    $iar = $client.BeginConnect($Host, $Port, $null, $null)
+    $ok = $iar.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
+    $isOpen = $ok -and $client.Connected
+    $client.Close()
+    return $isOpen
+  } catch { return $false }
+}
+
 Write-Host '== Quick smoke test ==' -ForegroundColor Cyan
 
 # 1) HTTPS livez/healthz
@@ -42,7 +54,11 @@ Test-Endpoint "HTTPS /healthz" $healthz -SkipCert
 
 if (-not $HttpsOnly) {
   # 2) HTTP healthz if backend exposes it (may be disabled)
-  Test-Endpoint "HTTP /healthz" 'http://127.0.0.1:8000/healthz'
+  if (Test-TcpOpen '127.0.0.1' $HttpPort) {
+    Test-Endpoint "HTTP /healthz" ("http://127.0.0.1:{0}/healthz" -f $HttpPort)
+  } else {
+    Write-Host ("HTTP checks: skipped (port {0} closed or not exposed)" -f $HttpPort) -ForegroundColor DarkYellow
+  }
 }
 
 # 3) API 401 checks (attendance endpoints) - expect 401 without token
@@ -57,13 +73,15 @@ try {
 }
 
 if (-not $HttpsOnly) {
-  try {
-    Invoke-WebRequest -Uri 'http://127.0.0.1:8000/api/v1/attendance/records/?class_id=1' -Method GET -TimeoutSec 3 -ErrorAction Stop | Out-Null
-    Write-Host 'HTTP API /attendance/records: UNEXPECTED SUCCESS (should be 401 without token)' -ForegroundColor Yellow
-  } catch {
-    $status = $_.Exception.Response.StatusCode.value__
-    if ($status -eq 401) { Write-Host 'HTTP API /attendance/records: 401 (expected)' -ForegroundColor Green }
-    else { Write-Host ("HTTP API /attendance/records: FAILED - {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow }
+  if (Test-TcpOpen '127.0.0.1' $HttpPort) {
+    try {
+      Invoke-WebRequest -Uri ("http://127.0.0.1:{0}/api/v1/attendance/records/?class_id=1" -f $HttpPort) -Method GET -TimeoutSec 3 -ErrorAction Stop | Out-Null
+      Write-Host 'HTTP API /attendance/records: UNEXPECTED SUCCESS (should be 401 without token)' -ForegroundColor Yellow
+    } catch {
+      $status = $_.Exception.Response.StatusCode.value__
+      if ($status -eq 401) { Write-Host 'HTTP API /attendance/records: 401 (expected)' -ForegroundColor Green }
+      else { Write-Host ("HTTP API /attendance/records: FAILED - {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow }
+    }
   }
 }
 

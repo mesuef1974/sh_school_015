@@ -4,10 +4,7 @@
       <i class="bi bi-calendar2-week"></i>
       <h1 class="h5 m-0">جدولي الأسبوعي</h1>
       <span class="ms-auto"></span>
-      <a class="btn btn-sm btn-outline-secondary" :href="backendUrl('/timetable/teachers/compact/')" target="_blank" rel="noopener noreferrer">النسخة القديمة</a>
     </div>
-
-    <TeacherMenu />
 
     <div v-if="loading" class="loader-line"></div>
     <div v-else>
@@ -47,7 +44,6 @@
 import { onMounted, ref, computed } from 'vue';
 import { getTeacherTimetableWeekly } from '../../../shared/api/client';
 import { backendUrl } from '../../../shared/config';
-import TeacherMenu from '../../attendance/components/TeacherMenu.vue';
 
 const loading = ref(false);
 const days = ref<Record<string, { period_number:number; classroom_id:number; classroom_name?:string; subject_id:number; subject_name?:string; start_time?: string; end_time?: string }[]>>({});

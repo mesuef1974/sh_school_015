@@ -44,6 +44,15 @@ pwsh -File scripts/exec_hub.ps1 audit:full
 
 # اختبار جاهزية HTTPS (Smoke)
 pwsh -File scripts/exec_hub.ps1 smoke:test
+# يمكن تمرير منفذ HTTP اختياريًا عند تفعيله:
+# مثال: فحص HTTP على 8001 بدل 8000
+pwsh -File scripts/exec_hub.ps1 smoke:test -HttpPort 8001
+
+# اختبار سجل الحضور (History Smoke)
+# يتحقق من 401 المتوقع على /api/v1/attendance/history بدون توثيق عبر HTTPS
+pwsh -File scripts/exec_hub.ps1 history:smoke
+# مع منفذ HTTP اختياري:
+pwsh -File scripts/exec_hub.ps1 history:smoke -HttpPort 8001
 
 # اختبار تدفق JWT (Login Test)
 # سيُطلب منك إدخال اسم المستخدم وكلمة المرور، أو مررها يدويًا إلى السكربت مباشرةً

@@ -6,9 +6,13 @@ import './styles/maronia.css';
 import { VueQueryPlugin, QueryClient, VueQueryPluginOptions } from '@tanstack/vue-query';
 import 'vue-toastification/dist/index.css';
 import Toast from 'vue-toastification';
+import { Icon } from '@iconify/vue';
 
 const app = createApp(App);
 app.use(createPinia());
+
+// Register global Icon component (Iconify)
+app.component('Icon', Icon);
 
 // Vue Query setup (sane defaults for dev)
 const queryClient = new QueryClient({

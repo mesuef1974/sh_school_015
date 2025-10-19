@@ -1,4 +1,4 @@
-#requires -Version 5.1
+ة#requires -Version 5.1
 <#!
 .SYNOPSIS
   Force-publish the project to GitHub using professional, safe defaults.

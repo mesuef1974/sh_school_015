@@ -718,6 +718,7 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
         "day_of_week",
         "period_number",
         "status",
+        "note",
         "late_minutes",
         "early_minutes",
         "locked",
@@ -737,6 +738,7 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
         "classroom__name",
         "subject__name_ar",
         "teacher__full_name",
+        "note",
     )
     autocomplete_fields = ("student", "classroom", "subject", "teacher", "term")
 

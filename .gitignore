@@ -65,4 +65,4 @@ Thumbs.db
 
 # Project specific ignores
 DOC/_build/
-assets/**/*.psd
+assets/**/*.psdbackend/.env

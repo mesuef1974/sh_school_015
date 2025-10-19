@@ -8,14 +8,9 @@
           <img :src="schoolNameSrc" alt="مدرسة الشحانية" />
         </div>
         <span class="flex-fill"></span>
-        <RouterLink to="/">الرئيسية</RouterLink>
-        <RouterLink v-if="isTeacher || isSuper" to="/attendance/teacher">تسجيل الغياب</RouterLink>
-        <RouterLink v-if="isTeacher || isSuper" to="/timetable/teacher">جدولي</RouterLink>
-        <RouterLink v-if="isTeacher || isSuper" to="/attendance/teacher/history">سجل الغياب</RouterLink>
-        <RouterLink v-if="(hasRole('wing_supervisor') && !isTeacher) || isSuper" to="/wing/dashboard">مشرف الجناح</RouterLink>
-        <RouterLink v-if="hasRole('subject_coordinator') || isSuper" to="/subject/dashboard">منسق المادة</RouterLink>
-        <RouterLink v-if="hasRole('principal') || isSuper" to="/principal/dashboard">مدير المدرسة</RouterLink>
-        <RouterLink v-if="hasRole('academic_deputy') || isSuper" to="/academic/dashboard">المدير الأكاديمي</RouterLink>
+        <RouterLink v-if="!isHome" :to="{ name: 'home' }" class="btn btn-glass-home" aria-label="العودة إلى الرئيسية">
+          <Icon icon="fa6-solid:house" />
+        </RouterLink>
         <div class="dropdown" v-if="auth.profile">
           <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown" type="button">
             <i class="bi bi-person-circle"></i>
@@ -51,9 +46,10 @@
 import { computed } from 'vue';
 import { useAuthStore } from './stores/auth';
 import { logout } from '../shared/api/client';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
+const route = useRoute();
 const logoSrc = '/assets/img/logo.png';
 const schoolNameSrc = '/assets/img/school_name.png';
 
@@ -61,6 +57,7 @@ const auth = useAuthStore();
 const hasRole = (r: string) => auth.roles.includes(r);
 const isSuper = computed(() => !!auth.profile?.is_superuser);
 const isTeacher = computed(() => auth.roles.includes('teacher'));
+const isHome = computed(() => route.name === 'home');
 
 async function onLogout() {
   await logout();
@@ -72,4 +69,22 @@ async function onLogout() {
 <style>
 .container { max-width: 1200px; }
 .flex-fill { flex: 1 1 auto; }
+
+/* زر الرجوع للرئيسية بأسلوب زجاجي دائري */
+.btn-glass-home {
+  display: inline-grid;
+  place-items: center;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.65);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 6px 18px rgba(0,0,0,.06);
+  color: #8a1538; /* maroon */
+  text-decoration: none;
+}
+.btn-glass-home:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,0,0,.08); }
+.btn-glass-home:focus { outline: 2px solid rgba(138,21,56,0.3); outline-offset: 2px; }
+.btn-glass-home :deep(svg) { font-size: 18px; }
 </style>

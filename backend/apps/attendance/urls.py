@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .api import AttendanceViewSet
+from .api import AttendanceViewSetV2 as AttendanceViewSet
 
 router = DefaultRouter()
 router.register(r"attendance", AttendanceViewSet, basename="attendance")

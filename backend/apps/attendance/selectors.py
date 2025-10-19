@@ -31,12 +31,22 @@ def get_students_for_class_on_date(class_id: int, dt: _date) -> QuerySet[Student
     return Student.objects.filter(class_fk_id=class_id).order_by("full_name")
 
 
-def get_attendance_records(class_id: int, dt: _date) -> QuerySet[AttendanceRecord]:
-    return AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date=dt)
+def get_attendance_records(
+    class_id: int, dt: _date, period_number: int | None = None
+) -> QuerySet[AttendanceRecord]:
+    qs = AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date=dt)
+    if period_number is not None:
+        qs = qs.filter(period_number=period_number)
+    return qs
 
 
 def get_summary(
-    *, scope: str, dt: _date, class_id: int | None = None, wing_id: int | None = None
+    *,
+    scope: str,
+    dt: _date,
+    class_id: int | None = None,
+    wing_id: int | None = None,
+    class_ids: List[int] | None = None,
 ) -> Dict[str, Any]:
     """
     Aggregate attendance KPIs for a given scope on a specific date.
@@ -48,18 +58,23 @@ def get_summary(
     # Optional filters (placeholders; wing filtering depends on data model relationship)
     if class_id:
         qs = qs.filter(**{_CLASS_FK_ID: class_id})
+    # Filter by a provided set of class IDs (teacher scope for example)
+    if class_ids:
+        qs = qs.filter(**{f"{_CLASS_FK_ID}__in": list(class_ids)})
     # If there is a Wing model relation via Class.wing_id, filter using that when requested
     if wing_id and hasattr(Class, "wing_id"):
-        class_ids = Class.objects.filter(wing_id=wing_id).values_list("id", flat=True)
-        qs = qs.filter(**{f"{_CLASS_FK_ID}__in": class_ids})
+        wing_class_ids = Class.objects.filter(wing_id=wing_id).values_list("id", flat=True)
+        qs = qs.filter(**{f"{_CLASS_FK_ID}__in": wing_class_ids})
 
     total = qs.count()
     absent = qs.filter(status="absent").count()
     late = qs.filter(status="late").count()
     excused = qs.filter(status="excused").count()
+    runaway = qs.filter(status="runaway").count()
     present = qs.filter(status="present").count()
 
     present_pct = float(round((present / total) * 100, 1)) if total else 0.0
+    # Expose raw counters to allow client-side aggregation when needed
 
     # Top/Worst classes by present percentage (limit 5)
     per_class = qs.values(_CLASS_FK_ID).annotate(
@@ -73,6 +88,18 @@ def get_summary(
         pct = float(round((p / t) * 100, 1)) if t else 0.0
         class_val = item.get(_CLASS_FK_ID)
         top_classes.append({"class_id": class_val, "present_pct": pct})
+    # Attach class names for better UX (e.g., '7-1')
+    try:
+        ids = [x.get("class_id") for x in top_classes if x.get("class_id")]
+        name_map = {
+            cid: name for cid, name in Class.objects.filter(id__in=ids).values_list("id", "name")
+        }
+        for x in top_classes:
+            cid = x.get("class_id")
+            if cid in name_map:
+                x["class_name"] = name_map.get(cid)
+    except Exception:
+        pass
     # Sort lists
     top_classes_sorted = sorted(top_classes, key=lambda x: x["present_pct"], reverse=True)[:5]
     worst_classes_sorted = sorted(top_classes, key=lambda x: x["present_pct"])[:5]
@@ -85,6 +112,9 @@ def get_summary(
             "absent": int(absent),
             "late": int(late),
             "excused": int(excused),
+            "runaway": int(runaway),
+            "present": int(present),
+            "total": int(total),
         },
         "top_classes": top_classes_sorted,
         "worst_classes": worst_classes_sorted,

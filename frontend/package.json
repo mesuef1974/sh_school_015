@@ -18,7 +18,8 @@
     "@vueuse/core": "^11.0.3",
     "vue-toastification": "^2.0.0-rc.5",
     "echarts": "^5.5.0",
-    "vue-echarts": "^6.7.2"
+    "vue-echarts": "^6.7.2",
+    "@iconify/vue": "^4.1.2"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
