@@ -84,7 +84,8 @@ export async function getAttendanceRecords(params: { class_id: number; date?: st
 }
 
 export async function getAttendanceHistory(params: { class_id: number; from?: string; to?: string; page?: number; page_size?: number }) {
-  const res = await api.get('/v1/attendance/history/', { params });
+  // Use strict history endpoint to ensure results are only from the selected class
+  const res = await api.get('/v1/attendance/history-strict/', { params });
   return res.data as { count: number; page: number; page_size: number; from: string; to: string; class_id: number; results: { date: string; student_id: number; student_name?: string | null; status: string; note?: string | null }[] };
 }
 

@@ -34,7 +34,10 @@ def get_students_for_class_on_date(class_id: int, dt: _date) -> QuerySet[Student
 def get_attendance_records(
     class_id: int, dt: _date, period_number: int | None = None
 ) -> QuerySet[AttendanceRecord]:
-    qs = AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date=dt)
+    # Enforce strict class scope by classroom FK and student's current class
+    qs = AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date=dt).filter(
+        student__class_fk_id=class_id
+    )
     if period_number is not None:
         qs = qs.filter(period_number=period_number)
     return qs

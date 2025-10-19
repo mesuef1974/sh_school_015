@@ -69,16 +69,16 @@
               <tbody>
                 <tr v-for="(s, idx) in studentsLeft" :key="s.id">
                   <td>{{ idx + 1 }}</td>
-                  <td>{{ s.full_name }}</td>
+                  <td><span class="student-name" :class="statusClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
                   <td>
-                    <select v-model="recordMap[s.id].status" class="form-select">
+                    <select v-model="recordMap[s.id].status" class="form-select" :class="statusClass(recordMap[s.id].status)">
                       <option value=""></option>
-                      <option value="present">حاضر</option>
-                      <option value="absent">غائب</option>
-                      <option value="late">متأخر</option>
-                      <option value="excused">إذن خروج</option>
-                      <option value="runaway">هروب</option>
-                      <option value="left_early">انصراف مبكر</option>
+                      <option value="present" :class="statusClass('present')">حاضر</option>
+                      <option value="absent" :class="statusClass('absent')">غائب</option>
+                      <option value="late" :class="statusClass('late')">متأخر</option>
+                      <option value="excused" :class="statusClass('excused')">إذن خروج</option>
+                      <option value="runaway" :class="statusClass('runaway')">هروب</option>
+                      <option value="left_early" :class="statusClass('left_early')">انصراف مبكر</option>
                     </select>
                   </td>
                   <td>
@@ -123,16 +123,16 @@
               <tbody>
                 <tr v-for="(s, idx) in studentsRight" :key="s.id">
                   <td>{{ idx + leftCount + 1 }}</td>
-                  <td>{{ s.full_name }}</td>
+                  <td><span class="student-name" :class="statusClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
                   <td>
-                    <select v-model="recordMap[s.id].status" class="form-select">
+                    <select v-model="recordMap[s.id].status" class="form-select" :class="statusClass(recordMap[s.id].status)">
                       <option value=""></option>
-                      <option value="present">حاضر</option>
-                      <option value="absent">غائب</option>
-                      <option value="late">متأخر</option>
-                      <option value="excused">إذن خروج</option>
-                      <option value="runaway">هروب</option>
-                      <option value="left_early">انصراف مبكر</option>
+                      <option value="present" :class="statusClass('present')">حاضر</option>
+                      <option value="absent" :class="statusClass('absent')">غائب</option>
+                      <option value="late" :class="statusClass('late')">متأخر</option>
+                      <option value="excused" :class="statusClass('excused')">إذن خروج</option>
+                      <option value="runaway" :class="statusClass('runaway')">هروب</option>
+                      <option value="left_early" :class="statusClass('left_early')">انصراف مبكر</option>
                     </select>
                   </td>
                   <td>
@@ -210,6 +210,17 @@ const excusedCount = computed(() => Object.values(recordMap).filter(r => r.statu
 const leftCount = computed(() => Math.ceil(students.value.length / 2));
 const studentsLeft = computed(() => students.value.slice(0, leftCount.value));
 const studentsRight = computed(() => students.value.slice(leftCount.value));
+
+function statusClass(s: string) {
+  // Align colors with history page badges
+  return {
+    'text-bg-success': s === 'present',
+    'text-bg-danger': s === 'absent' || s === 'runaway',
+    'text-bg-warning': s === 'late',
+    'text-bg-secondary': s === 'excused',
+    'text-bg-info': s === 'left_early'
+  } as any;
+}
 
 function setAll(st: ''|'present'|'absent'|'late'|'excused'|'runaway'|'left_early') {
   for (const s of students.value) {
@@ -402,6 +413,8 @@ onMounted(async () => {
 .table-card thead th { position: sticky; top: 0; background: #fafbfc; z-index: 1; }
 .table-card tbody tr:hover { background: #fcfcff; }
 .table-card select.form-select { min-width: 150px; }
+/* Colored name chip for student names matching status color */
+.student-name { display: inline-block; padding: 2px 6px; border-radius: 6px; }
 .table-responsive { overflow-x: auto; }
 .table-toolbar { background: rgba(255,255,255,0.65); }
 .sticky-actions { position: sticky; bottom: 0; background: rgba(255,255,255,0.85); }

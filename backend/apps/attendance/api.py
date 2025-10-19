@@ -958,6 +958,83 @@ class AttendanceViewSet(viewsets.ViewSet):
 
 
 class AttendanceViewSetV2(AttendanceViewSet):
+    @action(detail=False, methods=["get"], url_path="history-strict")
+    def list_history_strict(self, request: Request) -> Response:
+        """Strict history: in addition to classroom filter, ensure student's current class matches.
+        Same shape as /history but guarantees results only from the selected class.
+        """
+        # Validate class_id
+        try:
+            class_id = int(request.query_params.get("class_id"))
+        except (TypeError, ValueError):
+            return Response({"detail": "class_id is required and must be int"}, status=400)
+        # Access control
+        if not self._user_has_access_to_class(request.user, class_id):
+            return Response({"detail": "not allowed for this class"}, status=403)
+        # Parse dates
+        from_str = request.query_params.get("from")
+        to_str = request.query_params.get("to")
+        today = _date.today()
+        try:
+            dt_to = _date.fromisoformat(to_str) if to_str else today
+        except Exception:
+            return Response({"detail": "to must be YYYY-MM-DD"}, status=400)
+        try:
+            dt_from = _date.fromisoformat(from_str) if from_str else (dt_to - timedelta(days=6))
+        except Exception:
+            return Response({"detail": "from must be YYYY-MM-DD"}, status=400)
+        if dt_from > dt_to:
+            return Response({"detail": "from must be <= to"}, status=400)
+        # Pagination
+        try:
+            page = max(1, int(request.query_params.get("page") or 1))
+        except Exception:
+            page = 1
+        try:
+            page_size = int(request.query_params.get("page_size") or 100)
+        except Exception:
+            page_size = 100
+        if page_size > 200:
+            page_size = 200
+        if page_size < 1:
+            page_size = 1
+        # Query
+        from school.models import AttendanceRecord  # type: ignore
+
+        qs = (
+            AttendanceRecord.objects.filter(
+                **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
+            )
+            .filter(student__class_fk_id=class_id)
+            .select_related("student")
+            .order_by("date", "student_id")
+        )
+        total = qs.count()
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_qs = qs[start:end]
+        results = [
+            {
+                "date": r.date.isoformat(),
+                "student_id": r.student_id,
+                "student_name": getattr(getattr(r, "student", None), "full_name", None),
+                "status": r.status,
+                "note": getattr(r, "note", None),
+            }
+            for r in page_qs
+        ]
+        return Response(
+            {
+                "count": total,
+                "page": page,
+                "page_size": page_size,
+                "from": dt_from.isoformat(),
+                "to": dt_to.isoformat(),
+                "class_id": class_id,
+                "results": results,
+            }
+        )
+
     @action(detail=False, methods=["get"], url_path="records")
     def list_records(self, request: Request) -> Response:  # type: ignore[override]
         try:

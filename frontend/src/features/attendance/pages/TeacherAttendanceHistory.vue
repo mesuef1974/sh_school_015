@@ -25,29 +25,61 @@
     </form>
 
     <div v-if="loading">جاري التحميل…</div>
-    <div v-else class="table-card">
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>التاريخ</th>
-            <th>الطالب</th>
-            <th>الحالة</th>
-            <th>ملاحظة</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, i) in rows" :key="i">
-            <td>{{ (page - 1) * pageSize + i + 1 }}</td>
-            <td>{{ row.date }}</td>
-            <td>{{ row.student_name }}</td>
-            <td>
-              <span class="badge" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
-            </td>
-            <td>{{ row.note || '' }}</td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else>
+      <div class="students-two-col">
+        <div class="auto-card p-0 table-card">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width:60px">#</th>
+                  <th>التاريخ</th>
+                  <th>الطالب</th>
+                  <th style="width:140px">الحالة</th>
+                  <th>ملاحظة</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, i) in rowsLeft" :key="'L'+i">
+                  <td>{{ (page - 1) * pageSize + i + 1 }}</td>
+                  <td>{{ row.date }}</td>
+                  <td><span class="student-name" :class="statusClass(row.status)">{{ row.student_name }}</span></td>
+                  <td>
+                    <span class="badge" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                  </td>
+                  <td>{{ row.note || '' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="auto-card p-0 table-card">
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th style="width:60px">#</th>
+                  <th>التاريخ</th>
+                  <th>الطالب</th>
+                  <th style="width:140px">الحالة</th>
+                  <th>ملاحظة</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, i) in rowsRight" :key="'R'+i">
+                  <td>{{ (page - 1) * pageSize + leftCount + i + 1 }}</td>
+                  <td>{{ row.date }}</td>
+                  <td><span class="student-name" :class="statusClass(row.status)">{{ row.student_name }}</span></td>
+                  <td>
+                    <span class="badge" :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span>
+                  </td>
+                  <td>{{ row.note || '' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
       <div v-if="rows.length === 0" class="p-3">لا توجد سجلات في النطاق المحدد.</div>
       <div class="d-flex align-items-center gap-2 justify-content-end mt-2">
         <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="page<=1 || loading" @click="prevPage">السابق</button>
@@ -59,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { getAttendanceHistory, getTeacherClasses } from '../../../shared/api/client';
 
 const today = new Date();
@@ -78,6 +110,11 @@ const total = ref(0);
 
 interface Row { date: string; student_name: string; status: string; note?: string | null }
 const rows = ref<Row[]>([]);
+
+// Split rows into two nearly equal columns (like TeacherAttendance)
+const leftCount = computed(() => Math.ceil(rows.value.length / 2));
+const rowsLeft = computed(() => rows.value.slice(0, leftCount.value));
+const rowsRight = computed(() => rows.value.slice(leftCount.value));
 
 
 function statusLabel(s: string) {
@@ -136,4 +173,16 @@ onMounted(async () => {
 
 <style scoped>
 .badge { font-weight: 600; }
+.student-name { display: inline-block; padding: 2px 6px; border-radius: 6px; }
+
+/* Two-column grid like the attendance page (full-bleed with small gutters) */
+.students-two-col { display: grid; grid-template-columns: 1fr; gap: 16px; width: 100vw; margin-inline: calc(50% - 50vw); padding-inline: 12px; box-sizing: border-box; }
+@media (min-width: 992px) {
+  .students-two-col { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+}
+
+/* Table card visuals and sticky headers */
+.table-card { border: 0; border-radius: 0; overflow: hidden; }
+.table-card thead th { position: sticky; top: 0; background: #fafbfc; z-index: 1; }
+.table-responsive { overflow-x: auto; }
 </style>
