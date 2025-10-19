@@ -1085,3 +1085,18 @@ pwsh -File scripts/exec_hub.ps1 audit:full
 ```
 
 </div>
+
+
+### Git publishing helper
+
+Use the helper script to publish safely to GitHub and avoid the common typo “mean” vs “main”.
+
+Examples:
+- pwsh -File scripts/git_force_publish.ps1 -Remote "git@github.com:ORG/REPO.git" -Branch main
+- pwsh -File scripts/git_force_publish.ps1 -Remote "https://github.com/ORG/REPO.git" -Branch main
+- pwsh -File scripts/git_force_publish.ps1 -Remote "https://github.com/ORG/REPO.git" -DryRun
+
+Notes:
+- If a remote named "mean" exists, the script will rename it to "origin" automatically.
+- If you accidentally pass -Remote "mean", the script fails early with a clear error.
+- Default branch is main; override with -Branch if needed.
