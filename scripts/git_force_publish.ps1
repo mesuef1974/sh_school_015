@@ -40,7 +40,7 @@
   - Use Force only when you intend to overwrite the remote branch history.
 #>
 param(
-  [Parameter(Mandatory=$true)][string]$Remote,
+  [Parameter(Mandatory=$false)][string]$Remote = '',
   [string]$Branch = 'main',
   [switch]$Force,
   [switch]$IncludeBackups,
@@ -52,10 +52,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# Validate remote parameter quickly to catch common typos
-if ($Remote -match '^\s*mean\s*$') {
-  throw "The provided -Remote value appears to be 'mean' (likely a typo). Please pass a valid Git remote URL, e.g., https://github.com/ORG/REPO.git or git@github.com:ORG/REPO.git."
-}
+# Prepare URL patterns for remote validation (used later when resolving -Remote)
+$httpPattern = '^(https://|http://).+?/.+?/.+?\.git$'
+$sshPattern = '^git@[^:]+:[^/]+/.+?\.git$'
+$sshUrlPattern = '^ssh://git@[^/]+/[^/]+/.+?\.git$'
 
 # Move to project root (parent of this script directory)
 $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -187,6 +187,15 @@ if (-not $currentBranch -or $currentBranch -eq 'HEAD') {
   if (-not $DryRun) { git checkout -B $Branch | Out-Null }
 }
 
+# Pre-fix: if a remote accidentally named 'mean' exists, rename it to 'origin' before resolving
+try {
+  $remotes = (git remote).Trim().Split([Environment]::NewLine) | Where-Object { $_ -ne '' }
+} catch { $remotes = @() }
+if ($remotes -and ($remotes -contains 'mean') -and -not ($remotes -contains 'origin')) {
+  Write-Warn "Detected remote named 'mean'. Renaming it to 'origin'."
+  try { git remote rename mean origin | Out-Null } catch { Write-Warn "Failed to rename remote 'mean' to 'origin': $($_.Exception.Message)" }
+}
+
 # 6) Add and commit
 Write-Step "Staging changes"
 if (-not $DryRun) { git add -A }
@@ -209,10 +218,49 @@ if ($hasChanges) {
   Write-Info "No changes to commit"
 }
 
+# Resolve remote URL to use (prefer explicit -Remote, else existing origin)
+$resolvedRemote = ''
+$remoteTrim = ($Remote | ForEach-Object { $_.Trim() })
+# Re-check existing origin after potential rename
+try { $existingRemote = (git remote get-url origin) } catch { $existingRemote = '' }
+if ([string]::IsNullOrWhiteSpace($remoteTrim)) {
+  if ($existingRemote) {
+    Write-Info "Using existing remote 'origin': $existingRemote"
+    $resolvedRemote = $existingRemote
+  } else {
+    Write-Warn "No -Remote provided and no existing 'origin' remote is configured."
+    Write-Host "[USAGE] Provide -Remote with a full Git URL, or configure origin first." -ForegroundColor Yellow
+    Write-Host "Examples:" -ForegroundColor Gray
+    Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
+    Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
+    Write-Host "Or set origin: git remote add origin <URL>" -ForegroundColor Gray
+    exit 1
+  }
+} else {
+  if ($remoteTrim -match '^\s*mean\s*$') {
+    throw "The provided -Remote value appears to be 'mean' (likely a typo). Please pass a valid Git remote URL, e.g., https://github.com/ORG/REPO.git or git@github.com:ORG/REPO.git."
+  }
+  if ($remoteTrim -eq 'origin') {
+    if ($existingRemote) {
+      Write-Info "Resolving -Remote 'origin' to existing URL: $existingRemote"
+      $resolvedRemote = $existingRemote
+    } else {
+      throw "You passed -Remote 'origin' but no origin remote is configured. Please pass a full URL or run: git remote add origin <URL>"
+    }
+  } elseif (@('main','master','upstream') -contains $remoteTrim) {
+    throw "The -Remote value '$Remote' is not a URL. Please provide the full Git remote URL, e.g., https://github.com/ORG/REPO.git or git@github.com:ORG/REPO.git."
+  } else {
+    if (-not ($remoteTrim -match $httpPattern -or $remoteTrim -match $sshPattern -or $remoteTrim -match $sshUrlPattern)) {
+      throw "The -Remote value '$Remote' does not look like a valid Git remote URL. Examples: https://github.com/ORG/REPO.git or git@github.com:ORG/REPO.git"
+    }
+    $resolvedRemote = $remoteTrim
+  }
+}
+
 # 7) Configure remote
-Write-Step "Setting remote 'origin' to $Remote"
+Write-Step "Setting remote 'origin' to $resolvedRemote"
 if (-not $DryRun) {
-  # Fix common mistake: a remote accidentally named 'mean'
+  # Fix common mistake: a remote accidentally named 'mean' (redundant check, safe)
   try {
     $remotes = (git remote).Trim().Split([Environment]::NewLine) | Where-Object { $_ -ne '' }
   } catch { $remotes = @() }
@@ -224,14 +272,14 @@ if (-not $DryRun) {
   $existingRemote = ''
   try { $existingRemote = (git remote get-url origin) } catch { $existingRemote = '' }
   if ($existingRemote) {
-    if ($existingRemote -ne $Remote) { git remote set-url origin $Remote | Out-Null }
+    if ($existingRemote -ne $resolvedRemote) { git remote set-url origin $resolvedRemote | Out-Null }
   } else {
-    git remote add origin $Remote | Out-Null
+    git remote add origin $resolvedRemote | Out-Null
   }
 }
 
 # 8) Push
-Write-Step "Pushing to $Remote ($Branch)"
+Write-Step "Pushing to $resolvedRemote ($Branch)"
 $pushArgs = @('push','-u','origin',$Branch)
 if ($Force) { $pushArgs += '--force-with-lease' }
 
