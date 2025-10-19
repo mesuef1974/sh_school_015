@@ -29,11 +29,17 @@
 .PARAMETER DryRun
   Show what would be done without executing push/remote changes.
 
+.PARAMETER HttpsFallback
+  If an SSH push fails with "Permission denied (publickey)", automatically switch the remote to HTTPS and retry once.
+
 .EXAMPLE
   pwsh -File scripts/git_force_publish.ps1 -Remote "git@github.com:myorg/sh_school_015.git"
 
 .EXAMPLE
   pwsh -File scripts/git_force_publish.ps1 -Remote "https://github.com/myorg/sh_school_015.git" -Branch main -Force -IncludeLFS
+
+.EXAMPLE
+  pwsh -File scripts/git_force_publish.ps1 -Remote "git@github.com:myorg/sh_school_015.git" -HttpsFallback
 
 .NOTES
   - Ensure you are authenticated with GitHub (SSH key or HTTPS credentials/cached login).
@@ -46,6 +52,7 @@ param(
   [switch]$IncludeBackups,
   [switch]$IncludeLFS,
   [switch]$PushTags,
+  [switch]$HttpsFallback,
   [switch]$DryRun
 )
 
@@ -330,12 +337,69 @@ Write-Step "Pushing to $resolvedRemote ($Branch)"
 $pushArgs = @('push','-u','origin',$Branch)
 if ($Force) { $pushArgs += '--force-with-lease' }
 
+function Convert-SshToHttps($sshUrl) {
+  # Supports GitHub style ssh: git@github.com:ORG/REPO.git -> https://github.com/ORG/REPO.git
+  if ($sshUrl -match '^git@github.com:([^/]+)/(.+?)\.git$') {
+    $org = $Matches[1]
+    $repo = $Matches[2]
+    return "https://github.com/$org/$repo.git"
+  }
+  if ($sshUrl -match '^ssh://git@github.com/([^/]+)/(.+?)\.git$') {
+    $org = $Matches[1]
+    $repo = $Matches[2]
+    return "https://github.com/$org/$repo.git"
+  }
+  return $null
+}
+
 if ($DryRun) {
   Write-Warn "Dry-run enabled: skipping push. Would run: git $($pushArgs -join ' ')"
 } else {
-  git @pushArgs
-  if ($LASTEXITCODE -ne 0) { throw "git push failed with exit code $LASTEXITCODE" }
-  Write-Ok "Pushed branch '$Branch' to origin"
+  $gitOutput = & git @pushArgs 2>&1
+  $exit = $LASTEXITCODE
+  if ($exit -ne 0) {
+    $outText = ($gitOutput | Out-String)
+    $isSshPublicKeyDenied = ($outText -match 'Permission denied \(publickey\)')
+    if ($isSshPublicKeyDenied -and $resolvedRemote -match '^git@' ) {
+      Write-Warn "SSH authentication failed: Permission denied (publickey)."
+      if ($HttpsFallback) {
+        $https = Convert-SshToHttps -sshUrl $resolvedRemote
+        if ($https) {
+          Write-Step "Switching remote 'origin' to HTTPS ($https) and retrying push once"
+          try {
+            git remote set-url origin $https | Out-Null
+            $resolvedRemote = $https
+            $gitOutput2 = & git @pushArgs 2>&1
+            $exit2 = $LASTEXITCODE
+            if ($exit2 -ne 0) {
+              Write-Warn "Retry over HTTPS failed. Git output:" 
+              Write-Host ($gitOutput2 | Out-String) -ForegroundColor DarkGray
+              throw "git push failed with exit code $exit2"
+            } else {
+              Write-Ok "Pushed branch '$Branch' to origin (HTTPS fallback)"
+            }
+          } catch {
+            throw $_
+          }
+        } else {
+          Write-Warn "Could not derive HTTPS URL from SSH remote; please provide -Remote with an HTTPS URL."
+          throw "git push failed with exit code $exit"
+        }
+      } else {
+        Write-Host "[HINT] To auto-fallback to HTTPS, re-run with -HttpsFallback, or fix SSH by adding your public key to GitHub." -ForegroundColor Yellow
+        Write-Host "       See: https://docs.github.com/en/authentication/connecting-to-github-with-ssh" -ForegroundColor Gray
+        Write-Host "       Or switch remote to HTTPS: git remote set-url origin https://github.com/ORG/REPO.git" -ForegroundColor Gray
+        throw "git push failed with exit code $exit"
+      }
+    } else {
+      # Other failure; show output for clarity then throw
+      Write-Warn "git push failed. Git output:"
+      Write-Host $outText -ForegroundColor DarkGray
+      throw "git push failed with exit code $exit"
+    }
+  } else {
+    Write-Ok "Pushed branch '$Branch' to origin"
+  }
 }
 
 # 9) Optionally push tags
