@@ -1,24 +1,28 @@
 # Normalize line endings for all text files
 * text=auto eol=lf
-
 # Explicitly declare shell/batch files keep CRLF on Windows
 *.bat eol=crlf
 *.cmd eol=crlf
 *.ps1 eol=crlf
-
 # Mark common binary types
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
+*.png filter=lfs diff=lfs merge=lfs -text
+*.jpg filter=lfs diff=lfs merge=lfs -text
+*.jpeg filter=lfs diff=lfs merge=lfs -text
+*.gif filter=lfs diff=lfs merge=lfs -text
 *.ico binary
-*.pdf binary
-*.zip binary
+*.pdf filter=lfs diff=lfs merge=lfs -text
+*.zip filter=lfs diff=lfs merge=lfs -text
 *.7z binary
 *.exe binary
 *.dll binary
 *.so binary
 *.bin binary
-
 # Keep Python notebooks' metadata consistent
 *.ipynb text eol=lf
+*.webp filter=lfs diff=lfs merge=lfs -text
+*.svg filter=lfs diff=lfs merge=lfs -text
+*.xlsx filter=lfs diff=lfs merge=lfs -text
+*.xlsm filter=lfs diff=lfs merge=lfs -text
+*.docx filter=lfs diff=lfs merge=lfs -text
+*.pptx filter=lfs diff=lfs merge=lfs -text
+*.rar filter=lfs diff=lfs merge=lfs -text

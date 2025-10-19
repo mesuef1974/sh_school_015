@@ -1,12 +1,3 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="School Platform">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#7B1E1E"/>
-      <stop offset="100%" stop-color="#6B1919"/>
-    </linearGradient>
-  </defs>
-  <rect rx="12" ry="12" x="4" y="4" width="56" height="56" fill="url(#g)"/>
-  <g fill="#FFFFFF" opacity="0.95">
-    <path d="M32 14l20 10-20 10-20-10 20-10zm-12 16v12c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V30l-12 6-12-6z"/>
-  </g>
-</svg>
+version https://git-lfs.github.com/spec/v1
+oid sha256:4e7e40305607e4e8539d6b94f30cdd5fc181b342f6d5d5e450db12f3db4643e6
+size 558
