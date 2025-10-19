@@ -230,23 +230,58 @@ if ([string]::IsNullOrWhiteSpace($remoteTrim)) {
     $existingLooksValid = ($existingTrim -match $httpPattern -or $existingTrim -match $sshPattern -or $existingTrim -match $sshUrlPattern)
     if ($existingIsCommonMistake -or -not $existingLooksValid) {
       Write-Warn "Existing remote 'origin' points to '$existingRemote', which is not a valid Git remote URL."
-      Write-Host "[USAGE] Please provide -Remote with a full Git URL to fix the origin, for example:" -ForegroundColor Yellow
-      Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
-      Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
-      Write-Host "Or fix it directly: git remote set-url origin <URL>" -ForegroundColor Gray
-      exit 1
+      # Interactive fallback: ask the user to enter a valid remote URL now
+      $answer = Read-Host "Enter Git remote URL (e.g., https://github.com/ORG/REPO.git or git@github.com:ORG/REPO.git). Press Enter to cancel"
+      $ansTrim = ($answer | ForEach-Object { $_.Trim() })
+      if (-not [string]::IsNullOrWhiteSpace($ansTrim)) {
+        if ($ansTrim -match $httpPattern -or $ansTrim -match $sshPattern -or $ansTrim -match $sshUrlPattern) {
+          $resolvedRemote = $ansTrim
+          Write-Info "Using provided remote URL: $resolvedRemote"
+        } else {
+          Write-Warn "The provided value does not look like a valid Git URL."
+          Write-Host "[USAGE] Please provide -Remote with a full Git URL to fix the origin, for example:" -ForegroundColor Yellow
+          Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
+          Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
+          Write-Host "Or fix it directly: git remote set-url origin <URL>" -ForegroundColor Gray
+          exit 1
+        }
+      } else {
+        Write-Host "[USAGE] Please provide -Remote with a full Git URL to fix the origin, for example:" -ForegroundColor Yellow
+        Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
+        Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
+        Write-Host "Or fix it directly: git remote set-url origin <URL>" -ForegroundColor Gray
+        exit 1
+      }
     } else {
       Write-Info "Using existing remote 'origin': $existingRemote"
       $resolvedRemote = $existingRemote
     }
   } else {
     Write-Warn "No -Remote provided and no existing 'origin' remote is configured."
-    Write-Host "[USAGE] Provide -Remote with a full Git URL, or configure origin first." -ForegroundColor Yellow
-    Write-Host "Examples:" -ForegroundColor Gray
-    Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
-    Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
-    Write-Host "Or set origin: git remote add origin <URL>" -ForegroundColor Gray
-    exit 1
+    # Interactive fallback: ask the user to enter a valid remote URL now
+    $answer = Read-Host "Enter Git remote URL (e.g., https://github.com/ORG/REPO.git or git@github.com:ORG/REPO.git). Press Enter to cancel"
+    $ansTrim = ($answer | ForEach-Object { $_.Trim() })
+    if (-not [string]::IsNullOrWhiteSpace($ansTrim)) {
+      if ($ansTrim -match $httpPattern -or $ansTrim -match $sshPattern -or $ansTrim -match $sshUrlPattern) {
+        $resolvedRemote = $ansTrim
+        Write-Info "Using provided remote URL: $resolvedRemote"
+      } else {
+        Write-Warn "The provided value does not look like a valid Git URL."
+        Write-Host "[USAGE] Provide -Remote with a full Git URL, or configure origin first." -ForegroundColor Yellow
+        Write-Host "Examples:" -ForegroundColor Gray
+        Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
+        Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
+        Write-Host "Or set origin: git remote add origin <URL>" -ForegroundColor Gray
+        exit 1
+      }
+    } else {
+      Write-Host "[USAGE] Provide -Remote with a full Git URL, or configure origin first." -ForegroundColor Yellow
+      Write-Host "Examples:" -ForegroundColor Gray
+      Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'git@github.com:ORG/REPO.git' -Branch $Branch" -ForegroundColor Gray
+      Write-Host "  pwsh -File scripts/git_force_publish.ps1 -Remote 'https://github.com/ORG/REPO.git'" -ForegroundColor Gray
+      Write-Host "Or set origin: git remote add origin <URL>" -ForegroundColor Gray
+      exit 1
+    }
   }
 } else {
   if ($remoteTrim -match '^\s*mean\s*$') {
