@@ -200,7 +200,7 @@ def bulk_save_attendance(
                 "admin": "إدارة",
                 "wing": "مشرف الجناح",
                 "nurse": "الممرض",
-                "restroom": "حمام",
+                "restroom": "دورة المياه",
             }
             return m.get(code.strip().lower(), code)
 

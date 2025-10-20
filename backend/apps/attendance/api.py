@@ -26,6 +26,55 @@ def _parse_date_or_400(dt_str: str | None):
         return None, Response({"detail": "date must be YYYY-MM-DD"}, status=400)
 
 
+def _filter_by_teacher_subjects(qs, user, class_id):
+    """Filter attendance queryset based on teacher's assignments.
+    Teacher must satisfy TWO conditions:
+      1. Teaches this classroom (class_id)
+      2. Teaches the subject for this classroom
+    Superusers and wing supervisors see all records.
+    Returns: filtered queryset
+    """
+    from school.models import Staff, TeachingAssignment  # type: ignore
+
+    # Check if user is superuser or wing supervisor
+    try:
+        roles = set(user.groups.values_list("name", flat=True))
+    except Exception:
+        roles = set()
+    is_super = bool(getattr(user, "is_superuser", False))
+    is_wing = "wing_supervisor" in roles
+
+    # Superusers and wing supervisors see everything
+    if is_super or is_wing:
+        return qs
+
+    # Get current teacher (staff)
+    staff = None
+    try:
+        staff = Staff.objects.filter(user_id=user.id).first()
+    except Exception:
+        pass
+
+    # If no staff found, return unfiltered (shouldn't happen due to access control)
+    if not staff:
+        return qs
+
+    # Get valid (teacher, classroom, subject) combinations from TeachingAssignment
+    # This ensures BOTH conditions: teacher teaches classroom AND teaches subject to that classroom
+    valid_assignments = TeachingAssignment.objects.filter(
+        teacher_id=staff.id, classroom_id=class_id
+    ).values_list("subject_id", flat=True)
+
+    if valid_assignments:
+        # Filter by: records created by this teacher AND for subjects they teach to this classroom
+        qs = qs.filter(teacher_id=staff.id, subject_id__in=list(valid_assignments))
+    else:
+        # Teacher doesn't teach this classroom, return empty queryset
+        qs = qs.none()
+
+    return qs
+
+
 class AttendanceViewSetBase(viewsets.ViewSet):
     # Enforce authenticated access for production-grade security
     from rest_framework.permissions import IsAuthenticated
@@ -134,13 +183,14 @@ class AttendanceViewSetBase(viewsets.ViewSet):
         # Query optimized with select_related to avoid N+1 on student and class
         from school.models import AttendanceRecord  # type: ignore
 
-        qs = (
-            AttendanceRecord.objects.filter(
-                **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
-            )
-            .select_related("student")
-            .order_by("date", "student_id")
-        )
+        qs = AttendanceRecord.objects.filter(
+            **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
+        ).select_related("student", "subject")
+
+        # Filter by teacher's subjects (teachers only see their own subjects)
+        qs = _filter_by_teacher_subjects(qs, request.user, class_id)
+
+        qs = qs.order_by("date", "student_id")
         total = qs.count()
         start = (page - 1) * page_size
         end = start + page_size
@@ -152,6 +202,8 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                 "student_name": getattr(getattr(r, "student", None), "full_name", None),
                 "status": r.status,
                 "note": getattr(r, "note", None),
+                "period_number": getattr(r, "period_number", None),
+                "subject_name": getattr(getattr(r, "subject", None), "name_ar", None),
             }
             for r in page_qs
         ]
@@ -202,13 +254,14 @@ class AttendanceViewSetBase(viewsets.ViewSet):
         # Build queryset
         from school.models import AttendanceRecord  # type: ignore
 
-        qs = (
-            AttendanceRecord.objects.filter(
-                **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
-            )
-            .select_related("student")
-            .order_by("date", "student_id")
-        )
+        qs = AttendanceRecord.objects.filter(
+            **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
+        ).select_related("student", "subject")
+
+        # Filter by teacher's subjects (teachers only see their own subjects)
+        qs = _filter_by_teacher_subjects(qs, request.user, class_id)
+
+        qs = qs.order_by("date", "student_id")
         export_format = (request.query_params.get("format") or "xlsx").lower()
         if export_format == "xlsx":
             # Generate an Excel workbook to guarantee correct Arabic rendering
@@ -228,6 +281,8 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                     "date/التاريخ",
                     "student_id/رقم الطالب",
                     "student/الطالب",
+                    "period/الحصة",
+                    "subject/المادة",
                     "status/الحالة",
                     "note/ملاحظة",
                 ]
@@ -235,11 +290,14 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                 # Stream rows to reduce memory/time; avoid per-cell styling loops
                 for r in qs.iterator(chunk_size=1000):
                     student_name = getattr(getattr(r, "student", None), "full_name", None)
+                    subject_name = getattr(getattr(r, "subject", None), "name_ar", None)
                     ws.append(
                         [
                             r.date.isoformat(),
                             r.student_id,
                             student_name or "",
+                            getattr(r, "period_number", "") or "",
+                            subject_name or "",
                             r.status,
                             getattr(r, "note", "") or "",
                         ]
@@ -251,11 +309,13 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                     pass
                 # Simple column widths
                 try:
-                    ws.column_dimensions["A"].width = 14
-                    ws.column_dimensions["B"].width = 12
-                    ws.column_dimensions["C"].width = 32
-                    ws.column_dimensions["D"].width = 14
-                    ws.column_dimensions["E"].width = 40
+                    ws.column_dimensions["A"].width = 14  # date
+                    ws.column_dimensions["B"].width = 12  # student_id
+                    ws.column_dimensions["C"].width = 32  # student name
+                    ws.column_dimensions["D"].width = 10  # period
+                    ws.column_dimensions["E"].width = 24  # subject
+                    ws.column_dimensions["F"].width = 14  # status
+                    ws.column_dimensions["G"].width = 40  # note
                 except Exception:
                     pass
                 bio = BytesIO()
@@ -287,17 +347,22 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                 "date/التاريخ",
                 "student_id/رقم الطالب",
                 "student/الطالب",
+                "period/الحصة",
+                "subject/المادة",
                 "status/الحالة",
                 "note/ملاحظة",
             ]
         )
         for r in qs.iterator(chunk_size=1000):
             student_name = getattr(getattr(r, "student", None), "full_name", None)
+            subject_name = getattr(getattr(r, "subject", None), "name_ar", None)
             writer.writerow(
                 [
                     r.date.isoformat(),
                     r.student_id,
                     student_name or "",
+                    getattr(r, "period_number", "") or "",
+                    subject_name or "",
                     r.status,
                     getattr(r, "note", "") or "",
                 ]
@@ -598,13 +663,14 @@ class AttendanceViewSet(viewsets.ViewSet):
         # Query optimized with select_related to avoid N+1 on student and class
         from school.models import AttendanceRecord  # type: ignore
 
-        qs = (
-            AttendanceRecord.objects.filter(
-                **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
-            )
-            .select_related("student")
-            .order_by("date", "student_id")
-        )
+        qs = AttendanceRecord.objects.filter(
+            **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
+        ).select_related("student", "subject")
+
+        # Filter by teacher's subjects (teachers only see their own subjects)
+        qs = _filter_by_teacher_subjects(qs, request.user, class_id)
+
+        qs = qs.order_by("date", "student_id")
         total = qs.count()
         start = (page - 1) * page_size
         end = start + page_size
@@ -616,6 +682,8 @@ class AttendanceViewSet(viewsets.ViewSet):
                 "student_name": getattr(getattr(r, "student", None), "full_name", None),
                 "status": r.status,
                 "note": getattr(r, "note", None),
+                "period_number": getattr(r, "period_number", None),
+                "subject_name": getattr(getattr(r, "subject", None), "name_ar", None),
             }
             for r in page_qs
         ]
@@ -666,13 +734,14 @@ class AttendanceViewSet(viewsets.ViewSet):
         # Build queryset
         from school.models import AttendanceRecord  # type: ignore
 
-        qs = (
-            AttendanceRecord.objects.filter(
-                **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
-            )
-            .select_related("student")
-            .order_by("date", "student_id")
-        )
+        qs = AttendanceRecord.objects.filter(
+            **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
+        ).select_related("student", "subject")
+
+        # Filter by teacher's subjects (teachers only see their own subjects)
+        qs = _filter_by_teacher_subjects(qs, request.user, class_id)
+
+        qs = qs.order_by("date", "student_id")
         export_format = (request.query_params.get("format") or "xlsx").lower()
         if export_format == "xlsx":
             # Generate an Excel workbook to guarantee correct Arabic rendering
@@ -692,6 +761,8 @@ class AttendanceViewSet(viewsets.ViewSet):
                     "date/التاريخ",
                     "student_id/رقم الطالب",
                     "student/الطالب",
+                    "period/الحصة",
+                    "subject/المادة",
                     "status/الحالة",
                     "note/ملاحظة",
                 ]
@@ -699,11 +770,14 @@ class AttendanceViewSet(viewsets.ViewSet):
                 # Stream rows to reduce memory/time; avoid per-cell styling loops
                 for r in qs.iterator(chunk_size=1000):
                     student_name = getattr(getattr(r, "student", None), "full_name", None)
+                    subject_name = getattr(getattr(r, "subject", None), "name_ar", None)
                     ws.append(
                         [
                             r.date.isoformat(),
                             r.student_id,
                             student_name or "",
+                            getattr(r, "period_number", "") or "",
+                            subject_name or "",
                             r.status,
                             getattr(r, "note", "") or "",
                         ]
@@ -715,11 +789,13 @@ class AttendanceViewSet(viewsets.ViewSet):
                     pass
                 # Simple column widths
                 try:
-                    ws.column_dimensions["A"].width = 14
-                    ws.column_dimensions["B"].width = 12
-                    ws.column_dimensions["C"].width = 32
-                    ws.column_dimensions["D"].width = 14
-                    ws.column_dimensions["E"].width = 40
+                    ws.column_dimensions["A"].width = 14  # date
+                    ws.column_dimensions["B"].width = 12  # student_id
+                    ws.column_dimensions["C"].width = 32  # student name
+                    ws.column_dimensions["D"].width = 10  # period
+                    ws.column_dimensions["E"].width = 24  # subject
+                    ws.column_dimensions["F"].width = 14  # status
+                    ws.column_dimensions["G"].width = 40  # note
                 except Exception:
                     pass
                 bio = BytesIO()
@@ -751,17 +827,22 @@ class AttendanceViewSet(viewsets.ViewSet):
                 "date/التاريخ",
                 "student_id/رقم الطالب",
                 "student/الطالب",
+                "period/الحصة",
+                "subject/المادة",
                 "status/الحالة",
                 "note/ملاحظة",
             ]
         )
         for r in qs.iterator(chunk_size=1000):
             student_name = getattr(getattr(r, "student", None), "full_name", None)
+            subject_name = getattr(getattr(r, "subject", None), "name_ar", None)
             writer.writerow(
                 [
                     r.date.isoformat(),
                     r.student_id,
                     student_name or "",
+                    getattr(r, "period_number", "") or "",
+                    subject_name or "",
                     r.status,
                     getattr(r, "note", "") or "",
                 ]
@@ -1006,9 +1087,13 @@ class AttendanceViewSetV2(AttendanceViewSet):
                 **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
             )
             .filter(student__class_fk_id=class_id)
-            .select_related("student")
-            .order_by("date", "student_id")
+            .select_related("student", "subject")
         )
+
+        # Filter by teacher's subjects (teachers only see their own subjects)
+        qs = _filter_by_teacher_subjects(qs, request.user, class_id)
+
+        qs = qs.order_by("date", "student_id")
         total = qs.count()
         start = (page - 1) * page_size
         end = start + page_size
@@ -1020,6 +1105,8 @@ class AttendanceViewSetV2(AttendanceViewSet):
                 "student_name": getattr(getattr(r, "student", None), "full_name", None),
                 "status": r.status,
                 "note": getattr(r, "note", None),
+                "period_number": getattr(r, "period_number", None),
+                "subject_name": getattr(getattr(r, "subject", None), "name_ar", None),
             }
             for r in page_qs
         ]
@@ -1061,7 +1148,7 @@ class AttendanceViewSetV2(AttendanceViewSet):
                 "admin": "إدارة",
                 "wing": "مشرف الجناح",
                 "nurse": "الممرض",
-                "restroom": "حمام",
+                "restroom": "دورة المياه",
             }
             return m.get((code or "").strip().lower(), code)
 

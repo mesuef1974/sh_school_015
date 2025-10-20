@@ -1,48 +1,171 @@
 <template>
-  <div class="container py-4">
-    <div class="row justify-content-center">
-      <div class="col-12 col-md-6">
-        <div class="card p-4 shadow-sm">
-          <h1 class="h4 mb-3 text-center">تسجيل الدخول</h1>
-          <form @submit.prevent="onSubmit">
-            <div class="mb-3">
-              <label class="form-label">اسم المستخدم</label>
-              <input v-model="username" type="text" class="form-control" required />
+  <div class="login-container">
+    <div class="login-wrapper">
+      <!-- Left Side - Branding -->
+      <div
+        class="login-brand"
+        v-motion
+        :initial="{ opacity: 0, x: -100 }"
+        :enter="{ opacity: 1, x: 0, transition: { duration: 600 } }"
+      >
+        <div class="brand-content">
+          <img :src="logoSrc" alt="شعار المدرسة" class="brand-logo" />
+          <h1 class="brand-title">مدرسة الشحانية</h1>
+          <p class="brand-subtitle">الإعدادية الثانوية للبنين</p>
+          <div class="brand-divider"></div>
+          <p class="brand-description">
+            منصة الإدارة المدرسية الذكية
+            <br />
+            إدارة شاملة وتقارير فورية
+          </p>
+
+          <!-- Features -->
+          <div class="features-list">
+            <div class="feature-item">
+              <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
+              <span>إدارة الحضور والغياب</span>
             </div>
-            <div class="mb-3">
-              <label class="form-label">كلمة المرور</label>
-              <input v-model="password" type="password" class="form-control" required />
+            <div class="feature-item">
+              <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
+              <span>تقارير تفصيلية فورية</span>
             </div>
-            <div class="d-grid">
-              <button class="btn btn-maron" :disabled="loading">دخول</button>
+            <div class="feature-item">
+              <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
+              <span>واجهة سهلة الاستخدام</span>
             </div>
-            <p class="text-danger mt-3" v-if="error">{{ error }}</p>
-          </form>
+          </div>
         </div>
+      </div>
+
+      <!-- Right Side - Login Form -->
+      <div
+        class="login-form-wrapper"
+        v-motion
+        :initial="{ opacity: 0, x: 100 }"
+        :enter="{ opacity: 1, x: 0, transition: { duration: 600, delay: 200 } }"
+      >
+        <DsCard class="login-card" :animate="false">
+          <div class="login-header">
+            <Icon icon="solar:shield-keyhole-bold-duotone" class="login-icon" />
+            <h2 class="login-title">تسجيل الدخول</h2>
+            <p class="login-subtitle">أدخل بيانات الدخول للوصول إلى المنصة</p>
+          </div>
+
+          <form @submit.prevent="onSubmit" class="login-form">
+            <!-- Username Field -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon icon="solar:user-bold-duotone" class="label-icon" />
+                اسم المستخدم
+              </label>
+              <input
+                v-model="username"
+                type="text"
+                class="form-control ds-input"
+                placeholder="أدخل اسم المستخدم"
+                required
+                autocomplete="username"
+                :disabled="loading"
+              />
+            </div>
+
+            <!-- Password Field -->
+            <div class="form-group">
+              <label class="form-label">
+                <Icon icon="solar:lock-password-bold-duotone" class="label-icon" />
+                كلمة المرور
+              </label>
+              <div class="password-input-wrapper">
+                <input
+                  v-model="password"
+                  :type="showPassword ? 'text' : 'password'"
+                  class="form-control ds-input"
+                  placeholder="أدخل كلمة المرور"
+                  required
+                  autocomplete="current-password"
+                  :disabled="loading"
+                />
+                <button
+                  type="button"
+                  class="password-toggle"
+                  @click="showPassword = !showPassword"
+                  :disabled="loading"
+                >
+                  <Icon :icon="showPassword ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'" />
+                </button>
+              </div>
+            </div>
+
+            <!-- Error Alert -->
+            <div v-if="error" class="ds-alert ds-alert-danger" role="alert">
+              <Icon icon="solar:danger-circle-bold-duotone" class="text-xl" />
+              <div>{{ error }}</div>
+            </div>
+
+            <!-- Submit Button -->
+            <DsButton
+              type="submit"
+              variant="primary"
+              size="lg"
+              :loading="loading"
+              :disabled="loading"
+              icon="solar:login-3-bold-duotone"
+              class="w-100"
+            >
+              {{ loading ? 'جاري الدخول...' : 'دخول' }}
+            </DsButton>
+          </form>
+
+          <!-- Footer -->
+          <div class="login-footer">
+            <p class="text-muted text-sm text-center mb-0">
+              جميع الحقوق محفوظة © {{ currentYear }}
+            </p>
+          </div>
+        </DsCard>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { login } from '../../shared/api/client';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '../stores/auth';
+import { toast } from 'vue-sonner';
+import DsButton from '../../components/ui/DsButton.vue';
+import DsCard from '../../components/ui/DsCard.vue';
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
+
 const username = ref('');
 const password = ref('');
 const loading = ref(false);
 const error = ref('');
+const showPassword = ref(false);
+const logoSrc = '/assets/img/logo.png';
+const currentYear = computed(() => new Date().getFullYear());
 
 async function onSubmit() {
-  loading.value = true; error.value = '';
+  loading.value = true;
+  error.value = '';
+
   try {
     await login(username.value, password.value);
-    try { await auth.loadProfile(); } catch { /* ignore for now */ }
+
+    try {
+      await auth.loadProfile();
+    } catch {
+      // Ignore profile load errors
+    }
+
+    toast.success('مرحباً بك!', {
+      description: 'تم تسجيل الدخول بنجاح'
+    });
+
     const next = (route.query.next as string) || '/';
     router.replace(next);
   } catch (e: any) {
@@ -51,6 +174,10 @@ async function onSubmit() {
     } else {
       error.value = e?.response?.data?.detail || 'بيانات الدخول غير صحيحة';
     }
+
+    toast.error('فشل تسجيل الدخول', {
+      description: error.value
+    });
   } finally {
     loading.value = false;
   }
@@ -58,5 +185,258 @@ async function onSubmit() {
 </script>
 
 <style scoped>
-.card { border-radius: .75rem; }
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--maron-primary) 0%, var(--maron-primary-900) 100%);
+  padding: var(--space-4);
+}
+
+.login-wrapper {
+  max-width: 1200px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+  align-items: center;
+}
+
+/* Left Side - Branding */
+.login-brand {
+  color: white;
+  padding: var(--space-8);
+}
+
+.brand-content {
+  max-width: 500px;
+}
+
+.brand-logo {
+  width: 120px;
+  height: 120px;
+  margin-bottom: var(--space-6);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+}
+
+.brand-title {
+  font-size: var(--font-size-4xl);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-2);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.brand-subtitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-6);
+  opacity: 0.9;
+}
+
+.brand-divider {
+  width: 80px;
+  height: 4px;
+  background: var(--maron-accent);
+  border-radius: var(--radius-full);
+  margin-bottom: var(--space-6);
+}
+
+.brand-description {
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-relaxed);
+  margin-bottom: var(--space-8);
+  opacity: 0.85;
+}
+
+.features-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--font-size-base);
+}
+
+.feature-icon {
+  font-size: var(--font-size-xl);
+  color: var(--maron-accent);
+}
+
+/* Right Side - Form */
+.login-form-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 480px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+
+.login-icon {
+  font-size: 4rem;
+  color: var(--maron-primary);
+  margin-bottom: var(--space-4);
+}
+
+.login-title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--maron-primary);
+  margin-bottom: var(--space-2);
+}
+
+.login-subtitle {
+  font-size: var(--font-size-base);
+  color: #6b7280;
+  margin: 0;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: #374151;
+}
+
+.label-icon {
+  font-size: var(--font-size-lg);
+  color: var(--maron-primary);
+}
+
+.ds-input {
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  transition: all var(--transition-fast);
+}
+
+.ds-input:focus {
+  outline: none;
+  border-color: var(--maron-primary);
+  box-shadow: 0 0 0 3px rgba(123, 30, 30, 0.1);
+}
+
+.ds-input:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+}
+
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-input-wrapper .ds-input {
+  padding-inline-end: 3rem;
+}
+
+.password-toggle {
+  position: absolute;
+  inset-inline-end: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.password-toggle:hover:not(:disabled) {
+  color: var(--maron-primary);
+  background-color: rgba(123, 30, 30, 0.05);
+}
+
+.password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.w-100 {
+  width: 100%;
+}
+
+.login-footer {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .login-wrapper {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+
+  .login-brand {
+    text-align: center;
+    padding: var(--space-4);
+  }
+
+  .brand-content {
+    max-width: 100%;
+  }
+
+  .brand-logo {
+    width: 100px;
+    height: 100px;
+  }
+
+  .brand-title {
+    font-size: var(--font-size-3xl);
+  }
+
+  .brand-divider {
+    margin-inline: auto;
+  }
+
+  .features-list {
+    align-items: center;
+  }
+}
+
+@media (max-width: 576px) {
+  .login-container {
+    padding: var(--space-3);
+  }
+
+  .brand-title {
+    font-size: var(--font-size-2xl);
+  }
+
+  .login-title {
+    font-size: var(--font-size-2xl);
+  }
+}
 </style>

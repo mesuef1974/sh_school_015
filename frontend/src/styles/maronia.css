@@ -7,6 +7,10 @@
     --radius: 12px;
     --shadow-soft: 0 6px 24px rgba(0, 0, 0, .06);
     --shadow-hover: 0 10px 28px rgba(0, 0, 0, .08);
+    /* Global navbar scale to increase header height by percentage */
+    --navbar-scale: 1.2;
+    /* Additional fixed height increase for navbar */
+    --navbar-height-increase: 20px;
 }
 
 @font-face {
@@ -43,9 +47,19 @@ body {
 
 /* Navbar */
 .navbar-maronia {
-    background: linear-gradient(90deg, var(--maron-primary), var(--maron-primary-700));
+    position: relative;
+    background: linear-gradient(90deg, #d23e3a, #690909 45%, #a94141 100%);
     color: #fff;
-    box-shadow: var(--shadow-soft);
+    box-shadow: var(--shadow-soft), inset 0 -6px 18px rgba(0,0,0,0.12);
+}
+/* Subtle vignette to mimic reference header depth */
+.navbar-maronia::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(80% 140% at 50% -30%, rgba(255,255,255,0.10), rgba(255,255,255,0) 60%),
+                linear-gradient(0deg, rgba(0,0,0,0.12), rgba(0,0,0,0.05) 40%, rgba(0,0,0,0) 70%);
 }
 
 .navbar-maronia a {
@@ -93,8 +107,9 @@ body {
 .table-hover tbody tr:hover { background-color: rgba(203, 153, 126, 0.08); }
 
 /* Brand */
-.brand-images img { height: 42px; }
-.brand-divider { width: 1px; height: 36px; background: rgba(255, 255, 255, .35); margin: 0 .5rem; }
+.brand-images { gap: .5rem; }
+.brand-images img { height: 44px; filter: drop-shadow(0 1px 0 rgba(0,0,0,.12)); }
+.brand-divider { width: 1px; height: 36px; background: rgba(255, 255, 255, .35); margin: 0 .5rem; border-radius: 1px; }
 /* Dropdown in navbar: ensure readable on white menu */
 .navbar-maronia .dropdown-menu { background: #fff; }
 .navbar-maronia .dropdown-menu .dropdown-item { color: var(--maron-primary); }
@@ -110,3 +125,17 @@ body {
 .chip { display:inline-flex; align-items:center; padding:.25rem .5rem; border-radius:999px; background: rgba(123,30,30,.08); color: var(--maron-primary); font-size:.85rem; }
 .loader-line { height: 4px; width: 100%; background: linear-gradient(90deg, var(--maron-accent), var(--maron-primary)); background-size: 200% 100%; animation: loadmove 1.2s linear infinite; border-radius: 2px; }
 @keyframes loadmove { 0% { background-position: 0% 0 } 100% { background-position: 200% 0 } }
+
+/* Navbar height scaling (padding) */
+.navbar-maronia .py-2,
+.navbar-maronia .container.py-2 {
+    padding-top: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
+    padding-bottom: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
+}
+
+/* Responsive cap to avoid overly tall header on small screens */
+@media (max-width: 576px) {
+    :root { --navbar-scale: 1.1; }
+    /* Slightly reduce base logo height on very small screens to keep balance */
+    .brand-images img { height: 38px; }
+}

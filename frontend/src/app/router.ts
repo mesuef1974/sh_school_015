@@ -7,6 +7,8 @@ import { useAuthStore } from './stores/auth';
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'home', component: HomePage },
   { path: '/login', name: 'login', component: LoginPage },
+  { path: '/demo', name: 'demo', component: () => import('../features/demo/DemoPage.vue') },
+  { path: '/design-system', name: 'design-system', component: () => import('../features/design/DesignSystemPage.vue') },
   { path: '/me', name: 'profile', component: () => import('./pages/ProfilePage.vue'), meta: { requiresAuth: true } },
   { path: '/stats', name: 'stats', component: () => import('../features/stats/StatsPage.vue'), meta: { requiresAuth: true, requiredRoles: ['teacher'] } },
   { path: '/students', name: 'students', component: () => import('../features/students/StudentsPage.vue'), meta: { requiresAuth: true, requiredRoles: ['teacher'] } },

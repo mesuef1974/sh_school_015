@@ -1,7 +1,12 @@
 <template>
   <section class="d-grid gap-3 page-grid">
-    <header class="auto-card p-3 d-flex align-items-center gap-3 glass-header">
-      <Icon icon="fa6-solid:clipboard-check" class="header-icon" />
+    <header
+      v-motion
+      :initial="{ opacity: 0, y: -30 }"
+      :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
+      class="auto-card p-3 d-flex align-items-center gap-3 glass-header"
+    >
+      <Icon icon="solar:clipboard-check-bold-duotone" class="header-icon" />
       <div>
         <div class="fw-bold">تسجيل الغياب</div>
         <div class="text-muted small">اختر الصف والتاريخ (اختياري: حصة اليوم)</div>
@@ -9,48 +14,102 @@
       <span class="ms-auto"></span>
     </header>
 
-    <form @submit.prevent="loadData" class="toolbar-inline mb-3 glass-form p-3">
-      <div class="field-inline">
-        <label class="form-label mb-0">الصف:</label>
-        <select v-model.number="classId" required class="form-select">
-          <option :value="null" disabled>اختر الصف</option>
-          <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name || ('صف #' + c.id) }}</option>
-        </select>
-      </div>
-      <div class="field-inline">
-        <label class="form-label mb-0">التاريخ:</label>
-        <input type="date" v-model="dateStr" class="form-control" @change="onDateChange" />
-      </div>
-      <div class="field-inline">
-        <label class="form-label mb-0">حصة اليوم:</label>
-        <select v-model.number="periodNo" class="form-select" @change="onPickPeriod">
-          <option :value="null">— لا شيء —</option>
-          <option v-for="p in todayPeriods" :key="p.period_number" :value="p.period_number">
-            حصة {{ p.period_number }} — {{ p.subject_name || 'مادة' }} — {{ p.classroom_name || ('صف #' + p.classroom_id) }}
-          </option>
-        </select>
-      </div>
-      <button type="submit" class="btn btn-maron">تحميل</button>
-      <button type="button" class="btn btn-maron-outline" :disabled="!students.length" @click="setAll('present')">تعيين الجميع حاضر</button>
-      <button type="button" class="btn btn-outline-secondary" :disabled="!students.length" @click="setAll('absent')">تعيين الجميع غائب</button>
-      <button type="button" class="btn btn-maron" :disabled="saving || !students.length" @click="save">حفظ</button>
-    </form>
+    <div
+      v-motion
+      :initial="{ opacity: 0, x: -50 }"
+      :enter="{ opacity: 1, x: 0, transition: { duration: 400, delay: 100 } }"
+      class="auto-card p-3 mb-3"
+    >
+      <form @submit.prevent="loadData" class="attendance-form">
+        <!-- Row 1: Filters -->
+        <div class="form-row">
+          <div class="form-field">
+            <label class="form-label">
+              <Icon icon="solar:users-group-two-rounded-bold-duotone" width="18" />
+              الصف
+            </label>
+            <select v-model.number="classId" required class="form-select">
+              <option :value="null" disabled>اختر الصف</option>
+              <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name || ('صف #' + c.id) }}</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">
+              <Icon icon="solar:calendar-bold-duotone" width="18" />
+              التاريخ
+            </label>
+            <input type="date" v-model="dateStr" class="form-control" @change="onDateChange" />
+          </div>
+
+          <div class="form-field form-field-wide">
+            <label class="form-label">
+              <Icon icon="solar:clock-circle-bold-duotone" width="18" />
+              حصة اليوم
+            </label>
+            <select v-model.number="periodNo" class="form-select" @change="onPickPeriod">
+              <option :value="null">— لا شيء —</option>
+              <option v-for="p in todayPeriods" :key="p.period_number" :value="p.period_number">
+                حصة {{ p.period_number }} — {{ p.subject_name || 'مادة' }} — {{ p.classroom_name || ('صف #' + p.classroom_id) }}
+              </option>
+            </select>
+          </div>
+
+          <DsButton type="submit" variant="primary" icon="solar:refresh-bold-duotone" class="btn-load">
+            تحميل
+          </DsButton>
+        </div>
+
+        <!-- Row 2: Actions -->
+        <div class="form-actions">
+          <DsButton type="button" variant="success" icon="solar:check-circle-bold-duotone" :disabled="!students.length" @click="setAll('present')">
+            <span class="btn-text">تعيين الجميع حاضر</span>
+            <span class="btn-text-short">حاضر</span>
+          </DsButton>
+          <DsButton type="button" variant="danger" icon="solar:close-circle-bold-duotone" :disabled="!students.length" @click="setAll('absent')">
+            <span class="btn-text">تعيين الجميع غائب</span>
+            <span class="btn-text-short">غائب</span>
+          </DsButton>
+          <DsButton type="button" variant="primary" icon="solar:diskette-bold-duotone" :disabled="saving || !students.length" :loading="saving" @click="save">
+            <span class="btn-text">حفظ الحضور</span>
+            <span class="btn-text-short">حفظ</span>
+          </DsButton>
+        </div>
+      </form>
+    </div>
 
     <div v-if="loading" class="loader-line"></div>
     <div v-else>
       <div v-if="classId || students.length" class="auto-card p-3 mb-3">
-        <div class="d-flex align-items-center mb-2">
-          <div class="fw-bold">معلومات اليوم</div>
-          <span class="ms-auto"></span>
-          <span class="small text-muted">{{ dateStr }}</span>
+        <div class="stats-header">
+          <div class="d-flex align-items-center gap-2">
+            <Icon icon="solar:chart-bold-duotone" width="20" style="color: var(--maron-primary);" />
+            <span class="fw-bold">معلومات اليوم</span>
+          </div>
+          <div class="date-badge">
+            <Icon icon="solar:calendar-bold-duotone" width="16" />
+            <span>{{ dateStr }}</span>
+          </div>
         </div>
         <div class="chips-grid">
-          <span class="chip">الحضور: <strong>{{ classKpis.present_pct ?? '--' }}%</strong></span>
-          <span class="chip">حاضر {{ classKpis.present ?? 0 }} / {{ classKpis.total ?? 0 }}</span>
-          <span class="chip">غياب: {{ classKpis.absent ?? 0 }}</span>
-          <span class="chip">متأخر: {{ classKpis.late ?? 0 }}</span>
-          <span class="chip">هروب: {{ classKpis.runaway ?? 0 }}</span>
-          <span class="chip">إذن خروج: {{ classKpis.excused ?? 0 }}</span>
+          <DsBadge variant="info" icon="solar:chart-bold-duotone">
+            الحضور: <strong>{{ classKpis.present_pct ?? '--' }}%</strong>
+          </DsBadge>
+          <DsBadge variant="success" icon="solar:check-circle-bold-duotone">
+            حاضر {{ classKpis.present ?? 0 }} / {{ classKpis.total ?? 0 }}
+          </DsBadge>
+          <DsBadge variant="danger" icon="solar:close-circle-bold-duotone">
+            غياب: {{ classKpis.absent ?? 0 }}
+          </DsBadge>
+          <DsBadge variant="warning" icon="solar:clock-circle-bold-duotone">
+            متأخر: {{ classKpis.late ?? 0 }}
+          </DsBadge>
+          <DsBadge variant="danger" icon="solar:running-bold-duotone">
+            هروب: {{ classKpis.runaway ?? 0 }}
+          </DsBadge>
+          <DsBadge variant="info" icon="solar:exit-bold-duotone">
+            إذن خروج: {{ classKpis.excused ?? 0 }}
+          </DsBadge>
         </div>
       </div>
       <div v-if="students.length === 0" class="auto-card p-3">لا يوجد طلاب.</div>
@@ -69,7 +128,7 @@
               <tbody>
                 <tr v-for="(s, idx) in studentsLeft" :key="s.id">
                   <td>{{ idx + 1 }}</td>
-                  <td><span class="student-name" :class="statusClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
+                  <td><span class="student-name" :class="nameClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
                   <td>
                     <select v-model="recordMap[s.id].status" class="form-select" :class="statusClass(recordMap[s.id].status)">
                       <option value=""></option>
@@ -97,7 +156,7 @@
                       </label>
                       <label class="form-check form-check-inline m-0">
                         <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">حمام</span>
+                        <span class="form-check-label">دورة المياه</span>
                       </label>
                     </div>
                     <div v-else>
@@ -123,7 +182,7 @@
               <tbody>
                 <tr v-for="(s, idx) in studentsRight" :key="s.id">
                   <td>{{ idx + leftCount + 1 }}</td>
-                  <td><span class="student-name" :class="statusClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
+                  <td><span class="student-name" :class="nameClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
                   <td>
                     <select v-model="recordMap[s.id].status" class="form-select" :class="statusClass(recordMap[s.id].status)">
                       <option value=""></option>
@@ -151,7 +210,7 @@
                       </label>
                       <label class="form-check form-check-inline m-0">
                         <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">حمام</span>
+                        <span class="form-check-label">دورة المياه</span>
                       </label>
                     </div>
                     <div v-else>
@@ -175,6 +234,8 @@
 import { onMounted, reactive, ref, computed } from 'vue';
 import { getAttendanceStudents, getAttendanceRecords, postAttendanceBulkSave, getTeacherClasses, getTeacherTimetableToday, getAttendanceSummary } from '../../../shared/api/client';
 import { useToast } from 'vue-toastification';
+import DsButton from '../../../components/ui/DsButton.vue';
+import DsBadge from '../../../components/ui/DsBadge.vue';
 
 const toast = useToast();
 const today = new Date().toISOString().slice(0, 10);
@@ -212,13 +273,24 @@ const studentsLeft = computed(() => students.value.slice(0, leftCount.value));
 const studentsRight = computed(() => students.value.slice(leftCount.value));
 
 function statusClass(s: string) {
-  // Align colors with history page badges
+  // Align colors with history page badges (background colors)
   return {
     'text-bg-success': s === 'present',
     'text-bg-danger': s === 'absent' || s === 'runaway',
     'text-bg-warning': s === 'late',
     'text-bg-secondary': s === 'excused',
     'text-bg-info': s === 'left_early'
+  } as any;
+}
+
+// Text-only color for student name (no background)
+function nameClass(s: string) {
+  return {
+    'text-success': s === 'present',
+    'text-danger': s === 'absent' || s === 'runaway',
+    'text-warning': s === 'late',
+    'text-secondary': s === 'excused',
+    'text-info': s === 'left_early'
   } as any;
 }
 
@@ -413,21 +485,148 @@ onMounted(async () => {
 .table-card thead th { position: sticky; top: 0; background: #fafbfc; z-index: 1; }
 .table-card tbody tr:hover { background: #fcfcff; }
 .table-card select.form-select { min-width: 150px; }
-/* Colored name chip for student names matching status color */
-.student-name { display: inline-block; padding: 2px 6px; border-radius: 6px; }
+/* Student name uses text color only (no background chip) */
+.student-name { font-weight: 600; }
 .table-responsive { overflow-x: auto; }
 .table-toolbar { background: rgba(255,255,255,0.65); }
 .sticky-actions { position: sticky; bottom: 0; background: rgba(255,255,255,0.85); }
 
 /* Toolbar for filters and actions: wrap on small screens, single line on large without horizontal scroll */
-.toolbar-inline { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; overflow: visible; white-space: normal; }
-.toolbar-inline .field-inline { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-.toolbar-inline .form-select, .toolbar-inline .form-control { min-width: 140px; flex: 0 1 auto; }
-.toolbar-inline .btn { flex: 0 1 auto; }
+/* Attendance Form Styles */
+.attendance-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: end;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #495057;
+  margin-bottom: 0;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e9ecef;
+}
+
+.form-actions button {
+  flex: 1 1 auto;
+  min-width: 140px;
+}
+
+.btn-text-short {
+  display: none;
+}
+
+/* Tablet & Up */
+@media (min-width: 768px) {
+  .form-row {
+    grid-template-columns: repeat(2, 1fr) auto;
+  }
+
+  .form-field-wide {
+    grid-column: 1 / -1;
+  }
+
+  .btn-load {
+    align-self: end;
+  }
+
+  .form-actions button {
+    flex: 0 1 auto;
+  }
+}
+
+/* Desktop */
 @media (min-width: 992px) {
-  .toolbar-inline { flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
-  .toolbar-inline > * { min-width: 0; }
-  .toolbar-inline .form-select, .toolbar-inline .form-control { min-width: 120px; }
+  .form-row {
+    grid-template-columns: 200px 180px 1fr auto;
+  }
+
+  .form-field-wide {
+    grid-column: auto;
+  }
+}
+
+/* Large Desktop */
+@media (min-width: 1200px) {
+  .form-row {
+    grid-template-columns: 220px 200px 1fr auto;
+  }
+}
+
+/* Mobile - Show short text */
+@media (max-width: 576px) {
+  .btn-text {
+    display: none;
+  }
+
+  .btn-text-short {
+    display: inline;
+  }
+
+  .form-actions button {
+    min-width: 100px;
+  }
+}
+
+/* Stats Header */
+.stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e9ecef;
+  flex-wrap: wrap;
+}
+
+.date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #495057;
+  border: 1px solid #dee2e6;
+  white-space: nowrap;
+}
+
+@media (max-width: 576px) {
+  .stats-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .date-badge {
+    align-self: stretch;
+    justify-content: center;
+  }
 }
 
 /* Two-column students grid (full-bleed) */

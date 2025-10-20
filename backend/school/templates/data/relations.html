@@ -1,100 +1,254 @@
 {% extends "_base_maronia.html" %}
 {% block title %}{{ title }}{% endblock %}
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 page-header" data-aos="fade-down">
+
+<!-- Header Section -->
+<div class="d-flex align-items-center justify-content-between mb-4" data-aos="fade-down">
   <div>
-    <h1 class="h4 mb-1 d-flex align-items-center gap-2">
-      <lord-icon src="https://cdn.lordicon.com/akuwjdzh.json" trigger="hover" colors="primary:#7b1e1e,secondary:#c49a6c" style="width:36px;height:36px"></lord-icon>
-      خريطة علائقية لقاعدة البيانات
+    <h1 class="h3 mb-2 d-flex align-items-center gap-3">
+      <div class="icon-wrapper" style="background: linear-gradient(135deg, #7b1e1e 0%, #a52a2a 100%); width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+        <iconify-icon icon="solar:database-bold-duotone" width="28" style="color: white;"></iconify-icon>
+      </div>
+      <div>
+        <div class="fw-bold">خريطة علاقات قاعدة البيانات</div>
+        <div class="text-muted" style="font-size: 0.875rem; font-weight: 400;">عرض تفاعلي احترافي للعلاقات بين جداول النظام</div>
+      </div>
     </h1>
-    <div class="text-muted small">عرض بصري احترافي يوضح العلاقات بين جداول التطبيق (school)</div>
   </div>
-  <div class="btn-group" role="group">
-    <a class="btn btn-sm btn-outline-primary" href="{% url 'data_overview' %}" data-bs-toggle="tooltip" data-bs-title="عرض كل الجداول"><i class="bi bi-table"></i> <span class="d-none d-sm-inline">كل الجداول</span></a>
-    <button id="btn-download-svg" class="btn btn-sm btn-outline-secondary" type="button" aria-label="تنزيل المخطط كملف SVG" data-bs-toggle="tooltip" data-bs-title="تنزيل كملف SVG"><i class="bi bi-filetype-svg"></i> <span class="d-none d-sm-inline">SVG</span></button>
-    <button id="btn-download-png" class="btn btn-sm btn-outline-secondary" type="button" aria-label="تنزيل المخطط كصورة PNG" data-bs-toggle="tooltip" data-bs-title="تنزيل كصورة PNG"><i class="bi bi-image"></i> <span class="d-none d-sm-inline">PNG</span></button>
-  </div>
-</div>
-
-<div class="card p-2 p-md-3" data-aos="fade-up">
-  <div class="row g-3 mb-2 align-items-stretch">
-    <div class="col-12 col-lg-7">
-      <div class="small text-muted">تستخدم هذه الصفحة Mermaid.js لتوليد مخطط ER بشكل مباشر من نماذج Django.</div>
-    </div>
-    <div class="col-12 col-lg-5">
-      <div class="p-2 border rounded-3 bg-light h-100">
-        <div class="d-flex flex-wrap gap-3 small">
-          <div><span class="text-muted">المحرك:</span> <strong>{% if db_info %}{{ db_info.vendor|default:'—' }}{% else %}—{% endif %}</strong></div>
-          <div><span class="text-muted">قاعدة البيانات:</span> <strong>{% if db_info %}{{ db_info.name|default:'—' }}{% else %}—{% endif %}</strong></div>
-          <div class="w-100 w-md-auto"><span class="text-muted">الإصدار:</span> <strong class="text-truncate d-inline-block" style="max-width: 380px;" title="{% if db_info %}{{ db_info.version }}{% endif %}">{% if db_info and db_info.version %}{{ db_info.version }}{% else %}—{% endif %}</strong></div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="ratio ratio-21x9 bg-light border rounded position-relative" style="min-height: 420px;">
-    <div id="er-loading" class="position-absolute top-50 start-50 translate-middle text-muted small" aria-live="polite">جاري توليد المخطط…</div>
-    <div id="er-wrap" class="p-2 overflow-auto" dir="ltr" aria-label="منطقة مخطط العلاقات">
-      <pre class="mermaid" id="er-src" style="white-space: pre;">{{ mermaid }}</pre>
-    </div>
-  </div>
-  <div class="row g-2 mt-2">
-    <div class="col-12 col-lg-8 small">
-      <div class="p-2 border rounded-3 bg-light h-100">
-        <div class="fw-bold mb-1">الأسطورة</div>
-        <div>المربعات تمثّل الجداول (Entities) وتعرض أسماء الحقول. الخطوط تمثّل العلاقات:
-          <span class="badge bg-secondary">FK</span> مفتاح أجنبي،
-          <span class="badge bg-secondary">O2O</span> واحد-لواحد،
-          <span class="badge bg-secondary">M2M</span> متعدد-لمتعدد.
-        </div>
-        <div class="input-group input-group-sm mt-2" style="max-width: 380px;">
-          <span class="input-group-text">بحث</span>
-          <input id="er-search" class="form-control" placeholder="ابحث عن جدول… (student, timetable, …)"/>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-lg-4">
-      <div class="d-flex gap-2 justify-content-lg-end">
-        <button id="btn-copy-src" class="btn btn-sm btn-outline-secondary" type="button">نسخ النص المصدري</button>
-        <button id="btn-rerender" class="btn btn-sm btn-outline-secondary" type="button">إعادة توليد الرسم</button>
-      </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-primary" href="{% url 'data_overview' %}" data-bs-toggle="tooltip" title="عرض كل الجداول">
+      <iconify-icon icon="solar:list-bold-duotone" width="18"></iconify-icon>
+      <span class="d-none d-md-inline ms-1">كل الجداول</span>
+    </a>
+    <div class="btn-group">
+      <button id="btn-download-svg" class="btn btn-outline-secondary" type="button" data-bs-toggle="tooltip" title="تنزيل SVG">
+        <iconify-icon icon="solar:file-text-bold-duotone" width="18"></iconify-icon>
+        <span class="d-none d-lg-inline ms-1">SVG</span>
+      </button>
+      <button id="btn-download-png" class="btn btn-outline-secondary" type="button" data-bs-toggle="tooltip" title="تنزيل PNG">
+        <iconify-icon icon="solar:gallery-bold-duotone" width="18"></iconify-icon>
+        <span class="d-none d-lg-inline ms-1">PNG</span>
+      </button>
     </div>
   </div>
 </div>
 
+<!-- Stats Cards -->
+<div class="row g-3 mb-4" data-aos="fade-up">
+  <div class="col-6 col-md-3">
+    <div class="card h-100" style="background: linear-gradient(135deg, #7b1e1e 0%, #a52a2a 100%); border: none;">
+      <div class="card-body text-white p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:database-bold-duotone" width="24"></iconify-icon>
+          <span class="small">قاعدة البيانات</span>
+        </div>
+        <div class="h5 mb-0 fw-bold">{% if db_info %}{{ db_info.vendor|upper }}{% else %}—{% endif %}</div>
+        <div class="small opacity-75">{% if db_info %}{{ db_info.name }}{% else %}—{% endif %}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card h-100" style="background: linear-gradient(135deg, #6a4c93 0%, #8b6fb0 100%); border: none;">
+      <div class="card-body text-white p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:server-bold-duotone" width="24"></iconify-icon>
+          <span class="small">الإصدار</span>
+        </div>
+        <div class="h6 mb-0 fw-bold text-truncate" style="max-width: 100%;">{% if db_info and db_info.version %}{{ db_info.version|truncatechars:20 }}{% else %}—{% endif %}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card h-100" style="background: linear-gradient(135deg, #c1666b 0%, #d4737c 100%); border: none;">
+      <div class="card-body text-white p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:shield-check-bold-duotone" width="24"></iconify-icon>
+          <span class="small">القيود</span>
+        </div>
+        <div class="h5 mb-0 fw-bold">{% if constraints %}{{ constraints|length }}{% else %}0{% endif %}</div>
+        <div class="small opacity-75">Constraints</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-md-3">
+    <div class="card h-100" style="background: linear-gradient(135deg, #48a9a6 0%, #5dbebb 100%); border: none;">
+      <div class="card-body text-white p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:layers-bold-duotone" width="24"></iconify-icon>
+          <span class="small">الفهارس</span>
+        </div>
+        <div class="h5 mb-0 fw-bold">{% if indexes %}{{ indexes|length }}{% else %}0{% endif %}</div>
+        <div class="small opacity-75">Indexes</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Diagram Card -->
+<div class="card shadow-sm mb-4" data-aos="fade-up" data-aos-delay="100">
+  <div class="card-header bg-white border-bottom py-3">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-center gap-2">
+        <iconify-icon icon="solar:diagram-up-bold-duotone" width="24" style="color: var(--maron-primary);"></iconify-icon>
+        <span class="fw-bold">مخطط العلاقات التفاعلي</span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <div class="input-group input-group-sm" style="max-width: 280px;">
+          <span class="input-group-text bg-light border-0">
+            <iconify-icon icon="solar:magnifer-bold-duotone" width="16"></iconify-icon>
+          </span>
+          <input id="er-search" class="form-control border-0 bg-light" placeholder="ابحث عن جدول..."/>
+        </div>
+        <button id="btn-rerender" class="btn btn-sm btn-light" type="button" data-bs-toggle="tooltip" title="إعادة التوليد">
+          <iconify-icon icon="solar:refresh-bold-duotone" width="18"></iconify-icon>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body p-0">
+    <div class="position-relative bg-light" style="min-height: 500px;">
+      <div id="er-loading" class="position-absolute top-50 start-50 translate-middle text-center">
+        <div class="spinner-border text-primary mb-2" role="status">
+          <span class="visually-hidden">جاري التحميل...</span>
+        </div>
+        <div class="text-muted small">جاري توليد المخطط...</div>
+      </div>
+      <div id="er-wrap" class="p-4 overflow-auto" dir="ltr" style="min-height: 500px;">
+        <pre class="mermaid" id="er-src" style="white-space: pre;">{{ mermaid }}</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-footer bg-white border-top py-3">
+    <div class="row g-3 align-items-center">
+      <div class="col-12 col-lg-8">
+        <div class="d-flex flex-wrap gap-2 small">
+          <span class="badge" style="background: linear-gradient(135deg, #7b1e1e 0%, #a52a2a 100%); color: white; padding: 0.5rem 0.75rem;">
+            <iconify-icon icon="solar:link-bold-duotone" width="14" class="me-1"></iconify-icon>
+            FK: مفتاح أجنبي
+          </span>
+          <span class="badge" style="background: linear-gradient(135deg, #6a4c93 0%, #8b6fb0 100%); color: white; padding: 0.5rem 0.75rem;">
+            <iconify-icon icon="solar:double-alt-arrow-right-bold-duotone" width="14" class="me-1"></iconify-icon>
+            O2O: واحد-لواحد
+          </span>
+          <span class="badge" style="background: linear-gradient(135deg, #48a9a6 0%, #5dbebb 100%); color: white; padding: 0.5rem 0.75rem;">
+            <iconify-icon icon="solar:copy-bold-duotone" width="14" class="me-1"></iconify-icon>
+            M2M: متعدد-لمتعدد
+          </span>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="d-flex gap-2 justify-content-lg-end">
+          <button id="btn-copy-src" class="btn btn-sm btn-outline-secondary" type="button">
+            <iconify-icon icon="solar:copy-bold-duotone" width="16"></iconify-icon>
+            <span class="ms-1">نسخ الكود</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Details Section -->
 {% if constraints or indexes %}
-<div class="card mt-3 p-2 p-md-3" data-aos="fade-up">
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <div class="fw-bold">القيود والفهارس (مستقاة مباشرةً من قاعدة البيانات)</div>
-    <a class="btn btn-sm btn-outline-secondary" href="{% url 'data_db_audit' %}">تدقيق القاعدة</a>
-  </div>
-  <div class="row g-3">
-    <div class="col-12 col-lg-6">
-      <div class="p-2 border rounded-3 bg-light h-100">
-        <div class="fw-semibold mb-1">القيود (Constraints)</div>
+<div class="row g-4" data-aos="fade-up" data-aos-delay="200">
+  <!-- Constraints -->
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <div class="d-flex align-items-center gap-2">
+          <iconify-icon icon="solar:shield-check-bold-duotone" width="24" style="color: var(--maron-primary);"></iconify-icon>
+          <span class="fw-bold">القيود (Constraints)</span>
+          {% if constraints %}
+          <span class="badge bg-primary ms-auto">{{ constraints|length }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-0">
         {% if constraints %}
-          <div class="small text-muted mb-2">عدد: {{ constraints|length }}</div>
-          <ul class="small mb-0" style="max-height: 220px; overflow:auto;">
-            {% for c in constraints %}
-              <li><code>{{ c.table }}</code> • <span class="text-muted">{{ c.name }}</span> — <span dir="ltr">{{ c.def }}</span></li>
-            {% endfor %}
-          </ul>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="small fw-semibold">الجدول</th>
+                  <th class="small fw-semibold">الاسم</th>
+                  <th class="small fw-semibold">التعريف</th>
+                </tr>
+              </thead>
+              <tbody class="small">
+                {% for c in constraints|slice:":20" %}
+                <tr>
+                  <td><code class="text-primary">{{ c.table }}</code></td>
+                  <td class="text-muted">{{ c.name|truncatechars:30 }}</td>
+                  <td dir="ltr" class="font-monospace small text-truncate" style="max-width: 200px;">{{ c.def|truncatechars:40 }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if constraints|length > 20 %}
+          <div class="card-footer bg-light text-center py-2">
+            <small class="text-muted">وأكثر من {{ constraints|length|add:"-20" }} آخرين...</small>
+          </div>
+          {% endif %}
         {% else %}
-          <div class="small text-muted">لا توجد بيانات قيود متاحة لهذا المحرك.</div>
+          <div class="p-4 text-center text-muted">
+            <iconify-icon icon="solar:folder-open-bold-duotone" width="48" class="mb-2 opacity-50"></iconify-icon>
+            <div>لا توجد قيود متاحة</div>
+          </div>
         {% endif %}
       </div>
     </div>
-    <div class="col-12 col-lg-6">
-      <div class="p-2 border rounded-3 bg-light h-100">
-        <div class="fw-semibold mb-1">الفهارس (Indexes)</div>
+  </div>
+
+  <!-- Indexes -->
+  <div class="col-12 col-lg-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <div class="d-flex align-items-center gap-2">
+          <iconify-icon icon="solar:layers-bold-duotone" width="24" style="color: var(--maron-primary);"></iconify-icon>
+          <span class="fw-bold">الفهارس (Indexes)</span>
+          {% if indexes %}
+          <span class="badge bg-primary ms-auto">{{ indexes|length }}</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body p-0">
         {% if indexes %}
-          <div class="small text-muted mb-2">عدد: {{ indexes|length }}</div>
-          <ul class="small mb-0" style="max-height: 220px; overflow:auto;">
-            {% for i in indexes %}
-              <li><code>{{ i.table }}</code> • <span class="text-muted">{{ i.name }}</span> — <span dir="ltr">{{ i.def }}</span></li>
-            {% endfor %}
-          </ul>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="small fw-semibold">الجدول</th>
+                  <th class="small fw-semibold">الاسم</th>
+                  <th class="small fw-semibold">التعريف</th>
+                </tr>
+              </thead>
+              <tbody class="small">
+                {% for i in indexes|slice:":20" %}
+                <tr>
+                  <td><code class="text-primary">{{ i.table }}</code></td>
+                  <td class="text-muted">{{ i.name|truncatechars:30 }}</td>
+                  <td dir="ltr" class="font-monospace small text-truncate" style="max-width: 200px;">{{ i.def|truncatechars:40 }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if indexes|length > 20 %}
+          <div class="card-footer bg-light text-center py-2">
+            <small class="text-muted">وأكثر من {{ indexes|length|add:"-20" }} آخرين...</small>
+          </div>
+          {% endif %}
         {% else %}
-          <div class="small text-muted">لا توجد بيانات فهارس متاحة لهذا المحرك.</div>
+          <div class="p-4 text-center text-muted">
+            <iconify-icon icon="solar:folder-open-bold-duotone" width="48" class="mb-2 opacity-50"></iconify-icon>
+            <div>لا توجد فهارس متاحة</div>
+          </div>
         {% endif %}
       </div>
     </div>
@@ -103,15 +257,87 @@
 {% endif %}
 
 <style>
-/* دعم RTL للمحتوى العام مع إبقاء الرسم LTR لقراءة أسهل للأسماء اللاتينية */
-#er-wrap svg { width: 100%; height: 100%; }
-/* إبراز نتائج البحث */
-#er-wrap svg g.match rect { stroke: #198754 !important; stroke-width: 2.2px; }
-#er-wrap svg g.match text { fill: #198754 !important; font-weight: 700; }
-/* طباعة أنيقة */
+/* Modern Card Styling */
+.card {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.card-header, .card-footer {
+  border-radius: 0 !important;
+}
+
+/* ER Diagram Styling */
+#er-wrap svg {
+  width: 100%;
+  height: 100%;
+  min-height: 450px;
+}
+
+/* Search Highlight */
+#er-wrap svg g.match rect {
+  stroke: #28a745 !important;
+  stroke-width: 3px !important;
+  filter: drop-shadow(0 0 8px rgba(40, 167, 69, 0.5));
+}
+
+#er-wrap svg g.match text {
+  fill: #28a745 !important;
+  font-weight: 700;
+}
+
+/* Smooth Transitions */
+.btn, .badge, .card {
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+/* Table Styling */
+.table > :not(caption) > * > * {
+  padding: 0.75rem 1rem;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(123, 30, 30, 0.05);
+}
+
+/* Loading Animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Print Styles */
 @media print {
-  .page-header, #btn-download-svg, #btn-download-png, #btn-copy-src, #btn-rerender, #er-search { display: none !important; }
-  #er-wrap { height: auto !important; overflow: visible !important; }
+  .btn, .input-group, .badge {
+    display: none !important;
+  }
+  #er-wrap {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  #er-wrap {
+    min-height: 350px;
+  }
+
+  .h3 {
+    font-size: 1.25rem;
+  }
+
+  .icon-wrapper {
+    width: 40px !important;
+    height: 40px !important;
+  }
 }
 </style>
 {% endblock %}
@@ -121,22 +347,39 @@
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.4/dist/mermaid.min.js"></script>
 <script>
 (function(){
-  // تهيئة Mermaid بمعيار أمني صارم وثيم ديناميكي
+  // Initialize Mermaid
   if (window.mermaid) {
     mermaid.initialize({
       startOnLoad: true,
       securityLevel: 'strict',
-      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default'
+      theme: 'default',
+      themeVariables: {
+        primaryColor: '#7b1e1e',
+        primaryTextColor: '#fff',
+        primaryBorderColor: '#a52a2a',
+        lineColor: '#7b1e1e',
+        secondaryColor: '#f8f9fa',
+        tertiaryColor: '#fff'
+      }
     });
   }
+
   const loading = document.getElementById('er-loading');
-  function hideLoading(){ if (loading) loading.style.display='none'; }
-  // أخفِ مؤشر التحميل بعد أول إطار عرض
-  if (document.readyState === 'complete') { requestAnimationFrame(hideLoading); } else {
-    window.addEventListener('load', ()=>requestAnimationFrame(hideLoading));
+  function hideLoading(){
+    if (loading) {
+      loading.style.opacity = '0';
+      loading.style.transition = 'opacity 0.3s';
+      setTimeout(() => loading.style.display = 'none', 300);
+    }
   }
 
-  // وظيفة مساعدة: إضافة بيانات تعريف للـ SVG
+  if (document.readyState === 'complete') {
+    requestAnimationFrame(hideLoading);
+  } else {
+    window.addEventListener('load', () => requestAnimationFrame(hideLoading));
+  }
+
+  // Metadata Helper
   function withMetadata(svgText){
     try {
       const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
@@ -147,15 +390,15 @@
     } catch { return svgText; }
   }
 
-  // تنزيل SVG
-  document.getElementById('btn-download-svg').addEventListener('click', async function(){
+  // Download SVG
+  document.getElementById('btn-download-svg')?.addEventListener('click', async function(){
     const pre = document.getElementById('er-src');
     const src = pre ? (pre.innerText || pre.textContent || '') : '';
     if (window.mermaid && typeof window.mermaid.render === 'function' && src.trim().length > 0) {
       try {
         const out = await window.mermaid.render('er-diagram-export', src);
         let svgText = out.svg;
-        // تأكد من وجود viewBox لأجل العرض الخارجي الصحيح
+
         if (typeof DOMParser !== 'undefined') {
           const doc = new DOMParser().parseFromString(svgText, 'image/svg+xml');
           const svgEl = doc.documentElement;
@@ -168,108 +411,166 @@
             svgText = new XMLSerializer().serializeToString(svgEl);
           }
         }
+
         svgText = withMetadata(svgText);
         const blob = new Blob([svgText], {type: 'image/svg+xml'});
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href=url; a.download='db_relations.svg'; a.click();
-        setTimeout(()=>URL.revokeObjectURL(url), 500);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'db_relations.svg';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 500);
         return;
       } catch (e) {
-        console.warn('mermaid.render export failed, falling back to DOM svg', e);
+        console.warn('mermaid.render export failed', e);
       }
     }
-    // Fallback: serialize DOM SVG
+
+    // Fallback
     const svg = document.querySelector('#er-wrap svg');
     if(!svg){ alert('الرسم غير جاهز بعد.'); return; }
+
     try {
       if (!svg.getAttribute('viewBox')) {
         const bbox = svg.getBBox();
         if (bbox && isFinite(bbox.width) && isFinite(bbox.height)) {
           svg.setAttribute('viewBox', `${bbox.x} ${bbox.y} ${bbox.width} ${bbox.height}`);
-          svg.removeAttribute('width');
-          svg.removeAttribute('height');
         }
       }
     } catch(_) {}
+
     let xml = new XMLSerializer().serializeToString(svg);
     xml = withMetadata(xml);
     const blob = new Blob([xml], {type: 'image/svg+xml'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download='db_relations.svg'; a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 500);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'db_relations.svg';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
   });
 
-  // تنزيل PNG من SVG الحالي
-  document.getElementById('btn-download-png').addEventListener('click', async function(){
-    const svg = document.querySelector('#er-wrap svg'); if(!svg){ alert('لم يتم توليد الرسم بعد'); return; }
+  // Download PNG
+  document.getElementById('btn-download-png')?.addEventListener('click', async function(){
+    const svg = document.querySelector('#er-wrap svg');
+    if(!svg){ alert('لم يتم توليد الرسم بعد'); return; }
+
     try{
-      if(!svg.getAttribute('viewBox')){ const bb=svg.getBBox(); svg.setAttribute('viewBox',`${bb.x} ${bb.y} ${bb.width} ${bb.height}`); }
-      svg.removeAttribute('width'); svg.removeAttribute('height');
+      if(!svg.getAttribute('viewBox')){
+        const bb = svg.getBBox();
+        svg.setAttribute('viewBox',`${bb.x} ${bb.y} ${bb.width} ${bb.height}`);
+      }
+      svg.removeAttribute('width');
+      svg.removeAttribute('height');
+
       const xml = new XMLSerializer().serializeToString(svg);
-      const urlSvg = 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(xml);
+      const urlSvg = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
       const img = new Image();
+
       img.onload = function(){
-        const scale = 2; // دقة أعلى
+        const scale = 2;
         const canvas = document.createElement('canvas');
-        canvas.width = this.width*scale; canvas.height = this.height*scale;
+        canvas.width = this.width * scale;
+        canvas.height = this.height * scale;
         const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale); ctx.drawImage(this, 0, 0);
-        canvas.toBlob(b=>{
+        ctx.scale(scale, scale);
+        ctx.drawImage(this, 0, 0);
+
+        canvas.toBlob(b => {
           if(!b){ alert('تعذّر إنشاء PNG'); return; }
           const url = URL.createObjectURL(b);
-          const a = document.createElement('a'); a.href=url; a.download='db_relations.png'; a.click();
-          setTimeout(()=>URL.revokeObjectURL(url), 1000);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'db_relations.png';
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
         });
       };
-      img.onerror = ()=>alert('تعذّر تحميل الرسم كصورة');
+
+      img.onerror = () => alert('تعذّر تحميل الرسم كصورة');
       img.src = urlSvg;
-    }catch(e){ alert('تعذّر إنشاء PNG'); }
+    } catch(e){
+      alert('تعذّر إنشاء PNG');
+    }
   });
 
-  // نسخ النص المصدري
-  document.getElementById('btn-copy-src').addEventListener('click', function(){
+  // Copy Source
+  document.getElementById('btn-copy-src')?.addEventListener('click', function(){
     const pre = document.getElementById('er-src');
     if(!pre){ alert('غير متاح الآن'); return; }
     const text = pre.innerText || pre.textContent || '';
-    navigator.clipboard.writeText(text).then(()=>{
-      this.textContent = 'نُسخ';
-      setTimeout(()=>this.textContent='نسخ النص المصدري', 1500);
-    }).catch(()=>alert('تعذّر النسخ'));
+
+    navigator.clipboard.writeText(text).then(() => {
+      const originalText = this.innerHTML;
+      this.innerHTML = '<iconify-icon icon="solar:check-circle-bold-duotone" width="16"></iconify-icon> <span class="ms-1">تم النسخ</span>';
+      setTimeout(() => this.innerHTML = originalText, 1500);
+    }).catch(() => alert('تعذّر النسخ'));
   });
 
-  // بحث فوري لتظليل الجداول
+  // Search Highlight
   (function(){
     const inp = document.getElementById('er-search');
     const wrap = document.getElementById('er-wrap');
+
     function highlight(q){
-      const svg = wrap.querySelector('svg'); if(!svg) return;
-      svg.querySelectorAll('g.match').forEach(el=>el.classList.remove('match'));
+      const svg = wrap?.querySelector('svg');
+      if(!svg) return;
+
+      svg.querySelectorAll('g.match').forEach(el => el.classList.remove('match'));
       if(!q) return;
+
       const texts = svg.querySelectorAll('text');
-      texts.forEach(t=>{
-        const name = (t.textContent||'').toLowerCase();
+      texts.forEach(t => {
+        const name = (t.textContent || '').toLowerCase();
         if (name.includes(q.toLowerCase())) {
           const g = t.closest('g');
           g && g.classList.add('match');
         }
       });
     }
-    let t; inp && inp.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(()=>highlight(inp.value), 200); });
+
+    let t;
+    inp?.addEventListener('input', () => {
+      clearTimeout(t);
+      t = setTimeout(() => highlight(inp.value), 200);
+    });
   })();
 
-  // إعادة توليد الرسم (Debounced)
+  // Re-render
   (function(){
     let busy = false;
-    document.getElementById('btn-rerender').addEventListener('click', async function(){
+    document.getElementById('btn-rerender')?.addEventListener('click', async function(){
       if (busy || !window.mermaid) return;
-      busy = true; this.disabled = true;
+      busy = true;
+      this.disabled = true;
+
+      const originalHTML = this.innerHTML;
+      this.innerHTML = '<iconify-icon icon="solar:refresh-bold-duotone" width="18" class="spin"></iconify-icon>';
+
       const pre = document.getElementById('er-src');
       const container = document.getElementById('er-wrap');
-      container.querySelectorAll('svg').forEach(el=>el.remove());
-      try { await mermaid.init(undefined, pre); } catch(e){ alert('تعذّر التوليد'); }
-      this.disabled = false; busy = false;
+      container.querySelectorAll('svg').forEach(el => el.remove());
+
+      try {
+        await mermaid.init(undefined, pre);
+      } catch(e){
+        alert('تعذّر التوليد');
+      }
+
+      this.innerHTML = originalHTML;
+      this.disabled = false;
+      busy = false;
     });
   })();
 })();
 </script>
+
+<style>
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+</style>
 {% endblock %}
