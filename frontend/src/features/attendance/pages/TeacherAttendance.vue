@@ -539,14 +539,14 @@ onMounted(async () => {
   display: none;
 }
 
-/* Tablet & Up */
-@media (min-width: 768px) {
+/* Mobile & Up - All in one row */
+@media (min-width: 576px) {
   .form-row {
-    grid-template-columns: repeat(2, 1fr) auto;
+    grid-template-columns: 160px 150px 1fr auto;
   }
 
   .form-field-wide {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .btn-load {
@@ -558,14 +558,17 @@ onMounted(async () => {
   }
 }
 
+/* Tablet & Up */
+@media (min-width: 768px) {
+  .form-row {
+    grid-template-columns: 180px 160px 1fr auto;
+  }
+}
+
 /* Desktop */
 @media (min-width: 992px) {
   .form-row {
     grid-template-columns: 200px 180px 1fr auto;
-  }
-
-  .form-field-wide {
-    grid-column: auto;
   }
 }
 

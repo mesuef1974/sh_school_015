@@ -1,66 +1,13 @@
 <template>
   <section class="d-grid gap-3">
-    <!-- شاشة ترحيبية احترافية تظهر مرة واحدة لكل جلسة -->
-    <div
-      v-if="showIntro"
-      class="intro-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label="ترحيب منصة مدرسة الشحانية"
-    >
-      <div class="intro-card auto-card p-4 text-center">
-        <button class="btn btn-sm btn-light intro-close" @click="dismissIntro" aria-label="إغلاق الترحيب">
-          <Icon icon="mdi:close" />
-        </button>
-        <div class="intro-media mb-3">
-          <template v-if="shouldAnimate">
-            <!-- حركة تعبّر عن الإدارة الذكية: لوحة تحكم/تحليلات متحركة -->
-            <Vue3Lottie
-              :path="currentPath"
-              :autoplay="true"
-              :loop="true"
-              :speed="1"
-              style="height: 220px; max-width: 100%"
-              aria-label="إدارة مدرسية ذكية"
-              @error="failed = true"
-            />
-          </template>
-          <template v-else>
-            <div class="d-flex flex-column align-items-center gap-2">
-              <img :src="logoSrc" alt="شعار المدرسة" style="height: 120px" />
-              <div v-if="reducedMotion && !allowMotion" class="text-muted small">
-                تم احترام تفضيل تقليل الحركة في جهازك. يمكنك تشغيل الحركة يدويًا.
-              </div>
-              <div class="d-flex gap-2">
-                <button v-if="reducedMotion && !allowMotion" class="btn btn-sm btn-outline-primary" @click="enableMotionOverride">تشغيل الحركة</button>
-                <button v-if="failed" class="btn btn-sm btn-outline-secondary" @click="retryAnimation">إعادة المحاولة</button>
-              </div>
-            </div>
-          </template>
-        </div>
-        <h2 class="fw-bold mb-1">مرحباً بكم في مدرسة الشحانية الإعدادية الثانوية</h2>
-        <p class="text-muted mb-4">إدارة مدرسية ذكية، تقارير فورية، وتواصل فعّال مع جميع الأطراف</p>
-        <div class="d-flex justify-content-center gap-2">
-          <DsButton variant="primary" size="lg" icon="solar:rocket-bold-duotone" @click="dismissIntro">
-            ابدأ
-          </DsButton>
-          <DsButton variant="outline" size="lg" icon="solar:eye-closed-bold-duotone" @click="dismissIntroForever">
-            عدم الإظهار مجدداً
-          </DsButton>
-        </div>
-      </div>
-    </div>
-
     <header
       v-motion
       :initial="{ opacity: 0, y: -50 }"
       :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }"
       class="auto-card p-3 d-flex align-items-center gap-3"
     >
-      <img :src="logoSrc" alt="" style="height:54px" />
-      <div>
-        <div class="fw-bold">{{ salutation }}، {{ name }}</div>
-      </div>
+      <img :src="logoSrc" alt="" style="height:54px; filter: brightness(0) saturate(100%) invert(15%) sepia(50%) saturate(2500%) hue-rotate(330deg) brightness(90%) contrast(90%);" />
+      <div class="fw-bold" style="white-space: nowrap;">{{ salutation }}، {{ name }}</div>
       <span class="ms-auto"></span>
       <!-- مثال بسيط على استخدام Lottie عبر vue3-lottie: يظهر على الشاشات المتوسطة فما فوق -->
       <Vue3Lottie

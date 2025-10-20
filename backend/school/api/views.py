@@ -40,11 +40,15 @@ def me(request: Request):
     perms = sorted(set(perms))
 
     # Determine if the user is a teacher with actual teaching assignments (has timetable classes)
+    # Also get full_name from Staff table (Arabic name)
     has_teaching_assignments = False
+    staff_full_name = None
     try:
-        staff = Staff.objects.filter(user=user, role="teacher").first()
+        staff = Staff.objects.filter(user=user).first()
         if staff:
-            has_teaching_assignments = TeachingAssignment.objects.filter(teacher=staff).exists()
+            staff_full_name = staff.full_name
+            if staff.role == "teacher":
+                has_teaching_assignments = TeachingAssignment.objects.filter(teacher=staff).exists()
     except Exception:
         has_teaching_assignments = False
 
@@ -63,7 +67,7 @@ def me(request: Request):
     data = {
         "id": user.id,
         "username": user.username,
-        "full_name": user.get_full_name() or user.username,
+        "full_name": staff_full_name or user.get_full_name() or user.username,
         "is_superuser": user.is_superuser,
         "is_staff": user.is_staff,
         "roles": roles,

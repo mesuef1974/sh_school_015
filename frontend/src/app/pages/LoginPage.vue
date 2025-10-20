@@ -186,11 +186,11 @@ async function onSubmit() {
 
 <style scoped>
 .login-container {
-  min-height: 100vh;
+  min-height: 86vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, var(--maron-primary) 0%, var(--maron-primary-900) 100%);
+  background: linear-gradient(270deg, var(--maron-primary) 0%, var(--maron-primary-900) 100%);
   padding: var(--space-4);
 }
 
