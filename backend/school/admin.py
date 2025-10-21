@@ -810,7 +810,13 @@ class ExitEventAdmin(admin.ModelAdmin):
         "classroom__name",
         "note",
     )
-    autocomplete_fields = ("student", "classroom", "started_by", "returned_by", "attendance_record")
+    autocomplete_fields = (
+        "student",
+        "classroom",
+        "started_by",
+        "returned_by",
+        "attendance_record",
+    )
     readonly_fields = ("started_at", "duration_seconds")
     list_select_related = ("student", "classroom", "started_by", "returned_by")
     date_hierarchy = "date"

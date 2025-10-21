@@ -8,6 +8,7 @@ from django.utils import timezone
 from school.models import AttendanceRecord, Staff, TimetableEntry  # type: ignore
 from ..models import AttendanceStatus
 from ..selectors import _current_term  # reuse existing helper
+from common.day_utils import iso_to_school_dow_from_iso
 
 
 def _class_fk_id_field() -> str:
@@ -25,12 +26,17 @@ def _class_fk_id_field() -> str:
 
 
 def _map_iso_to_school_day(iso: int) -> Optional[int]:
-    """Map ISO weekday (Mon=1..Sun=7) to school day (Sun=1..Thu=5).
-    Returns None for non-working days (Fri=5, Sat=6 ISO).
+    """Map ISO weekday (Mon=1..Sun=7) to school day (Sun=1..Sat=7).
+    Returns None for non-working days (Fri=6, Sat=7 in school format).
+
+    ISO: Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=7
+    School: Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6, Sat=7
     """
-    if iso in (5, 6):
+    school_day = iso % 7 + 1
+    # Check if it's a school day (Sun-Thu = 1-5)
+    if school_day < 1 or school_day > 5:
         return None
-    return {7: 1, 1: 2, 2: 3, 3: 4, 4: 5}.get(iso)
+    return school_day
 
 
 def _period_times_for_day(school_day: int) -> Dict[int, tuple]:
@@ -88,8 +94,9 @@ def bulk_save_attendance(
 
     # Determine term and school day
     term = _current_term()
+
     iso = int(getattr(dt, "isoweekday")())
-    school_day = _map_iso_to_school_day(iso)
+    school_day = iso_to_school_dow_from_iso(iso)
     if term is None:
         raise ValueError("no current term configured")
     if school_day is None:
@@ -158,9 +165,10 @@ def bulk_save_attendance(
             defaults["start_time"] = start_time
         if "end_time" in model_fields:
             defaults["end_time"] = end_time
-        # Day-of-week
+        # Day-of-week: Convert ISO to school format
         if "day_of_week" in model_fields:
-            defaults["day_of_week"] = int(getattr(dt, "isoweekday")())
+            iso_dow = int(getattr(dt, "isoweekday")())
+            defaults["day_of_week"] = iso_dow % 7 + 1  # Convert to school format (Sun=1, Sat=7)
         # Note and source
         if note is not None and "note" in model_fields:
             defaults["note"] = note

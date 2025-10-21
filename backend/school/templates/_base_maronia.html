@@ -64,7 +64,17 @@
     .table-hover tbody tr:hover { background-color: rgba(203, 153, 126, 0.08); }
     .table thead a { color: inherit; text-decoration: none; }
     .table thead a:hover { text-decoration: underline; }
-
+  </style>
+  <script>
+window.getSchoolDayOfWeek = function() {
+  const d = new Date();
+  const iso = d.getDay(); // Sunday=0
+  return (iso === 0) ? 1 : iso + 1; // Sunday=1, Monday=2, ..., Saturday=7
+};
+// Diagnostic
+console.log('getSchoolDayOfWeek:', window.getSchoolDayOfWeek());
+</script>
+  <style>
     .page-header {
       border-inline-start: 4px solid var(--maron-accent);
       padding-inline-start: .75rem;
@@ -211,6 +221,14 @@
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
   <script>
+    // وجود دالة عامة لإيجاد يوم المدرسة وفق الترقيم الجديد (الأحد=1..السبت=7)
+    window.getSchoolDayOfWeek = function() {
+      const d = new Date();
+      const jsDay = d.getDay(); // Sun=0 ... Sat=6
+      return (jsDay === 0) ? 1 : (jsDay + 1);
+    };
+    // Diagnostic
+    console.log('getSchoolDayOfWeek:', window.getSchoolDayOfWeek());
     (function(){
       // Mark lordicon readiness for fallbacks
       if (window.lordicon) { document.documentElement.classList.add('lordicon-ready'); }
@@ -353,7 +371,85 @@
         document.addEventListener('DOMContentLoaded', function(){ autoEnhance(); initUtilities(); });
       }
     })();
+
+    // Global helper: Convert JS Date.getDay() to school format (Sun=1, Sat=7)
+    window.getSchoolDayOfWeek = function() {
+      const jsDay = new Date().getDay(); // Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+      return jsDay === 0 ? 1 : (jsDay + 1); // Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6, Sat=7
+    };
+
+    // Auto-fix: Highlight current day/period in all timetable pages
+    (function(){
+      try {
+        document.addEventListener('DOMContentLoaded', function(){
+          const schoolDow = window.getSchoolDayOfWeek();
+          const now = new Date();
+          const currentHour = now.getHours();
+          const currentMin = now.getMinutes();
+          const currentTotalMin = currentHour * 60 + currentMin;
+
+          // Period schedule (can be overridden per page)
+          const periods = [
+            {num: 1, start: 7*60+15, end: 7*60+55},
+            {num: 2, start: 8*60, end: 8*60+40},
+            {num: 3, start: 8*60+45, end: 9*60+25},
+            {num: 4, start: 9*60+50, end: 10*60+30},
+            {num: 5, start: 10*60+35, end: 11*60+15},
+            {num: 6, start: 11*60+20, end: 12*60},
+            {num: 7, start: 12*60+5, end: 12*60+45}
+          ];
+
+          let currentPeriod = null;
+          for(const p of periods){
+            if(currentTotalMin >= p.start && currentTotalMin <= p.end){
+              currentPeriod = p.num;
+              break;
+            }
+          }
+
+          console.log('🕐 Current Time:', now.toLocaleTimeString('ar-SA'));
+          console.log('📅 School Day:', schoolDow, ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][schoolDow-1]);
+          console.log('📚 Current Period:', currentPeriod || 'Not in class time');
+
+          // Find and highlight current period elements
+          // Support various selector patterns
+          const selectors = [
+            `[data-day="${schoolDow}"][data-period="${currentPeriod}"]`,
+            `.day-${schoolDow}.period-${currentPeriod}`,
+            `.tw-slot[data-day="${schoolDow}"][data-period="${currentPeriod}"]`
+          ];
+
+          selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+              el.classList.add('current-period-highlight');
+              el.style.border = '2px solid #22c55e';
+              el.style.boxShadow = '0 0 12px rgba(34, 197, 94, 0.4)';
+              el.style.background = '#f0fdf4';
+            });
+          });
+
+          // Find day columns and highlight current day
+          document.querySelectorAll('[data-day]').forEach(el => {
+            const dayNum = parseInt(el.getAttribute('data-day'));
+            if(dayNum === schoolDow){
+              el.classList.add('current-day');
+            }
+          });
+        });
+      } catch(e) {
+        console.error('Auto-fix day/period error:', e);
+      }
+    })();
   </script>
   {% block extra_js %}{% endblock %}
+  <style>
+    /* Global maroon outline for all cards across the site */
+    .card, .auto-card, .table-card, .panel, .ds-card {
+      border: 2px solid var(--maron-primary) !important;
+      border-radius: 12px !important;
+      background: #fff;
+    }
+  </style>
+  
 </body>
 </html>

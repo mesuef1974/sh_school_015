@@ -7,6 +7,7 @@ from rest_framework.request import Request
 from django.http import HttpResponse
 import csv
 import logging
+from django.utils import timezone
 
 from .serializers import StudentBriefSerializer, ExitEventSerializer
 from . import selectors
@@ -17,9 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 def _parse_date_or_400(dt_str: str | None):
-    """Parse ISO date (YYYY-MM-DD) or return (None, Response(400)). If empty, return today."""
+    """Parse ISO date (YYYY-MM-DD) or return (None, Response(400)). If empty, return today's date in the configured local timezone.
+    Using timezone.localdate() avoids UTC vs local day mismatches (e.g., showing Monday when it is Tuesday locally).
+    """
     if not dt_str:
-        return _date.today(), None
+        return timezone.localdate(), None
     try:
         return _date.fromisoformat(dt_str), None
     except Exception:
@@ -547,7 +550,7 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                 class_id=class_id,
                 dt=dt,
                 records=records,
-                actor_user_id=request.user.id if request.user.is_authenticated else None,
+                actor_user_id=(request.user.id if request.user.is_authenticated else None),
                 period_number=period_number,
             )
         except ValueError as e:
@@ -1027,7 +1030,7 @@ class AttendanceViewSet(viewsets.ViewSet):
                 class_id=class_id,
                 dt=dt,
                 records=records,
-                actor_user_id=request.user.id if request.user.is_authenticated else None,
+                actor_user_id=(request.user.id if request.user.is_authenticated else None),
                 period_number=period_number,
             )
         except ValueError as e:
@@ -1263,7 +1266,10 @@ class ExitEventViewSet(viewsets.ModelViewSet):
         ).exists()
         if open_exists:
             return Response(
-                {"detail": "يوجد جلسة خروج مفتوحة لهذا الطالب في نفس اليوم", "date": req_date},
+                {
+                    "detail": "يوجد جلسة خروج مفتوحة لهذا الطالب في نفس اليوم",
+                    "date": req_date,
+                },
                 status=400,
             )
 

@@ -9,7 +9,10 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("path", type=str, help="Path to CSV file (UTF-8)")
         parser.add_argument(
-            "--dry-run", action="store_true", dest="dry_run", help="Validate only without writing"
+            "--dry-run",
+            action="store_true",
+            dest="dry_run",
+            help="Validate only without writing",
         )
 
     def handle(self, *args, **options):

@@ -15,11 +15,17 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.AutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("date", models.DateField(db_index=True)),
-                ("period_number", models.PositiveSmallIntegerField(blank=True, null=True)),
+                (
+                    "period_number",
+                    models.PositiveSmallIntegerField(blank=True, null=True),
+                ),
                 (
                     "reason",
                     models.CharField(
@@ -35,7 +41,10 @@ class Migration(migrations.Migration):
                 ("note", models.CharField(blank=True, max_length=300)),
                 ("started_at", models.DateTimeField(auto_now_add=True)),
                 ("returned_at", models.DateTimeField(blank=True, null=True)),
-                ("duration_seconds", models.PositiveIntegerField(blank=True, null=True)),
+                (
+                    "duration_seconds",
+                    models.PositiveIntegerField(blank=True, null=True),
+                ),
                 (
                     "attendance_record",
                     models.ForeignKey(

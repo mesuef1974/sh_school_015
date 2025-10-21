@@ -89,12 +89,14 @@ def change_password(request: Request) -> Response:
     # Validate current
     if not user.check_password(current):
         return Response(
-            {"detail": "كلمة المرور الحالية غير صحيحة"}, status=status.HTTP_400_BAD_REQUEST
+            {"detail": "كلمة المرور الحالية غير صحيحة"},
+            status=status.HTTP_400_BAD_REQUEST,
         )
     # Validate matching
     if new1 != new2:
         return Response(
-            {"detail": "كلمتا المرور الجديدتان غير متطابقتين"}, status=status.HTTP_400_BAD_REQUEST
+            {"detail": "كلمتا المرور الجديدتان غير متطابقتين"},
+            status=status.HTTP_400_BAD_REQUEST,
         )
     # Run Django validators
     try:
@@ -123,7 +125,8 @@ def logout(request: Request) -> Response:
     refresh_str = (request.data or {}).get("refresh")
     if not refresh_str:
         return Response(
-            {"detail": "رمز التحديث (refresh) مطلوب"}, status=status.HTTP_400_BAD_REQUEST
+            {"detail": "رمز التحديث (refresh) مطلوب"},
+            status=status.HTTP_400_BAD_REQUEST,
         )
     try:
         token = RefreshToken(refresh_str)

@@ -501,10 +501,24 @@ class AttendanceRecord(models.Model):
 
     class Meta:
         indexes = [
+            # Original indexes
             models.Index(fields=["student", "date"]),
             models.Index(fields=["classroom", "date"]),
             models.Index(fields=["teacher", "date"]),
             models.Index(fields=["status"]),
+            # Enhanced composite indexes for performance
+            models.Index(fields=["date", "status"], name="att_date_status_idx"),
+            models.Index(fields=["term", "student", "status"], name="att_term_student_idx"),
+            models.Index(
+                fields=["teacher", "date", "period_number"],
+                name="att_teacher_sched_idx",
+            ),
+            models.Index(
+                fields=["classroom", "date", "period_number"],
+                name="att_class_sched_idx",
+            ),
+            models.Index(fields=["date", "locked"], name="att_date_locked_idx"),
+            models.Index(fields=["student", "term"], name="att_student_term_idx"),
         ]
         unique_together = ("student", "date", "period_number", "term")
         verbose_name = "سجل حضور حصة"
@@ -600,10 +614,18 @@ class ExitEvent(models.Model):
     duration_seconds = models.PositiveIntegerField(null=True, blank=True)
 
     started_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="exits_started"
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exits_started",
     )
     returned_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="exits_returned"
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exits_returned",
     )
 
     attendance_record = models.ForeignKey(

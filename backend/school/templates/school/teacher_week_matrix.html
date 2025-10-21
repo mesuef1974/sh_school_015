@@ -96,7 +96,68 @@
 .tw-table th.day-idx-4, .tw-table td.day-idx-4 { background-color: #ffe8d1; } /* Orange */
 .tw-table th.day-idx-5, .tw-table td.day-idx-5 { background-color: #efe7ff; } /* Purple */
 .tw-table th.day-idx-6, .tw-table td.day-idx-6 { background-color: #e0f2fe; } /* Blue (again) */
+
+/* Current period highlight */
+.tw-slot.current-period {
+  border: 2px solid #22c55e !important;
+  box-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+  background: #f0fdf4 !important;
+}
 </style>
+
+<script>
+// Highlight current period
+(function(){
+  try {
+    const now = new Date();
+    // Convert ISO weekday (Mon=1, Sun=7) to school format (Sun=1, Sat=7)
+    const isoDow = now.getDay(); // Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+    const schoolDow = (isoDow === 0) ? 1 : (isoDow + 1); // Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6, Sat=7
+
+    // Only highlight for school days (Sun-Thu = 1-5)
+    if (schoolDow < 1 || schoolDow > 5) return;
+
+    // Get current time
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+    const currentMinutes = hours * 60 + minutes;
+
+    // Period times (matching your schedule)
+    const periodTimes = [
+      {period: 1, start: 7*60+15, end: 7*60+55},   // 07:15-07:55
+      {period: 2, start: 8*60+0, end: 8*60+40},    // 08:00-08:40
+      {period: 3, start: 8*60+45, end: 9*60+25},   // 08:45-09:25
+      {period: 4, start: 9*60+50, end: 10*60+30},  // 09:50-10:30
+      {period: 5, start: 10*60+35, end: 11*60+15}, // 10:35-11:15
+      {period: 6, start: 11*60+20, end: 12*60+0},  // 11:20-12:00
+      {period: 7, start: 12*60+5, end: 12*60+45}   // 12:05-12:45
+    ];
+
+    // Find current period
+    let currentPeriod = null;
+    for (const pt of periodTimes) {
+      if (currentMinutes >= pt.start && currentMinutes <= pt.end) {
+        currentPeriod = pt.period;
+        break;
+      }
+    }
+
+    if (!currentPeriod) return;
+
+    // Highlight all slots matching current day and period
+    const slots = document.querySelectorAll('.tw-slot');
+    slots.forEach(slot => {
+      const slotDay = parseInt(slot.getAttribute('data-day'));
+      const slotPeriod = parseInt(slot.getAttribute('data-period'));
+      if (slotDay === schoolDow && slotPeriod === currentPeriod) {
+        slot.classList.add('current-period');
+      }
+    });
+  } catch(e) {
+    console.error('Current period highlight error:', e);
+  }
+})();
+</script>
 {% endblock %}
 
 {% block extra_js %}
@@ -230,3 +291,43 @@
 </script>
 {% endif %}
 {% endblock %}
+
+<!-- Modern UI overrides for teacher_week_matrix (safe, minimal) -->
+<style>
+/***** Modern look & feel (maroon brand) *****/
+.tw-table { background: #fff; border-radius: 12px; overflow: hidden; }
+.tw-table thead.table-light { background: #faf6f5 !important; }
+.tw-table thead.table-light th { box-shadow: 0 2px 0 rgba(0,0,0,.04); }
+
+/* Sticky header subtle shadow */
+.tw-table thead.sticky-top { box-shadow: 0 6px 12px -6px rgba(0,0,0,.08); }
+
+/* Sticky teacher column polish */
+.tw-table .sticky-right { box-shadow: -6px 0 12px -6px rgba(0,0,0,.06); }
+
+/* Softer slot visuals */
+.tw-slot { background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 10px; transition: box-shadow .15s ease, transform .08s ease;
+}
+.tw-slot:hover { box-shadow: 0 6px 18px rgba(0,0,0,.06); transform: translateY(-1px); }
+.tw-slot-head { font-weight: 600; color:#6b7280; }
+
+.tw-item { border: 1px solid rgba(0,0,0,.08); background: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.04) inset; }
+.tw-subj { font-weight: 700; letter-spacing: .2px; }
+.tw-class { color:#374151; opacity:.9; }
+
+/* Add button refinement */
+.tw-add-btn { border-color: var(--maron-accent); color: var(--maron-accent); }
+.tw-add-btn:hover { background: var(--maron-accent); color: #fff; }
+
+/* Current period emphasis */
+.tw-slot.current-period { border-color:#22c55e !important; background:#f0fdf4 !important; box-shadow: 0 0 0 2px #22c55e22; }
+
+/* Day headers readability */
+.tw-table th[class^="day-idx-"] { color:#4a2b2b; font-weight:700; }
+
+/* Responsive: keep grid usable on mobile */
+@media (max-width: 992px){
+  .tw-grid-wrap{ max-height: none; }
+  .tw-slot{ min-height: 56px; }
+}
+</style>

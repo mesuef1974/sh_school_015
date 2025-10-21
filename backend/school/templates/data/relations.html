@@ -35,7 +35,7 @@
 
 <!-- Stats Cards -->
 <div class="row g-3 mb-4" data-aos="fade-up">
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-lg-3">
     <div class="card h-100" style="background: linear-gradient(135deg, #7b1e1e 0%, #a52a2a 100%); border: none;">
       <div class="card-body text-white p-3">
         <div class="d-flex align-items-center gap-2 mb-2">
@@ -48,7 +48,7 @@
     </div>
   </div>
 
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-lg-3">
     <div class="card h-100" style="background: linear-gradient(135deg, #6a4c93 0%, #8b6fb0 100%); border: none;">
       <div class="card-body text-white p-3">
         <div class="d-flex align-items-center gap-2 mb-2">
@@ -60,7 +60,7 @@
     </div>
   </div>
 
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-lg-3">
     <div class="card h-100" style="background: linear-gradient(135deg, #c1666b 0%, #d4737c 100%); border: none;">
       <div class="card-body text-white p-3">
         <div class="d-flex align-items-center gap-2 mb-2">
@@ -73,7 +73,7 @@
     </div>
   </div>
 
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-lg-3">
     <div class="card h-100" style="background: linear-gradient(135deg, #48a9a6 0%, #5dbebb 100%); border: none;">
       <div class="card-body text-white p-3">
         <div class="d-flex align-items-center gap-2 mb-2">
@@ -82,6 +82,61 @@
         </div>
         <div class="h5 mb-0 fw-bold">{% if indexes %}{{ indexes|length }}{% else %}0{% endif %}</div>
         <div class="small opacity-75">Indexes</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Enhanced Model Statistics -->
+<div class="row g-3 mb-4" data-aos="fade-up" data-aos-delay="50">
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:widget-bold-duotone" width="24" style="color: #7b1e1e;"></iconify-icon>
+          <span class="small text-muted">عدد النماذج</span>
+        </div>
+        <div class="h4 mb-0 fw-bold text-dark">{% if total_models %}{{ total_models }}{% else %}0{% endif %}</div>
+        <div class="small text-muted">Django Models</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:link-circle-bold-duotone" width="24" style="color: #6a4c93;"></iconify-icon>
+          <span class="small text-muted">العلاقات</span>
+        </div>
+        <div class="h4 mb-0 fw-bold text-dark">{% if total_relations %}{{ total_relations }}{% else %}0{% endif %}</div>
+        <div class="small text-muted">Relations</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:branching-paths-up-bold-duotone" width="24" style="color: #c1666b;"></iconify-icon>
+          <span class="small text-muted">مفاتيح أجنبية</span>
+        </div>
+        <div class="h4 mb-0 fw-bold text-dark">{% if model_stats %}{{ model_stats.with_fk }}{% else %}0{% endif %}</div>
+        <div class="small text-muted">Foreign Keys</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 border-0 shadow-sm">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <iconify-icon icon="solar:share-bold-duotone" width="24" style="color: #48a9a6;"></iconify-icon>
+          <span class="small text-muted">علاقات M2M</span>
+        </div>
+        <div class="h4 mb-0 fw-bold text-dark">{% if model_stats %}{{ model_stats.with_m2m }}{% else %}0{% endif %}</div>
+        <div class="small text-muted">Many-to-Many</div>
       </div>
     </div>
   </div>
@@ -126,7 +181,7 @@
   <div class="card-footer bg-white border-top py-3">
     <div class="row g-3 align-items-center">
       <div class="col-12 col-lg-8">
-        <div class="d-flex flex-wrap gap-2 small">
+        <div class="d-flex flex-wrap gap-2 small mb-2">
           <span class="badge" style="background: linear-gradient(135deg, #7b1e1e 0%, #a52a2a 100%); color: white; padding: 0.5rem 0.75rem;">
             <iconify-icon icon="solar:link-bold-duotone" width="14" class="me-1"></iconify-icon>
             FK: مفتاح أجنبي
@@ -138,6 +193,24 @@
           <span class="badge" style="background: linear-gradient(135deg, #48a9a6 0%, #5dbebb 100%); color: white; padding: 0.5rem 0.75rem;">
             <iconify-icon icon="solar:copy-bold-duotone" width="14" class="me-1"></iconify-icon>
             M2M: متعدد-لمتعدد
+          </span>
+        </div>
+        <div class="d-flex flex-wrap gap-2 small">
+          <span class="badge bg-light text-dark border" style="padding: 0.4rem 0.6rem;">
+            <iconify-icon icon="solar:box-bold-duotone" width="12" class="me-1"></iconify-icon>
+            Core: أساسي
+          </span>
+          <span class="badge bg-light text-dark border" style="padding: 0.4rem 0.6rem;">
+            <iconify-icon icon="solar:book-bold-duotone" width="12" class="me-1"></iconify-icon>
+            Academic: أكاديمي
+          </span>
+          <span class="badge bg-light text-dark border" style="padding: 0.4rem 0.6rem;">
+            <iconify-icon icon="solar:user-check-bold-duotone" width="12" class="me-1"></iconify-icon>
+            Attendance: حضور
+          </span>
+          <span class="badge bg-light text-dark border" style="padding: 0.4rem 0.6rem;">
+            <iconify-icon icon="solar:calendar-bold-duotone" width="12" class="me-1"></iconify-icon>
+            Scheduling: جدولة
           </span>
         </div>
       </div>

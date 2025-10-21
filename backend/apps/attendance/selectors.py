@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from django.db.models import QuerySet, Count, Q
 
 from school.models import Student, Class, AttendanceRecord, TimetableEntry, Term  # type: ignore
+from common.day_utils import iso_to_school_dow
 
 
 def _class_fk_id_field() -> str:
@@ -145,12 +146,9 @@ def get_teacher_today_periods(*, staff_id: int, dt: _date) -> List[Dict[str, Any
     term = _current_term()
     if not term:
         return []
-    # Map ISO weekday -> school day (Sun=1 .. Thu=5); non-workdays (Fri=5, Sat=6 ISO) return empty
-    iso = int(getattr(dt, "isoweekday")())
-    if iso in (5, 6):  # Friday or Saturday: no school
-        return []
-    school_day = {7: 1, 1: 2, 2: 3, 3: 4, 4: 5}.get(iso)
-    if not school_day:
+    # Unified mapping using central util
+    school_day = iso_to_school_dow(dt)
+    if school_day < 1 or school_day > 5:
         return []
     # Build period time lookup for this SCHOOL weekday (1=Sun..7=Sat) from PeriodTemplate/TemplateSlot
     times_map: dict[int, tuple] = {}

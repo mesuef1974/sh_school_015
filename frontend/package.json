@@ -18,6 +18,7 @@
     "@vueuse/motion": "^3.0.3",
     "axios": "^1.7.7",
     "echarts": "^5.6.0",
+    "naive-ui": "^2.43.1",
     "pinia": "^2.2.6",
     "pinia-plugin-persistedstate": "^3.2.3",
     "primeicons": "^7.0.0",

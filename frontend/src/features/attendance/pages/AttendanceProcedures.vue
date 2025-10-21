@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3">
+  <section class="d-grid gap-3 full-bleed">
     <header class="auto-card p-3 d-flex align-items-center gap-3">
       <Icon icon="fa6-solid:clipboard-list" style="font-size:28px;color:#6a1b9a" />
       <div>
@@ -24,4 +24,5 @@
 </script>
 
 <style scoped>
+.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
 </style>

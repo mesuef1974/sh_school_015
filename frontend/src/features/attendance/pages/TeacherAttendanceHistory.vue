@@ -1,5 +1,5 @@
 <template>
-  <section>
+  <section class="full-bleed">
     <DsCard class="mb-3" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0 }">
       <div class="d-flex align-items-center gap-3">
         <Icon icon="solar:history-bold-duotone" class="text-4xl text-primary" />
@@ -429,6 +429,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
 /* Modern Professional Table Styles */
 .modern-table-wrapper {
   overflow-x: auto;

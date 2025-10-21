@@ -80,7 +80,11 @@ urlpatterns = [
         timetable_import_from_image,
         name="timetable_import_from_image",
     ),
-    path("timetable/import/source.jpg", timetable_source_image, name="timetable_source_image"),
+    path(
+        "timetable/import/source.jpg",
+        timetable_source_image,
+        name="timetable_source_image",
+    ),
     path("timetable/import/source.pdf", timetable_source_pdf, name="timetable_source_pdf"),
     path("api/timetable/add/", api_timetable_add, name="api_timetable_add"),
     path("api/timetable/move/", api_timetable_move, name="api_timetable_move"),

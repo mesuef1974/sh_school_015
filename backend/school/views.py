@@ -47,6 +47,7 @@ from datetime import date as _date, time as _time
 from django.views.decorators.http import require_POST
 from django.contrib.auth import logout
 from django.views.decorators.cache import never_cache
+from django.utils import timezone
 from .services.imports import import_teacher_loads
 from .models import Wing
 from django.conf import settings
@@ -55,6 +56,7 @@ import io
 from .services.timetable_import import import_timetable_csv
 from .services.timetable_ocr import try_extract_csv_from_pdf, try_extract_csv_from_image
 from .services.ocr_table_parser import parse_ocr_raw_to_csv
+from common.day_utils import iso_to_school_dow_from_iso
 
 
 class ClassViewSet(ModelViewSet):
@@ -951,7 +953,11 @@ def teacher_class_matrix(request):
                     # Tag with class id for clarity when multiple
                     for x in sl:
                         combined_subs.append(
-                            {"subject": x["subject"], "weekly": x["weekly"], "class_id": cid}
+                            {
+                                "subject": x["subject"],
+                                "weekly": x["weekly"],
+                                "class_id": cid,
+                            }
                         )
             # Editable only when a single underlying class and the same rules as before
             if len(ids) == 1:
@@ -1211,7 +1217,13 @@ def teacher_week_matrix(request):
         "grid": grid,
         "DAYS": DAYS,
         "DAYS_RTL": list(reversed(DAYS)),
-        "DAY_NAMES": {1: "الأحد", 2: "الاثنين", 3: "الثلاثاء", 4: "الأربعاء", 5: "الخميس"},
+        "DAY_NAMES": {
+            1: "الأحد",
+            2: "الاثنين",
+            3: "الثلاثاء",
+            4: "الأربعاء",
+            5: "الخميس",
+        },
         # Present periods in ascending order in UI (1 → 7)
         "PERIODS_DESC": PERIODS,
         "PERIODS": PERIODS,
@@ -1525,7 +1537,8 @@ def timetable_import_from_image(request):
             if csv_text:
                 form = TimetableImageImportForm(initial={"csv_text": csv_text})
                 messages.info(
-                    request, "تمت محاولة الاستخراج الآلي. يرجى المراجعة ثم الضغط على استيراد."
+                    request,
+                    "تمت محاولة الاستخراج الآلي. يرجى المراجعة ثم الضغط على استيراد.",
                 )
                 if warn:
                     messages.warning(request, warn)
@@ -2089,6 +2102,7 @@ def data_relations(request):
     """Visual ER-style diagram of the core app (school) database relations.
     Produces a Mermaid ER diagram string from Django model metadata.
     Adds live database info (engine/name/version) — handy for PostgreSQL environments.
+    Enhanced with model categorization and comprehensive statistics.
     """
     try:
         from django.apps import apps
@@ -2097,7 +2111,11 @@ def data_relations(request):
         return render(
             request,
             "data/relations.html",
-            {"title": "العلاقات بين الجداول", "mermaid": "erDiagram\n", "db_info": None},
+            {
+                "title": "العلاقات بين الجداول",
+                "mermaid": "erDiagram\n",
+                "db_info": None,
+            },
         )
 
     # Collect DB info (engine/vendor, name, version if supported)
@@ -2127,16 +2145,49 @@ def data_relations(request):
     app_label = "school"
     models = [m for m in apps.get_app_config(app_label).get_models()]
 
+    # Categorize models for better organization
+    model_categories = {
+        "core": ["Class", "Student", "Staff", "Subject"],
+        "academic": [
+            "ClassSubject",
+            "TeachingAssignment",
+            "TimetableEntry",
+            "AcademicYear",
+            "Term",
+        ],
+        "attendance": [
+            "AttendanceRecord",
+            "AttendanceDaily",
+            "AttendancePolicy",
+            "ExitEvent",
+        ],
+        "scheduling": ["Wing", "PeriodTemplate", "TemplateSlot"],
+        "assessment": ["AssessmentPackage", "SchoolHoliday"],
+    }
+
     # Build entities and relations
-    entities = []  # list of (ModelName, [fields])
+    entities = []  # list of (ModelName, [fields], category)
     rels = []  # list of (left, left_card, right_card, right, label)
+    model_stats = {"total": 0, "with_fk": 0, "with_m2m": 0, "with_o2o": 0}
 
     def model_alias(m):
         return m.__name__
 
+    def get_category(model_name):
+        for cat, names in model_categories.items():
+            if model_name in names:
+                return cat
+        return "other"
+
     for m in models:
+        model_stats["total"] += 1
+        model_name = model_alias(m)
+        category = get_category(model_name)
+
         # Collect main fields (exclude many-to-many auto tables)
         flds = []
+        has_fk = has_m2m = has_o2o = False
+
         for f in m._meta.get_fields():
             try:
                 if hasattr(f, "many_to_many") and f.many_to_many and not f.concrete:
@@ -2144,38 +2195,113 @@ def data_relations(request):
                 if getattr(f, "auto_created", False) and not getattr(f, "concrete", False):
                     continue
                 name = getattr(f, "name", getattr(f, "attname", str(f)))
-                if isinstance(f, (ForeignKey, OneToOneField)):
-                    # For Mermaid erDiagram, avoid arrows/special syntax in field names
-                    # Show FK/O2O field as a plain attribute (relations are rendered separately)
-                    flds.append(name)
+
+                # Track field types
+                if isinstance(f, ForeignKey):
+                    has_fk = True
+                    flds.append(f"{name}_FK")
+                elif isinstance(f, OneToOneField):
+                    has_o2o = True
+                    flds.append(f"{name}_O2O")
+                elif isinstance(f, ManyToManyField):
+                    has_m2m = True
+                    flds.append(f"{name}_M2M")
                 else:
                     flds.append(name)
             except Exception:
                 continue
-        entities.append((model_alias(m), flds))
+
+        if has_fk:
+            model_stats["with_fk"] += 1
+        if has_m2m:
+            model_stats["with_m2m"] += 1
+        if has_o2o:
+            model_stats["with_o2o"] += 1
+
+        entities.append((model_name, flds, category))
 
         # Relations: FK and O2O from this model to target
         for f in m._meta.get_fields():
             try:
                 if isinstance(f, ForeignKey):
-                    rels.append((model_alias(m), "}o", "||", model_alias(f.related_model), f.name))
+                    rels.append((model_name, "}o", "||", model_alias(f.related_model), f.name))
                 elif isinstance(f, OneToOneField):
-                    rels.append((model_alias(m), "||", "||", model_alias(f.related_model), f.name))
+                    rels.append((model_name, "||", "||", model_alias(f.related_model), f.name))
                 elif isinstance(f, ManyToManyField):
                     # many-to-many (skip auto-created through models displayed as entities anyway)
-                    rels.append((model_alias(m), "}o", "o{", model_alias(f.related_model), f.name))
+                    rels.append((model_name, "}o", "o{", model_alias(f.related_model), f.name))
             except Exception:
                 continue
 
-    # Compose Mermaid erDiagram
+    # Compose Mermaid erDiagram with enhanced formatting
     lines = ["erDiagram"]
-    for name, flds in sorted(entities, key=lambda x: x[0]):
-        lines.append(f"  {name} {{")
-        # Keep only up to 12 fields to avoid clutter
-        for fld in flds[:12]:
-            # Mermaid expects type name first, but we can fake with string
-            lines.append(f"    string {fld}")
-        lines.append("  }")
+
+    # Helper to sanitize field names for Mermaid (remove special chars)
+    def sanitize_field(fld):
+        return fld.replace("_FK", "").replace("_O2O", "").replace("_M2M", "").replace("&", "and")
+
+    lines.append("  %% Core Models Foundation")
+    for name, flds, cat in sorted(entities, key=lambda x: (x[2], x[0])):
+        if cat == "core":
+            lines.append(f"  {name} {{")
+            # Show up to 15 fields for better visibility
+            for fld in flds[:15]:
+                clean_fld = sanitize_field(fld)
+                lines.append(f"    string {clean_fld}")
+            if len(flds) > 15:
+                lines.append("    string more_fields")
+            lines.append("  }")
+
+    lines.append("")
+    lines.append("  %% Academic Models Curriculum Teaching")
+    for name, flds, cat in sorted(entities, key=lambda x: (x[2], x[0])):
+        if cat == "academic":
+            lines.append(f"  {name} {{")
+            for fld in flds[:15]:
+                clean_fld = sanitize_field(fld)
+                lines.append(f"    string {clean_fld}")
+            if len(flds) > 15:
+                lines.append("    string more_fields")
+            lines.append("  }")
+
+    lines.append("")
+    lines.append("  %% Attendance Exit Tracking")
+    for name, flds, cat in sorted(entities, key=lambda x: (x[2], x[0])):
+        if cat == "attendance":
+            lines.append(f"  {name} {{")
+            for fld in flds[:15]:
+                clean_fld = sanitize_field(fld)
+                lines.append(f"    string {clean_fld}")
+            if len(flds) > 15:
+                lines.append("    string more_fields")
+            lines.append("  }")
+
+    lines.append("")
+    lines.append("  %% Scheduling Infrastructure")
+    for name, flds, cat in sorted(entities, key=lambda x: (x[2], x[0])):
+        if cat in ["scheduling", "assessment"]:
+            lines.append(f"  {name} {{")
+            for fld in flds[:15]:
+                clean_fld = sanitize_field(fld)
+                lines.append(f"    string {clean_fld}")
+            if len(flds) > 15:
+                lines.append("    string more_fields")
+            lines.append("  }")
+
+    lines.append("")
+    lines.append("  %% Other Models")
+    for name, flds, cat in sorted(entities, key=lambda x: (x[2], x[0])):
+        if cat == "other":
+            lines.append(f"  {name} {{")
+            for fld in flds[:15]:
+                clean_fld = sanitize_field(fld)
+                lines.append(f"    string {clean_fld}")
+            if len(flds) > 15:
+                lines.append("    string more_fields")
+            lines.append("  }")
+
+    lines.append("")
+    lines.append("  %% Relations")
     # Relations (deduplicate)
     seen = set()
     for a, lc, rc, b, label in rels:
@@ -2183,9 +2309,9 @@ def data_relations(request):
         if key in seen:
             continue
         seen.add(key)
-        # Mermaid ER labels should not be quoted; keep simple ASCII labels
-        # Also ensure label has no spaces or special characters (field names from Django are safe)
-        lines.append(f"  {a} {lc}--{rc} {b} : {label}")
+        # Sanitize label (remove underscores and special chars)
+        clean_label = label.replace("_", "")
+        lines.append(f"  {a} {lc}--{rc} {b} : {clean_label}")
 
     mermaid_src = "\n".join(lines)
 
@@ -2232,6 +2358,9 @@ def data_relations(request):
         "db_info": db_info,
         "constraints": constraints,
         "indexes": indexes,
+        "model_stats": model_stats,
+        "total_models": len(entities),
+        "total_relations": len(rels),
     }
     return render(request, "data/relations.html", context)
 
@@ -3357,11 +3486,11 @@ def teacher_attendance_page(request):
     selected_class_id = request.GET.get("class_id")
     if not selected_class_id and assignments:
         selected_class_id = str(assignments[0].classroom_id)
-    selected_date_str = request.GET.get("date") or _date.today().isoformat()
+    selected_date_str = request.GET.get("date") or timezone.localdate().isoformat()
     try:
         selected_date = _date.fromisoformat(selected_date_str)
     except Exception:
-        selected_date = _date.today()
+        selected_date = timezone.localdate()
 
     students = []
     if selected_class_id:
@@ -3528,7 +3657,7 @@ def api_attendance_bulk_save(request):
             "teacher": staff,
             "term": term,
             "date": dt,
-            "day_of_week": dt.isoweekday(),
+            "day_of_week": iso_to_school_dow(dt),
             "period_number": p,
             "start_time": period_times.get(p, (_time(0, 0), _time(0, 1)))[0],
             "end_time": period_times.get(p, (_time(0, 0), _time(0, 1)))[1],
@@ -3558,7 +3687,10 @@ def api_attendance_bulk_save(request):
         try:
             # اقفل السجلات التي أنشأها هذا المعلم لهذا الصف/اليوم ضمن حصصه
             AttendanceRecord.objects.filter(
-                classroom_id=class_id, date=dt, term=term, period_number__in=list(allowed_today)
+                classroom_id=class_id,
+                date=dt,
+                term=term,
+                period_number__in=list(allowed_today),
             ).update(locked=True)
         except Exception:
             pass
@@ -3572,6 +3704,15 @@ def api_attendance_bulk_save(request):
 
 
 # --- Helpers ---
+
+
+def iso_to_school_dow(dt: _date) -> int:
+    """Convert ISO weekday (Mon=1, Sun=7) to school format (Sun=1, Sat=7).
+
+    ISO weekday: Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=7
+    School format: Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6, Sat=7
+    """
+    return dt.isoweekday() % 7 + 1
 
 
 def get_active_term(dt: _date):
@@ -3589,7 +3730,7 @@ def get_period_times(dt: _date):
     """
     from .models import PeriodTemplate, TemplateSlot  # local import to avoid circulars
 
-    dow = dt.isoweekday()  # 1=Sun .. 7=Sat
+    dow = iso_to_school_dow(dt)
     res = {}
     try:
         tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=dow).values_list("id", flat=True))
@@ -3636,8 +3777,10 @@ def get_period_times(dt: _date):
 
 def get_subject_per_period(class_id: int, dt: _date):
     term = get_active_term(dt)
-    day = dt.isoweekday()
+    day = iso_to_school_dow_from_iso(dt.isoweekday())
     mp = {}
+    if day is None:
+        return mp
     for e in TimetableEntry.objects.filter(classroom_id=class_id, day_of_week=day, term=term):
         mp[int(e.period_number)] = e.subject_id
     return mp
@@ -3654,7 +3797,7 @@ def get_editable_periods_for_teacher(staff: Staff, class_id: int, dt: _date):
 
     # Teacher's periods for this class today
     term = get_active_term(dt)
-    dow = dt.isoweekday()
+    dow = iso_to_school_dow(dt)
     allowed = set(
         TimetableEntry.objects.filter(
             teacher=staff, classroom_id=class_id, day_of_week=dow, term=term
@@ -3869,7 +4012,8 @@ def assignments_vs_timetable(request):
     # Build list of teachers for template (only those with any differences)
     teacher_items = []
     for tid in sorted(
-        teachers_with_diff, key=lambda i: (teachers.get(i).full_name if teachers.get(i) else "")
+        teachers_with_diff,
+        key=lambda i: (teachers.get(i).full_name if teachers.get(i) else ""),
     ):
         t = teachers.get(tid)
         diffs = rows_by_teacher.get(tid, [])
@@ -4011,7 +4155,10 @@ def data_db_audit(request):
 
     # 1) Term: one current term per academic year (conditional unique)
     if has_named(term_tbl, "one_current_term_per_year"):
-        add_pass("ترم واحد حالي لكل سنة دراسية", "قيد فريد مشروط موجود (one_current_term_per_year)")
+        add_pass(
+            "ترم واحد حالي لكل سنة دراسية",
+            "قيد فريد مشروط موجود (one_current_term_per_year)",
+        )
     else:
         add_sug(
             "ترم واحد حالي لكل سنة دراسية",
@@ -4065,7 +4212,8 @@ def data_db_audit(request):
 
     if has_index_with_columns(tten_tbl, ["term_id", "teacher_id", "day_of_week", "period_number"]):
         add_pass(
-            "فهرس مركب (term,teacher,day,period)", "يوجد فهرس يغطي نمط الاستعلام الشائع للمعلم"
+            "فهرس مركب (term,teacher,day,period)",
+            "يوجد فهرس يغطي نمط الاستعلام الشائع للمعلم",
         )
     else:
         add_sug(
@@ -4082,7 +4230,10 @@ def data_db_audit(request):
     if has_index_with_columns(
         tten_tbl, ["term_id", "classroom_id", "day_of_week", "period_number"]
     ):
-        add_pass("فهرس مركب (term,class,day,period)", "يوجد فهرس يغطي نمط الاستعلام الشائع للصف")
+        add_pass(
+            "فهرس مركب (term,class,day,period)",
+            "يوجد فهرس يغطي نمط الاستعلام الشائع للصف",
+        )
     else:
         add_sug(
             "فهرس مركب لجدول الحصص (حسب الصف)",

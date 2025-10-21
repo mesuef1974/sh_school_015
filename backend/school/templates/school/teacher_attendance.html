@@ -3,88 +3,93 @@
 {% block title %}إدخال الغياب — المعلم{% endblock %}
 
 {% block content %}
-<div class="d-flex align-items-center justify-content-between mb-3 page-header">
-  <div>
-    <h1 class="h5 mb-1">إدخال الغياب على مستوى الحصص</h1>
-    <div class="text-muted small">واجهة مهنية لتمييز حالات الطلاب لكل حصة (١ إلى ٧) — الحالة الافتراضية: فارغة، ويمكنك تحضير الجميع بزر واحد</div>
-  </div>
-</div>
-
-<div class="card p-3" dir="rtl">
-  <form id="filters" class="row g-2 align-items-end mb-2">
-    <div class="col-auto">
-      <label class="form-label">التاريخ</label>
-      <input type="date" class="form-control form-control-sm" name="date" value="{{ today|date:'Y-m-d' }}">
-    </div>
-    <div class="col-auto">
-      <label class="form-label">الصف</label>
-      <select class="form-select form-select-sm" id="class_id" name="class_id" data-selected="{{ selected_class_id }}">
-        {% for asn in teacher_assignments %}
-          <option value="{{ asn.classroom.id }}">{{ asn.classroom.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="col-auto">
-      <button type="button" id="reload-btn" class="btn btn-sm btn-outline-primary">تحديث</button>
-    </div>
-    <div class="col-auto">
-      <button type="button" id="present-all-btn" class="btn btn-sm btn-outline-success">تحضير الجميع</button>
-    </div>
-    <div class="col-auto ms-auto">
-      <button type="button" id="save-btn" class="btn btn-sm btn-success">حفظ التغييرات</button>
-    </div>
-  </form>
-
-  <div class="table-hero">
-    <lord-icon src="https://cdn.lordicon.com/hrjifpbq.json" trigger="loop" delay="1500" colors="primary:#7b1e1e,secondary:#c49a6c"></lord-icon>
+<div class="attendance-wrap">
+  <div class="d-flex align-items-center justify-content-between mb-3 page-header">
     <div>
-      <div class="title">جدول حضور وغياب الطلاب</div>
-      <div class="muted">تتبُّع ذكي لحالة كل طالب في كل حصة مع تلوين دلالي.</div>
+      <h1 class="h5 mb-1">إدخال الغياب على مستوى الحصص</h1>
+      <div class="text-muted small">واجهة مهنية لتمييز حالات الطلاب لكل حصة (١ إلى ٧) — الحالة الافتراضية: فارغة، ويمكنك تحضير الجميع بزر واحد</div>
     </div>
   </div>
 
-  <div class="table-responsive" style="max-height: calc(100vh - 300px); overflow:auto;">
-    <table id="att-table" class="table table-bordered table-sm align-middle text-center" style="width:auto;">
-      <thead>
-        <tr>
-          <th class="sticky-right-1" rowspan="2" style="width:48px; min-width:48px;">#</th>
-          <th class="sticky-right-2 text-start" rowspan="2" style="min-width: 200px;">الطالب</th>
-          <th colspan="7">الحصص</th>
-        </tr>
-        <tr>
-          {% for p in "1234567" %}
-            <th style="width: 110px; min-width: 110px;">حصة {{ forloop.counter }}</th>
+  <div class="card p-3" dir="rtl">
+    <form id="filters" class="row g-2 align-items-end mb-2">
+      <div class="col-auto">
+        <label class="form-label">التاريخ</label>
+        <input type="date" class="form-control form-control-sm" name="date" value="{{ today|date:'Y-m-d' }}">
+      </div>
+      <div class="col-auto">
+        <label class="form-label">الصف</label>
+        <select class="form-select form-select-sm" id="class_id" name="class_id" data-selected="{{ selected_class_id }}">
+          {% for asn in teacher_assignments %}
+            <option value="{{ asn.classroom.id }}">{{ asn.classroom.name }}</option>
           {% endfor %}
-        </tr>
-      </thead>
-      <tbody>
-        {% for st in students %}
-          <tr data-student-id="{{ st.id }}">
-            <th class="sticky-right-1">{{ forloop.counter }}</th>
-            <th class="sticky-right-2 text-start">{{ st.full_name }}</th>
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="button" id="reload-btn" class="btn btn-sm btn-outline-primary">تحديث</button>
+      </div>
+      <div class="col-auto">
+        <button type="button" id="present-all-btn" class="btn btn-sm btn-outline-success">تحضير الجميع</button>
+      </div>
+      <div class="col-auto ms-auto">
+        <button type="button" id="save-btn" class="btn btn-sm btn-success">حفظ التغييرات</button>
+      </div>
+    </form>
+
+    <div class="table-hero">
+      <lord-icon src="https://cdn.lordicon.com/hrjifpbq.json" trigger="loop" delay="1500" colors="primary:#7b1e1e,secondary:#c49a6c"></lord-icon>
+      <div>
+        <div class="title">جدول حضور وغياب الطلاب</div>
+        <div class="muted">تتبُّع ذكي لحالة كل طالب في كل حصة مع تلوين دلالي.</div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="max-height: calc(100vh - 300px); overflow:auto;">
+      <table id="att-table" class="table table-bordered table-sm align-middle text-center" style="width:auto;">
+        <thead>
+          <tr>
+            <th class="sticky-right-1" rowspan="2" style="width:48px; min-width:48px;">#</th>
+            <th class="sticky-right-2 text-start" rowspan="2" style="min-width: 200px;">الطالب</th>
+            <th colspan="7">الحصص</th>
+          </tr>
+          <tr>
             {% for p in "1234567" %}
-              <td class="att-cell" data-period="{{ forloop.counter }}">
-                <select class="cell-editor form-select form-select-sm">
-                  <option value=""></option>
-                  <option value="present">حاضر</option>
-                  <option value="absent">غائب</option>
-                  <option value="late">متأخر</option>
-                  <option value="runaway">هروب</option>
-                </select>
-              </td>
+              <th style="width: 110px; min-width: 110px;">حصة {{ forloop.counter }}</th>
             {% endfor %}
           </tr>
-        {% empty %}
-          <tr><td colspan="9" class="text-muted">اختر صفاً لعرض الطلاب.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+        </thead>
+        <tbody>
+          {% for st in students %}
+            <tr data-student-id="{{ st.id }}">
+              <th class="sticky-right-1">{{ forloop.counter }}</th>
+              <th class="sticky-right-2 text-start">{{ st.full_name }}</th>
+              {% for p in "1234567" %}
+                <td class="att-cell" data-period="{{ forloop.counter }}">
+                  <select class="cell-editor form-select form-select-sm">
+                    <option value=""></option>
+                    <option value="present">حاضر</option>
+                    <option value="absent">غائب</option>
+                    <option value="late">متأخر</option>
+                    <option value="runaway">هروب</option>
+                  </select>
+                </td>
+              {% endfor %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="9" class="text-muted">اختر صفاً لعرض الطلاب.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
-  <div class="small text-muted mt-2">التلميح: انقر على الخلية لتغيير الحالة. اللون يعكس الحالة بمجرد الحفظ.</div>
+    <div class="small text-muted mt-2">التلميح: انقر على الخلية لتغيير الحالة. اللون يعكس الحالة بمجرد الحفظ.</div>
+  </div>
 </div>
 
 <style>
+.attendance-wrap{ width:95%; max-width:95vw; margin-inline:auto; }
+.attendance-wrap > .card{ margin-block: 12px; }
+.attendance-wrap .card + .card{ margin-top: 12px; }
 .sticky-right-1{ position: sticky; right: 0; z-index: 3; background: #fff; }
 .sticky-right-2{ position: sticky; right: 48px; z-index: 2; background: #fff; }
 #att-table { width: auto; }

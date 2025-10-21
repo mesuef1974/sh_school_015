@@ -2,6 +2,7 @@
   <section class="d-grid gap-3">
     <!-- Header Card -->
     <DsCard
+      class="outlined-card"
       v-motion
       :initial="{ opacity: 0, y: -30 }"
       :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
@@ -18,61 +19,65 @@
       </div>
     </DsCard>
 
-    <!-- Stats Cards -->
-    <div class="row g-3">
-      <div class="col-6 col-md-3">
+    <!-- Split cards: A) Day/Date/Time, B) Live KPIs -->
+    <div class="row g-3 align-items-stretch">
+      <!-- Card A: اليوم | الميلادي | الساعة -->
+      <div class="col-12 col-md-6">
         <DsCard
           v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 50 } }"
+          :initial="{ opacity: 0, scale: 0.9 }"
+          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 80 } }"
           :interactive="true"
+          class="h-100 outlined-card"
         >
-          <div class="text-center">
-            <Icon icon="solar:book-bold-duotone" class="text-3xl mb-2" style="color: var(--color-info)" />
-            <div class="small text-muted mb-1">إجمالي الحصص</div>
-            <div class="h5 fw-bold mb-0">{{ totalPeriods }}</div>
+          <div class="mini-table-wrap">
+            <table class="mini-table" dir="rtl">
+              <thead>
+                <tr>
+                  <th>اليوم</th>
+                  <th>التاريخ الهجري</th>
+                  <th>التاريخ الميلادي</th>
+                  <th>الساعة</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="fw-bold">{{ liveDay }}</td>
+                  <td>{{ liveHijri }}</td>
+                  <td>{{ liveDate }}</td>
+                  <td class="live-clock fw-semibold">{{ liveTime }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </DsCard>
       </div>
-      <div class="col-6 col-md-3">
+
+      <!-- Card B: المؤشرات الحية -->
+      <div class="col-12 col-md-6">
         <DsCard
           v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 100 } }"
+          :initial="{ opacity: 0, scale: 0.9 }"
+          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 120 } }"
           :interactive="true"
+          class="h-100 outlined-card"
         >
-          <div class="text-center">
-            <Icon icon="solar:layers-minimalistic-bold-duotone" class="text-3xl mb-2" style="color: var(--color-success)" />
-            <div class="small text-muted mb-1">الصفوف</div>
-            <div class="h5 fw-bold mb-0">{{ uniqueClasses }}</div>
-          </div>
-        </DsCard>
-      </div>
-      <div class="col-6 col-md-3">
-        <DsCard
-          v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 150 } }"
-          :interactive="true"
-        >
-          <div class="text-center">
-            <Icon icon="solar:document-text-bold-duotone" class="text-3xl mb-2" style="color: var(--color-warning)" />
-            <div class="small text-muted mb-1">المواد</div>
-            <div class="h5 fw-bold mb-0">{{ uniqueSubjects }}</div>
-          </div>
-        </DsCard>
-      </div>
-      <div class="col-6 col-md-3">
-        <DsCard
-          v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 200 } }"
-          :interactive="true"
-        >
-          <div class="text-center">
-            <Icon icon="solar:calendar-date-bold-duotone" class="text-3xl mb-2" style="color: var(--maron-primary)" />
-            <div class="small text-muted mb-1">اليوم</div>
-            <div class="h5 fw-bold mb-0">{{ getCurrentDay() }}</div>
+          <div class="mini-stats">
+            <div class="mini-stat">
+              <Icon icon="solar:book-bold-duotone" class="me-1" style="color: var(--color-info)" />
+              <span class="label">إجمالي الحصص</span>
+              <span class="value">{{ totalPeriods }}</span>
+            </div>
+            <div class="mini-stat">
+              <Icon icon="solar:layers-minimalistic-bold-duotone" class="me-1" style="color: var(--color-success)" />
+              <span class="label">الصفوف</span>
+              <span class="value">{{ uniqueClasses }}</span>
+            </div>
+            <div class="mini-stat">
+              <Icon icon="solar:document-text-bold-duotone" class="me-1" style="color: var(--color-warning)" />
+              <span class="label">المواد</span>
+              <span class="value">{{ uniqueSubjects }}</span>
+            </div>
           </div>
         </DsCard>
       </div>
@@ -92,7 +97,7 @@
     </DsCard>
 
     <!-- Timetable Card -->
-    <DsCard v-else class="p-0 overflow-hidden timetable-card">
+    <DsCard v-else class="p-0 overflow-hidden timetable-card outlined-card">
       <div class="timetable-wrapper">
         <table class="timetable-modern">
           <thead>
@@ -170,34 +175,106 @@
         </table>
       </div>
 
-      <!-- Color Legend -->
-      <div class="color-legend">
-        <div class="legend-title">
-          <Icon icon="solar:palette-bold-duotone" width="18" />
-          <span>دليل ألوان الصفوف</span>
-        </div>
-        <div class="legend-items">
-          <div
-            v-for="(classId, index) in Object.keys(classColorMap).map(Number)"
-            :key="classId"
-            class="legend-item"
-          >
-            <div
-              class="legend-color"
-              :style="{ background: getClassColor(classId).bg }"
-            ></div>
-            <span class="legend-label">
-              {{ getClassNameById(classId) }}
-            </span>
-          </div>
-        </div>
-      </div>
     </DsCard>
   </section>
 </template>
 
+<style scoped>
+/* Modern timetable styling - maroon themed, clean and readable */
+.timetable-wrapper{
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.timetable-modern{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+}
+
+.timetable-modern thead th{
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #faf6f5;
+  backdrop-filter: saturate(140%) blur(3px);
+  text-align: start;
+  font-weight: 700;
+  color: #5a3b3b;
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+.timetable-th{
+  padding: .75rem .75rem;
+  white-space: nowrap;
+}
+
+.th-content{ display:flex; align-items:center; gap:.5rem; }
+
+.timetable-tr th,
+.timetable-tr td{
+  border-bottom: 1px solid rgba(0,0,0,.06);
+}
+
+.day-column{ position: sticky; inset-inline-start: 0; z-index: 2; background: #fff; min-width: 120px; }
+.day-cell{ background: linear-gradient(90deg, #fff, #fff9f8); font-weight: 600; color: #4a2b2b; }
+.today-cell{ background: linear-gradient(90deg, #fff5f3, #fff); border-inline-start: 3px solid var(--maron-accent); }
+
+.period-column{ text-align: center; min-width: 140px; }
+.period-cell{ padding: .65rem .5rem; vertical-align: top; position: relative; transition: background-color .15s ease, box-shadow .15s ease; }
+.period-cell:hover{ background: #fafafa; box-shadow: inset 0 0 0 1px rgba(0,0,0,.04); }
+.period-cell.has-class{ background: #fffdfa; }
+
+/* Current period highlight */
+.period-cell.current-period{ outline: 2px solid #22c55e; box-shadow: 0 0 0 2px #22c55e22; background: #f0fdf4; }
+
+/* Content blocks */
+.period-content{ display: grid; gap: .35rem; align-items: start; }
+.subject-badge{ display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .5rem; border-radius: 999px; font-weight: 600; box-shadow: 0 1px 0 rgba(0,0,0,.04) inset; }
+.subject-name{ line-height: 1; }
+.classroom-info{ display:flex; align-items:center; gap:.5rem; }
+.classroom-badge{ display:inline-flex; align-items:center; gap:.35rem; padding: .15rem .5rem; border:1px solid currentColor; border-radius: 999px; font-size: .8rem; background: #fff; }
+.time-info{ display:flex; align-items:center; gap:.35rem; color:#6b7280; font-size:.85rem; }
+
+.empty-period{ display:flex; align-items:center; justify-content:center; min-height: 54px; color:#c4c4c4; }
+
+/* Legend */
+.color-legend{ border-top: 1px dashed rgba(0,0,0,.08); background: #fff; padding: .75rem 1rem; display:grid; gap:.75rem; }
+.legend-title{ display:flex; align-items:center; gap:.5rem; font-weight:700; color:#5a3b3b; }
+.legend-items{ display:flex; flex-wrap: nowrap; overflow-x: auto; gap:.75rem; padding-block:.25rem; }
+.legend-item{ display:flex; align-items:center; gap:.5rem; white-space: nowrap; }
+.legend-color{ width: 18px; height: 18px; border-radius:4px; box-shadow: 0 0 0 1px rgba(0,0,0,.06) inset; }
+.legend-label{ font-size:.9rem; color:#444; }
+
+/* Live clock in stats card */
+.live-clock{
+  font-size: 1.125rem;
+  letter-spacing: 0.5px;
+  color: var(--maron-primary);
+}
+
+/* Mini table styles */
+.mini-table-wrap{ overflow-x:auto; height:100%; }
+.mini-table{ width:100%; border-collapse:separate; border-spacing:0; border:1px solid rgba(0,0,0,.06); border-radius:10px; overflow:hidden; }
+.mini-table thead th,
+.mini-table tbody td{ text-align:center; vertical-align: middle; }
+.mini-table thead th{ background:#faf6f5; color:#5a3b3b; font-weight:700; padding:.5rem .6rem; border-bottom:1px solid rgba(0,0,0,.06); white-space:nowrap; }
+.mini-table tbody td{ padding:.55rem .6rem; border-inline-start:1px solid rgba(0,0,0,.06); white-space:nowrap; }
+.mini-table tbody td:first-child{ border-inline-start:none; }
+
+/* Compact stats row */
+.mini-stats{ display:grid; grid-template-columns: repeat(3, 1fr); gap:.5rem; height:100%; align-content:center; }
+.mini-stat{ display:flex; align-items:center; justify-content:center; text-align:center; flex-direction:column; gap:.35rem; padding:.45rem .5rem; border:1px dashed rgba(0,0,0,.08); border-radius:8px; background:#fff; }
+.mini-stat .label{ color:#6b7280; font-size:.85rem; }
+.mini-stat .value{ font-weight:700; color:#4a2b2b; }
+
+/* 2px maroon border for outer cards */
+.outlined-card{ border: 2px solid var(--maron-primary, #7b1e1e); border-radius: 12px; }
+</style>
+
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue';
+import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { getTeacherTimetableWeekly } from '../../../shared/api/client';
 import DsCard from '../../../components/ui/DsCard.vue';
 import DsBadge from '../../../components/ui/DsBadge.vue';
@@ -228,7 +305,7 @@ function dayLabel(d: number) {
 
 function fmtTime(t?: string) {
   if (!t) return '';
-  // Expect 'HH:MM[:SS]' — show only HH:MM
+  // Expect 'HH:MM[:SS]' — show only HH:MM using Latin numerals
   return t.slice(0,5);
 }
 
@@ -289,9 +366,10 @@ function getCurrentDay(): string {
 }
 
 function isToday(d: number): boolean {
-  const today = new Date().getDay();
-  // Map: 1=الأحد (Sunday)... adjust based on your system
-  return d === (today === 0 ? 7 : today);
+  const jsDay = new Date().getDay(); // Sun=0, Mon=1, Tue=2, ...
+  // Convert to school format: Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6, Sat=7
+  const schoolDow = jsDay === 0 ? 1 : (jsDay + 1);
+  return d === schoolDow;
 }
 
 function isCurrentPeriod(d: number, p: number): boolean {
@@ -357,6 +435,37 @@ function getClassNameById(classId: number): string {
   }
   return `صف #${classId}`;
 }
+
+// Live day/date/time (Arabic) for the header card
+const liveDay = ref<string>('');
+const liveHijri = ref<string>('');
+const liveDate = ref<string>('');
+const liveTime = ref<string>('');
+let _clockTimer: any = null;
+
+function updateNowClock(){
+  const now = new Date();
+  // Arabic long weekday with Latin numerals
+  liveDay.value = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { weekday: 'long' }).format(now);
+  // Hijri date using Islamic calendar with Latin numerals
+  try {
+    liveHijri.value = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  } catch(_){
+    // Fallback if calendar not supported
+    liveHijri.value = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  }
+  // Gregorian date forced (ar-SA with Gregorian calendar) and Latin numerals
+  liveDate.value = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  // Live time HH:MM:SS with Latin numerals
+  liveTime.value = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(now);
+}
+
+onMounted(() => {
+  try { updateNowClock(); } catch(_) {}
+  try { _clockTimer = setInterval(updateNowClock, 1000); } catch(_) {}
+});
+
+onUnmounted(() => { try { if (_clockTimer) clearInterval(_clockTimer); } catch(_) {} });
 
 async function load() {
   loading.value = true;

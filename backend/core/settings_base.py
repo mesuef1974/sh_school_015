@@ -139,9 +139,11 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
         "rest_framework.throttling.AnonRateThrottle",
     ),
+    # In DEBUG we relax throttle rates drastically to avoid developer lockouts
+    # because throttle state is stored in Redis and persists across restarts.
     "DEFAULT_THROTTLE_RATES": {
-        "user": "2000/hour",
-        "anon": "50/hour",
+        "user": ("1000/second" if DEBUG else "2000/hour"),
+        "anon": ("1000/second" if DEBUG else "50/hour"),
     },
 }
 
@@ -178,4 +180,38 @@ RQ_QUEUES = {
         "URL": REDIS_URL,
         "DEFAULT_TIMEOUT": 600,  # 10 minutes
     }
+}
+
+# Django Cache Configuration (using Redis)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "db": "1",  # Use DB 1 for cache (DB 0 is for RQ)
+        },
+        "KEY_PREFIX": "sh_school",
+        "TIMEOUT": 300,  # 5 minutes default
+        "VERSION": 1,
+    },
+    # Separate cache for long-lived data (classes, subjects, terms)
+    "long_term": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "db": "2",
+        },
+        "KEY_PREFIX": "sh_school_lt",
+        "TIMEOUT": 3600,  # 1 hour
+    },
+    # Cache for attendance data (medium duration)
+    "attendance": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {
+            "db": "3",
+        },
+        "KEY_PREFIX": "sh_school_att",
+        "TIMEOUT": 600,  # 10 minutes
+    },
 }

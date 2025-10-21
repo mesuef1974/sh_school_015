@@ -579,6 +579,9 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 }
 .header-icon { font-size: 26px; color: #8a1538; }
 
+/* Maroon outline cards to match design */
+.auto-card { border: 2px solid var(--maron-primary, #8a1538); border-radius: 12px; }
+
 .glass-form {
   background: rgba(255,255,255,0.65);
   -webkit-backdrop-filter: blur(8px);
@@ -769,7 +772,7 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 }
 
 /* Two-column students grid (full-bleed) */
-.students-two-col { display: grid; grid-template-columns: 1fr; gap: 16px; width: 100vw; margin-inline: calc(50% - 50vw); padding-inline: 12px; box-sizing: border-box; }
+.students-two-col { display: grid; grid-template-columns: 1fr; gap: 16px; width: 95vw; margin-inline-start: 0; margin-inline-end: auto; padding-inline-start: 0; padding-inline-end: 12px; box-sizing: border-box; }
 @media (min-width: 992px) { /* lg breakpoint */
   .students-two-col { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
 }
@@ -819,7 +822,7 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 /* عدم تحويل بطاقة الجدول إلى flex لتجنب تمرير داخلي */
 .page-grid .auto-card.p-0 { }
 
-/* Full-bleed section to use entire screen width edge-to-edge */
+/* Align the 95% width container to the right edge (RTL) */
 .full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
 /* Larger screens: slightly increase grid density */
 @media (min-width: 1400px) {
@@ -827,6 +830,7 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 }
 </style>
 
+<style scoped>
 /* Single-line toolbar (filters + action buttons) */
 .form-toolbar {
   display: flex;
@@ -845,3 +849,4 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
   .form-toolbar .form-field { min-width: 170px; }
   .form-toolbar .form-field.form-field-wide { min-width: 300px; }
 }
+</style>

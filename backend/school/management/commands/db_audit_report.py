@@ -1,6 +1,12 @@
 from django.core.management.base import BaseCommand
 from django.db import connection
-from ...models import Term, TimetableEntry, AttendanceRecord, TeachingAssignment, Student
+from ...models import (
+    Term,
+    TimetableEntry,
+    AttendanceRecord,
+    TeachingAssignment,
+    Student,
+)
 
 
 class Command(BaseCommand):
@@ -77,7 +83,8 @@ class Command(BaseCommand):
         # Checks (match the web audit view)
         if has_named(term_tbl, "one_current_term_per_year"):
             add_pass(
-                "Term current per year", "Conditional unique present (one_current_term_per_year)"
+                "Term current per year",
+                "Conditional unique present (one_current_term_per_year)",
             )
         else:
             add_sug(
@@ -89,7 +96,8 @@ class Command(BaseCommand):
             add_pass("TimetableEntry day check", "day_of_week between 1 and 5")
         else:
             add_sug(
-                "TimetableEntry day check", "Add CHECK constraint for day_of_week between 1 and 5."
+                "TimetableEntry day check",
+                "Add CHECK constraint for day_of_week between 1 and 5.",
             )
 
         if has_named(tten_tbl, "tt_period_between_1_7"):
@@ -123,12 +131,18 @@ class Command(BaseCommand):
         if has_named(atre_tbl, "att_day_between_1_7"):
             add_pass("AttendanceRecord day check", "day_of_week between 1 and 7")
         else:
-            add_sug("AttendanceRecord day check", "Add CHECK for day_of_week between 1 and 7.")
+            add_sug(
+                "AttendanceRecord day check",
+                "Add CHECK for day_of_week between 1 and 7.",
+            )
 
         if has_named(atre_tbl, "att_period_between_1_7"):
             add_pass("AttendanceRecord period check", "period_number between 1 and 7")
         else:
-            add_sug("AttendanceRecord period check", "Add CHECK for period_number between 1 and 7.")
+            add_sug(
+                "AttendanceRecord period check",
+                "Add CHECK for period_number between 1 and 7.",
+            )
 
         if has_index_with_columns(atre_tbl, ["classroom_id", "date", "period_number", "term_id"]):
             add_pass("Attendance index (class,date,period,term)", "Present")
