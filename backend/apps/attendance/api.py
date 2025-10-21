@@ -1275,7 +1275,9 @@ class ExitEventViewSet(viewsets.ModelViewSet):
 
         # Save the exit event
         obj = ser.save(started_by=getattr(request, "user", None))
-        return Response({"id": obj.id, "started_at": obj.started_at}, status=201)
+        return Response(
+            {"id": obj.id, "started_at": timezone.localtime(obj.started_at).isoformat()}, status=201
+        )
 
     @action(detail=True, methods=["patch"], url_path="return")
     def return_now(self, request: Request, pk=None):
@@ -1289,7 +1291,9 @@ class ExitEventViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "id": obj.id,
-                "returned_at": obj.returned_at,
+                "returned_at": (
+                    timezone.localtime(obj.returned_at).isoformat() if obj.returned_at else None
+                ),
                 "duration_seconds": obj.duration_seconds,
             }
         )
@@ -1312,7 +1316,7 @@ class ExitEventViewSet(viewsets.ModelViewSet):
             {
                 "id": e.id,
                 "student_id": e.student_id,
-                "started_at": e.started_at,
+                "started_at": timezone.localtime(e.started_at).isoformat(),
                 "reason": e.reason,
             }
             for e in qs

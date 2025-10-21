@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3">
+  <section class="d-grid gap-3 wide-95">
     <DsCard
       v-motion
       :initial="{ opacity: 0, y: -30 }"
@@ -153,4 +153,8 @@ const tiles = [
 </script>
 
 <style scoped>
+.wide-95 {
+  width: min(95vw, 95%);
+  margin-inline: auto;
+}
 </style>

@@ -104,8 +104,10 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = "en-us"
-TIME_ZONE = "UTC"
+# Use local timezone for Saudi Arabia so admin and API-localized outputs reflect correct local time
+TIME_ZONE = "Asia/Riyadh"
 USE_I18N = True
+# Keep timezone-aware datetimes; DB stores UTC while Django converts to TIME_ZONE for display
 USE_TZ = True
 
 # Static files

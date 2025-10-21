@@ -162,7 +162,7 @@
 
             <div class="mt-2">
               <div class="controls-row d-flex align-items-center gap-2 no-wrap">
-                <select v-model="recordMap[s.id].status" class="form-select status-select" :class="statusClassChip(recordMap[s.id].status)">
+                <select v-model="recordMap[s.id].status" class="form-select status-select" :class="statusClassChip(recordMap[s.id].status)" @change="onStatusChange(s)">
                   <option value=""></option>
                   <option value="present">حاضر</option>
                   <option value="absent">غائب</option>
@@ -178,21 +178,24 @@
             <div v-if="recordMap[s.id].status === 'excused'" class="mt-2">
               <div class="exit-reasons d-flex flex-wrap gap-2">
                 <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'admin'}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" />
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
                   إدارة
                 </label>
                 <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'wing'}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" />
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
                   مشرف الجناح
                 </label>
                 <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'nurse'}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" />
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
                   الممرض
                 </label>
                 <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'restroom'}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
                   دورة المياه
                 </label>
+              </div>
+              <div class="mt-2">
+                <input type="text" v-model="recordMap[s.id].note" class="form-control" placeholder="ملاحظة إذن الخروج (إلى أين؟)" />
               </div>
               <div class="d-flex align-items-center gap-2 mt-2 w-100 exit-controls">
                 <template v-if="!exitState[s.id]?.running">
@@ -337,6 +340,50 @@ function ensureExitReason(s: any) {
   if (!recordMap[s.id].exit_reasons) recordMap[s.id].exit_reasons = 'admin';
 }
 
+function autoNoteForExit(reason?: string) {
+  const r = (reason || '').toLowerCase();
+  const map: Record<string, string> = {
+    admin: 'إذن خروج إلى الإدارة',
+    wing: 'إذن خروج إلى مشرف الجناح',
+    nurse: 'إذن خروج إلى الممرض',
+    restroom: 'إذن خروج إلى دورة المياه'
+  };
+  return map[r] || (r ? `إذن خروج (${r})` : 'إذن خروج');
+}
+
+function isAutoNote(note?: string) {
+  const n = (note || '').trim();
+  if (!n) return true;
+  // Treat any note that begins with "إذن خروج" (including legacy formats like "إذن خروج — إدارة") as auto-generated
+  return n.startsWith('إذن خروج');
+}
+
+function onExitReasonChange(s: any) {
+  const current = (recordMap[s.id].note || '').trim();
+  const reason = recordMap[s.id].exit_reasons as string;
+  const auto = autoNoteForExit(reason);
+  if (!current || isAutoNote(current)) {
+    recordMap[s.id].note = auto;
+  }
+}
+
+function onStatusChange(s: any) {
+  const st = recordMap[s.id].status as string;
+  if (st === 'excused') {
+    ensureExitReason(s);
+    const current = (recordMap[s.id].note || '').trim();
+    const auto = autoNoteForExit(recordMap[s.id].exit_reasons as any);
+    if (!current || isAutoNote(current)) {
+      recordMap[s.id].note = auto;
+    }
+  } else {
+    const current = (recordMap[s.id].note || '').trim();
+    if (isAutoNote(current)) {
+      recordMap[s.id].note = '';
+    }
+  }
+}
+
 async function loadOpenExits() {
   if (!classId.value || !dateStr.value) return;
   try {
@@ -353,7 +400,12 @@ async function loadOpenExits() {
 
 async function startExit(s: any) {
   try {
+    let note = (recordMap[s.id].note || '').trim();
     ensureExitReason(s);
+    if (!note) {
+      note = autoNoteForExit(recordMap[s.id].exit_reasons as any);
+      recordMap[s.id].note = note;
+    }
     exitState[s.id] = { running: true, started_at: null, event_id: null, busy: true } as any;
     const payload = {
       student_id: s.id,
@@ -361,7 +413,7 @@ async function startExit(s: any) {
       date: dateStr.value,
       period_number: periodNo.value ?? undefined,
       reason: recordMap[s.id].exit_reasons as any,
-      note: recordMap[s.id].note || null
+      note
     };
     const res = await postExitEvent(payload as any);
     exitState[s.id] = { running: true, started_at: res.started_at, event_id: res.id, busy: false } as any;
