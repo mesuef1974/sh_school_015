@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3 page-grid">
+  <section class="d-grid gap-3 page-grid full-bleed">
     <header
       v-motion
       :initial="{ opacity: 0, y: -30 }"
@@ -21,8 +21,8 @@
       class="auto-card p-3 mb-3"
     >
       <form @submit.prevent="loadData" class="attendance-form">
-        <!-- Row 1: Filters -->
-        <div class="form-row">
+        <div class="form-toolbar d-flex align-items-end gap-2 flex-nowrap">
+          <!-- Filters: Class, Date, Today's Period -->
           <div class="form-field">
             <label class="form-label">
               <Icon icon="solar:users-group-two-rounded-bold-duotone" width="18" />
@@ -58,10 +58,11 @@
           <DsButton type="submit" variant="primary" icon="solar:refresh-bold-duotone" class="btn-load">
             تحميل
           </DsButton>
-        </div>
 
-        <!-- Row 2: Actions -->
-        <div class="form-actions">
+          <!-- Spacer pushes action buttons to the far edge on wide screens -->
+          <span class="ms-auto d-none d-sm-inline"></span>
+
+          <!-- Action Buttons: Single-line cluster -->
           <DsButton type="button" variant="success" icon="solar:check-circle-bold-duotone" :disabled="!students.length" @click="setAll('present')">
             <span class="btn-text">تعيين الجميع حاضر</span>
             <span class="btn-text-short">حاضر</span>
@@ -113,114 +114,103 @@
         </div>
       </div>
       <div v-if="students.length === 0" class="auto-card p-3">لا يوجد طلاب.</div>
-      <div v-else class="students-two-col">
-        <div class="auto-card p-0">
-          <div class="table-responsive">
-            <table class="table table-hover table-card align-middle mb-0">
-              <thead>
-                <tr>
-                  <th style="width:60px">#</th>
-                  <th>الطالب</th>
-                  <th style="width:180px">الحالة</th>
-                  <th>ملاحظة</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(s, idx) in studentsLeft" :key="s.id">
-                  <td>{{ idx + 1 }}</td>
-                  <td><span class="student-name" :class="nameClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
-                  <td>
-                    <select v-model="recordMap[s.id].status" class="form-select" :class="statusClass(recordMap[s.id].status)">
-                      <option value=""></option>
-                      <option value="present" :class="statusClass('present')">حاضر</option>
-                      <option value="absent" :class="statusClass('absent')">غائب</option>
-                      <option value="late" :class="statusClass('late')">متأخر</option>
-                      <option value="excused" :class="statusClass('excused')">إذن خروج</option>
-                      <option value="runaway" :class="statusClass('runaway')">هروب</option>
-                      <option value="left_early" :class="statusClass('left_early')">انصراف مبكر</option>
-                    </select>
-                  </td>
-                  <td>
-                    <div v-if="recordMap[s.id].status === 'excused'" class="d-flex flex-wrap gap-3 align-items-center">
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">إدارة</span>
-                      </label>
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">مشرف الجناح</span>
-                      </label>
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">الممرض</span>
-                      </label>
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">دورة المياه</span>
-                      </label>
-                    </div>
-                    <div v-else>
-                      <input type="text" v-model="recordMap[s.id].note" placeholder="اختياري" class="form-control" />
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+      <!-- شبكة البطاقات و شريط الأدوات -->
+      <div class="auto-card p-3">
+        <div class="grid-toolbar d-flex flex-wrap gap-2 align-items-center mb-3">
+          <div class="position-relative">
+            <input v-model="searchQuery" type="search" class="form-control" placeholder="ابحث بالاسم" />
+            <Icon icon="solar:magnifier-bold-duotone" class="search-icon" />
           </div>
+          <select v-model="statusFilter" class="form-select w-auto">
+            <option value="">كل الحالات</option>
+            <option value="present">حاضر</option>
+            <option value="absent">غائب</option>
+            <option value="late">متأخر</option>
+            <option value="excused">إذن خروج</option>
+            <option value="runaway">هروب</option>
+            <option value="left_early">انصراف مبكر</option>
+          </select>
+          <span class="ms-auto"></span>
         </div>
-        <div class="auto-card p-0">
-          <div class="table-responsive">
-            <table class="table table-hover table-card align-middle mb-0">
-              <thead>
-                <tr>
-                  <th style="width:60px">#</th>
-                  <th>الطالب</th>
-                  <th style="width:180px">الحالة</th>
-                  <th>ملاحظة</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(s, idx) in studentsRight" :key="s.id">
-                  <td>{{ idx + leftCount + 1 }}</td>
-                  <td><span class="student-name" :class="nameClass(recordMap[s.id].status)">{{ s.full_name }}</span></td>
-                  <td>
-                    <select v-model="recordMap[s.id].status" class="form-select" :class="statusClass(recordMap[s.id].status)">
-                      <option value=""></option>
-                      <option value="present" :class="statusClass('present')">حاضر</option>
-                      <option value="absent" :class="statusClass('absent')">غائب</option>
-                      <option value="late" :class="statusClass('late')">متأخر</option>
-                      <option value="excused" :class="statusClass('excused')">إذن خروج</option>
-                      <option value="runaway" :class="statusClass('runaway')">هروب</option>
-                      <option value="left_early" :class="statusClass('left_early')">انصراف مبكر</option>
-                    </select>
-                  </td>
-                  <td>
-                    <div v-if="recordMap[s.id].status === 'excused'" class="d-flex flex-wrap gap-3 align-items-center">
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">إدارة</span>
-                      </label>
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">مشرف الجناح</span>
-                      </label>
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">الممرض</span>
-                      </label>
-                      <label class="form-check form-check-inline m-0">
-                        <input class="form-check-input" type="radio" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
-                        <span class="form-check-label">دورة المياه</span>
-                      </label>
-                    </div>
-                    <div v-else>
-                      <input type="text" v-model="recordMap[s.id].note" placeholder="اختياري" class="form-control" />
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+
+        <div class="student-grid">
+          <article
+            v-for="(s, idx) in filteredStudents"
+            :key="s.id"
+            class="student-card"
+            :class="'status-' + (recordMap[s.id].status || 'none')"
+          >
+            <header class="d-flex align-items-center gap-2">
+              <div class="avatar" :title="'#' + (idx + 1)">{{ String(idx + 1) }}</div>
+              <div class="flex-grow-1 min-w-0">
+                <div class="name-row d-flex align-items-center gap-2 text-truncate">
+                  <div class="student-name text-truncate" :title="s.full_name">{{ s.full_name }}</div>
+                  <div class="status-chip no-wrap" :class="statusClassChip(recordMap[s.id].status)">
+                    {{ statusLabel(recordMap[s.id].status) }}
+                  </div>
+                </div>
+              </div>
+              <div class="quick-actions d-none d-md-flex">
+                <button type="button" class="btn btn-sm btn-light" @click="recordMap[s.id].status='present'" :aria-label="'تعيين حاضر ل' + s.full_name">
+                  <Icon icon="solar:check-circle-bold-duotone" />
+                </button>
+                <button type="button" class="btn btn-sm btn-light text-danger" @click="recordMap[s.id].status='absent'" :aria-label="'تعيين غائب ل' + s.full_name">
+                  <Icon icon="solar:close-circle-bold-duotone" />
+                </button>
+              </div>
+            </header>
+
+            <div class="mt-2">
+              <div class="controls-row d-flex align-items-center gap-2 no-wrap">
+                <select v-model="recordMap[s.id].status" class="form-select status-select" :class="statusClassChip(recordMap[s.id].status)">
+                  <option value=""></option>
+                  <option value="present">حاضر</option>
+                  <option value="absent">غائب</option>
+                  <option value="late">متأخر</option>
+                  <option value="excused">إذن خروج</option>
+                  <option value="runaway">هروب</option>
+                  <option value="left_early">انصراف مبكر</option>
+                </select>
+                <input v-if="recordMap[s.id].status !== 'excused'" type="text" v-model="recordMap[s.id].note" class="form-control flex-grow-1 min-w-0" placeholder="ملاحظة (اختياري)" />
+              </div>
+            </div>
+
+            <div v-if="recordMap[s.id].status === 'excused'" class="mt-2">
+              <div class="exit-reasons d-flex flex-wrap gap-2">
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'admin'}">
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" />
+                  إدارة
+                </label>
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'wing'}">
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" />
+                  مشرف الجناح
+                </label>
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'nurse'}">
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" />
+                  الممرض
+                </label>
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'restroom'}">
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" />
+                  دورة المياه
+                </label>
+              </div>
+              <div class="d-flex align-items-center gap-2 mt-2 w-100 exit-controls">
+                <template v-if="!exitState[s.id]?.running">
+                  <DsButton size="sm" variant="info" icon="solar:play-bold-duotone" @click="startExit(s)">بدء الخروج</DsButton>
+                  <span class="text-muted small">لن يبدأ الحساب إلا بعد الضغط على بدء</span>
+                </template>
+                <template v-else>
+                  <DsBadge variant="info" icon="solar:clock-circle-bold-duotone">
+                    خارج الفصل: <strong>{{ formatElapsed(exitState[s.id].started_at) }}</strong>
+                  </DsBadge>
+                  <DsButton size="sm" variant="success" icon="solar:check-circle-bold-duotone" :loading="exitState[s.id].busy" @click="returnNow(s)">
+                    عودة الآن
+                  </DsButton>
+                </template>
+              </div>
+            </div>
+
+          </article>
         </div>
       </div>
       <div class="sticky-actions d-flex align-items-center gap-3 p-2 border-top">
@@ -231,8 +221,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, computed } from 'vue';
-import { getAttendanceStudents, getAttendanceRecords, postAttendanceBulkSave, getTeacherClasses, getTeacherTimetableToday, getAttendanceSummary } from '../../../shared/api/client';
+import { onMounted, onBeforeUnmount, reactive, ref, computed } from 'vue';
+import { getAttendanceStudents, getAttendanceRecords, postAttendanceBulkSave, getTeacherClasses, getTeacherTimetableToday, getAttendanceSummary, getOpenExitEvents, postExitEvent, patchExitReturn } from '../../../shared/api/client';
 import { useToast } from 'vue-toastification';
 import DsButton from '../../../components/ui/DsButton.vue';
 import DsBadge from '../../../components/ui/DsBadge.vue';
@@ -267,6 +257,44 @@ const lateCount = computed(() => Object.values(recordMap).filter(r => r.status =
 const runawayCount = computed(() => Object.values(recordMap).filter(r => r.status === 'runaway').length);
 const excusedCount = computed(() => Object.values(recordMap).filter(r => r.status === 'excused').length);
 
+// بحث وفلترة
+const searchQuery = ref('');
+const statusFilter = ref(''); // '', present, absent, late, excused, runaway, left_early
+
+function statusLabel(value?: string) {
+  switch (value) {
+    case 'present': return 'حاضر';
+    case 'absent': return 'غائب';
+    case 'late': return 'متأخر';
+    case 'excused': return 'إذن خروج';
+    case 'runaway': return 'هروب';
+    case 'left_early': return 'انصراف مبكر';
+    default: return '—';
+  }
+}
+
+const filteredStudents = computed(() => {
+  const q = searchQuery.value.trim();
+  const f = statusFilter.value;
+  return students.value.filter((s: any) => {
+    const matchesText = !q || (s.full_name && String(s.full_name).includes(q));
+    const st = recordMap[s.id]?.status || '';
+    const matchesStatus = !f || st === f;
+    return matchesText && matchesStatus;
+  });
+});
+
+function statusClassChip(s: string) {
+  return {
+    present: 'present',
+    absent: 'absent',
+    late: 'late',
+    excused: 'excused',
+    runaway: 'runaway',
+    left_early: 'left_early'
+  }[s] || '';
+}
+
 // Split students into two nearly equal columns
 const leftCount = computed(() => Math.ceil(students.value.length / 2));
 const studentsLeft = computed(() => students.value.slice(0, leftCount.value));
@@ -298,6 +326,83 @@ function setAll(st: ''|'present'|'absent'|'late'|'excused'|'runaway'|'left_early
   for (const s of students.value) {
     if (recordMap[s.id]) recordMap[s.id].status = st;
   }
+}
+
+// ----- Exit timer state -----
+const exitState = reactive<Record<number, { running: boolean; started_at: string | null; event_id: number | null; busy?: boolean }>>({});
+let tickTimer: number | undefined;
+const currentTime = ref(Date.now()); // Reactive current time for live timer updates
+
+function ensureExitReason(s: any) {
+  if (!recordMap[s.id].exit_reasons) recordMap[s.id].exit_reasons = 'admin';
+}
+
+async function loadOpenExits() {
+  if (!classId.value || !dateStr.value) return;
+  try {
+    const data = await getOpenExitEvents({ class_id: classId.value, date: dateStr.value });
+    for (const e of data) {
+      exitState[e.student_id] = { running: true, started_at: e.started_at as any, event_id: e.id } as any;
+      if (recordMap[e.student_id]) {
+        recordMap[e.student_id].status = 'excused';
+        if (!recordMap[e.student_id].exit_reasons) recordMap[e.student_id].exit_reasons = e.reason as any;
+      }
+    }
+  } catch {}
+}
+
+async function startExit(s: any) {
+  try {
+    ensureExitReason(s);
+    exitState[s.id] = { running: true, started_at: null, event_id: null, busy: true } as any;
+    const payload = {
+      student_id: s.id,
+      class_id: classId.value || undefined,
+      date: dateStr.value,
+      period_number: periodNo.value ?? undefined,
+      reason: recordMap[s.id].exit_reasons as any,
+      note: recordMap[s.id].note || null
+    };
+    const res = await postExitEvent(payload as any);
+    exitState[s.id] = { running: true, started_at: res.started_at, event_id: res.id, busy: false } as any;
+    recordMap[s.id].status = 'excused';
+  } catch (e: any) {
+    exitState[s.id] = { running: false, started_at: null, event_id: null } as any;
+    const msg = e?.response?.data?.detail || 'تعذر بدء جلسة الخروج';
+    try { toast.error(msg); } catch {}
+  }
+}
+
+async function returnNow(s: any) {
+  const st = exitState[s.id];
+  if (!st?.event_id) return;
+  try {
+    st.busy = true;
+    const res = await patchExitReturn(st.event_id);
+    // Option: set present automatically
+    recordMap[s.id].status = 'present';
+    st.running = false;
+  } catch (e: any) {
+    const msg = e?.response?.data?.detail || 'تعذر إغلاق جلسة الخروج';
+    try { toast.error(msg); } catch {}
+  } finally {
+    st.busy = false;
+  }
+}
+
+function formatElapsed(startIso?: string | null) {
+  if (!startIso) return '—';
+  const start = new Date(startIso).getTime();
+  const now = currentTime.value; // Use reactive current time
+  const seconds = Math.max(0, Math.floor((now - start) / 1000));
+  return formatSeconds(seconds);
+}
+
+function formatSeconds(total: number) {
+  const h = Math.floor(total / 3600).toString().padStart(2, '0');
+  const m = Math.floor((total % 3600) / 60).toString().padStart(2, '0');
+  const s = Math.floor(total % 60).toString().padStart(2, '0');
+  return `${h}:${m}:${s}`;
 }
 
 const collator = new Intl.Collator('ar');
@@ -348,6 +453,8 @@ async function loadData() {
         }
       }
     }
+    // Load any open exit sessions and reflect their timers
+    await loadOpenExits();
   } catch (e: any) {
     const msg = e?.response?.data?.detail || 'حدث خطأ أثناء التحميل';
     saveMsg.value = msg;
@@ -453,7 +560,13 @@ function onDateChange() {
 onMounted(async () => {
   await loadClasses();
   await loadTodayPeriods();
+  // Update current time every second to trigger reactive timer updates
+  tickTimer = window.setInterval(() => {
+    currentTime.value = Date.now();
+  }, 1000);
 });
+
+onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 </script>
 
 <style scoped>
@@ -490,6 +603,29 @@ onMounted(async () => {
 .table-responsive { overflow-x: auto; }
 .table-toolbar { background: rgba(255,255,255,0.65); }
 .sticky-actions { position: sticky; bottom: 0; background: rgba(255,255,255,0.85); }
+
+/* --- Card grid attendance --- */
+.student-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1200px) { .student-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 992px) { .student-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 768px) { .student-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .student-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); } }
+.student-card { background: #fff; border: 2px solid var(--maron-primary, #8a1538); border-radius: 12px; padding: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); transition: transform .15s ease, box-shadow .15s ease; }
+.student-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: var(--maron-primary, #6f0d0d); background: linear-gradient(135deg, #fff 0%, var(--maron-bg, #faf8f7) 100%); border: 1px solid rgba(0,0,0,.08); font-variant-numeric: tabular-nums; }
+.status-chip { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f2f4f7; color: #555; border: 1px solid rgba(0,0,0,.06); }
+
+/* Status colors */
+.status-select.present, .status-present .status-select, .status-present .status-chip, .present { background: #eafaf0; color: #137333; border-color: #b7e1cd; }
+.status-select.absent, .status-absent .status-select, .status-absent .status-chip, .absent { background: #fde8e8; color: #b42318; border-color: #f5c2c2; }
+.status-select.late, .status-late .status-select, .status-late .status-chip, .late { background: #fff4e5; color: #b26b00; border-color: #ffd8a8; }
+.status-select.excused, .status-excused .status-select, .status-excused .status-chip, .excused { background: #e7f5ff; color: #0b63a8; border-color: #a5d8ff; }
+.status-select.runaway, .status-runaway .status-select, .status-runaway .status-chip, .runaway { background: #fdecec; color: #b00020; border-color: #f5b5b5; }
+.status-select.left_early, .status-left_early .status-select, .status-left_early .status-chip, .left_early { background: #f3f0ff; color: #5e35b1; border-color: #d0c2ff; }
+
+.status-select { border-width: 1px; }
+.quick-actions .btn { width: 34px; height: 34px; display: grid; place-items: center; }
+.grid-toolbar .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: .5; }
 
 /* Toolbar for filters and actions: wrap on small screens, single line on large without horizontal scroll */
 /* Attendance Form Styles */
@@ -646,6 +782,30 @@ onMounted(async () => {
   border-radius: 2px;
 }
 @keyframes load { from { background-position: 0 0; } to { background-position: 200% 0; } }
+
+/* Single-line enhancements */
+.name-row { white-space: nowrap; }
+.status-chip.no-wrap { white-space: nowrap; flex: 0 0 auto; }
+.student-card header { flex-wrap: nowrap; }
+.controls-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap; /* Allow wrapping to prevent overflow */
+}
+.controls-row .form-select { flex: 0 0 auto; min-width: 160px; max-width: 100%; }
+.controls-row .form-control {
+  flex: 1 1 auto;
+  min-width: 120px;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box; /* Ensure padding doesn't cause overflow */
+}
+.exit-reasons { flex-wrap: nowrap !important; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.exit-reasons > * { white-space: nowrap; }
+.exit-controls { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.quick-actions { flex: 0 0 auto; }
 </style>
 
 <style scoped>
@@ -658,4 +818,30 @@ onMounted(async () => {
 .page-grid .glass-form, .page-grid .glass-header { width: 100%; }
 /* عدم تحويل بطاقة الجدول إلى flex لتجنب تمرير داخلي */
 .page-grid .auto-card.p-0 { }
+
+/* Full-bleed section to use entire screen width edge-to-edge */
+.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
+/* Larger screens: slightly increase grid density */
+@media (min-width: 1400px) {
+  .student-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+}
 </style>
+
+/* Single-line toolbar (filters + action buttons) */
+.form-toolbar {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+.form-toolbar > * { flex: 0 0 auto; }
+.form-toolbar .form-field { min-width: 150px; }
+.form-toolbar .form-field.form-field-wide { min-width: 240px; }
+.form-toolbar .btn-load { height: 38px; }
+@media (min-width: 768px) {
+  .form-toolbar .form-field { min-width: 170px; }
+  .form-toolbar .form-field.form-field-wide { min-width: 300px; }
+}

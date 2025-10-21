@@ -578,3 +578,58 @@ class SchoolHoliday(models.Model):
 
 
 # EOF
+
+
+class ExitEvent(models.Model):
+    REASONS = (
+        ("admin", "إدارة"),
+        ("wing", "مشرف الجناح"),
+        ("nurse", "الممرض"),
+        ("restroom", "دورة المياه"),
+    )
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="exit_events")
+    classroom = models.ForeignKey(Class, on_delete=models.SET_NULL, null=True, blank=True)
+    date = models.DateField(db_index=True)
+    period_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    reason = models.CharField(max_length=20, choices=REASONS)
+    note = models.CharField(max_length=300, blank=True)
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    returned_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.PositiveIntegerField(null=True, blank=True)
+
+    started_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="exits_started"
+    )
+    returned_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="exits_returned"
+    )
+
+    attendance_record = models.ForeignKey(
+        AttendanceRecord, on_delete=models.SET_NULL, null=True, blank=True
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["student", "date"]),
+            models.Index(fields=["reason"]),
+            models.Index(fields=["started_at"]),
+        ]
+        ordering = ["-started_at"]
+        verbose_name = "جلسة خروج"
+        verbose_name_plural = "جلسات خروج"
+
+    def __str__(self) -> str:
+        return f"{self.student} – {self.date} P{self.period_number or '-'}"
+
+    def close(self, user=None):
+        from django.utils import timezone
+
+        if self.returned_at:
+            return
+        self.returned_at = timezone.now()
+        self.duration_seconds = int((self.returned_at - self.started_at).total_seconds())
+        if user:
+            self.returned_by = user
+        self.save(update_fields=["returned_at", "duration_seconds", "returned_by"])

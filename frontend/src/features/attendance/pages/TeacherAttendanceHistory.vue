@@ -207,9 +207,9 @@
                 </DsBadge>
               </td>
               <td class="modern-td">
-                <span class="note-text" :title="row.note || ''">
+                <div class="note-text" :title="row.note || ''">
                   {{ row.note || '—' }}
-                </span>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -542,11 +542,11 @@ onMounted(async () => {
 .note-text {
   color: #6c757d;
   font-size: 0.85rem;
-  display: block;
   max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  line-height: 1.4;
 }
 
 .table-footer {

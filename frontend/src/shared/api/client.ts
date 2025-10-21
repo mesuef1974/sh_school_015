@@ -162,3 +162,20 @@ export async function getMe() {
   const res = await api.get('/me/');
   return res.data as { id: number; username: string; full_name: string; is_superuser: boolean; is_staff: boolean; roles: string[]; permissions: string[]; hasTeachingAssignments: boolean; capabilities?: { can_manage_timetable?: boolean; can_view_general_timetable?: boolean; can_take_attendance?: boolean } };
 }
+
+// --- Exit Events API ---
+export async function getOpenExitEvents(params: { class_id?: number; date?: string; student_id?: number }) {
+  const res = await api.get('/v1/attendance/exit-events/open/', { params });
+  return res.data as { id: number; student_id: number; started_at: string; reason: string }[];
+}
+
+export async function postExitEvent(payload: { student_id: number; class_id?: number; date: string; period_number?: number | null; reason: 'admin'|'wing'|'nurse'|'restroom'; note?: string | null }) {
+  // Backend accepts student/student_id and class_id/classroom
+  const res = await api.post('/v1/attendance/exit-events/', payload);
+  return res.data as { id: number; started_at: string };
+}
+
+export async function patchExitReturn(id: number) {
+  const res = await api.patch(`/v1/attendance/exit-events/${id}/return/`, {});
+  return res.data as { id: number; returned_at: string; duration_seconds: number };
+}

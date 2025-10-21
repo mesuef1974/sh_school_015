@@ -23,6 +23,7 @@ from .models import (
     AttendanceDaily,
     AssessmentPackage,
     SchoolHoliday,
+    ExitEvent,
 )
 from openpyxl import load_workbook
 import re
@@ -780,3 +781,52 @@ class SchoolHolidayAdmin(admin.ModelAdmin):
     list_display = ("id", "title", "start", "end")
     list_filter = ("start", "end")
     search_fields = ("title",)
+
+
+@admin.register(ExitEvent)
+class ExitEventAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "student",
+        "classroom",
+        "date",
+        "period_number",
+        "reason",
+        "started_at",
+        "returned_at",
+        "duration_seconds",
+        "started_by",
+        "returned_by",
+    )
+    list_filter = (
+        "date",
+        "reason",
+        "classroom",
+        ("returned_at", admin.EmptyFieldListFilter),
+    )
+    search_fields = (
+        "student__full_name",
+        "student__sid",
+        "classroom__name",
+        "note",
+    )
+    autocomplete_fields = ("student", "classroom", "started_by", "returned_by", "attendance_record")
+    readonly_fields = ("started_at", "duration_seconds")
+    list_select_related = ("student", "classroom", "started_by", "returned_by")
+    date_hierarchy = "date"
+
+    def get_queryset(self, request):
+        # Optimize queries
+        qs = super().get_queryset(request)
+        return qs.select_related("student", "classroom", "started_by", "returned_by")
+
+    # Custom display for duration in human-readable format
+    def get_duration_display(self, obj):
+        if obj.duration_seconds:
+            hours = obj.duration_seconds // 3600
+            minutes = (obj.duration_seconds % 3600) // 60
+            seconds = obj.duration_seconds % 60
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        return "—"
+
+    get_duration_display.short_description = "المدة"

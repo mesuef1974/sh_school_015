@@ -8,7 +8,7 @@ from django.http import HttpResponse
 import csv
 import logging
 
-from .serializers import StudentBriefSerializer
+from .serializers import StudentBriefSerializer, ExitEventSerializer
 from . import selectors
 from .services.attendance import bulk_save_attendance
 from .selectors import _CLASS_FK_ID  # reuse detected class FK field
@@ -1031,7 +1031,21 @@ class AttendanceViewSet(viewsets.ViewSet):
                 period_number=period_number,
             )
         except ValueError as e:
-            return Response({"detail": str(e)}, status=400)
+            msg = str(e)
+            # Map technical messages to user-friendly Arabic guidance
+            if msg == "no current term configured":
+                msg_ar = "لا توجد فترة دراسية حالية مفعلة"
+            elif msg == "date is not a working school day":
+                msg_ar = "التاريخ المحدد ليس يوم دوام مدرسي"
+            elif msg == "multiple timetable periods found; select a period in the UI":
+                msg_ar = "يوجد أكثر من حصة محتملة لليوم — يرجى اختيار الحصة قبل الحفظ"
+            elif msg == "no matching timetable entry for this class/teacher on the selected date":
+                msg_ar = "لا توجد حصة مطابقة لهذا الصف/المعلم في هذا اليوم"
+            elif msg == "could not resolve timetable for provided period_number":
+                msg_ar = "تعذر تحديد الحصة المطلوبة — تحقق من الجدول أو رقم الحصة"
+            else:
+                msg_ar = msg
+            return Response({"detail": msg_ar}, status=400)
         return Response({"saved": len(saved)}, status=status.HTTP_200_OK)
 
 
@@ -1178,3 +1192,123 @@ class AttendanceViewSetV2(AttendanceViewSet):
                 "period_number": period_number,
             }
         )
+
+
+class ExitEventViewSet(viewsets.ModelViewSet):
+    from rest_framework.permissions import IsAuthenticated
+
+    permission_classes = [IsAuthenticated]
+    queryset = None  # set in get_queryset to apply permissions
+
+    def get_queryset(self):
+        from school.models import ExitEvent  # type: ignore
+
+        qs = ExitEvent.objects.all()
+        # Optional filtering
+        student_id = self.request.query_params.get("student_id")
+        class_id = self.request.query_params.get("class_id")
+        date = self.request.query_params.get("date")
+        if student_id:
+            try:
+                qs = qs.filter(student_id=int(student_id))
+            except Exception:
+                pass
+        if class_id:
+            try:
+                qs = qs.filter(classroom_id=int(class_id))
+            except Exception:
+                pass
+        if date:
+            try:
+                qs = qs.filter(date=date)
+            except Exception:
+                pass
+        return qs
+
+    def create(self, request: Request, *args, **kwargs):
+        from school.models import ExitEvent  # type: ignore
+        from django.utils import timezone
+
+        # Ensure date is present; default to today if omitted
+        data = request.data.copy()
+        req_date = data.get("date") or timezone.localdate().isoformat()
+        data["date"] = req_date
+
+        # Debug: log incoming data
+        logger.info(f"ExitEvent create - incoming data: {data}")
+
+        # Validate the data using serializer (handles field normalization)
+        ser = ExitEventSerializer(data=data)
+        if not ser.is_valid():
+            # Return detailed validation errors for debugging
+            logger.error(f"ExitEvent validation failed: {ser.errors}")
+            return Response({"detail": "بيانات غير صالحة", "errors": ser.errors}, status=400)
+
+        # Debug: log validated data
+        logger.info(f"ExitEvent validated_data: {ser.validated_data}")
+        logger.info(
+            f"ExitEvent validated_data types: {[(k, type(v).__name__) for k, v in ser.validated_data.items()]}"
+        )
+
+        # Get student instance from validated data (PrimaryKeyRelatedField returns the instance)
+        student = ser.validated_data.get("student")
+        if not student:
+            return Response({"detail": "student is required"}, status=400)
+
+        logger.info(f"Student object: {student}, type: {type(student)}")
+
+        # Only block if an open session exists for the same student on the same date
+        open_exists = ExitEvent.objects.filter(
+            student=student, date=req_date, returned_at__isnull=True
+        ).exists()
+        if open_exists:
+            return Response(
+                {"detail": "يوجد جلسة خروج مفتوحة لهذا الطالب في نفس اليوم", "date": req_date},
+                status=400,
+            )
+
+        # Save the exit event
+        obj = ser.save(started_by=getattr(request, "user", None))
+        return Response({"id": obj.id, "started_at": obj.started_at}, status=201)
+
+    @action(detail=True, methods=["patch"], url_path="return")
+    def return_now(self, request: Request, pk=None):
+        from school.models import ExitEvent  # type: ignore
+
+        try:
+            obj = ExitEvent.objects.get(pk=pk)
+        except ExitEvent.DoesNotExist:
+            return Response({"detail": "not found"}, status=404)
+        obj.close(user=getattr(request, "user", None))
+        return Response(
+            {
+                "id": obj.id,
+                "returned_at": obj.returned_at,
+                "duration_seconds": obj.duration_seconds,
+            }
+        )
+
+    @action(detail=False, methods=["get"], url_path="open")
+    def open_events(self, request: Request):
+        from school.models import ExitEvent  # type: ignore
+
+        qs = ExitEvent.objects.filter(returned_at__isnull=True)
+        class_id = request.query_params.get("class_id")
+        date = request.query_params.get("date")
+        if class_id:
+            try:
+                qs = qs.filter(classroom_id=int(class_id))
+            except Exception:
+                pass
+        if date:
+            qs = qs.filter(date=date)
+        data = [
+            {
+                "id": e.id,
+                "student_id": e.student_id,
+                "started_at": e.started_at,
+                "reason": e.reason,
+            }
+            for e in qs
+        ]
+        return Response(data)
