@@ -1,23 +1,45 @@
 <template>
-  <section class="d-grid gap-3">
+  <section class="d-grid gap-3 full-bleed-95">
     <DsCard
       v-motion
       :initial="{ opacity: 0, y: -30 }"
       :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
       :animate="false"
     >
-      <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="d-flex align-items-center gap-3 flex-wrap page-toolbar" dir="rtl">
         <Icon icon="solar:chart-2-bold-duotone" class="text-4xl" style="color: var(--maron-primary)" />
         <div class="flex-grow-1">
           <div class="text-xl font-bold">لوحة الإحصائيات</div>
           <div class="text-muted text-sm">نسب وملخصات الحضور لليوم المحدد</div>
         </div>
-        <input type="date" v-model="dateStr" class="form-control" style="max-width: 200px" @change="loadSummary" />
+        <div class="toolbar-actions d-flex align-items-center gap-2 flex-wrap">
+          <input type="date" v-model="dateStr" class="form-control toolbar-date" @change="loadSummary" />
+
+          <!-- Mode selector -->
+          <select v-model="mode" class="form-select form-select-sm toolbar-mode" @change="onModeChange">
+            <option value="school">كل المدرسة</option>
+            <option v-if="isTeacher" value="teacher_all">صفوفي (كل المواد)</option>
+            <option v-if="isTeacher" value="teacher_subject">صفوفي (لمادة محددة)</option>
+            <option v-if="isTeacher" value="class">صف محدد</option>
+          </select>
+
+          <!-- Subject selector -->
+          <select v-if="mode==='teacher_subject'" v-model.number="selectedSubjectId" class="form-select form-select-sm toolbar-subject" @change="loadSummary">
+            <option :value="0" disabled>اختر المادة</option>
+            <option v-for="s in teacherSubjects" :key="s.id" :value="s.id">{{ s.name || ('مادة #' + s.id) }}</option>
+          </select>
+
+          <!-- Class selector -->
+          <select v-if="mode==='class'" v-model.number="selectedClassId" class="form-select form-select-sm toolbar-class" @change="loadSummary">
+            <option :value="0" disabled>اختر الصف</option>
+            <option v-for="c in teacherClasses" :key="c.id" :value="c.id">{{ c.name || ('صف #' + c.id) }}</option>
+          </select>
+        </div>
       </div>
     </DsCard>
 
     <div class="row g-3">
-      <div class="col-12 col-lg-8">
+      <div class="col-12">
         <div class="row g-3">
           <div class="col-6 col-md-4 col-lg-3">
             <KpiCard :loading="loading" title="الحضور اليوم" :value="kpis.present_pct" suffix="%" icon="bi bi-people" />
@@ -79,32 +101,63 @@
           </div>
           <div v-if="error" class="alert alert-danger mt-2 mb-0">{{ error }}</div>
         </div>
-      </div>
 
-      <div class="col-12 col-lg-4">
-        <div class="auto-card p-3">
-          <div class="fw-bold mb-2">نطاق العرض</div>
-          <div class="d-grid gap-2">
-            <DsButton
-              :variant="scope==='teacher' ? 'primary' : 'outline'"
-              icon="solar:user-id-bold-duotone"
-              @click="setScope('teacher')"
-              class="w-100"
-            >
-              صفوفي (للمعلم)
-            </DsButton>
-            <DsButton
-              :variant="scope==='school' ? 'primary' : 'outline'"
-              icon="solar:buildings-2-bold-duotone"
-              @click="setScope('school')"
-              class="w-100"
-            >
-              كل المدرسة
-            </DsButton>
+        <!-- Exit analytics -->
+        <div class="row g-3 mt-2">
+          <div class="col-12">
+            <DsCard>
+              <template #title>
+                <div class="d-flex align-items-center gap-2">
+                  <Icon icon="solar:exit-bold-duotone" />
+                  <span>إحصائيات خروج الطلاب من الفصل</span>
+                </div>
+              </template>
+              <div class="row g-3">
+                <div class="col-6 col-md-3">
+                  <KpiCard :loading="exitLoading" title="عدد حالات الخروج" :value="exitKpis.total" icon="bi bi-box-arrow-up-right" variant="secondary" />
+                </div>
+                <div class="col-6 col-md-3">
+                  <KpiCard :loading="exitLoading" title="متوسط الوقت خارج الفصل" :value="exitKpis.avg_minutes" suffix="دقيقة" icon="bi bi-clock" variant="info" />
+                </div>
+                <div class="col-6 col-md-3">
+                  <KpiCard :loading="exitLoading" title="أطول مدة" :value="exitKpis.max_minutes" suffix="دقيقة" icon="bi bi-stopwatch" variant="warning" />
+                </div>
+                <div class="col-6 col-md-3">
+                  <KpiCard :loading="exitLoading" title="جارية الآن" :value="exitKpis.open" icon="bi bi-play-circle" variant="success" />
+                </div>
+                <div class="col-12 mt-2">
+                  <div ref="exitDurationChartRef" style="width: 100%; height: 320px;"></div>
+                </div>
+                <div class="col-12">
+                  <div class="table-responsive small">
+                    <table class="table table-sm align-middle mb-0" dir="rtl">
+                      <thead>
+                        <tr>
+                          <th>الطالب</th>
+                          <th>عدد الخروج</th>
+                          <th>إجمالي الدقائق خارج الفصل</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="row in topStudentsByExits" :key="row.student_id">
+                          <td>طالب #{{ row.student_id }}</td>
+                          <td>{{ row.count }}</td>
+                          <td>{{ row.totalMinutes }}</td>
+                        </tr>
+                        <tr v-if="topStudentsByExits.length === 0">
+                          <td colspan="3" class="text-center text-muted">لا توجد بيانات خروج لهذا اليوم</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div v-if="exitError" class="alert alert-danger mt-3 mb-0">{{ exitError }}</div>
+            </DsCard>
           </div>
-          <div class="small text-muted mt-2">يتم تقييد النطاق إلى صفوف المعلم عند اختيار "صفوفي".</div>
         </div>
       </div>
+
     </div>
   </section>
 </template>
@@ -112,7 +165,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, nextTick } from 'vue';
 import { useAuthStore } from '../../app/stores/auth';
-import { getAttendanceSummary, getTeacherClasses } from '../../shared/api/client';
+import { getAttendanceSummary, getTeacherClasses, getExitEvents, getTeacherTimetableWeekly } from '../../shared/api/client';
 import KpiCard from '../../widgets/KpiCard.vue';
 import DsButton from '../../components/ui/DsButton.vue';
 import DsCard from '../../components/ui/DsCard.vue';
@@ -145,30 +198,113 @@ const loading = ref(false);
 const error = ref('');
 const summary = ref<{ date: string; scope: string; kpis: any; top_classes: any[]; worst_classes: any[] } | null>(null);
 const kpis = computed(() => summary.value?.kpis || { present_pct: null, absent: null, late: null, excused: null, runaway: null, left_early: null });
-const scope = ref<'teacher'|'school'>('school');
+
+// New filtering state for exit analytics and summary
+const mode = ref<'school'|'teacher_all'|'teacher_subject'|'class'>('school');
+const teacherClasses = ref<{ id: number; name?: string }[]>([]);
+const teacherSubjects = ref<{ id: number; name?: string }[]>([]);
+const subjectToClasses = ref<Record<number, number[]>>({});
+const selectedSubjectId = ref(0);
+const selectedClassId = ref(0);
 
 const pieChartRef = ref<HTMLDivElement>();
 const barChartRef = ref<HTMLDivElement>();
+const exitDurationChartRef = ref<HTMLDivElement>();
 let pieChartInstance: echarts.ECharts | null = null;
 let barChartInstance: echarts.ECharts | null = null;
+let exitDurationChartInstance: echarts.ECharts | null = null;
 
-function setScope(s: 'teacher'|'school') {
-  scope.value = s;
+// Exit analytics state
+const exitLoading = ref(false);
+const exitError = ref('');
+const exitEvents = ref<{ id: number; student_id: number; started_at: string; returned_at?: string | null; duration_seconds?: number | null; reason?: string | null }[]>([]);
+
+const exitKpis = computed(() => {
+  const total = exitEvents.value.length;
+  const open = exitEvents.value.filter(e => !e.returned_at).length;
+  const durations = exitEvents.value.map(e => (e.duration_seconds ?? 0));
+  const sum = durations.reduce((a,b)=>a+b,0);
+  const maxSec = durations.reduce((m,v)=>Math.max(m,v),0);
+  const avg_minutes = total ? Math.round((sum/total)/60) : 0;
+  const max_minutes = Math.round(maxSec/60);
+  return { total, open, avg_minutes, max_minutes };
+});
+
+const topStudentsByExits = computed(() => {
+  const map: Record<string, { student_id: number; count: number; totalMinutes: number }> = {};
+  for (const e of exitEvents.value) {
+    const key = String(e.student_id);
+    const durMin = Math.round(((e.duration_seconds ?? 0)/60));
+    if (!map[key]) { map[key] = { student_id: e.student_id, count: 0, totalMinutes: 0 }; }
+    map[key].count += 1;
+    map[key].totalMinutes += durMin;
+  }
+  return Object.values(map).sort((a,b)=> b.count - a.count || b.totalMinutes - a.totalMinutes).slice(0, 10);
+});
+
+function onModeChange() {
+  // Reset dependent selections when mode changes
+  if (mode.value !== 'teacher_subject') { selectedSubjectId.value = 0; }
+  if (mode.value !== 'class') { selectedClassId.value = 0; }
   loadSummary();
+}
+
+async function loadTeacherMeta() {
+  if (!isTeacher.value || isSuper.value) return;
+  try {
+    const [clsRes, weekly] = await Promise.allSettled([
+      getTeacherClasses(),
+      getTeacherTimetableWeekly()
+    ]);
+    if (clsRes.status === 'fulfilled') {
+      teacherClasses.value = clsRes.value.classes || [];
+    }
+    if (weekly.status === 'fulfilled') {
+      const days = weekly.value.days || {} as Record<string, { classroom_id: number; subject_id: number; classroom_name?: string; subject_name?: string }[]>;
+      const subjMap: Record<number, { id: number; name?: string }> = {};
+      const s2c: Record<number, Set<number>> = {};
+      for (const d of Object.keys(days)) {
+        for (const p of (days[d] || [])) {
+          if (!p?.subject_id || !p?.classroom_id) continue;
+          subjMap[p.subject_id] = subjMap[p.subject_id] || { id: p.subject_id, name: p.subject_name };
+          if (!s2c[p.subject_id]) s2c[p.subject_id] = new Set<number>();
+          s2c[p.subject_id].add(p.classroom_id);
+        }
+      }
+      teacherSubjects.value = Object.values(subjMap);
+      const obj: Record<number, number[]> = {};
+      for (const sid of Object.keys(s2c)) {
+        obj[Number(sid)] = Array.from(s2c[Number(sid)]);
+      }
+      subjectToClasses.value = obj;
+    }
+  } catch {}
 }
 
 async function loadSummary() {
   loading.value = true; error.value='';
   try {
-    const teacher = scope.value === 'teacher' && isTeacher.value && !isSuper.value;
-    if (teacher) {
-      const classesRes = await getTeacherClasses();
-      const classes = classesRes.classes || [];
+    if (mode.value === 'school' || !isTeacher.value || isSuper.value) {
+      const res = await getAttendanceSummary({ scope: 'school', date: dateStr.value });
+      summary.value = res;
+    } else if (mode.value === 'class') {
+      if (!selectedClassId.value) { summary.value = null as any; return; }
+      const s = await getAttendanceSummary({ class_id: selectedClassId.value, date: dateStr.value });
+      // s already contains top/worst for that class not meaningful; build simple summary
+      summary.value = { date: dateStr.value, scope: 'class', kpis: s.kpis, top_classes: [], worst_classes: [] } as any;
+    } else {
+      // teacher_all or teacher_subject aggregated
+      let classIds: number[] = [];
+      if (mode.value === 'teacher_all') {
+        classIds = teacherClasses.value.map(c => c.id).filter(Boolean) as number[];
+      } else if (mode.value === 'teacher_subject') {
+        if (!selectedSubjectId.value) { summary.value = null as any; return; }
+        classIds = (subjectToClasses.value[selectedSubjectId.value] || []).slice();
+      }
       let total = 0, present = 0, absent = 0, late = 0, excused = 0, runaway = 0, left_early = 0;
       const perClass: { class_id: number; class_name?: string; present_pct: number }[] = [];
-      for (const c of classes) {
-        if (!c?.id) continue;
-        const s = await getAttendanceSummary({ class_id: c.id, date: dateStr.value });
+      for (const cid of classIds) {
+        const s = await getAttendanceSummary({ class_id: cid, date: dateStr.value });
         const k = s.kpis || {} as any;
         total += Number(k.total || 0);
         present += Number(k.present || 0);
@@ -178,20 +314,52 @@ async function loadSummary() {
         runaway += Number(k.runaway || 0);
         left_early += Number(k.left_early || 0);
         const pct = typeof k.present_pct === 'number' ? k.present_pct : 0;
-        perClass.push({ class_id: c.id, class_name: c.name, present_pct: pct });
+        const name = teacherClasses.value.find(c => c.id === cid)?.name;
+        perClass.push({ class_id: cid, class_name: name, present_pct: pct });
       }
       const present_pct = total ? Math.round((present / total) * 1000) / 10 : 0;
       const top_classes = [...perClass].sort((a,b) => b.present_pct - a.present_pct).slice(0,4);
       const worst_classes = [...perClass].sort((a,b) => a.present_pct - b.present_pct).slice(0,4);
-      summary.value = { date: dateStr.value, scope: 'teacher', kpis: { present_pct, absent, late, excused, runaway, left_early }, top_classes, worst_classes } as any;
-    } else {
-      const res = await getAttendanceSummary({ scope: 'school', date: dateStr.value });
-      summary.value = res;
+      summary.value = { date: dateStr.value, scope: mode.value, kpis: { present_pct, absent, late, excused, runaway, left_early }, top_classes, worst_classes } as any;
     }
   } catch (e: any) {
     error.value = e?.response?.data?.detail || 'تعذر تحميل المؤشرات';
   } finally {
     loading.value = false;
+  }
+  // Always refresh exit stats together
+  await loadExitStats();
+}
+
+async function loadExitStats() {
+  exitLoading.value = true; exitError.value='';
+  try {
+    if (mode.value === 'school' || !isTeacher.value || isSuper.value) {
+      exitEvents.value = await getExitEvents({ date: dateStr.value });
+    } else if (mode.value === 'class') {
+      if (!selectedClassId.value) { exitEvents.value = []; return; }
+      exitEvents.value = await getExitEvents({ date: dateStr.value, class_id: selectedClassId.value });
+    } else {
+      // teacher_all or teacher_subject
+      let classIds: number[] = [];
+      if (mode.value === 'teacher_all') {
+        classIds = teacherClasses.value.map(c => c.id).filter(Boolean) as number[];
+      } else if (mode.value === 'teacher_subject') {
+        if (!selectedSubjectId.value) { exitEvents.value = []; return; }
+        classIds = (subjectToClasses.value[selectedSubjectId.value] || []).slice();
+      }
+      const all: typeof exitEvents.value = [] as any;
+      for (const cid of classIds) {
+        const part = await getExitEvents({ date: dateStr.value, class_id: cid });
+        all.push(...part);
+      }
+      exitEvents.value = all;
+    }
+  } catch (e: any) {
+    exitError.value = e?.response?.data?.detail || 'تعذر تحميل إحصائيات الخروج';
+    exitEvents.value = [];
+  } finally {
+    exitLoading.value = false;
   }
 }
 
@@ -201,6 +369,9 @@ function initCharts() {
   }
   if (barChartRef.value && !barChartInstance) {
     barChartInstance = echarts.init(barChartRef.value);
+  }
+  if (exitDurationChartRef.value && !exitDurationChartInstance) {
+    exitDurationChartInstance = echarts.init(exitDurationChartRef.value);
   }
 }
 
@@ -314,6 +485,20 @@ function updateBarChart() {
   });
 }
 
+function updateExitDurationChart() {
+  if (!exitDurationChartInstance) return;
+  const rows = [...topStudentsByExits.value].sort((a,b)=> b.totalMinutes - a.totalMinutes).slice(0, 10);
+  const names = rows.map(r => `طالب #${r.student_id}`);
+  const values = rows.map(r => r.totalMinutes);
+  exitDurationChartInstance.setOption({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+    xAxis: { type: 'value', axisLabel: { formatter: '{value} دقيقة' } },
+    yAxis: { type: 'category', data: names, axisLabel: { fontFamily: 'Cairo, sans-serif' } },
+    series: [{ name: 'إجمالي الوقت خارج الفصل (دقائق)', type: 'bar', data: values, itemStyle: { color: '#8a1538', borderRadius: [0,4,4,0] } }]
+  });
+}
+
 watch(kpis, () => {
   nextTick(() => {
     updatePieChart();
@@ -321,22 +506,84 @@ watch(kpis, () => {
   });
 });
 
+watch(exitEvents, () => {
+  nextTick(() => {
+    updateExitDurationChart();
+  });
+});
+
+watch(dateStr, async () => {
+  await loadSummary();
+});
+
+watch(mode, async () => {
+  await loadSummary();
+});
+
+watch(selectedSubjectId, async () => {
+  if (mode.value === 'teacher_subject') { await loadSummary(); }
+});
+
+watch(selectedClassId, async () => {
+  if (mode.value === 'class') { await loadSummary(); }
+});
+
 onMounted(async () => {
   if (!auth.profile && !auth.loading) {
     try { await auth.loadProfile(); } catch {}
+  }
+  // Load teacher metadata (classes/subjects) if applicable
+  await loadTeacherMeta();
+  // Default mode for teachers: use all classes; otherwise school
+  if (isTeacher.value && !isSuper.value) {
+    mode.value = 'teacher_all';
+  } else {
+    mode.value = 'school';
   }
   await loadSummary();
   await nextTick();
   initCharts();
   updatePieChart();
   updateBarChart();
+  updateExitDurationChart();
 
   window.addEventListener('resize', () => {
     pieChartInstance?.resize();
     barChartInstance?.resize();
+    exitDurationChartInstance?.resize();
   });
 });
 </script>
 
 <style scoped>
+.page-toolbar { row-gap: 0.25rem; }
+.toolbar-actions { gap: 0.5rem; }
+.toolbar-date { max-width: 200px; min-width: 180px; }
+.toolbar-mode { min-width: 180px; }
+.toolbar-subject { min-width: 180px; }
+.toolbar-class { min-width: 180px; }
+.segmented { display: inline-flex; gap: 6px; }
+.segmented-btn { white-space: nowrap; }
+
+/* Full-bleed wrapper at 95% of viewport width */
+.full-bleed-95 {
+  width: 95vw;
+  margin-inline: calc(50% - 47.5vw);
+  box-sizing: border-box;
+}
+
+/* Ensure charts keep consistent heights within their cards */
+:deep(.ds-card) { overflow: hidden; }
+
+@media (max-width: 576px) {
+  .toolbar-actions { width: 100%; }
+  .toolbar-date { flex: 1 1 160px; min-width: 0; }
+}
+
+@media print {
+  /* Hide controls in print */
+  .page-toolbar, .toolbar-actions, .toolbar-date, .segmented { display: none !important; }
+  /* Simplify cards for print */
+  :deep(.ds-card) { box-shadow: none !important; }
+}
 </style>

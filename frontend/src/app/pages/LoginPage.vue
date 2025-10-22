@@ -9,7 +9,7 @@
         :enter="{ opacity: 1, x: 0, transition: { duration: 600 } }"
       >
         <div class="brand-content">
-          <img :src="logoSrc" alt="شعار المدرسة" class="brand-logo" />
+          <span class="brand-logo-mask" aria-hidden="true"></span>
           <h1 class="brand-title">مدرسة الشحانية</h1>
           <p class="brand-subtitle">الإعدادية الثانوية للبنين</p>
           <div class="brand-divider"></div>
@@ -44,9 +44,15 @@
         :initial="{ opacity: 0, x: 100 }"
         :enter="{ opacity: 1, x: 0, transition: { duration: 600, delay: 200 } }"
       >
-        <DsCard class="login-card" :animate="false">
+        <DsCard
+          class="login-card"
+          :animate="false"
+          v-motion
+          :initial="{ opacity: 0, y: 24, scale: 0.96 }"
+          :enter="{ opacity: 1, y: 0, scale: 1, transition: { duration: 500, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', delay: 120 } }"
+        >
           <div class="login-header">
-            <Icon icon="solar:shield-keyhole-bold-duotone" class="login-icon" />
+            <span class="login-card-logo" aria-hidden="true"></span>
             <h2 class="login-title">تسجيل الدخول</h2>
             <p class="login-subtitle">أدخل بيانات الدخول للوصول إلى المنصة</p>
           </div>
@@ -186,12 +192,18 @@ async function onSubmit() {
 
 <style scoped>
 .login-container {
-  min-height: 86vh;
+  /* Fit exactly between header and footer to avoid any vertical scroll */
+  height: calc(100vh - var(--app-header-h) - var(--app-footer-h));
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(270deg, var(--maron-primary) 0%, var(--maron-primary-900) 100%);
-  padding: var(--space-4);
+  /* Background image as requested */
+  background-image: url('/assets/img/portal_bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: 0;
+  overflow: hidden; /* prevent scrollbars on the login page */
 }
 
 .login-wrapper {
@@ -201,11 +213,19 @@ async function onSubmit() {
   grid-template-columns: 1fr 1fr;
   gap: var(--space-8);
   align-items: center;
+  /* Backdrop card behind both the branding and the login panel */
+  background: rgba(255, 255, 255, 0.3);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+  padding: var(--space-8);
 }
 
 /* Left Side - Branding */
 .login-brand {
-  color: white;
+  color: var(--maron-primary);
   padding: var(--space-8);
 }
 
@@ -220,18 +240,38 @@ async function onSubmit() {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
 
+/* Maroon-tinted school logo above the brand title */
+.brand-logo-mask {
+  width: 120px;
+  height: 120px;
+  display: block;
+  margin-bottom: var(--space-6);
+  background-color: var(--maron-primary);
+  /* Paint the PNG logo as a mask so it appears exactly in maroon */
+  -webkit-mask-image: url('/assets/img/logo.png');
+  mask-image: url('/assets/img/logo.png');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  /* Keep the same depth effect as the old img */
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+}
+
 .brand-title {
   font-size: var(--font-size-4xl);
   font-weight: var(--font-weight-bold);
   margin-bottom: var(--space-2);
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  color: var(--maron-primary);
 }
 
 .brand-subtitle {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-medium);
   margin-bottom: var(--space-6);
-  opacity: 0.9;
+  color: var(--maron-primary);
 }
 
 .brand-divider {
@@ -246,7 +286,7 @@ async function onSubmit() {
   font-size: var(--font-size-lg);
   line-height: var(--line-height-relaxed);
   margin-bottom: var(--space-8);
-  opacity: 0.85;
+  color: var(--maron-primary);
 }
 
 .features-list {
@@ -260,6 +300,7 @@ async function onSubmit() {
   align-items: center;
   gap: var(--space-3);
   font-size: var(--font-size-base);
+  color: var(--maron-primary);
 }
 
 .feature-icon {
@@ -276,6 +317,8 @@ async function onSubmit() {
 .login-card {
   width: 100%;
   max-width: 480px;
+  transform: scale(0.9);
+  transform-origin: center;
 }
 
 .login-header {
@@ -287,6 +330,24 @@ async function onSubmit() {
   font-size: 4rem;
   color: var(--maron-primary);
   margin-bottom: var(--space-4);
+}
+
+/* Maroon school logo inside the login card header */
+.login-card-logo {
+  width: 72px;
+  height: 72px;
+  display: block;
+  margin: 0 auto var(--space-4);
+  background-color: var(--maron-primary);
+  /* Use the logo image as a mask to paint it maroon */
+  -webkit-mask-image: url('/assets/img/logo.png');
+  mask-image: url('/assets/img/logo.png');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 
 .login-title {

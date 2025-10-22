@@ -31,13 +31,14 @@
         <RouterLink v-else to="/login">دخول</RouterLink>
       </nav>
     </header>
-    <main class="page-main container py-3">
+    <main class="page-main container py-3" v-if="!isLogin">
       <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl">
         <div class="flex-fill"></div>
         <BreadcrumbRtl />
       </div>
       <RouterView />
     </main>
+    <RouterView v-else />
     <footer class="page-footer py-3 bg-maroon">
       <div class="container d-flex justify-content-between small">
         <span class="text-white text-center w-100">©2025 - جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية بنين - تطوير( المعلم/ سفيان مسيف s.mesyef0904@education.qa )</span>
@@ -47,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watchEffect, onMounted, onBeforeUnmount } from 'vue';
 import { useAuthStore } from './stores/auth';
 import { logout } from '../shared/api/client';
 import { useRouter, useRoute } from 'vue-router';
@@ -63,6 +64,53 @@ const hasRole = (r: string) => auth.roles.includes(r);
 const isSuper = computed(() => !!auth.profile?.is_superuser);
 const isTeacher = computed(() => auth.roles.includes('teacher'));
 const isHome = computed(() => route.name === 'home');
+const isLogin = computed(() => route.name === 'login');
+
+// Prevent page scrollbars on the login route
+let prevOverflow: string | null = null;
+let prevBgImage: string | null = null;
+watchEffect(() => {
+  if (isLogin.value) {
+    // Lock body scroll on login
+    prevOverflow = document.body.style.overflow || '';
+    document.body.style.overflow = 'hidden';
+    // Remove global body background image on login to prevent double background
+    prevBgImage = document.body.style.backgroundImage || '';
+    document.body.style.backgroundImage = 'none';
+  } else {
+    // Restore scroll state
+    if (prevOverflow !== null) {
+      document.body.style.overflow = prevOverflow;
+      prevOverflow = null;
+    } else {
+      document.body.style.removeProperty('overflow');
+    }
+    // Restore background image state
+    if (prevBgImage !== null) {
+      document.body.style.backgroundImage = prevBgImage;
+      prevBgImage = null;
+    } else {
+      document.body.style.removeProperty('background-image');
+    }
+  }
+});
+
+onBeforeUnmount(() => {
+  // Restore body scroll
+  if (prevOverflow !== null) {
+    document.body.style.overflow = prevOverflow;
+    prevOverflow = null;
+  } else {
+    document.body.style.removeProperty('overflow');
+  }
+  // Restore body background image
+  if (prevBgImage !== null) {
+    document.body.style.backgroundImage = prevBgImage;
+    prevBgImage = null;
+  } else {
+    document.body.style.removeProperty('background-image');
+  }
+});
 
 async function onLogout() {
   await logout();
@@ -72,8 +120,18 @@ async function onLogout() {
 </script>
 
 <style>
+:root {
+  /* Fixed heights to compute viewport without scroll on special pages like login */
+  --app-header-h: 64px;
+  --app-footer-h: 56px;
+}
+
 .container { max-width: 1200px; }
 .flex-fill { flex: 1 1 auto; }
+
+/* Ensure header/footer occupy stable space to allow calc(100vh - ...) layouts */
+.navbar-maronia { min-height: var(--app-header-h); display: flex; align-items: center; }
+.page-footer { min-height: var(--app-footer-h); }
 
 /* زر الرجوع للرئيسية بأسلوب زجاجي دائري */
 .btn-glass-home {

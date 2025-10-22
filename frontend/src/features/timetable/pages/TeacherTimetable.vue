@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3">
+  <section class="d-grid gap-3 timetable-page">
     <!-- Header Card -->
     <DsCard
       class="outlined-card"
@@ -97,9 +97,58 @@
     </DsCard>
 
     <!-- Timetable Card -->
-    <DsCard v-else class="p-0 overflow-hidden timetable-card outlined-card">
-      <div class="timetable-wrapper">
-        <table class="timetable-modern">
+    <DsCard v-else ref="timetableRef" class="p-0 overflow-hidden timetable-card outlined-card">
+      <!-- Actions toolbar -->
+      <div class="timetable-toolbar">
+        <button class="tt-btn" @click="toggle()" :title="isFullscreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'">
+          <Icon :icon="isFullscreen ? 'solar:minimize-square-bold-duotone' : 'solar:maximize-square-bold-duotone'" width="18" />
+          <span class="d-none d-sm-inline">{{ isFullscreen ? 'إغلاق ملء الشاشة' : 'ملء الشاشة' }}</span>
+        </button>
+        <button class="tt-btn" @click="handlePrint" title="طباعة الجدول">
+          <Icon icon="solar:printer-minimalistic-bold-duotone" width="18" />
+          <span class="d-none d-sm-inline">طباعة</span>
+        </button>
+        <button class="tt-btn" @click="showPrefs = !showPrefs" title="إعدادات العرض">
+          <Icon icon="solar:settings-bold-duotone" width="18" />
+          <span class="d-none d-sm-inline">إعدادات</span>
+        </button>
+        <div class="flex-grow-1"></div>
+        <label class="tt-toggle" :title="prefs.dense ? 'نمط افتراضي' : 'نمط مضغوط'">
+          <input type="checkbox" v-model="prefs.dense" />
+          <span>نمط مضغوط</span>
+        </label>
+        <label class="tt-toggle" title="إظهار/إخفاء العدّاد">
+          <input type="checkbox" v-model="prefs.showCountdown" />
+          <span>العدّاد</span>
+        </label>
+      </div>
+
+      <!-- Simple preferences panel -->
+      <div v-if="showPrefs" class="prefs-panel">
+        <div class="prefs-header">
+          <div class="title">
+            <Icon icon="solar:settings-bold-duotone" width="20" />
+            <span>إعدادات الجدول</span>
+          </div>
+          <button class="tt-btn" @click="showPrefs = false" title="إغلاق">
+            <Icon icon="solar:close-circle-bold-duotone" width="18" />
+          </button>
+        </div>
+        <div class="prefs-body">
+          <label class="row-item">
+            <input type="checkbox" v-model="prefs.autoFullscreen" />
+            <span>تفعيل ملء الشاشة تلقائيًا عند فتح الصفحة</span>
+          </label>
+          <label class="row-item">
+            <input type="checkbox" v-model="prefs.notifications" />
+            <span>السماح بإشعارات المتصفح عند قرب نهاية الحصة</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="timetable-wrapper" :class="{ dense: prefs.dense }">
+        <div class="tt-scale-95">
+          <table class="timetable-modern">
           <thead>
             <tr>
               <th class="timetable-th day-column">
@@ -140,7 +189,7 @@
               >
                 <!-- Green countdown near the green dot when current period -->
                 <div
-                  v-if="isCurrentPeriod(d, p) && remainingTime(d,p)"
+                  v-if="prefs.showCountdown && isCurrentPeriod(d, p) && remainingTime(d,p)"
                   class="countdown-badge"
                   :title="'الوقت المتبقي للحصة'"
                 >
@@ -177,10 +226,15 @@
                 <div v-else class="empty-period">
                   <Icon icon="solar:minus-circle-bold-duotone" width="20" style="opacity: 0.2" />
                 </div>
+                <!-- Current period progress bar -->
+                <div v-if="isCurrentPeriod(d,p)" class="progress-wrap">
+                  <div class="progress-bar" :style="{ width: periodProgress(d,p) + '%' }"></div>
+                </div>
               </td>
             </tr>
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
     </DsCard>
@@ -279,13 +333,82 @@
 
 /* 2px maroon border for outer cards */
 .outlined-card{ border: 2px solid var(--maron-primary, #7b1e1e); border-radius: 12px; }
+
+/* Toolbar */
+.timetable-toolbar{ display:flex; align-items:center; gap:.5rem; padding:.5rem .75rem; border-bottom:1px solid rgba(0,0,0,.06); background: #fff; position: sticky; top: 0; z-index: 5; }
+.tt-btn{ display:inline-flex; align-items:center; gap:.4rem; padding:.35rem .6rem; border:1px solid rgba(0,0,0,.08); background:#fff; border-radius:8px; cursor:pointer; color:#4a2b2b; transition: background .15s ease, box-shadow .15s ease; }
+.tt-btn:hover{ background:#fff8f7; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+.tt-toggle{ display:inline-flex; align-items:center; gap:.35rem; color:#4a2b2b; font-size:.9rem; }
+.tt-toggle input{ accent-color: var(--maron-primary, #7b1e1e); }
+
+/* Prefs panel */
+.prefs-panel{ position: relative; border-top:1px dashed rgba(0,0,0,.08); background:#fff; }
+.prefs-header{ display:flex; align-items:center; justify-content:space-between; padding:.5rem .75rem; }
+.prefs-header .title{ display:flex; align-items:center; gap:.5rem; font-weight:700; color:#4a2b2b; }
+.prefs-body{ display:grid; gap:.5rem; padding:.5rem .75rem .75rem; }
+.prefs-body .row-item{ display:flex; align-items:center; gap:.5rem; }
+.prefs-body input{ accent-color: var(--maron-primary, #7b1e1e); }
+
+/* Progress bar in current period */
+.progress-wrap{ position:absolute; left:8px; right:8px; bottom:6px; height:6px; background:#eafff0; border-radius:999px; overflow:hidden; box-shadow: inset 0 0 0 1px #22c55e22; }
+.progress-bar{ height:100%; background: linear-gradient(90deg,#16a34a,#22c55e); transition: width .6s ease; }
+
+/* Dense mode adjustments */
+.timetable-wrapper.dense .period-cell{ padding:.45rem .4rem; }
+.timetable-wrapper.dense .subject-badge{ font-size:.8rem; }
+
+/* Scale down table content inside timetable card by 5% (width and height) */
+.tt-scale-95{ transform: scale(0.95); transform-origin: top center; }
+
+/* Page-level adjustments to avoid window scrollbars on timetable page */
+.timetable-page{
+  gap: .5rem; /* override gap-3 */
+  max-width: 100%;
+  overflow: hidden; /* prevent accidental page scrollbars */
+  transform: scale(0.965);
+  transform-origin: top center;
+}
+
+/* Slightly reduce default card padding inside this page */
+.timetable-page :deep(.ds-card){ padding: var(--space-4); }
+
+/* Compact the toolbar and legend a bit */
+.timetable-toolbar{ padding:.4rem .6rem; }
+.color-legend{ padding: .5rem .75rem; }
+.legend-items{ gap: .5rem; }
+
+/* Make timetable table content a bit denser */
+.timetable-page .timetable-modern{ font-size: .95rem; min-width: unset; }
+.timetable-page .timetable-th{ padding: .6rem .5rem; }
+.timetable-page .period-cell{ padding: .5rem .45rem; }
+.timetable-page .empty-period{ min-height: 46px; }
+
+/* Reduce min-widths to avoid horizontal overflow */
+.timetable-page .day-column{ min-width: 110px; }
+.timetable-page .period-column{ min-width: 120px; }
+
+/* Mini cards compact */
+.timetable-page .mini-table thead th{ padding:.4rem .5rem; }
+.timetable-page .mini-table tbody td{ padding:.45rem .5rem; }
+.timetable-page .mini-stats{ gap:.4rem; }
+.timetable-page .mini-stat{ gap:.3rem; padding:.35rem .4rem; }
+.timetable-page .live-clock{ font-size: 1rem; }
+
+/* Print styles */
+@media print {
+  .outlined-card, .timetable-card{ border:none !important; box-shadow:none !important; }
+  .timetable-toolbar, .prefs-panel, .mini-table-wrap, .mini-stats, .outlined-card:first-of-type{ display:none !important; }
+  .timetable-modern thead th{ position: static !important; box-shadow:none !important; }
+}
 </style>
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed } from 'vue';
+import { useFullscreen } from '@vueuse/core';
 import { getTeacherTimetableWeekly } from '../../../shared/api/client';
 import DsCard from '../../../components/ui/DsCard.vue';
 import DsBadge from '../../../components/ui/DsBadge.vue';
+import { useTeacherPrefs } from '../../../app/stores/teacherPrefs';
 
 const loading = ref(false);
 const days = ref<Record<string, { period_number:number; classroom_id:number; classroom_name?:string; subject_id:number; subject_name?:string; start_time?: string; end_time?: string }[]>>({});
@@ -424,6 +547,32 @@ function remainingTime(d: number, p: number): string | '' {
   return `${pad(m)}:${pad(s)}`;
 }
 
+// Progress percentage for the running period
+function periodProgress(d: number, p: number): number {
+  void secondTick.value;
+  const t = cellTime(d,p);
+  if (!t) return 0;
+  const [start,end] = t;
+  const [sh,sm] = start.split(':').map(Number);
+  const [eh,em] = end.split(':').map(Number);
+  const startDate = new Date(); startDate.setHours(sh,sm,0,0);
+  const endDate = new Date();   endDate.setHours(eh,em,0,0);
+  const total = endDate.getTime() - startDate.getTime();
+  const now = Date.now();
+  const passed = Math.min(Math.max(now - startDate.getTime(), 0), total);
+  return total > 0 ? Math.round((passed/total)*100) : 0;
+}
+
+// UI state and preferences
+const prefs = useTeacherPrefs();
+const showPrefs = ref(false);
+const timetableRef = ref<HTMLElement|null>(null);
+const { isFullscreen, toggle } = useFullscreen(timetableRef);
+
+function handlePrint(){
+  try { window.print(); } catch(_) {}
+}
+
 // Color palette for classes (Maroon-themed harmony)
 const classColors = [
   { bg: 'linear-gradient(135deg, #8b1e3f 0%, #a52a2a 100%)', text: '#ffffff', light: '#f8e5e9' }, // Maroon
@@ -497,12 +646,24 @@ function updateNowClock(){
   secondTick.value = (secondTick.value + 1) % 1_000_000_000;
 }
 
+let _escHandler: any = null;
+
 onMounted(() => {
   try { updateNowClock(); } catch(_) {}
   try { _clockTimer = setInterval(updateNowClock, 1000); } catch(_) {}
+  // Auto fullscreen if enabled
+  try { if (prefs.autoFullscreen && !isFullscreen.value) toggle(); } catch(_) {}
+  // Keyboard: ESC to close prefs
+  try {
+    _escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') { showPrefs.value = false } };
+    document.addEventListener('keydown', _escHandler);
+  } catch(_) {}
 });
 
-onUnmounted(() => { try { if (_clockTimer) clearInterval(_clockTimer); } catch(_) {} });
+onUnmounted(() => {
+  try { if (_clockTimer) clearInterval(_clockTimer); } catch(_) {}
+  try { if (_escHandler) document.removeEventListener('keydown', _escHandler); } catch(_) {}
+});
 
 async function load() {
   loading.value = true;

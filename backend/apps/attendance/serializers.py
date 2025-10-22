@@ -16,8 +16,9 @@ class StudentBriefSerializer(serializers.ModelSerializer):
 
 class ExitEventSerializer(serializers.ModelSerializer):
     # Allow both student/student_id and classroom/class_id for frontend flexibility
-    student_id = serializers.IntegerField(write_only=True, required=False)
-    class_id = serializers.IntegerField(write_only=True, required=False)
+    # Expose student_id and class_id in responses as well (not write_only) because frontend relies on them
+    student_id = serializers.IntegerField(required=False)
+    class_id = serializers.IntegerField(required=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

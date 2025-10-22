@@ -680,3 +680,40 @@ class ExitEvent(models.Model):
         if user:
             self.returned_by = user
         self.save(update_fields=["returned_at", "duration_seconds", "returned_by"])
+
+
+class AttendanceLateEvent(models.Model):
+    """حدث تأخر لحصة: يسجّل مدة التأخر mm:ss مع كامل سياق الحصة والطالب والمعلم الذي أدخل السجل."""
+    attendance_record = models.ForeignKey(
+        'AttendanceRecord', on_delete=models.CASCADE, related_name='late_events'
+    )
+    student = models.ForeignKey('Student', on_delete=models.CASCADE)
+    classroom = models.ForeignKey('Class', on_delete=models.CASCADE)
+    subject = models.ForeignKey('Subject', on_delete=models.PROTECT)
+    teacher = models.ForeignKey('Staff', on_delete=models.PROTECT)
+    recorded_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+
+    date = models.DateField(db_index=True)
+    day_of_week = models.PositiveSmallIntegerField()  # 1..7
+    period_number = models.PositiveSmallIntegerField()
+
+    start_time = models.TimeField()
+    marked_at = models.DateTimeField(auto_now_add=True)
+
+    late_seconds = models.PositiveIntegerField()
+    late_mmss = models.CharField(max_length=8)  # mm:ss
+
+    note = models.CharField(max_length=300, blank=True, default='')
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['date', 'period_number']),
+            models.Index(fields=['student', 'date']),
+            models.Index(fields=['classroom', 'date']),
+            models.Index(fields=['teacher', 'date']),
+        ]
+        verbose_name = 'حدث تأخر'
+        verbose_name_plural = 'أحداث التأخر'
+
+    def __str__(self) -> str:
+        return f"{self.student} – {self.date} P{self.period_number} تأخر {self.late_mmss}"

@@ -179,3 +179,8 @@ export async function patchExitReturn(id: number) {
   const res = await api.patch(`/v1/attendance/exit-events/${id}/return/`, {});
   return res.data as { id: number; returned_at: string; duration_seconds: number };
 }
+
+export async function getExitEvents(params: { date?: string; class_id?: number; student_id?: number }) {
+  const res = await api.get('/v1/attendance/exit-events/', { params });
+  return res.data as { id: number; student_id: number; classroom_id?: number; date: string; started_at: string; returned_at?: string | null; duration_seconds?: number | null; reason?: string | null }[];
+}

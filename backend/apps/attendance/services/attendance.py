@@ -327,5 +327,72 @@ def bulk_save_attendance(
             **lookup,
             defaults=defaults,
         )
+        # Handle lateness event creation
+        try:
+            if str(status) == 'late':
+                from datetime import datetime as _dt
+                from django.utils.timezone import make_aware, get_current_timezone
+                from school.models import AttendanceLateEvent, Student, Class, Subject  # type: ignore
+
+                # Compute late seconds based on server time vs period start
+                tz = get_current_timezone()
+                start_naive = _dt.combine(dt, start_time)
+                start_aware = make_aware(start_naive, timezone=tz) if start_naive.tzinfo is None else start_naive
+                now_dt = timezone.now()
+                late_seconds = max(0, int((now_dt - start_aware).total_seconds()))
+                # Update late_minutes on the record (floor)
+                try:
+                    obj.late_minutes = max(0, late_seconds // 60)
+                    obj.save(update_fields=['late_minutes', 'updated_at'])
+                except Exception:
+                    pass
+                # Format mm:ss (cap at 59:59 display if needed)
+                mm = max(0, (late_seconds // 60))
+                ss = max(0, (late_seconds % 60))
+                late_mmss = f"{mm:02d}:{ss:02d}"
+                # Resolve context
+                student_fk = getattr(obj, 'student', None)
+                classroom_fk = getattr(obj, 'classroom', None)
+                subject_fk = getattr(obj, 'subject', None)
+                teacher_fk = getattr(obj, 'teacher', None)
+                # Fallback by ids if relations not loaded
+                if student_fk is None:
+                    try:
+                        student_fk = Student.objects.get(id=student_id)
+                    except Exception:
+                        student_fk = None
+                if classroom_fk is None:
+                    try:
+                        classroom_fk = Class.objects.get(id=class_id)
+                    except Exception:
+                        classroom_fk = None
+                if subject_fk is None and getattr(obj, 'subject_id', None):
+                    try:
+                        subject_fk = Subject.objects.get(id=getattr(obj, 'subject_id'))
+                    except Exception:
+                        subject_fk = None
+                # Create event
+                try:
+                    AttendanceLateEvent.objects.create(
+                        attendance_record=obj,
+                        student=student_fk,
+                        classroom=classroom_fk,
+                        subject=subject_fk,
+                        teacher=teacher_fk,
+                        recorded_by_id=actor_user_id,
+                        date=dt,
+                        day_of_week=defaults.get('day_of_week') or getattr(obj, 'day_of_week', 0) or iso_to_school_dow(dt),
+                        period_number=int(period_number) if period_number else int(getattr(obj, 'period_number', 1) or 1),
+                        start_time=start_time,
+                        late_seconds=late_seconds,
+                        late_mmss=late_mmss,
+                        note=note or '',
+                    )
+                except Exception:
+                    # Do not block bulk save if event creation fails
+                    pass
+        except Exception:
+            # Do not block bulk save on any unexpected error
+            pass
         saved.append(obj)
     return saved

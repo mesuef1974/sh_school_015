@@ -86,10 +86,37 @@ function buildCrumbFromRoute(r: RouteLocationNormalizedLoaded): Crumb {
   return { key: `${r.fullPath}`, label, href: r.fullPath, name: r.name as string, path: r.path as string }
 }
 
+function normalizedKey(c: Pick<Crumb, 'href'|'name'|'path'>): string {
+  // Prefer a stable identifier: route name, then static path, then href without query/hash
+  const byName = (c.name || '').toString()
+  if (byName) return byName
+  const byPath = (c.path || '').toString()
+  if (byPath) return byPath
+  try {
+    const href = c.href || ''
+    const iHash = href.indexOf('#')
+    const noHash = iHash >= 0 ? href.slice(0, iHash) : href
+    const iQuery = noHash.indexOf('?')
+    return iQuery >= 0 ? noHash.slice(0, iQuery) : noHash
+  } catch {
+    return c.href
+  }
+}
+
 function loadHistory() {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
-    if (raw) historyState.items = JSON.parse(raw)
+    if (raw) {
+      const parsed: Crumb[] = JSON.parse(raw)
+      // Deduplicate existing stored items by normalized key while preserving order (first occurrence wins)
+      const seen = new Set<string>()
+      const cleaned: Crumb[] = []
+      for (const c of parsed) {
+        const k = normalizedKey(c)
+        if (!seen.has(k)) { seen.add(k); cleaned.push(c) }
+      }
+      historyState.items = cleaned
+    }
   } catch {}
 }
 
@@ -98,11 +125,10 @@ function saveHistory() {
 }
 
 function pushIfNew(c: Crumb) {
-  const exists = historyState.items.find((x) => x.href === c.href)
-  if (!exists) historyState.items.push(c)
-  else {
-    historyState.items = historyState.items.filter((x) => x.href !== c.href).concat([c]) as any
-  }
+  const key = normalizedKey(c)
+  // Remove any previous entries that match the same normalized key
+  const remaining = historyState.items.filter((x) => normalizedKey(x) !== key)
+  historyState.items = [...remaining, c] as any
   saveHistory()
 }
 
@@ -173,28 +199,28 @@ const collapsedCount = computed(() => collapsedItems.value.length)
 </script>
 
 <style scoped>
-.breadcrumb { background: var(--bc-bg, #0f3a4a); color: #e6f4f1; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.08); border-radius: 10px; }
-.breadcrumb__row { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
-.breadcrumb__list { list-style: none; display: flex; align-items: center; gap: 8px; margin: 0; padding: 0; }
+.breadcrumb { background: var(--bc-bg, #0f3a4a); color: #e6f4f1; padding: 6px 9px; border-bottom: 1px solid rgba(255,255,255,.08); border-radius: 0; width: 100vw; margin-inline: calc(50% - 50vw); font-size: 0.75em; }
+.breadcrumb__row { display: flex; align-items: center; gap: 9px; justify-content: space-between; }
+.breadcrumb__list { list-style: none; display: flex; align-items: center; gap: 6px; margin: 0; padding: 0; }
 .breadcrumb__item { position: relative; }
 .breadcrumb__link { color: #c9f1ff; text-decoration: none; font-weight: 500; }
 .breadcrumb__link:hover { text-decoration: underline; }
 .breadcrumb__current { color: #fff; font-weight: 600; }
-.breadcrumb__sep { margin: 0 4px; opacity: .6; }
-.breadcrumb__more { background: transparent; border: 1px solid rgba(255,255,255,.25); color: #e6f4f1; border-radius: 6px; padding: 2px 6px; cursor: pointer; }
-.breadcrumb__dropdown { position: absolute; top: 28px; right: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; min-width: 200px; padding: 8px; z-index: 10; }
-.breadcrumb__dropdown a { color: #e6f4f1; display: block; padding: 6px 8px; border-radius: 6px; text-decoration: none; }
+.breadcrumb__sep { margin: 0 3px; opacity: .6; }
+.breadcrumb__more { background: transparent; border: 1px solid rgba(255,255,255,.25); color: #e6f4f1; border-radius: 6px; padding: 2px 5px; cursor: pointer; }
+.breadcrumb__dropdown { position: absolute; top: 21px; right: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; min-width: 150px; padding: 6px; z-index: 10; }
+.breadcrumb__dropdown a { color: #e6f4f1; display: block; padding: 5px 6px; border-radius: 6px; text-decoration: none; }
 .breadcrumb__dropdown a:hover { background: rgba(255,255,255,.07); }
 
-.breadcrumb__search { position: relative; min-width: 260px; }
-.breadcrumb__input { width: 100%; direction: rtl; background: #0c2f3c; color: #e6f4f1; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 6px 10px; }
-.breadcrumb__results { position: absolute; top: 36px; right: 0; left: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; max-height: 260px; overflow: auto; z-index: 20; }
-.breadcrumb__option { padding: 8px 10px; cursor: pointer; color: #e6f4f1; display: flex; justify-content: space-between; gap: 8px; }
+.breadcrumb__search { position: relative; min-width: 195px; }
+.breadcrumb__input { width: 100%; direction: rtl; background: #0c2f3c; color: #e6f4f1; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 4px 8px; }
+.breadcrumb__results { position: absolute; top: 27px; right: 0; left: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; max-height: 195px; overflow: auto; z-index: 20; }
+.breadcrumb__option { padding: 6px 8px; cursor: pointer; color: #e6f4f1; display: flex; justify-content: space-between; gap: 6px; }
 .breadcrumb__option:hover, .breadcrumb__option.is-active { background: rgba(255,255,255,.08); }
 .breadcrumb__option-path { opacity: .75; }
 
 @media (max-width: 640px) {
-  .breadcrumb__row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .breadcrumb__row { flex-direction: column; align-items: stretch; gap: 6px; }
   .breadcrumb__search { min-width: 100%; }
 }
 </style>

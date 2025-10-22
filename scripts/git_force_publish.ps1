@@ -75,6 +75,23 @@ function Write-Warn($msg){ Write-Host "[WARN] $msg" -ForegroundColor Yellow }
 function Write-Info($msg){ Write-Host "[INFO] $msg" -ForegroundColor DarkGray }
 function Write-Ok($msg){ Write-Host "[OK] $msg" -ForegroundColor Green }
 
+function Is-PlaceholderRemote([string]$url) {
+  if (-not $url) { return $false }
+  # Detect placeholders like ORG/REPO at the end (ssh or https forms)
+  return ($url -match '[:/\\]ORG/REPO(\.git)?$')
+}
+
+function Prompt-ForRemote([string]$prompt) {
+  $answer = Read-Host $prompt
+  $ansTrim = ($answer | ForEach-Object { $_.Trim() })
+  if ([string]::IsNullOrWhiteSpace($ansTrim)) { return $null }
+  if ($ansTrim -match $httpPattern -or $ansTrim -match $sshPattern -or $ansTrim -match $sshUrlPattern) {
+    return $ansTrim
+  }
+  Write-Warn "The provided value does not look like a valid Git URL."
+  return $null
+}
+
 # 1) Check for git
 try {
   git --version | Out-Null
@@ -363,6 +380,17 @@ if ([string]::IsNullOrWhiteSpace($remoteTrim)) {
 }
 
 # 7) Configure remote
+if (Is-PlaceholderRemote $resolvedRemote) {
+  Write-Warn "The resolved remote appears to be a placeholder: $resolvedRemote"
+  $newRemote = Prompt-ForRemote "Enter a valid Git remote URL (e.g., https://github.com/your-org/your-repo.git). Press Enter to cancel"
+  if ($newRemote) {
+    $resolvedRemote = $newRemote
+    Write-Info "Using provided remote URL: $resolvedRemote"
+  } else {
+    Write-Host "[USAGE] Please provide -Remote with a full Git URL or fix the origin: git remote set-url origin <URL>" -ForegroundColor Yellow
+    exit 1
+  }
+}
 Write-Step "Setting remote 'origin' to $resolvedRemote"
 if (-not $DryRun) {
   # Fix common mistake: a remote accidentally named 'mean' (redundant check, safe)
@@ -470,17 +498,85 @@ if ($DryRun) {
             throw "git push failed with exit code $exit"
           }
         } else {
-          Write-Host "[HINT] To auto-fallback to HTTPS, re-run with -HttpsFallback, or fix SSH by adding your public key to GitHub." -ForegroundColor Yellow
-          Write-Host "       See: https://docs.github.com/en/authentication/connecting-to-github-with-ssh" -ForegroundColor Gray
-          Write-Host "       Or switch remote to HTTPS: git remote set-url origin https://github.com/ORG/REPO.git" -ForegroundColor Gray
-          throw "git push failed with exit code $exit"
+          $autoFallback = $false
+          if ($env:GIT_FORCE_PUBLISH_AUTO_HTTPS) {
+            $autoFallback = ($env:GIT_FORCE_PUBLISH_AUTO_HTTPS -match '^(?i:1|true|yes|y)$')
+          }
+          if (-not $autoFallback) {
+            $ans = Read-Host "SSH auth failed. Switch remote to HTTPS and retry push now? [y/N]"
+            $autoFallback = ($ans -match '^(?i:y(?:es)?)$')
+          }
+          if ($autoFallback) {
+            $https = Convert-SshToHttps -sshUrl $resolvedRemote
+            if ($https) {
+              if (Is-PlaceholderRemote $https) {
+                $manual = Prompt-ForRemote "Derived HTTPS remote looks like a placeholder. Enter a valid Git remote URL. Press Enter to cancel"
+                if ($manual) { $https = $manual } else {
+                  Write-Warn "No valid remote provided."
+                  throw "git push failed with exit code $exit"
+                }
+              }
+              Write-Step "Switching remote 'origin' to HTTPS ($https) and retrying push once"
+              try {
+                git remote set-url origin $https | Out-Null
+                $resolvedRemote = $https
+                $gitOutput2 = & git @pushArgs 2>&1
+                $exit2 = $LASTEXITCODE
+                if ($exit2 -ne 0) {
+                  Write-Warn "Retry over HTTPS failed. Git output:"
+                  Write-Host ($gitOutput2 | Out-String) -ForegroundColor DarkGray
+                  throw "git push failed with exit code $exit2"
+                } else {
+                  Write-Ok "Pushed branch '$Branch' to origin (HTTPS fallback)"
+                }
+              } catch {
+                throw $_
+              }
+            } else {
+              Write-Warn "Could not derive HTTPS URL from SSH remote; please provide -Remote with an HTTPS URL."
+              throw "git push failed with exit code $exit"
+            }
+          } else {
+            Write-Host "[HINT] To auto-fallback to HTTPS, re-run with -HttpsFallback, or fix SSH by adding your public key to GitHub." -ForegroundColor Yellow
+            Write-Host "       See: https://docs.github.com/en/authentication/connecting-to-github-with-ssh" -ForegroundColor Gray
+            Write-Host "       Or switch remote to HTTPS: git remote set-url origin https://github.com/ORG/REPO.git" -ForegroundColor Gray
+            throw "git push failed with exit code $exit"
+          }
         }
       }
     } else {
       # Other failure; show output for clarity then throw
-      Write-Warn "git push failed. Git output:"
-      Write-Host $outText -ForegroundColor DarkGray
-      throw "git push failed with exit code $exit"
+      if ($outText -match 'Repository not found') {
+        Write-Warn "Remote repository not found. The 'origin' URL may be incorrect or you may not have access."
+        $newRemote = Prompt-ForRemote "Enter a valid Git remote URL to update 'origin' and retry push once [press Enter to cancel]"
+        if ($newRemote) {
+          Write-Step "Updating remote 'origin' to $newRemote and retrying push once"
+          try {
+            git remote set-url origin $newRemote | Out-Null
+            $resolvedRemote = $newRemote
+            $gitOutputRetry = & git @pushArgs 2>&1
+            $exitRetry = $LASTEXITCODE
+            if ($exitRetry -ne 0) {
+              Write-Warn "Retry after updating remote failed. Git output:"
+              Write-Host ($gitOutputRetry | Out-String) -ForegroundColor DarkGray
+              throw "git push failed with exit code $exitRetry"
+            } else {
+              Write-Ok "Pushed branch '$Branch' to origin"
+            }
+          } catch {
+            throw $_
+          }
+        } else {
+          Write-Warn "No valid remote provided."
+          Write-Warn "git push failed. Git output:"
+          Write-Host $outText -ForegroundColor DarkGray
+          throw "git push failed with exit code $exit"
+        }
+      } else {
+        Write-Warn "git push failed. Git output:"
+        Write-Host $outText -ForegroundColor DarkGray
+        throw "git push failed with exit code $exit"
+      }
     }
   } else {
     Write-Ok "Pushed branch '$Branch' to origin"

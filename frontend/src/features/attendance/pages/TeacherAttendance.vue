@@ -338,13 +338,34 @@ function onStatusChange(s: any) {
   }
   const st = recordMap[s.id].status as string;
   if (st === 'excused') {
+    // عند اختيار إذن خروج: ثبّت ملاحظة إذن الخروج تلقائيًا
     ensureExitReason(s);
     const current = (recordMap[s.id].note || '').trim();
     const auto = autoNoteForExit(recordMap[s.id].exit_reasons as any);
     if (!current || isAutoNote(current)) {
       recordMap[s.id].note = auto;
     }
+  } else if (st === 'late') {
+    // عند اختيار "متأخر": ثبّت وقت العودة في الملاحظات مرة واحدة
+    try {
+      const now = new Date();
+      const hh = now.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const tag = ` — وقت عودة: ${hh}`;
+      const base = (recordMap[s.id].note || '').toString().trim();
+      if (base.includes('وقت عودة')) {
+        // لا تكرّر الوسم
+        return;
+      }
+      if (!base) {
+        // إن لم توجد ملاحظة سابقة، اكتب الوسم بدون شرطة بادئة
+        recordMap[s.id].note = `وقت عودة: ${hh}`;
+      } else {
+        // إن وُجدت ملاحظة (بما فيها "إذن خروج — ..") فألحق الوسم
+        recordMap[s.id].note = base + tag;
+      }
+    } catch {}
   } else {
+    // لباقي الحالات: إن كانت الملاحظة مولّدة تلقائيًا لإذن الخروج فافرغها
     const current = (recordMap[s.id].note || '').trim();
     if (isAutoNote(current)) {
       recordMap[s.id].note = '';
@@ -407,6 +428,17 @@ async function returnNow(s: any) {
   try {
     st.busy = true;
     const res = await patchExitReturn(st.event_id);
+    // Append return time to the note after the exit text
+    try {
+      const now = new Date();
+      const hh = now.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const base = (recordMap[s.id].note || 'إذن خروج').toString().trim();
+      // Avoid duplicating tag
+      const tag = ` — وقت عودة: ${hh}`;
+      if (!base.includes('وقت عودة')) {
+        recordMap[s.id].note = base + tag;
+      }
+    } catch {}
     // Option: set present automatically
     recordMap[s.id].status = 'present';
     st.running = false;
