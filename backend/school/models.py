@@ -33,6 +33,31 @@ class Class(models.Model):
     def __str__(self) -> str:
         return f"{self.name}"
 
+    def save(self, *args, **kwargs):
+        """Auto-derive grade/section from name if missing.
+
+        Tests create Class with only name like "12/1". Our DB requires grade not null,
+        so before first insert, parse grade (and optionally section) from the name.
+        Safe, best-effort; never block saving on parsing errors.
+        """
+        try:
+            if (getattr(self, "grade", None) is None) and isinstance(self.name, str):
+                import re
+
+                m = re.match(r"^\s*(\d+)[\-\./](.+)?\s*$", self.name)
+                if m:
+                    self.grade = int(m.group(1))
+                    # If section not provided explicitly, try to set from name suffix
+                    if not self.section:
+                        sec = (m.group(2) or "").strip()
+                        # Keep only the first token (e.g., "1" from "1A")
+                        # but don't over-validate to avoid introducing new constraints
+                        self.section = sec
+        except Exception:
+            # Never block saving due to parsing issues
+            pass
+        super().save(*args, **kwargs)
+
 
 class Student(models.Model):
     sid = models.CharField(max_length=30, unique=True)

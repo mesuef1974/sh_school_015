@@ -15,72 +15,6 @@
       </div>
     </DsCard>
 
-    <!-- Quick Stats -->
-    <div class="row g-3">
-      <div class="col-6 col-md-3">
-        <DsCard
-          v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 50 } }"
-          :animate="false"
-          :interactive="true"
-        >
-          <div class="text-center">
-            <Icon icon="solar:calendar-mark-bold-duotone" class="text-3xl mb-2" style="color: var(--color-info)" />
-            <div class="small text-muted mb-1">اليوم</div>
-            <div class="h5 fw-bold mb-0">{{ todayDate }}</div>
-          </div>
-        </DsCard>
-      </div>
-      <div class="col-6 col-md-3">
-        <DsCard
-          v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 100 } }"
-          :animate="false"
-          :interactive="true"
-        >
-          <div class="text-center">
-            <Icon icon="solar:check-circle-bold-duotone" class="text-3xl mb-2" style="color: var(--color-success)" />
-            <div class="small text-muted mb-1">نسبة الحضور</div>
-            <div class="h5 fw-bold mb-0 text-success">--</div>
-            <DsBadge variant="info" size="sm" class="mt-1">قريباً</DsBadge>
-          </div>
-        </DsCard>
-      </div>
-      <div class="col-6 col-md-3">
-        <DsCard
-          v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 150 } }"
-          :animate="false"
-          :interactive="true"
-        >
-          <div class="text-center">
-            <Icon icon="solar:close-circle-bold-duotone" class="text-3xl mb-2" style="color: var(--color-danger)" />
-            <div class="small text-muted mb-1">الغياب اليوم</div>
-            <div class="h5 fw-bold mb-0 text-danger">--</div>
-            <DsBadge variant="info" size="sm" class="mt-1">قريباً</DsBadge>
-          </div>
-        </DsCard>
-      </div>
-      <div class="col-6 col-md-3">
-        <DsCard
-          v-motion
-          :initial="{ opacity: 0, scale: 0.8 }"
-          :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 200 } }"
-          :animate="false"
-          :interactive="true"
-        >
-          <div class="text-center">
-            <Icon icon="solar:clock-circle-bold-duotone" class="text-3xl mb-2" style="color: var(--color-warning)" />
-            <div class="small text-muted mb-1">المتأخرون</div>
-            <div class="h5 fw-bold mb-0 text-warning">--</div>
-            <DsBadge variant="info" size="sm" class="mt-1">قريباً</DsBadge>
-          </div>
-        </DsCard>
-      </div>
-    </div>
 
     <!-- Main Actions -->
     <div class="row g-3">
@@ -105,16 +39,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
 import IconTile from '../../widgets/IconTile.vue';
 import DsCard from '../../components/ui/DsCard.vue';
-import DsBadge from '../../components/ui/DsBadge.vue';
-
-const todayDate = computed(() => {
-  const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  const date = new Date();
-  return `${days[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1}`;
-});
 
 const tiles = [
   {

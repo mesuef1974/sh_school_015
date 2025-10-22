@@ -1,25 +1,20 @@
 <template>
   <section class="d-grid gap-3 page-grid full-bleed">
-    <header
-      v-motion
-      :initial="{ opacity: 0, y: -30 }"
-      :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
-      class="auto-card p-3 d-flex align-items-center gap-3 glass-header"
-    >
-      <Icon icon="solar:clipboard-check-bold-duotone" class="header-icon" />
-      <div>
-        <div class="fw-bold">تسجيل الغياب</div>
-        <div class="text-muted small">اختر الصف والتاريخ (اختياري: حصة اليوم)</div>
-      </div>
-      <span class="ms-auto"></span>
-    </header>
-
     <div
       v-motion
       :initial="{ opacity: 0, x: -50 }"
       :enter="{ opacity: 1, x: 0, transition: { duration: 400, delay: 100 } }"
       class="auto-card p-3 mb-3"
     >
+      <!-- Merged header + form in a single card (keep the same order) -->
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <Icon icon="solar:clipboard-check-bold-duotone" class="header-icon" />
+        <div>
+          <div class="fw-bold">تسجيل الغياب</div>
+          <div class="text-muted small">اختر الصف والتاريخ (اختياري: حصة اليوم)</div>
+        </div>
+        <span class="ms-auto"></span>
+      </div>
       <form @submit.prevent="loadData" class="attendance-form">
         <div class="form-toolbar d-flex align-items-end gap-2 flex-nowrap">
           <!-- Filters: Class, Date, Today's Period -->
@@ -81,39 +76,6 @@
 
     <div v-if="loading" class="loader-line"></div>
     <div v-else>
-      <div v-if="classId || students.length" class="auto-card p-3 mb-3">
-        <div class="stats-header">
-          <div class="d-flex align-items-center gap-2">
-            <Icon icon="solar:chart-bold-duotone" width="20" style="color: var(--maron-primary);" />
-            <span class="fw-bold">معلومات اليوم</span>
-          </div>
-          <div class="date-badge">
-            <Icon icon="solar:calendar-bold-duotone" width="16" />
-            <span>{{ dateStr }}</span>
-          </div>
-        </div>
-        <div class="chips-grid">
-          <DsBadge variant="info" icon="solar:chart-bold-duotone">
-            الحضور: <strong>{{ classKpis.present_pct ?? '--' }}%</strong>
-          </DsBadge>
-          <DsBadge variant="success" icon="solar:check-circle-bold-duotone">
-            حاضر {{ classKpis.present ?? 0 }} / {{ classKpis.total ?? 0 }}
-          </DsBadge>
-          <DsBadge variant="danger" icon="solar:close-circle-bold-duotone">
-            غياب: {{ classKpis.absent ?? 0 }}
-          </DsBadge>
-          <DsBadge variant="warning" icon="solar:clock-circle-bold-duotone">
-            متأخر: {{ classKpis.late ?? 0 }}
-          </DsBadge>
-          <DsBadge variant="danger" icon="solar:running-bold-duotone">
-            هروب: {{ classKpis.runaway ?? 0 }}
-          </DsBadge>
-          <DsBadge variant="info" icon="solar:exit-bold-duotone">
-            إذن خروج: {{ classKpis.excused ?? 0 }}
-          </DsBadge>
-        </div>
-      </div>
-      <div v-if="students.length === 0" class="auto-card p-3">لا يوجد طلاب.</div>
       <!-- شبكة البطاقات و شريط الأدوات -->
       <div class="auto-card p-3">
         <div class="grid-toolbar d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -138,23 +100,20 @@
             v-for="(s, idx) in filteredStudents"
             :key="s.id"
             class="student-card"
-            :class="'status-' + (recordMap[s.id].status || 'none')"
+            :class="['status-' + (recordMap[s.id]?.status || 'none'), { inactive: s.active === false }]"
           >
             <header class="d-flex align-items-center gap-2">
               <div class="avatar" :title="'#' + (idx + 1)">{{ String(idx + 1) }}</div>
               <div class="flex-grow-1 min-w-0">
                 <div class="name-row d-flex align-items-center gap-2 text-truncate">
-                  <div class="student-name text-truncate" :title="s.full_name">{{ s.full_name }}</div>
-                  <div class="status-chip no-wrap" :class="statusClassChip(recordMap[s.id].status)">
-                    {{ statusLabel(recordMap[s.id].status) }}
-                  </div>
+                  <div class="student-name text-truncate" :title="s.full_name">{{ s.full_name }} <span v-if="s.active === false" class="badge bg-secondary ms-1">غير فعال</span></div>
                 </div>
               </div>
               <div class="quick-actions d-none d-md-flex">
-                <button type="button" class="btn btn-sm btn-light" @click="recordMap[s.id].status='present'" :aria-label="'تعيين حاضر ل' + s.full_name">
+                <button type="button" class="btn btn-sm btn-light" :disabled="s.active === false" @click="s.active === false ? null : (recordMap[s.id].status='present')" :aria-label="'تعيين حاضر ل' + s.full_name">
                   <Icon icon="solar:check-circle-bold-duotone" />
                 </button>
-                <button type="button" class="btn btn-sm btn-light text-danger" @click="recordMap[s.id].status='absent'" :aria-label="'تعيين غائب ل' + s.full_name">
+                <button type="button" class="btn btn-sm btn-light text-danger" :disabled="s.active === false" @click="s.active === false ? null : (recordMap[s.id].status='absent')" :aria-label="'تعيين غائب ل' + s.full_name">
                   <Icon icon="solar:close-circle-bold-duotone" />
                 </button>
               </div>
@@ -162,7 +121,7 @@
 
             <div class="mt-2">
               <div class="controls-row d-flex align-items-center gap-2 no-wrap">
-                <select v-model="recordMap[s.id].status" class="form-select status-select" :class="statusClassChip(recordMap[s.id].status)" @change="onStatusChange(s)">
+                <select v-model="recordMap[s.id].status" class="form-select status-select" :class="statusClassChip(recordMap[s.id].status)" @change="onStatusChange(s)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إجراء أي إجراء عليه' : ''">
                   <option value=""></option>
                   <option value="present">حاضر</option>
                   <option value="absent">غائب</option>
@@ -171,42 +130,42 @@
                   <option value="runaway">هروب</option>
                   <option value="left_early">انصراف مبكر</option>
                 </select>
-                <input v-if="recordMap[s.id].status !== 'excused'" type="text" v-model="recordMap[s.id].note" class="form-control flex-grow-1 min-w-0" placeholder="ملاحظة (اختياري)" />
+                <input v-if="recordMap[s.id].status !== 'excused'" type="text" v-model="recordMap[s.id].note" class="form-control flex-grow-1 min-w-0" placeholder="ملاحظة (اختياري)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إضافة ملاحظات' : ''" />
               </div>
             </div>
 
             <div v-if="recordMap[s.id].status === 'excused'" class="mt-2">
               <div class="exit-reasons d-flex flex-wrap gap-2">
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'admin'}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'admin', disabled: s.active === false}">
+                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" :disabled="s.active === false" />
                   إدارة
                 </label>
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'wing'}">
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'wing', disabled: s.active === false}">
                   <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
                   مشرف الجناح
                 </label>
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'nurse'}">
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'nurse', disabled: s.active === false}">
                   <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
                   الممرض
                 </label>
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'restroom'}">
+                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'restroom', disabled: s.active === false}">
                   <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
                   دورة المياه
                 </label>
               </div>
               <div class="mt-2">
-                <input type="text" v-model="recordMap[s.id].note" class="form-control" placeholder="ملاحظة إذن الخروج (إلى أين؟)" />
+                <input type="text" v-model="recordMap[s.id].note" class="form-control" placeholder="ملاحظة إذن الخروج (إلى أين؟)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إضافة ملاحظات' : ''" />
               </div>
               <div class="d-flex align-items-center gap-2 mt-2 w-100 exit-controls">
                 <template v-if="!exitState[s.id]?.running">
-                  <DsButton size="sm" variant="info" icon="solar:play-bold-duotone" @click="startExit(s)">بدء الخروج</DsButton>
+                  <DsButton size="sm" variant="info" icon="solar:play-bold-duotone" @click="startExit(s)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن بدء إذن خروج' : ''">بدء الخروج</DsButton>
                   <span class="text-muted small">لن يبدأ الحساب إلا بعد الضغط على بدء</span>
                 </template>
                 <template v-else>
                   <DsBadge variant="info" icon="solar:clock-circle-bold-duotone">
                     خارج الفصل: <strong>{{ formatElapsed(exitState[s.id].started_at) }}</strong>
                   </DsBadge>
-                  <DsButton size="sm" variant="success" icon="solar:check-circle-bold-duotone" :loading="exitState[s.id].busy" @click="returnNow(s)">
+                  <DsButton size="sm" variant="success" icon="solar:check-circle-bold-duotone" :loading="exitState[s.id].busy" @click="returnNow(s)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إنهاء إذن الخروج' : ''">
                     عودة الآن
                   </DsButton>
                 </template>
@@ -246,11 +205,12 @@ const classKpis = computed(() => classSummary.value?.kpis || { present_pct: null
 const todayPeriods = ref<{ period_number:number; classroom_id:number; classroom_name?:string; subject_id:number; subject_name?:string }[]>([]);
 const periodNo = ref<number | null>(null);
 
-interface StudentBrief { id: number; first_name: string; last_name: string; }
+interface StudentBrief { id: number; full_name?: string; active?: boolean; }
 interface Rec { student_id: number; status: '' | 'present' | 'absent' | 'late' | 'excused' | 'runaway' | 'left_early'; note?: string | null; exit_reasons?: string }
 
 const classes = ref<{ id: number; name?: string }[]>([]);
 const students = ref<StudentBrief[]>([]);
+const inactiveIds = computed(() => new Set(students.value.filter(s => s.active === false).map(s => s.id)));
 const recordMap = reactive<Record<number, Rec>>({});
 
 const totalStudents = computed(() => students.value.length);
@@ -327,6 +287,7 @@ function nameClass(s: string) {
 
 function setAll(st: ''|'present'|'absent'|'late'|'excused'|'runaway'|'left_early') {
   for (const s of students.value) {
+    if (s.active === false) continue; // skip inactive students
     if (recordMap[s.id]) recordMap[s.id].status = st;
   }
 }
@@ -359,6 +320,7 @@ function isAutoNote(note?: string) {
 }
 
 function onExitReasonChange(s: any) {
+  if (s.active === false) return;
   const current = (recordMap[s.id].note || '').trim();
   const reason = recordMap[s.id].exit_reasons as string;
   const auto = autoNoteForExit(reason);
@@ -368,6 +330,12 @@ function onExitReasonChange(s: any) {
 }
 
 function onStatusChange(s: any) {
+  if (s.active === false) {
+    // Revert any change and notify
+    recordMap[s.id].status = '' as any;
+    try { toast.warning('الطالب غير فعال — لا يمكن إجراء أي إجراء عليه', { autoClose: 2500 }); } catch {}
+    return;
+  }
   const st = recordMap[s.id].status as string;
   if (st === 'excused') {
     ensureExitReason(s);
@@ -399,6 +367,10 @@ async function loadOpenExits() {
 }
 
 async function startExit(s: any) {
+  if (s.active === false) {
+    try { toast.error('الطالب غير فعال — لا يمكن بدء إذن خروج'); } catch {}
+    return;
+  }
   try {
     let note = (recordMap[s.id].note || '').trim();
     ensureExitReason(s);
@@ -426,6 +398,10 @@ async function startExit(s: any) {
 }
 
 async function returnNow(s: any) {
+  if (s.active === false) {
+    try { toast.error('الطالب غير فعال — لا يمكن إنهاء إذن الخروج'); } catch {}
+    return;
+  }
   const st = exitState[s.id];
   if (!st?.event_id) return;
   try {
@@ -529,7 +505,8 @@ async function save() {
   saving.value = true;
   saveMsg.value = '';
   try {
-    const base = Object.values(recordMap).filter(r => !!r.status);
+    const inact = inactiveIds.value;
+    const base = Object.values(recordMap).filter(r => !!r.status && !inact.has(r.student_id));
     // Validation: require one reason when status is 'excused'
     const missing = base.filter(r => r.status === 'excused' && (!r.exit_reasons || String(r.exit_reasons).trim() === ''));
     if (missing.length) {
@@ -632,7 +609,14 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 .header-icon { font-size: 26px; color: #8a1538; }
 
 /* Maroon outline cards to match design */
+/* Vertically center all cards when there's free space in the viewport */
 .auto-card { border: 2px solid var(--maron-primary, #8a1538); border-radius: 12px; }
+
+/* Center cards horizontally and reduce width by 5% (scoped to this page) */
+section.full-bleed .auto-card { width: 95%; margin-inline: auto; justify-self: center; }
+@media (max-width: 576px) {
+  section.full-bleed .auto-card { width: 100%; justify-self: stretch; }
+}
 
 .glass-form {
   background: rgba(255,255,255,0.65);
@@ -900,5 +884,13 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 @media (min-width: 768px) {
   .form-toolbar .form-field { min-width: 170px; }
   .form-toolbar .form-field.form-field-wide { min-width: 300px; }
+}
+</style>
+
+<style scoped>
+/* خلفية سلفر للطالب غير الفعال */
+.student-card.inactive {
+  background: silver !important;
+  border-color: #b0b0b0 !important;
 }
 </style>

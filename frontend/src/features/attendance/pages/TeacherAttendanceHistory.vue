@@ -1,48 +1,55 @@
 <template>
   <section class="full-bleed">
-    <DsCard class="mb-3" v-motion :initial="{ opacity: 0, y: -20 }" :enter="{ opacity: 1, y: 0 }">
-      <div class="d-flex align-items-center gap-3">
-        <Icon icon="solar:history-bold-duotone" class="text-4xl text-primary" />
-        <div>
-          <h1 class="h5 mb-1">سجل الغياب للمعلم</h1>
-          <p class="text-muted mb-0">استعراض سجلات الغياب لفترة زمنية قابلة للتخصيص مع ترقيم صفحات.</p>
+    <!-- Compact Toolbar: Title + Filters + Search in one card -->
+    <DsCard class="mb-3 toolbar-card" v-motion :initial="{ opacity: 0, y: -12 }" :enter="{ opacity: 1, y: 0 }">
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+        <div class="d-flex align-items-center gap-2">
+          <Icon icon="solar:history-bold-duotone" class="text-3xl text-primary" />
+          <div>
+            <h1 class="h6 mb-0">سجل الغياب للمعلم</h1>
+            <small class="text-muted">عرض سجلات الغياب مع فلاتر مدمجة</small>
+          </div>
+        </div>
+        <div class="ms-auto d-flex align-items-center gap-2 search-inline" v-if="rows.length > 0">
+          <Icon icon="solar:magnifer-bold-duotone" class="text-lg" />
+          <input v-model="searchQuery" type="text" class="form-control form-control-sm" placeholder="بحث في أسماء الطلبة..." />
+          <div class="text-muted small d-none d-md-block">
+            {{ filteredRows.length }} / {{ rows.length }}
+          </div>
         </div>
       </div>
-    </DsCard>
 
-    <!-- Filters Card -->
-    <DsCard class="mb-3">
-      <form @submit.prevent="loadHistory" class="row g-3 align-items-end">
+      <form @submit.prevent="loadHistory" class="row g-2 align-items-end">
         <div class="col-12 col-md-6 col-lg-3">
-          <label class="form-label fw-bold">
-            <Icon icon="solar:layers-minimalistic-bold-duotone" width="18" class="me-1" />
+          <label class="form-label fw-bold small mb-1">
+            <Icon icon="solar:layers-minimalistic-bold-duotone" width="16" class="me-1" />
             الصف
           </label>
-          <select v-model.number="classId" required class="form-select">
+          <select v-model.number="classId" required class="form-select form-select-sm">
             <option :value="null" disabled>اختر الصف</option>
             <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name || ('صف #' + c.id) }}</option>
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label fw-bold">
-            <Icon icon="solar:calendar-bold-duotone" width="18" class="me-1" />
+          <label class="form-label fw-bold small mb-1">
+            <Icon icon="solar:calendar-bold-duotone" width="16" class="me-1" />
             من
           </label>
-          <input type="date" v-model="fromStr" class="form-control" />
+          <input type="date" v-model="fromStr" class="form-control form-control-sm" />
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label fw-bold">
-            <Icon icon="solar:calendar-bold-duotone" width="18" class="me-1" />
+          <label class="form-label fw-bold small mb-1">
+            <Icon icon="solar:calendar-bold-duotone" width="16" class="me-1" />
             إلى
           </label>
-          <input type="date" v-model="toStr" class="form-control" />
+          <input type="date" v-model="toStr" class="form-control form-control-sm" />
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label fw-bold">
-            <Icon icon="solar:filter-bold-duotone" width="18" class="me-1" />
+          <label class="form-label fw-bold small mb-1">
+            <Icon icon="solar:filter-bold-duotone" width="16" class="me-1" />
             الحالة
           </label>
-          <select v-model="statusFilter" class="form-select">
+          <select v-model="statusFilter" class="form-select form-select-sm">
             <option value="">الكل</option>
             <option value="present">حاضر</option>
             <option value="absent">غائب</option>
@@ -52,34 +59,17 @@
             <option value="left_early">انصراف مبكر</option>
           </select>
         </div>
-        <div class="col-12 col-lg-3">
-          <div class="d-flex gap-2">
-            <DsButton type="submit" variant="primary" icon="solar:magnifer-bold-duotone" :loading="loading" class="flex-grow-1">
+        <div class="col-6 col-md-3 col-lg-2 order-lg-last ms-auto">
+          <div class="d-flex gap-2 justify-content-start justify-content-lg-end">
+            <DsButton type="submit" size="sm" variant="primary" icon="solar:magnifer-bold-duotone" :loading="loading">
               بحث
             </DsButton>
-            <DsButton type="button" variant="success" icon="solar:export-bold-duotone" :disabled="filteredRows.length === 0" @click="exportData">
+            <DsButton type="button" size="sm" variant="success" icon="solar:export-bold-duotone" :disabled="filteredRows.length === 0" @click="exportData">
               تصدير
             </DsButton>
           </div>
         </div>
       </form>
-    </DsCard>
-
-    <!-- Search Box -->
-    <DsCard class="mb-3" v-if="rows.length > 0">
-      <div class="d-flex align-items-center gap-2">
-        <Icon icon="solar:magnifer-bold-duotone" class="text-xl" />
-        <input
-          v-model="searchQuery"
-          type="text"
-          class="form-control"
-          placeholder="بحث في أسماء الطلبة..."
-          style="max-width: 400px"
-        />
-        <div class="ms-auto text-muted small">
-          عرض {{ filteredRows.length }} من {{ rows.length }} سجل
-        </div>
-      </div>
     </DsCard>
 
     <!-- Loading State -->
@@ -112,13 +102,13 @@
         <table class="modern-table">
           <thead>
             <tr>
-              <th class="modern-th" style="width: 70px">
+              <th class="modern-th" style="width: 60px">
                 <div class="th-content">
                   <Icon icon="solar:hashtag-bold-duotone" width="18" />
                   <span>#</span>
                 </div>
               </th>
-              <th class="modern-th" style="width: 130px">
+              <th class="modern-th" style="width: 110px">
                 <div class="th-content">
                   <Icon icon="solar:calendar-bold-duotone" width="18" />
                   <span>التاريخ</span>
@@ -130,25 +120,25 @@
                   <span>اسم الطالب</span>
                 </div>
               </th>
-              <th class="modern-th" style="width: 100px">
+              <th class="modern-th" style="width: 80px">
                 <div class="th-content">
                   <Icon icon="solar:clock-circle-bold-duotone" width="18" />
                   <span>الحصة</span>
                 </div>
               </th>
-              <th class="modern-th" style="width: 150px">
+              <th class="modern-th" style="width: 120px">
                 <div class="th-content">
                   <Icon icon="solar:book-2-bold-duotone" width="18" />
                   <span>المادة</span>
                 </div>
               </th>
-              <th class="modern-th" style="width: 160px">
+              <th class="modern-th" style="width: 120px">
                 <div class="th-content">
                   <Icon icon="solar:widget-5-bold-duotone" width="18" />
                   <span>الحالة</span>
                 </div>
               </th>
-              <th class="modern-th" style="width: 200px">
+              <th class="modern-th" style="width: 600px">
                 <div class="th-content">
                   <Icon icon="solar:notes-bold-duotone" width="18" />
                   <span>ملاحظة</span>
@@ -160,7 +150,7 @@
             <tr
               v-for="(row, i) in filteredRows"
               :key="i"
-              class="modern-tr"
+              :class="['modern-tr', { inactive: isInactive(row) }]"
               v-motion
               :initial="{ opacity: 0, x: -20 }"
               :enter="{ opacity: 1, x: 0, transition: { duration: 300, delay: i * 20 } }"
@@ -254,7 +244,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { getAttendanceHistory, getTeacherClasses } from '../../../shared/api/client';
+import { getAttendanceHistory, getTeacherClasses, getAttendanceStudents } from '../../../shared/api/client';
 import DsButton from '../../../components/ui/DsButton.vue';
 import DsBadge from '../../../components/ui/DsBadge.vue';
 import DsCard from '../../../components/ui/DsCard.vue';
@@ -275,6 +265,7 @@ const total = ref(0);
 
 interface Row {
   date: string;
+  student_id: number;
   student_name: string;
   status: string;
   note?: string | null;
@@ -282,6 +273,14 @@ interface Row {
   subject_name?: string;
 }
 const rows = ref<Row[]>([]);
+
+// Map of student_id -> active (true) or inactive (false)
+const activeMap = ref<Record<number, boolean>>({});
+
+function isInactive(row: Row): boolean {
+  const v = activeMap.value[row.student_id as keyof typeof activeMap.value];
+  return v === false;
+}
 
 // Filter states
 const searchQuery = ref('');
@@ -351,14 +350,30 @@ function statusIcon(s: string): string {
   }
 }
 
+async function loadStudents() {
+  if (!classId.value) return;
+  try {
+    const sres = await getAttendanceStudents({ class_id: classId.value, date: toStr.value });
+    const map: Record<number, boolean> = {};
+    for (const s of (sres.students || [])) {
+      map[s.id] = s.active !== false;
+    }
+    activeMap.value = map;
+  } catch {
+    activeMap.value = {};
+  }
+}
+
 async function loadHistory() {
   if (!classId.value) return;
   loading.value = true;
   try {
+    await loadStudents();
     const res = await getAttendanceHistory({ class_id: classId.value, from: fromStr.value, to: toStr.value, page: page.value, page_size: pageSize.value });
     total.value = res.count || 0;
     rows.value = (res.results || []).map(r => ({
       date: r.date,
+      student_id: r.student_id,
       student_name: r.student_name || `#${r.student_id}`,
       status: r.status,
       note: r.note,
@@ -430,6 +445,16 @@ onMounted(async () => {
 
 <style scoped>
 .full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
+/* Center all top-level cards within this page and slightly reduce width for visual comfort */
+section.full-bleed > * { width: 95%; margin-inline: auto; }
+@media (max-width: 576px) { section.full-bleed > * { width: 100%; } }
+
+/* Toolbar compact styles */
+.toolbar-card :is(.form-label){ margin-bottom: 0.25rem; }
+.toolbar-card .form-control, .toolbar-card .form-select { min-height: 36px; }
+.search-inline { min-width: 260px; }
+@media (max-width: 768px){ .search-inline { width: 100%; order: 3; } }
+
 /* Modern Professional Table Styles */
 .modern-table-wrapper {
   overflow-x: auto;
@@ -465,6 +490,11 @@ onMounted(async () => {
 .modern-tr {
   transition: all 0.2s ease;
   background: white;
+}
+
+/* Silver background for inactive students */
+.modern-tr.inactive {
+  background: silver !important;
 }
 
 .modern-tr:hover {
@@ -543,7 +573,7 @@ onMounted(async () => {
 .note-text {
   color: #6c757d;
   font-size: 0.85rem;
-  max-width: 200px;
+  max-width: 600px;
   word-wrap: break-word;
   word-break: break-word;
   overflow-wrap: break-word;
@@ -620,7 +650,7 @@ onMounted(async () => {
   }
 
   .note-text {
-    max-width: 120px;
+    max-width: 240px;
   }
 
   .pagination-info {

@@ -1,3 +1,4 @@
+# ruff: noqa: I001, E501
 from datetime import date as _date, timedelta
 
 from rest_framework import viewsets, status
@@ -1056,6 +1057,81 @@ class AttendanceViewSet(viewsets.ViewSet):
 
 
 class AttendanceViewSetV2(AttendanceViewSet):
+    @action(detail=False, methods=["get"], url_path="teacher/classes")
+    def teacher_classes(self, request: Request) -> Response:
+        """
+        V2 override: Return classes taught by the authenticated teacher.
+        If the user lacks a Staff mapping but is in the 'teacher' group, return an empty list (200) instead of 403.
+        """
+        from school.models import Staff, TeachingAssignment  # type: ignore
+
+        user = request.user
+        # Roles
+        try:
+            roles = set(user.groups.values_list("name", flat=True))  # type: ignore
+        except Exception:
+            roles = set()
+        is_super = bool(getattr(user, "is_superuser", False))
+        is_wing = "wing_supervisor" in roles
+
+        if is_super or is_wing:
+            try:
+                from school.models import Class  # type: ignore
+
+                qs = (
+                    TeachingAssignment.objects.select_related("classroom")
+                    .values("classroom_id", "classroom__name")
+                    .distinct()
+                )
+                classes = [
+                    {"id": row["classroom_id"], "name": row.get("classroom__name")}
+                    for row in qs
+                    if row.get("classroom_id")
+                ]
+                if not classes:
+                    classes = [
+                        {"id": c.id, "name": getattr(c, "name", None)}
+                        for c in Class.objects.all().order_by("name")[:200]
+                    ]
+                return Response({"classes": classes})
+            except Exception:
+                return Response({"classes": []})
+
+        # Staff mapping
+        staff = None
+        try:
+            staff = Staff.objects.filter(user_id=user.id).first()
+        except Exception:
+            staff = None
+        if not staff:
+            try:
+                if getattr(user, "email", None):
+                    staff = Staff.objects.filter(email__iexact=user.email).first()
+            except Exception:
+                staff = staff or None
+            if not staff:
+                try:
+                    full = (user.get_full_name() or "").strip()
+                    if full:
+                        staff = Staff.objects.filter(full_name__icontains=full).first()
+                except Exception:
+                    pass
+        if not staff:
+            if "teacher" in roles:
+                return Response({"classes": []})
+            return Response({"detail": "requires teacher role or staff mapping"}, status=403)
+
+        qs = (
+            TeachingAssignment.objects.filter(teacher_id=staff.id)
+            .select_related("classroom")
+            .values("classroom_id", "classroom__name")
+            .distinct()
+        )
+        # If no assignments and user lacks teacher/wing role, keep 403 to match earlier behavior
+        if not qs.exists() and ("teacher" not in roles):
+            return Response({"detail": "no teaching assignments"}, status=403)
+        classes = [{"id": row["classroom_id"], "name": row.get("classroom__name")} for row in qs]
+        return Response({"classes": classes})
     @action(detail=False, methods=["get"], url_path="history-strict")
     def list_history_strict(self, request: Request) -> Response:
         """Strict history: in addition to classroom filter, ensure student's current class matches.
@@ -1259,6 +1335,13 @@ class ExitEventViewSet(viewsets.ModelViewSet):
             return Response({"detail": "student is required"}, status=400)
 
         logger.info(f"Student object: {student}, type: {type(student)}")
+
+        # Block any action for inactive students
+        try:
+            if getattr(student, "active", True) is False:
+                return Response({"detail": "لا يمكن إجراء أي إجراء على طالب غير فعال"}, status=400)
+        except Exception:
+            pass
 
         # Only block if an open session exists for the same student on the same date
         open_exists = ExitEvent.objects.filter(

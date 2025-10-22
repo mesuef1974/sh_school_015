@@ -32,10 +32,10 @@ function Test-Endpoint($Label, $Url, [switch]$SkipCert) {
   }
 }
 
-function Test-TcpOpen($Host, [int]$Port, [int]$TimeoutMs = 800) {
+function Test-TcpOpen($HostName, [int]$Port, [int]$TimeoutMs = 800) {
   try {
     $client = New-Object System.Net.Sockets.TcpClient
-    $iar = $client.BeginConnect($Host, $Port, $null, $null)
+    $iar = $client.BeginConnect($HostName, $Port, $null, $null)
     $ok = $iar.AsyncWaitHandle.WaitOne($TimeoutMs, $false)
     $isOpen = $ok -and $client.Connected
     $client.Close()

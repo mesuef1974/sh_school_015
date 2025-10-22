@@ -123,7 +123,48 @@ try {
         Write-Host 'Installing frontend dependencies (npm install) ...' -ForegroundColor Yellow
         npm install
       }
+
+      # Ensure local Vite is available for vite.config.ts imports (with EBUSY/esbuild retry)
+      $hasLocalVite = Test-Path 'node_modules\vite\package.json'
+      if (-not $hasLocalVite) {
+        Write-Host 'Installing Vite as a dev dependency (npm i -D vite) ...' -ForegroundColor Yellow
+        try {
+          npm install -D vite
+          $hasLocalVite = Test-Path 'node_modules\vite\package.json'
+        } catch {
+          Write-Warning "First attempt to install Vite failed: $($_.Exception.Message)"
+          # Try to unlock esbuild binary commonly held by AV/previous runs
+          $esb = 'node_modules\@esbuild\win32-x64'
+          if (Test-Path $esb) {
+            Write-Host 'Cleaning up locked esbuild directory and retrying...' -ForegroundColor Yellow
+            try { Remove-Item -LiteralPath $esb -Force -Recurse -ErrorAction SilentlyContinue } catch {}
+          }
+          try {
+            npm install -D vite
+            $hasLocalVite = Test-Path 'node_modules\vite\package.json'
+          } catch {
+            Write-Warning "Retry to install Vite failed. Will use NPX with a fallback config that does not import local 'vite'."
+          }
+        }
+      }
+
+      # Attempt to start via npm script; in PowerShell a non-zero exit code does not throw by default
+      $global:LASTEXITCODE = 0
       npm run dev
+      $npmExit = $LASTEXITCODE
+      if ($npmExit -ne 0) {
+        Write-Warning "npm run dev exited with code $npmExit. Trying 'npx vite' fallback..."
+        try {
+          if (-not $hasLocalVite -and (Test-Path 'vite.dev.fallback.mjs')) {
+            npx --yes vite --config vite.dev.fallback.mjs
+          } else {
+            npx --yes vite
+          }
+        } catch {
+          Write-Error "Failed to start Vite (npx). Please install dev dependency 'vite' (npm i -D vite) or add it to package.json scripts. Error: $($_.Exception.Message)"
+          exit 1
+        }
+      }
     }
   } else {
     Write-Warning 'frontend/package.json not found.'

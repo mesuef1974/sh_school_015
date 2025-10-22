@@ -10,6 +10,7 @@ class StudentBriefSerializer(serializers.ModelSerializer):
             "sid",
             "full_name",
             "class_fk_id",
+            "active",
         ]
 
 

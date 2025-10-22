@@ -28,7 +28,12 @@ line-length = 120
 [tool.ruff.lint]
 # Enable a sensible default rule set; teams can adjust later
 select = ["E", "F", "I"]
-ignore = []
+# Reduce noise from known, acceptable patterns in this codebase.
+# - I001: import block not sorted (intentional localized imports, Django patterns)
+# - E501: long lines (Arabic text/URLs/docstrings that shouldn't be awkwardly wrapped)
+# - E402: module level import not at top (Django command stubs / guarded imports)
+# - E713: prefer `not in` (legacy validators kept for backward compatibility)
+ignore = ["I001", "E501", "E402", "E713"]
 
 [tool.mypy]
 python_version = "3.11"

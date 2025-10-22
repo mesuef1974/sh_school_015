@@ -28,7 +28,8 @@ _CLASS_FK_ID = _class_fk_id_field()
 
 
 def get_students_for_class_on_date(class_id: int, dt: _date) -> QuerySet[Student]:
-    # For now ignore date filter (roster typically static); advanced logic can include enrollments per date
+    # Include all students (active and inactive). Frontend can dim/disable inactive via the 'active' flag.
+    # We ignore the date filter for now (roster typically static).
     return Student.objects.filter(class_fk_id=class_id).order_by("full_name")
 
 

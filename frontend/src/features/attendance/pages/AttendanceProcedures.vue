@@ -25,4 +25,7 @@
 
 <style scoped>
 .full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
+/* Center all cards on this page and slightly reduce width; keep full width on small screens */
+section.full-bleed .auto-card { width: 95%; margin-inline: auto; }
+@media (max-width: 576px) { section.full-bleed .auto-card { width: 100%; } }
 </style>

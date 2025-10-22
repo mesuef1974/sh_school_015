@@ -898,16 +898,25 @@ python gen_index.py --check  # فحص فقط
 - ‏**Type hints** حيثما أمكن
 - ‏**Docstrings** للدوال والكلاسات
 
-**تشغيل الفحوصات:**
+## ‏🧪 جودة الكود والفحوصات الآلية
+
+- ‏الدليل الكامل: [docs/QUALITY_AUDIT.md](docs/QUALITY_AUDIT.md)
+- ‏تشغيل فحوصات الجودة الشاملة (باورشل):
 
 <div dir="ltr">
 
 ```powershell
-./scripts/dev_checks.ps1
-# ‏أو يدوياً:
-black --check backend/
-flake8 backend/ --max-line-length=100
-python backend/manage.py test
+# من جذر المستودع
+pwsh -File scripts/quality_checks.ps1
+
+# تثبيت أدوات الفحوصات فقط (بدون تشغيل):
+pwsh -File scripts/quality_checks.ps1 -InstallOnly
+
+# تفعيل pre-commit (مرّة واحدة لكل جهاز)
+pip install pre-commit
+pre-commit install
+# تشغيل جميع الخطافات على كامل المشروع:
+pre-commit run -a
 ```
 
 </div>

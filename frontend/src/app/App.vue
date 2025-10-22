@@ -32,6 +32,10 @@
       </nav>
     </header>
     <main class="page-main container py-3">
+      <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl">
+        <div class="flex-fill"></div>
+        <BreadcrumbRtl />
+      </div>
       <RouterView />
     </main>
     <footer class="page-footer py-3 bg-maroon">
@@ -47,6 +51,7 @@ import { computed } from 'vue';
 import { useAuthStore } from './stores/auth';
 import { logout } from '../shared/api/client';
 import { useRouter, useRoute } from 'vue-router';
+import BreadcrumbRtl from '../components/BreadcrumbRtl.vue';
 
 const router = useRouter();
 const route = useRoute();

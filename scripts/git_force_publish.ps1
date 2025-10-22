@@ -53,6 +53,8 @@ param(
   [switch]$IncludeLFS,
   [switch]$PushTags,
   [switch]$HttpsFallback,
+  [switch]$SkipHooks,
+  [switch]$BypassHooksOnFailure,
   [switch]$DryRun
 )
 
@@ -220,7 +222,56 @@ try {
 
 if ($hasChanges) {
   Write-Step "Committing changes"
-  if (-not $DryRun) { git commit -m $commitMsg | Out-Null }
+  if (-not $DryRun) {
+    $commitArgs = @('commit','-m',$commitMsg)
+    if ($SkipHooks) { $commitArgs += '--no-verify' }
+
+    $gitCommitOutput = & git @commitArgs 2>&1
+    $commitExit = $LASTEXITCODE
+    if ($commitExit -ne 0) {
+      Write-Warn "git commit failed. Git output:"
+      Write-Host ($gitCommitOutput | Out-String) -ForegroundColor DarkGray
+
+      $looksLikePreCommit = ($gitCommitOutput -match 'pre-commit' -or $gitCommitOutput -match 'An unexpected error has occurred' -or $gitCommitOutput -match 'CalledProcessError')
+      $autoBypass = $false
+      if ($env:GIT_FORCE_PUBLISH_AUTO_BYPASS) {
+        $autoBypass = ($env:GIT_FORCE_PUBLISH_AUTO_BYPASS -match '^(?i:1|true|yes|y)$')
+      }
+
+      if (-not $SkipHooks -and $looksLikePreCommit) {
+        if ($BypassHooksOnFailure -or $autoBypass) {
+          Write-Step "Retrying commit without hooks (--no-verify) due to hook failure"
+          $commitArgs += '--no-verify'
+          $gitCommitOutput2 = & git @commitArgs 2>&1
+          $commitExit2 = $LASTEXITCODE
+          if ($commitExit2 -ne 0) {
+            Write-Warn "Retry without hooks also failed. Git output:"
+            Write-Host ($gitCommitOutput2 | Out-String) -ForegroundColor DarkGray
+            throw "git commit failed with exit code $commitExit2"
+          }
+        } else {
+          $resp = Read-Host "Commit hooks appear to have failed. Retry without hooks (--no-verify)? [y/N]"
+          if ($resp -match '^(?i:y(?:es)?)$') {
+            Write-Step "Retrying commit without hooks (--no-verify) per user confirmation"
+            $commitArgs += '--no-verify'
+            $gitCommitOutput2 = & git @commitArgs 2>&1
+            $commitExit2 = $LASTEXITCODE
+            if ($commitExit2 -ne 0) {
+              Write-Warn "Retry without hooks also failed. Git output:"
+              Write-Host ($gitCommitOutput2 | Out-String) -ForegroundColor DarkGray
+              throw "git commit failed with exit code $commitExit2"
+            }
+          } else {
+            Write-Host "[HINT] If this is caused by a failing hook, you can re-run with -BypassHooksOnFailure or -SkipHooks to proceed without hooks." -ForegroundColor Yellow
+            throw "git commit failed with exit code $commitExit"
+          }
+        }
+      } else {
+        Write-Host "[HINT] If this is caused by a failing hook, you can re-run with -BypassHooksOnFailure or -SkipHooks to proceed without hooks." -ForegroundColor Yellow
+        throw "git commit failed with exit code $commitExit"
+      }
+    }
+  }
 } else {
   Write-Info "No changes to commit"
 }
@@ -336,6 +387,7 @@ if (-not $DryRun) {
 Write-Step "Pushing to $resolvedRemote ($Branch)"
 $pushArgs = @('push','-u','origin',$Branch)
 if ($Force) { $pushArgs += '--force-with-lease' }
+if ($SkipHooks) { $pushArgs += '--no-verify' }
 
 function Convert-SshToHttps($sshUrl) {
   # Supports GitHub style ssh: git@github.com:ORG/REPO.git -> https://github.com/ORG/REPO.git
@@ -386,10 +438,43 @@ if ($DryRun) {
           throw "git push failed with exit code $exit"
         }
       } else {
-        Write-Host "[HINT] To auto-fallback to HTTPS, re-run with -HttpsFallback, or fix SSH by adding your public key to GitHub." -ForegroundColor Yellow
-        Write-Host "       See: https://docs.github.com/en/authentication/connecting-to-github-with-ssh" -ForegroundColor Gray
-        Write-Host "       Or switch remote to HTTPS: git remote set-url origin https://github.com/ORG/REPO.git" -ForegroundColor Gray
-        throw "git push failed with exit code $exit"
+        $autoFallback = $false
+        if ($env:GIT_FORCE_PUBLISH_AUTO_HTTPS) {
+          $autoFallback = ($env:GIT_FORCE_PUBLISH_AUTO_HTTPS -match '^(?i:1|true|yes|y)$')
+        }
+        if (-not $autoFallback) {
+          $ans = Read-Host "SSH auth failed. Switch remote to HTTPS and retry push now? [y/N]"
+          $autoFallback = ($ans -match '^(?i:y(?:es)?)$')
+        }
+        if ($autoFallback) {
+          $https = Convert-SshToHttps -sshUrl $resolvedRemote
+          if ($https) {
+            Write-Step "Switching remote 'origin' to HTTPS ($https) and retrying push once"
+            try {
+              git remote set-url origin $https | Out-Null
+              $resolvedRemote = $https
+              $gitOutput2 = & git @pushArgs 2>&1
+              $exit2 = $LASTEXITCODE
+              if ($exit2 -ne 0) {
+                Write-Warn "Retry over HTTPS failed. Git output:"
+                Write-Host ($gitOutput2 | Out-String) -ForegroundColor DarkGray
+                throw "git push failed with exit code $exit2"
+              } else {
+                Write-Ok "Pushed branch '$Branch' to origin (HTTPS fallback)"
+              }
+            } catch {
+              throw $_
+            }
+          } else {
+            Write-Warn "Could not derive HTTPS URL from SSH remote; please provide -Remote with an HTTPS URL."
+            throw "git push failed with exit code $exit"
+          }
+        } else {
+          Write-Host "[HINT] To auto-fallback to HTTPS, re-run with -HttpsFallback, or fix SSH by adding your public key to GitHub." -ForegroundColor Yellow
+          Write-Host "       See: https://docs.github.com/en/authentication/connecting-to-github-with-ssh" -ForegroundColor Gray
+          Write-Host "       Or switch remote to HTTPS: git remote set-url origin https://github.com/ORG/REPO.git" -ForegroundColor Gray
+          throw "git push failed with exit code $exit"
+        }
       }
     } else {
       # Other failure; show output for clarity then throw

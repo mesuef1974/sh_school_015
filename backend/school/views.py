@@ -56,7 +56,7 @@ import io
 from .services.timetable_import import import_timetable_csv
 from .services.timetable_ocr import try_extract_csv_from_pdf, try_extract_csv_from_image
 from .services.ocr_table_parser import parse_ocr_raw_to_csv
-from common.day_utils import iso_to_school_dow_from_iso
+from common.day_utils import iso_to_school_dow
 
 
 class ClassViewSet(ModelViewSet):
@@ -3504,7 +3504,6 @@ def teacher_attendance_page(request):
     allowed_periods_today = []
     server_now_iso = None
     try:
-        from django.utils import timezone
 
         if selected_class_id:
             editable_set, close_map, allowed = get_editable_periods_for_teacher(
@@ -3581,8 +3580,8 @@ def api_attendance_students(request):
     if not TeachingAssignment.objects.filter(teacher=staff, classroom_id=class_id).exists():
         return JsonResponse({"error": "forbidden"}, status=403)
 
-    st_qs = Student.objects.filter(class_fk_id=class_id, active=True).order_by("full_name")
-    students = [{"id": s.id, "full_name": s.full_name} for s in st_qs]
+    st_qs = Student.objects.filter(class_fk_id=class_id).order_by("full_name")
+    students = [{"id": s.id, "full_name": s.full_name, "active": bool(getattr(s, "active", True))} for s in st_qs]
     return JsonResponse({"students": students})
 
 
@@ -3637,6 +3636,13 @@ def api_attendance_bulk_save(request):
             status = item["status"]
         except Exception:
             continue
+
+        # Skip inactive students: do not record attendance for them
+        try:
+            if not Student.objects.filter(id=st_id, active=True).exists():
+                continue
+        except Exception:
+            pass
 
         # 1) يجب أن تكون الحصة ضمن جدول المعلم اليوم لهذا الصف
         if p not in allowed_today:
@@ -3706,13 +3712,6 @@ def api_attendance_bulk_save(request):
 # --- Helpers ---
 
 
-def iso_to_school_dow(dt: _date) -> int:
-    """Convert ISO weekday (Mon=1, Sun=7) to school format (Sun=1, Sat=7).
-
-    ISO weekday: Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6, Sun=7
-    School format: Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6, Sat=7
-    """
-    return dt.isoweekday() % 7 + 1
 
 
 def get_active_term(dt: _date):
@@ -3777,11 +3776,11 @@ def get_period_times(dt: _date):
 
 def get_subject_per_period(class_id: int, dt: _date):
     term = get_active_term(dt)
-    day = iso_to_school_dow_from_iso(dt.isoweekday())
     mp = {}
-    if day is None:
+    dow = iso_to_school_dow(dt)
+    if dow > 5:
         return mp
-    for e in TimetableEntry.objects.filter(classroom_id=class_id, day_of_week=day, term=term):
+    for e in TimetableEntry.objects.filter(classroom_id=class_id, day_of_week=dow, term=term):
         mp[int(e.period_number)] = e.subject_id
     return mp
 

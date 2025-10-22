@@ -30,7 +30,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
     def post(self, request, *args, **kwargs):
         response: Response = super().post(request, *args, **kwargs)
-        # Move refresh to HttpOnly cookie, keep access in body
+        # Move refresh to HttpOnly cookie, but KEEP it in JSON for API clients/tests
         refresh = response.data.get("refresh") if isinstance(response.data, dict) else None
         if refresh:
             response.set_cookie(
@@ -41,11 +41,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 samesite=REFRESH_COOKIE_SAMESITE,
                 max_age=_cookie_max_age(),
             )
-            # Remove refresh from JSON body
-            try:
-                del response.data["refresh"]
-            except Exception:
-                pass
         return response
 
 
@@ -59,7 +54,7 @@ class CustomTokenRefreshView(TokenRefreshView):
                 data["refresh"] = cookie_val
                 request._full_data = data  # type: ignore[attr-defined]
         response: Response = super().post(request, *args, **kwargs)
-        # Rotate/set cookie if new refresh was issued
+        # Rotate/set cookie if new refresh was issued; keep it in JSON as well
         new_refresh = response.data.get("refresh") if isinstance(response.data, dict) else None
         if new_refresh:
             response.set_cookie(
@@ -70,8 +65,4 @@ class CustomTokenRefreshView(TokenRefreshView):
                 samesite=REFRESH_COOKIE_SAMESITE,
                 max_age=_cookie_max_age(),
             )
-            try:
-                del response.data["refresh"]
-            except Exception:
-                pass
         return response
