@@ -138,6 +138,14 @@
                 :class="{ 'has-class': cell(d, p), 'current-period': isCurrentPeriod(d, p) }"
                 :style="cell(d, p) ? { background: getClassColor(cell(d, p)!.classroom_id).light } : {}"
               >
+                <!-- Green countdown near the green dot when current period -->
+                <div
+                  v-if="isCurrentPeriod(d, p) && remainingTime(d,p)"
+                  class="countdown-badge"
+                  :title="'الوقت المتبقي للحصة'"
+                >
+                  {{ remainingTime(d,p) }}
+                </div>
                 <div v-if="cell(d, p)" class="period-content">
                   <div
                     class="subject-badge"
@@ -391,6 +399,31 @@ function isCurrentPeriod(d: number, p: number): boolean {
   return currentTime >= startTime && currentTime <= endTime;
 }
 
+// Remaining time for current period as small mm:ss (or h:mm:ss if > 1h)
+function remainingTime(d: number, p: number): string | '' {
+  // Establish reactive dependency on the ticking ref
+  void secondTick.value;
+
+  if (!isCurrentPeriod(d, p)) return '';
+  const times = cellTime(d, p);
+  if (!times) return '';
+  const end = times[1];
+  const [endH, endM] = end.split(':').map(Number);
+  const now = new Date();
+  const endDate = new Date();
+  endDate.setHours(endH, endM, 0, 0);
+  let diffSec = Math.floor((endDate.getTime() - now.getTime()) / 1000);
+  if (diffSec < 0) diffSec = 0;
+
+  const h = Math.floor(diffSec / 3600);
+  const m = Math.floor((diffSec % 3600) / 60);
+  const s = diffSec % 60;
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+  return `${pad(m)}:${pad(s)}`;
+}
+
 // Color palette for classes (Maroon-themed harmony)
 const classColors = [
   { bg: 'linear-gradient(135deg, #8b1e3f 0%, #a52a2a 100%)', text: '#ffffff', light: '#f8e5e9' }, // Maroon
@@ -441,6 +474,8 @@ const liveDay = ref<string>('');
 const liveHijri = ref<string>('');
 const liveDate = ref<string>('');
 const liveTime = ref<string>('');
+// A ticking ref to trigger reactive updates each second (used by countdown)
+const secondTick = ref<number>(0);
 let _clockTimer: any = null;
 
 function updateNowClock(){
@@ -458,6 +493,8 @@ function updateNowClock(){
   liveDate.value = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
   // Live time HH:MM:SS with Latin numerals
   liveTime.value = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(now);
+  // Bump the tick to re-compute countdowns
+  secondTick.value = (secondTick.value + 1) % 1_000_000_000;
 }
 
 onMounted(() => {
@@ -614,6 +651,27 @@ onMounted(load);
   border-radius: 50%;
   animation: blink 1.5s ease-in-out infinite;
   box-shadow: 0 0 8px rgba(40, 167, 69, 0.8);
+}
+
+/* Small green countdown badge near the green dot */
+.countdown-badge {
+  position: absolute;
+  top: 6px;
+  left: 26px; /* next to the dot */
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #16a34a; /* green text */
+  background: #eafff0; /* very light green background */
+  border: 1px solid #22c55e;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(16, 185, 129, 0.25);
+  pointer-events: none; /* avoid interfering with hover */
+  z-index: 3;
+}
+@media (max-width: 576px) {
+  .countdown-badge { font-size: 0.66rem; padding: 1px 5px; left: 24px; top: 6px; }
 }
 
 @keyframes pulse {
