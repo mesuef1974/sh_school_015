@@ -11,6 +11,7 @@ export interface UserProfile {
   permissions: string[];
   hasTeachingAssignments: boolean;
   capabilities?: { can_manage_timetable?: boolean; can_view_general_timetable?: boolean; can_take_attendance?: boolean };
+  primary_route?: string;
 }
 
 export const useAuthStore = defineStore('auth', {

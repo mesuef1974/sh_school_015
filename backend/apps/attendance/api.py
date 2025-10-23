@@ -1273,6 +1273,173 @@ class AttendanceViewSetV2(AttendanceViewSet):
         )
 
 
+class WingSupervisorViewSet(viewsets.ViewSet):
+    """APIs for Wing Supervisors: overview KPIs and missing attendance entries for today (or a given date).
+    Scopes data to the wings supervised by the current user. Superusers see all wings.
+    """
+    from rest_framework.permissions import IsAuthenticated
+    permission_classes = [IsAuthenticated]
+
+    def _get_staff_and_wing_ids(self, user):
+        try:
+            from school.models import Staff, Wing  # type: ignore
+        except Exception:
+            return None, []
+        staff = None
+        try:
+            staff = Staff.objects.filter(user_id=user.id).first()
+        except Exception:
+            staff = None
+        wing_ids: list[int] = []
+        try:
+            if getattr(user, "is_superuser", False):
+                wing_ids = list(Wing.objects.values_list("id", flat=True))
+            elif staff is not None:
+                wing_ids = list(Wing.objects.filter(supervisor=staff).values_list("id", flat=True))
+        except Exception:
+            wing_ids = []
+        return staff, wing_ids
+
+    @action(detail=False, methods=["get"], url_path="me")
+    def me(self, request: Request) -> Response:
+        """Diagnostic endpoint: return current user's roles, staff id, and supervised wings.
+        Helps debug cases where the Wing dashboard appears empty due to missing wing assignment.
+        """
+        # roles (Django groups)
+        try:
+            roles = list(request.user.groups.values_list("name", flat=True))  # type: ignore
+        except Exception:
+            roles = []
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        # Wing names (best-effort)
+        wing_names: list[str] = []
+        try:
+            from school.models import Wing  # type: ignore
+
+            wing_names = list(Wing.objects.filter(id__in=wing_ids).values_list("name", flat=True))
+        except Exception:
+            wing_names = []
+        return Response(
+            {
+                "user": {
+                    "id": getattr(request.user, "id", None),
+                    "username": getattr(request.user, "username", None),
+                    "full_name": getattr(request.user, "get_full_name", lambda: None)(),
+                    "is_superuser": bool(getattr(request.user, "is_superuser", False)),
+                },
+                "roles": roles,
+                "staff": {"id": getattr(staff, "id", None), "full_name": getattr(staff, "full_name", None)},
+                "wings": {"ids": wing_ids, "names": wing_names},
+                "has_wing_supervisor_role": ("wing_supervisor" in roles) or bool(getattr(request.user, "is_superuser", False)),
+            }
+        )
+
+    @action(detail=False, methods=["get"], url_path="overview")
+    def overview(self, request: Request) -> Response:
+        from . import selectors  # lazy import to avoid circulars
+        dt, err = _parse_date_or_400(request.query_params.get("date"))
+        if err:
+            return err
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids:
+            # Graceful empty state
+            return Response(
+                {
+                    "date": dt.isoformat(),
+                    "scope": "wing",
+                    "kpis": {
+                        "present_pct": 0.0,
+                        "absent": 0,
+                        "late": 0,
+                        "excused": 0,
+                        "runaway": 0,
+                        "present": 0,
+                        "total": 0,
+                        "exit_events_total": 0,
+                        "exit_events_open": 0,
+                    },
+                    "top_classes": [],
+                    "worst_classes": [],
+                }
+            )
+        # Aggregate summaries across multiple wings if needed
+        summary = selectors.get_summary(scope="wing", dt=dt, wing_id=wing_ids[0])
+        if len(wing_ids) > 1:
+            for wid in wing_ids[1:]:
+                s2 = selectors.get_summary(scope="wing", dt=dt, wing_id=wid)
+                for k in [
+                    "absent",
+                    "late",
+                    "excused",
+                    "runaway",
+                    "present",
+                    "total",
+                    "exit_events_total",
+                    "exit_events_open",
+                ]:
+                    summary["kpis"][k] += s2["kpis"][k]
+            k = summary["kpis"]
+            k["present_pct"] = float(round((k["present"] / k["total"]) * 100, 1)) if k["total"] else 0.0
+            summary["scope"] = "wings"
+        return Response(summary)
+
+    @action(detail=False, methods=["get"], url_path="missing")
+    def missing(self, request: Request) -> Response:
+        from django.db.models import Value
+        dt, err = _parse_date_or_400(request.query_params.get("date"))
+        if err:
+            return err
+        try:
+            from school.models import Class, AttendanceRecord, TimetableEntry, Term, Subject, Staff  # type: ignore
+            from common.day_utils import iso_to_school_dow
+        except Exception:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        term = Term.objects.filter(is_current=True).first()
+        if not term:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        dow = iso_to_school_dow(dt)
+        class_ids = list(Class.objects.filter(wing_id__in=wing_ids).values_list("id", flat=True))
+        if not class_ids:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        tt = (
+            TimetableEntry.objects.filter(classroom_id__in=class_ids, day_of_week=dow, term=term)
+            .select_related("classroom", "subject", "teacher")
+            .order_by("classroom_id", "period_number")
+        )
+        # Determine class-periods already recorded
+        rec = (
+            AttendanceRecord.objects.filter(date=dt, classroom_id__in=class_ids)
+            .values("classroom_id", "period_number")
+            .distinct()
+        )
+        done = {(r["classroom_id"], r["period_number"]) for r in rec}
+
+        items = []
+        for e in tt:
+            key = (e.classroom_id, e.period_number)
+            if key in done:
+                continue
+            items.append(
+                {
+                    "class_id": e.classroom_id,
+                    "class_name": getattr(e.classroom, "name", None),
+                    "period_number": e.period_number,
+                    "subject_id": e.subject_id,
+                    "subject_name": getattr(e.subject, "name", None),
+                    "teacher_id": e.teacher_id,
+                    "teacher_name": getattr(e.teacher, "full_name", None),
+                }
+            )
+        return Response({"date": dt.isoformat(), "count": len(items), "items": items})
+
+
 class ExitEventViewSet(viewsets.ModelViewSet):
     from rest_framework.permissions import IsAuthenticated
 

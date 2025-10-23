@@ -172,8 +172,16 @@ async function onSubmit() {
       description: 'تم تسجيل الدخول بنجاح'
     });
 
-    const next = (route.query.next as string) || '/';
-    router.replace(next);
+    const next = (route.query.next as string) || '';
+    const primary = auth.profile?.primary_route || '';
+    if (next) {
+      router.replace(next);
+    } else if (primary) {
+      router.replace(primary);
+    } else {
+      // Fallback to home if no hint provided
+      router.replace('/');
+    }
   } catch (e: any) {
     if (!e?.response) {
       error.value = 'الخادم غير متاح الآن. تأكد من تشغيل الباك-إند ثم أعد المحاولة.';
@@ -235,7 +243,13 @@ async function onSubmit() {
   inset: 5px; /* match the 5px golden border */
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(rgba(128, 0, 0, 0.9), rgba(128, 0, 0, 0.9));
+  /* Maroon fill with Qatari heritage arabesque overlay (inside area only) */
+  background-image: url('/assets/img/arabesque_qatar.svg?v=20251023'), linear-gradient(rgba(128, 0, 0, 0.9), rgba(128, 0, 0, 0.9));
+  background-repeat: repeat, no-repeat;
+  background-size: 448px 448px, auto;
+  background-position: center, center;
+  background-blend-mode: soft-light, normal;
+  opacity: 1;
 }
 
 /* Ensure all children sit above the ::after cover */

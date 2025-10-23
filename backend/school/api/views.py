@@ -11,22 +11,48 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from ..models import Staff, TeachingAssignment
+from ..models import Staff, TeachingAssignment, Wing
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request: Request):
+    from apps.common.roles import normalize_roles, pick_primary_route  # type: ignore
     user = request.user
-    # Groups as role names
-    roles: List[str] = list(user.groups.values_list("name", flat=True))  # type: ignore
-    # Also include Staff.role if linked to a Staff record (e.g., 'teacher')
+    # Roles from Django groups
+    roles_set = set(user.groups.values_list("name", flat=True))  # type: ignore
+    # Also include Staff.role if linked (some deployments store role code here)
+    staff_obj = None
     try:
-        staff_obj = Staff.objects.filter(user=user).only("role").first()
+        staff_obj = Staff.objects.filter(user=user).only("id","role").first()
         if staff_obj and staff_obj.role:
-            roles.append(staff_obj.role)
+            roles_set.add(staff_obj.role)
+    except Exception:
+        staff_obj = None
+    # Derive 'wing_supervisor' if this staff supervises any wings (even if not in group)
+    try:
+        if staff_obj and Wing.objects.filter(supervisor=staff_obj).exists():
+            roles_set.add("wing_supervisor")
     except Exception:
         pass
+    # Normalize roles to canonical codes
+    roles_norm = normalize_roles(roles_set)
+
+    # Determine if the user is a teacher with actual teaching assignments (has timetable classes)
+    # Also get full_name from Staff table (Arabic name)
+    has_teaching_assignments = False
+    staff_full_name = None
+    try:
+        staff = Staff.objects.filter(user=user).first()
+        if staff:
+            staff_full_name = staff.full_name
+            # Treat as teacher if actual assignments exist, regardless of group naming
+            if TeachingAssignment.objects.filter(teacher=staff).exists():
+                has_teaching_assignments = True
+                roles_norm.add('teacher')
+    except Exception:
+        has_teaching_assignments = False
+
     # Permissions as "app_label.codename"
     perms: List[str] = [
         f"{p.content_type.app_label}.{p.codename}" for p in Permission.objects.filter(user=user)
@@ -39,21 +65,8 @@ def me(request: Request):
     # Deduplicate
     perms = sorted(set(perms))
 
-    # Determine if the user is a teacher with actual teaching assignments (has timetable classes)
-    # Also get full_name from Staff table (Arabic name)
-    has_teaching_assignments = False
-    staff_full_name = None
-    try:
-        staff = Staff.objects.filter(user=user).first()
-        if staff:
-            staff_full_name = staff.full_name
-            if staff.role == "teacher":
-                has_teaching_assignments = TeachingAssignment.objects.filter(teacher=staff).exists()
-    except Exception:
-        has_teaching_assignments = False
-
     # Capabilities derived from roles for frontend UI gating (non-authoritative; server enforces separately)
-    role_set = set(roles)
+    role_set = set(roles_norm)
     can_manage_timetable = bool(
         user.is_superuser
         or role_set.intersection({"principal", "academic_deputy", "timetable_manager"})
@@ -64,16 +77,19 @@ def me(request: Request):
         "can_take_attendance": bool("teacher" in role_set),
     }
 
+    primary_route = pick_primary_route(role_set)
+
     data = {
         "id": user.id,
         "username": user.username,
         "full_name": staff_full_name or user.get_full_name() or user.username,
         "is_superuser": user.is_superuser,
         "is_staff": user.is_staff,
-        "roles": roles,
+        "roles": sorted(roles_norm),
         "permissions": perms,
         "hasTeachingAssignments": has_teaching_assignments,
         "capabilities": caps,
+        "primary_route": primary_route,
     }
     return JsonResponse(data)
 

@@ -19,10 +19,25 @@ except Exception:  # pragma: no cover - during early migrations
 def user_in_any_role(user, roles: Iterable[str]) -> bool:
     if getattr(user, "is_superuser", False):
         return True
+    # Normalize group names (Arabic/legacy) to canonical role codes
     try:
-        user_roles = set(user.groups.values_list("name", flat=True))  # type: ignore
+        raw_roles = set(user.groups.values_list("name", flat=True))  # type: ignore
     except Exception:
-        user_roles = set()
+        raw_roles = set()
+    # Also consider Staff.role if present (some deployments store role code/name there)
+    try:
+        if Staff is not None:
+            st = Staff.objects.filter(user_id=user.id).only("role").first()
+            if st and getattr(st, "role", None):
+                raw_roles.add(st.role)
+    except Exception:
+        pass
+    try:
+        from apps.common.roles import normalize_roles  # type: ignore
+        user_roles = normalize_roles(raw_roles)
+    except Exception:
+        user_roles = raw_roles
+    # Required roles are expected to be canonical codes already
     return any(r in user_roles for r in roles)
 
 
@@ -45,9 +60,22 @@ def user_can_access_class(user, class_id: int) -> bool:
         except Exception:
             staff = None
     try:
-        roles = set(user.groups.values_list("name", flat=True))  # type: ignore
+        raw_roles = set(user.groups.values_list("name", flat=True))  # type: ignore
     except Exception:
-        roles = set()
+        raw_roles = set()
+    # Include Staff.role for normalization
+    try:
+        if staff is None and Staff is not None:
+            staff = Staff.objects.filter(user_id=user.id).only("role").first()
+        if staff and getattr(staff, "role", None):
+            raw_roles.add(staff.role)
+    except Exception:
+        pass
+    try:
+        from apps.common.roles import normalize_roles  # type: ignore
+        roles = normalize_roles(raw_roles)
+    except Exception:
+        roles = raw_roles
 
     if "principal" in roles or "academic_deputy" in roles:
         return True

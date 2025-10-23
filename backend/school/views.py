@@ -3874,36 +3874,21 @@ def wings_overview(request):
 
 @login_required
 def wing_dashboard(request):
-    """Minimal Wing Supervisor dashboard.
-    - Restrict to Staff.role == 'wing_supervisor'
-    - List classes under the supervisor's managed wings
-    - Provide quick open link to attendance editor (reuses teacher page with supervisor powers)
+    """Redirect legacy Wing dashboard to the new SPA dashboard.
+    Keeps the access check (role) and returns 403 if not a wing supervisor.
     """
+    from apps.common.roles import normalize_roles  # type: ignore
+    roles_raw = set(request.user.groups.values_list("name", flat=True))  # type: ignore
     staff = Staff.objects.filter(user=request.user).first()
-    if not staff or getattr(staff, "role", "") != "wing_supervisor":
+    if staff and getattr(staff, "role", None):
+        roles_raw.add(staff.role)
+    roles = normalize_roles(roles_raw)
+    if 'wing_supervisor' not in roles and not getattr(request.user, 'is_superuser', False):
         return HttpResponse("مسموح فقط لمشرف الجناح", status=403)
 
-    # Classes under wings managed by this supervisor
-    classes_qs = Class.objects.filter(wing__supervisor=staff).order_by("grade", "section", "name")
-    classes = list(classes_qs)
-
-    # Today and server time
-    try:
-        from django.utils import timezone as _tz
-
-        today = _tz.localdate()
-        server_now = _tz.localtime().isoformat()
-    except Exception:
-        today = None
-        server_now = ""
-
-    context = {
-        "title": "لوحة مشرف الجناح",
-        "classes": classes,
-        "today": today,
-        "server_now": server_now,
-    }
-    return render(request, "school/wing_dashboard.html", context)
+    # Redirect to SPA route (works in dev/prod when the frontend is served at root)
+    # Using a hash route avoids server-side routing issues.
+    return redirect("/#/wing/dashboard")
 
 
 @login_required
