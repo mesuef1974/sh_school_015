@@ -91,7 +91,9 @@ export async function getAttendanceHistory(params: { class_id: number; from?: st
 
 export async function getAttendanceSummary(params: { scope?: 'teacher'|'wing'|'school'; date?: string; class_id?: number; wing_id?: number } = {}) {
   const res = await api.get('/v1/attendance/summary/', { params });
-  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent: number; late: number; excused: number }; top_classes: { class_id: number; class_name?: string | null; present_pct: number }[]; worst_classes: { class_id: number; class_name?: string | null; present_pct: number }[] };
+  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent: number; late: number; excused: number; 
+    exit_events_total?: number; exit_events_open?: number; present?: number; total?: number };
+    top_classes: { class_id: number; class_name?: string | null; present_pct: number }[]; worst_classes: { class_id: number; class_name?: string | null; present_pct: number }[] };
 }
 
 export async function getTeacherClasses() {
@@ -166,7 +168,7 @@ export async function getMe() {
 // --- Exit Events API ---
 export async function getOpenExitEvents(params: { class_id?: number; date?: string; student_id?: number }) {
   const res = await api.get('/v1/attendance/exit-events/open/', { params });
-  return res.data as { id: number; student_id: number; started_at: string; reason: string }[];
+  return res.data as { id: number; student_id: number; student_name?: string | null; started_at: string; reason: string }[];
 }
 
 export async function postExitEvent(payload: { student_id: number; class_id?: number; date: string; period_number?: number | null; reason: 'admin'|'wing'|'nurse'|'restroom'; note?: string | null }) {
@@ -182,5 +184,5 @@ export async function patchExitReturn(id: number) {
 
 export async function getExitEvents(params: { date?: string; class_id?: number; student_id?: number }) {
   const res = await api.get('/v1/attendance/exit-events/', { params });
-  return res.data as { id: number; student_id: number; classroom_id?: number; date: string; started_at: string; returned_at?: string | null; duration_seconds?: number | null; reason?: string | null }[];
+  return res.data as { id: number; student_id: number; student_name?: string | null; classroom_id?: number; date: string; started_at: string; returned_at?: string | null; duration_seconds?: number | null; reason?: string | null }[];
 }

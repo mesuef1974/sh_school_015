@@ -406,6 +406,7 @@
 import { onMounted, onUnmounted, ref, computed } from 'vue';
 import { useFullscreen } from '@vueuse/core';
 import { getTeacherTimetableWeekly } from '../../../shared/api/client';
+import { formatDateDMY } from '../../../shared/utils/date';
 import DsCard from '../../../components/ui/DsCard.vue';
 import DsBadge from '../../../components/ui/DsBadge.vue';
 import { useTeacherPrefs } from '../../../app/stores/teacherPrefs';
@@ -638,8 +639,8 @@ function updateNowClock(){
     // Fallback if calendar not supported
     liveHijri.value = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
   }
-  // Gregorian date forced (ar-SA with Gregorian calendar) and Latin numerals
-  liveDate.value = new Intl.DateTimeFormat('ar-SA-u-ca-gregory-nu-latn', { day: 'numeric', month: 'long', year: 'numeric' }).format(now);
+  // Gregorian date shown as DD:MM:YYYY with Latin numerals
+  liveDate.value = formatDateDMY(now);
   // Live time HH:MM:SS with Latin numerals
   liveTime.value = new Intl.DateTimeFormat('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(now);
   // Bump the tick to re-compute countdowns

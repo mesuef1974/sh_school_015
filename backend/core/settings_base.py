@@ -147,6 +147,15 @@ REST_FRAMEWORK = {
         "user": ("1000/second" if DEBUG else "2000/hour"),
         "anon": ("1000/second" if DEBUG else "50/hour"),
     },
+    # Global date formatting for DRF DateField outputs: change to DD:MM:YYYY as requested
+    # Keep input flexible to accept both the new format and common ISO formats
+    "DATE_FORMAT": "%d:%m:%Y",
+    "DATE_INPUT_FORMATS": [
+        "%d:%m:%Y",  # new canonical format
+        "%Y-%m-%d",  # ISO date
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+    ],
 }
 
 SIMPLE_JWT = {

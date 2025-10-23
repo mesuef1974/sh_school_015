@@ -214,13 +214,34 @@ async function onSubmit() {
   gap: var(--space-8);
   align-items: center;
   /* Backdrop card behind both the branding and the login panel */
-  background: rgba(255, 255, 255, 0.3);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border-radius: var(--radius-xl);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+  position: relative;
+  border-radius: 0; /* square corners */
+  border: 5px solid transparent; /* 5px golden frame */
+  /* Metallic gold border (border-box) only; maroon fill provided by ::after */
+  background:
+    linear-gradient(135deg, #7a5e2e, #cdaa2c, #b8890b, #fff2b2, #b8890b, #d4af37, #7a5e2e) border-box;
+  -webkit-backdrop-filter: blur(50px);
+  backdrop-filter: blur(50px); /* 50px blur */
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
   padding: var(--space-8);
+}
+
+/* Animated glossy shine over the golden frame */
+
+/* Inner maroon fill only (no shine) */
+.login-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 5px; /* match the 5px golden border */
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(rgba(128, 0, 0, 0.9), rgba(128, 0, 0, 0.9));
+}
+
+/* Ensure all children sit above the ::after cover */
+.login-wrapper > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Left Side - Branding */
@@ -246,8 +267,7 @@ async function onSubmit() {
   height: 120px;
   display: block;
   margin-bottom: var(--space-6);
-  background-color: var(--maron-primary);
-  /* Paint the PNG logo as a mask so it appears exactly in maroon */
+  background-color: #ffffff; /* logo in white */
   -webkit-mask-image: url('/assets/img/logo.png');
   mask-image: url('/assets/img/logo.png');
   -webkit-mask-repeat: no-repeat;
@@ -256,7 +276,6 @@ async function onSubmit() {
   mask-position: center;
   -webkit-mask-size: contain;
   mask-size: contain;
-  /* Keep the same depth effect as the old img */
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
 
@@ -264,14 +283,14 @@ async function onSubmit() {
   font-size: var(--font-size-4xl);
   font-weight: var(--font-weight-bold);
   margin-bottom: var(--space-2);
-  color: var(--maron-primary);
+  color: #ffffff;
 }
 
 .brand-subtitle {
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-medium);
   margin-bottom: var(--space-6);
-  color: var(--maron-primary);
+  color: #ffffff;
 }
 
 .brand-divider {
@@ -286,7 +305,7 @@ async function onSubmit() {
   font-size: var(--font-size-lg);
   line-height: var(--line-height-relaxed);
   margin-bottom: var(--space-8);
-  color: var(--maron-primary);
+  color: #ffffff; /* description text in white */
 }
 
 .features-list {
@@ -300,12 +319,12 @@ async function onSubmit() {
   align-items: center;
   gap: var(--space-3);
   font-size: var(--font-size-base);
-  color: var(--maron-primary);
+  color: #ffffff; /* make features text white */
 }
 
 .feature-icon {
   font-size: var(--font-size-xl);
-  color: var(--maron-accent);
+  color: #f5d08a; /* keep a warm accent that contrasts on maroon */
 }
 
 /* Right Side - Form */
@@ -339,7 +358,6 @@ async function onSubmit() {
   display: block;
   margin: 0 auto var(--space-4);
   background-color: var(--maron-primary);
-  /* Use the logo image as a mask to paint it maroon */
   -webkit-mask-image: url('/assets/img/logo.png');
   mask-image: url('/assets/img/logo.png');
   -webkit-mask-repeat: no-repeat;

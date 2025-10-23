@@ -32,7 +32,7 @@
       </nav>
     </header>
     <main class="page-main container py-3" v-if="!isLogin">
-      <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl">
+      <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl" v-if="!isHome">
         <div class="flex-fill"></div>
         <BreadcrumbRtl />
       </div>
@@ -57,7 +57,9 @@ import BreadcrumbRtl from '../components/BreadcrumbRtl.vue';
 const router = useRouter();
 const route = useRoute();
 const logoSrc = '/assets/img/logo.png';
-const schoolNameSrc = '/assets/img/school_name.png';
+// Append a version query to ensure updated image is not served from browser cache
+const SCHOOL_ASSETS_VERSION = '20251023';
+const schoolNameSrc = `/assets/img/school_name.png?v=${SCHOOL_ASSETS_VERSION}`;
 
 const auth = useAuthStore();
 const hasRole = (r: string) => auth.roles.includes(r);

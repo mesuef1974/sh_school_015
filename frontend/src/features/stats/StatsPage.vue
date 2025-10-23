@@ -51,7 +51,7 @@
             <KpiCard :loading="loading" title="التأخر" :value="kpis.late" icon="bi bi-alarm" variant="warning" />
           </div>
           <div class="col-6 col-md-4 col-lg-3">
-            <KpiCard :loading="loading" title="إذن خروج" :value="kpis.excused" icon="bi bi-shield-check" variant="secondary" />
+            <KpiCard :loading="loading" title="إذن خروج" :value="(kpis.exit_events_open ?? kpis.excused)" icon="bi bi-shield-check" variant="secondary" />
           </div>
           <div class="col-6 col-md-4 col-lg-3">
             <KpiCard :loading="loading" title="هروب" :value="kpis.runaway" icon="bi bi-person-dash" variant="danger" />
@@ -77,7 +77,7 @@
         <div class="auto-card p-3 mt-3">
           <div class="d-flex align-items-center mb-2">
             <div class="fw-bold">صفوف اليوم المميزة</div>
-            <span class="ms-auto small text-muted">{{ summary?.date }}</span>
+            <span class="ms-auto small text-muted">{{ formatDateDMY(summary?.date) }}</span>
           </div>
           <div class="row g-2">
             <div class="col-12 col-md-6">
@@ -140,7 +140,7 @@
                       </thead>
                       <tbody>
                         <tr v-for="row in topStudentsByExits" :key="row.student_id">
-                          <td>طالب #{{ row.student_id }}</td>
+                          <td>{{ row.student_name ? row.student_name : ('طالب #' + row.student_id) }}</td>
                           <td>{{ row.count }}</td>
                           <td>{{ row.totalMinutes }}</td>
                         </tr>
@@ -171,6 +171,7 @@ import DsButton from '../../components/ui/DsButton.vue';
 import DsCard from '../../components/ui/DsCard.vue';
 import * as echarts from 'echarts/core';
 import { PieChart, BarChart } from 'echarts/charts';
+import { formatDateDMY } from '../../shared/utils/date';
 import {
   TitleComponent,
   TooltipComponent,
@@ -217,7 +218,7 @@ let exitDurationChartInstance: echarts.ECharts | null = null;
 // Exit analytics state
 const exitLoading = ref(false);
 const exitError = ref('');
-const exitEvents = ref<{ id: number; student_id: number; started_at: string; returned_at?: string | null; duration_seconds?: number | null; reason?: string | null }[]>([]);
+const exitEvents = ref<{ id: number; student_id: number; student_name?: string | null; started_at: string; returned_at?: string | null; duration_seconds?: number | null; reason?: string | null }[]>([]);
 
 const exitKpis = computed(() => {
   const total = exitEvents.value.length;
@@ -231,11 +232,12 @@ const exitKpis = computed(() => {
 });
 
 const topStudentsByExits = computed(() => {
-  const map: Record<string, { student_id: number; count: number; totalMinutes: number }> = {};
+  const map: Record<string, { student_id: number; student_name?: string | null; count: number; totalMinutes: number }> = {};
   for (const e of exitEvents.value) {
     const key = String(e.student_id);
     const durMin = Math.round(((e.duration_seconds ?? 0)/60));
-    if (!map[key]) { map[key] = { student_id: e.student_id, count: 0, totalMinutes: 0 }; }
+    if (!map[key]) { map[key] = { student_id: e.student_id, student_name: e.student_name, count: 0, totalMinutes: 0 }; }
+    if (e.student_name && !map[key].student_name) { map[key].student_name = e.student_name; }
     map[key].count += 1;
     map[key].totalMinutes += durMin;
   }

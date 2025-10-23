@@ -1277,6 +1277,7 @@ class ExitEventViewSet(viewsets.ModelViewSet):
     from rest_framework.permissions import IsAuthenticated
 
     permission_classes = [IsAuthenticated]
+    serializer_class = ExitEventSerializer
     queryset = None  # set in get_queryset to apply permissions
 
     def get_queryset(self):
@@ -1399,6 +1400,7 @@ class ExitEventViewSet(viewsets.ModelViewSet):
             {
                 "id": e.id,
                 "student_id": e.student_id,
+                "student_name": getattr(getattr(e, "student", None), "full_name", None),
                 "started_at": timezone.localtime(e.started_at).isoformat(),
                 "reason": e.reason,
             }

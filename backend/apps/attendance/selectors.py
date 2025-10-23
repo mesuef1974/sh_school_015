@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 
 from django.db.models import QuerySet, Count, Q
 
-from school.models import Student, Class, AttendanceRecord, TimetableEntry, Term  # type: ignore
+from school.models import Student, Class, AttendanceRecord, TimetableEntry, Term, ExitEvent  # type: ignore
 from common.day_utils import iso_to_school_dow
 
 
@@ -78,6 +78,18 @@ def get_summary(
     runaway = qs.filter(status="runaway").count()
     present = qs.filter(status="present").count()
 
+    # Exit events KPIs (total and open) aligned to same scope/date filters
+    exit_qs = ExitEvent.objects.filter(date=dt)
+    if class_id:
+        exit_qs = exit_qs.filter(classroom_id=class_id)
+    if class_ids:
+        exit_qs = exit_qs.filter(classroom_id__in=list(class_ids))
+    if wing_id and hasattr(Class, "wing_id"):
+        wing_class_ids = Class.objects.filter(wing_id=wing_id).values_list("id", flat=True)
+        exit_qs = exit_qs.filter(classroom_id__in=wing_class_ids)
+    exit_events_total = exit_qs.count()
+    exit_events_open = exit_qs.filter(returned_at__isnull=True).count()
+
     present_pct = float(round((present / total) * 100, 1)) if total else 0.0
     # Expose raw counters to allow client-side aggregation when needed
 
@@ -120,6 +132,8 @@ def get_summary(
             "runaway": int(runaway),
             "present": int(present),
             "total": int(total),
+            "exit_events_total": int(exit_events_total),
+            "exit_events_open": int(exit_events_open),
         },
         "top_classes": top_classes_sorted,
         "worst_classes": worst_classes_sorted,

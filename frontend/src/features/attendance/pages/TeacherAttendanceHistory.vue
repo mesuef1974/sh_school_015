@@ -245,6 +245,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { getAttendanceHistory, getTeacherClasses, getAttendanceStudents } from '../../../shared/api/client';
+import { formatDateDMY } from '../../../shared/utils/date';
 import DsButton from '../../../components/ui/DsButton.vue';
 import DsBadge from '../../../components/ui/DsBadge.vue';
 import DsCard from '../../../components/ui/DsCard.vue';
@@ -385,11 +386,7 @@ async function loadHistory() {
   }
 }
 
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  return `${days[date.getDay()]} ${date.getDate()}/${date.getMonth() + 1}`;
-}
+const formatDate = (dateStr: string): string => formatDateDMY(dateStr);
 
 function nextPage() { if (page.value * pageSize.value < total.value) { page.value += 1; loadHistory(); } }
 function prevPage() { if (page.value > 1) { page.value -= 1; loadHistory(); } }
@@ -404,7 +401,7 @@ function exportData() {
   filteredRows.value.forEach((row, i) => {
     const csvRow = [
       i + 1,
-      row.date,
+      formatDate(row.date),
       row.student_name,
       row.period_number || '',
       row.subject_name || '',
