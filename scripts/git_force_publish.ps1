@@ -111,7 +111,7 @@ if (-not (Test-Path $gitDir)) {
 # 3) Ensure professional .gitignore
 $gitignorePath = Join-Path $Root '.gitignore'
 $defaultIgnore = @'
-# Python
+# PythonY
 __pycache__/
 *.py[cod]
 *$py.class
