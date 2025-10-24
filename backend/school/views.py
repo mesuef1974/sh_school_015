@@ -2352,6 +2352,23 @@ def data_relations(request):
         constraints = None
         indexes = None
 
+    # Also compute table stats (like data_overview) limited to school_* tables
+    table_stats = []
+    try:
+        with connection.cursor() as cursor:
+            introspection = connection.introspection
+            tables = introspection.table_names()
+            visible = [t for t in tables if t.startswith("school_")]
+            for t in sorted(visible):
+                try:
+                    cursor.execute(f'SELECT COUNT(*) FROM "{t}"')
+                    cnt = cursor.fetchone()[0]
+                except Exception:
+                    cnt = None
+                table_stats.append({"name": t, "count": cnt})
+    except Exception:
+        table_stats = []
+
     context = {
         "title": "العلاقات بين الجداول",
         "mermaid": mermaid_src,
@@ -2361,6 +2378,7 @@ def data_relations(request):
         "model_stats": model_stats,
         "total_models": len(entities),
         "total_relations": len(rels),
+        "tables": table_stats,
     }
     return render(request, "data/relations.html", context)
 

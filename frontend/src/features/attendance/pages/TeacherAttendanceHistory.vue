@@ -114,6 +114,12 @@
                   <span>التاريخ</span>
                 </div>
               </th>
+              <th class="modern-th" style="width: 110px">
+                <div class="th-content">
+                  <Icon icon="solar:calendar-date-bold-duotone" width="18" />
+                  <span>اليوم</span>
+                </div>
+              </th>
               <th class="modern-th">
                 <div class="th-content">
                   <Icon icon="solar:user-bold-duotone" width="18" />
@@ -162,6 +168,12 @@
                 <div class="d-flex align-items-center gap-2">
                   <Icon icon="solar:calendar-mark-bold-duotone" width="16" style="opacity: 0.5" />
                   <span>{{ formatDate(row.date) }}</span>
+                </div>
+              </td>
+              <td class="modern-td">
+                <div class="d-flex align-items-center gap-2">
+                  <Icon icon="solar:calendar-line-bold-duotone" width="16" style="opacity: 0.5" />
+                  <span>{{ dayNameAr(row.date) }}</span>
                 </div>
               </td>
               <td class="modern-td">
@@ -388,6 +400,25 @@ async function loadHistory() {
 
 const formatDate = (dateStr: string): string => formatDateDMY(dateStr);
 
+// Arabic day names (Sun..Sat)
+const DAY_NAMES_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+function dayNameAr(dateStr: string): string {
+  if (!dateStr) return '—';
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr));
+  let d: Date;
+  if (m) {
+    const y = parseInt(m[1], 10);
+    const mo = parseInt(m[2], 10);
+    const dd = parseInt(m[3], 10);
+    d = new Date(y, mo - 1, dd); // local date to avoid TZ shifts
+  } else {
+    d = new Date(dateStr);
+  }
+  if (isNaN(d.getTime())) return '—';
+  const dow = d.getDay(); // 0=Sun..6=Sat
+  return DAY_NAMES_AR[dow] || '—';
+}
+
 function nextPage() { if (page.value * pageSize.value < total.value) { page.value += 1; loadHistory(); } }
 function prevPage() { if (page.value > 1) { page.value -= 1; loadHistory(); } }
 
@@ -395,13 +426,14 @@ function exportData() {
   if (filteredRows.value.length === 0) return;
 
   // Create CSV content
-  const headers = ['#', 'التاريخ', 'الطالب', 'الحصة', 'المادة', 'الحالة', 'ملاحظة'];
+  const headers = ['#', 'التاريخ', 'اليوم', 'الطالب', 'الحصة', 'المادة', 'الحالة', 'ملاحظة'];
   const csvRows = [headers.join(',')];
 
   filteredRows.value.forEach((row, i) => {
     const csvRow = [
       i + 1,
       formatDate(row.date),
+      dayNameAr(row.date),
       row.student_name,
       row.period_number || '',
       row.subject_name || '',

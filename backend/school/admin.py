@@ -28,6 +28,17 @@ from .models import (
 from openpyxl import load_workbook
 import re
 
+# Arabic day names mapping (Sun=1..Sat=7)
+DAY_NAMES_AR = {
+    1: "الأحد",
+    2: "الاثنين",
+    3: "الثلاثاء",
+    4: "الأربعاء",
+    5: "الخميس",
+    6: "الجمعة",
+    7: "السبت",
+}
+
 
 class ClassSubjectInline(admin.TabularInline):
     model = ClassSubject
@@ -716,6 +727,7 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
         "teacher",
         "term",
         "date",
+        "day_name_ar",
         "day_of_week",
         "period_number",
         "status",
@@ -725,6 +737,12 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
         "locked",
         "updated_at",
     )
+
+    def day_name_ar(self, obj):
+        dow = getattr(obj, "day_of_week", None) or 0
+        return DAY_NAMES_AR.get(dow, "—")
+
+    day_name_ar.short_description = "اليوم"
     list_filter = (
         "date",
         "day_of_week",

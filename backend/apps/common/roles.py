@@ -47,7 +47,8 @@ ROUTE_BY_ROLE: dict[str, str] = {
     'academic_deputy': '/academic/dashboard',
     'timetable_manager': '/timetable',
     'subject_coordinator': '/subject/dashboard',
-    'wing_supervisor': '/wing/dashboard',
+    # For wing supervisors, land on SPA home (Vite dev root '/') as requested
+    'wing_supervisor': '/',
     'teacher': '/attendance/teacher',
 }
 

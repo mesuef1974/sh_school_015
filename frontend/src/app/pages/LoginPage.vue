@@ -174,8 +174,14 @@ async function onSubmit() {
 
     const next = (route.query.next as string) || '';
     const primary = auth.profile?.primary_route || '';
+    const roles = auth.profile?.roles || [];
+    const isOnlyTeacher = roles.includes('teacher') && !roles.some(r => ['principal','academic_deputy','timetable_manager','subject_coordinator','wing_supervisor'].includes(r));
+
     if (next) {
       router.replace(next);
+    } else if (isOnlyTeacher) {
+      // توجيه المعلم فقط إلى الصفحة الرئيسية بدل صفحة الغياب مباشرةً
+      router.replace('/');
     } else if (primary) {
       router.replace(primary);
     } else {

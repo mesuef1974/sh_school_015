@@ -91,7 +91,7 @@ export async function getAttendanceHistory(params: { class_id: number; from?: st
 
 export async function getAttendanceSummary(params: { scope?: 'teacher'|'wing'|'school'; date?: string; class_id?: number; wing_id?: number } = {}) {
   const res = await api.get('/v1/attendance/summary/', { params });
-  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent: number; late: number; excused: number; 
+  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent_pct?: number; effective_total?: number; absent: number; late: number; excused: number; 
     exit_events_total?: number; exit_events_open?: number; present?: number; total?: number };
     top_classes: { class_id: number; class_name?: string | null; present_pct: number }[]; worst_classes: { class_id: number; class_name?: string | null; present_pct: number }[] };
 }
@@ -109,6 +109,14 @@ export async function getTeacherTimetableToday(params: { date?: string } = {}) {
 export async function getTeacherTimetableWeekly() {
   const res = await api.get('/v1/attendance/timetable/teacher/weekly/');
   return res.data as { days: Record<string, { period_number: number; classroom_id: number; classroom_name?: string; subject_id: number; subject_name?: string; start_time?: string; end_time?: string }[]>; meta: any };
+}
+
+export async function getWingTimetable(params: { wing_id?: number; date?: string; mode?: 'daily'|'weekly' } = {}) {
+  const res = await api.get('/wing/timetable/', { params });
+  return res.data as (
+    | { mode: 'daily'; date: string; dow: number; term_id?: number; wing_id: number; items: { class_id: number; class_name?: string | null; period_number: number; subject_id: number; subject_name?: string | null; teacher_id: number; teacher_name?: string | null; color?: string }[] }
+    | { mode: 'weekly'; term_id?: number; wing_id: number; days: Record<string, { class_id: number; class_name?: string | null; period_number: number; subject_id: number; subject_name?: string | null; teacher_id: number; teacher_name?: string | null; color?: string }[]> }
+  );
 }
 
 export async function postAttendanceBulkSave(payload: { class_id: number; date: string; period_number?: number; records: { student_id: number; status: string; note?: string | null; exit_reasons?: string | string[] }[] }) {
@@ -150,8 +158,29 @@ export async function logout() {
   } catch {
     // ignore errors on logout to be resilient
   } finally {
+    // Clear in-memory token and any stored refresh
     setAccessToken(null);
     try { localStorage.removeItem('sh_school_refresh'); } catch {}
+    // Clear authenticated state in Pinia (if store is initialized)
+    try {
+      const mod = await import('../../app/stores/auth');
+      const useAuthStore = (mod as any).useAuthStore as () => { clear: () => void };
+      if (useAuthStore) {
+        try { useAuthStore().clear(); } catch {}
+      }
+    } catch {}
+    // Best-effort: navigate to login and replace history to reduce back-navigation to protected routes
+    try {
+      const r = await import('../../app/router');
+      const router = (r as any).router as any;
+      if (router && typeof router.replace === 'function') {
+        await router.replace({ name: 'login' });
+      } else {
+        window.location.href = '/login';
+      }
+    } catch {
+      window.location.href = '/login';
+    }
   }
 }
 
@@ -185,4 +214,48 @@ export async function patchExitReturn(id: number) {
 export async function getExitEvents(params: { date?: string; class_id?: number; student_id?: number }) {
   const res = await api.get('/v1/attendance/exit-events/', { params });
   return res.data as { id: number; student_id: number; student_name?: string | null; classroom_id?: number; date: string; started_at: string; returned_at?: string | null; duration_seconds?: number | null; reason?: string | null }[];
+}
+
+// ---- Wing Supervisor APIs (use relative /api to leverage Vite proxy and avoid CORS) ----
+export async function getWingMe() {
+  const res = await api.get('/wing/me/');
+  return res.data as { user: any; roles: string[]; staff: { id?: number; full_name?: string | null }; wings: { ids: number[]; names: string[] }; has_wing_supervisor_role: boolean };
+}
+
+export async function getWingOverview(params: { date?: string }) {
+  const res = await api.get('/wing/overview/', { params });
+  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent: number; late: number; excused: number; runaway: number; present: number; total: number; exit_events_total: number; exit_events_open: number }; top_classes: any[]; worst_classes: any[] };
+}
+
+export async function getWingMissing(params: { date?: string }) {
+  const res = await api.get('/wing/missing/', { params });
+  return res.data as { date: string; count?: number; items: { class_id: number; class_name?: string; period_number: number; subject_id: number; subject_name?: string; teacher_id: number; teacher_name?: string }[] };
+}
+
+// Classes that have attendance already entered (per period) for the wing
+export async function getWingEntered(params: { date?: string }) {
+  // Primary endpoint (new style under /wing)
+  try {
+    const res = await api.get('/wing/entered/', { params });
+    return res.data as { date: string; count?: number; items: { class_id: number; class_name?: string; period_number: number; subject_id: number; subject_name?: string; teacher_id: number; teacher_name?: string }[] };
+  } catch (e: any) {
+    // Fallbacks for deployments exposing the endpoint under /v1
+    const candidates = ['/v1/attendance/wing/entered/', '/v1/attendance/entered/'];
+    for (const url of candidates) {
+      try {
+        const res = await api.get(url, { params });
+        const data: any = res.data || {};
+        // Normalize different shapes: some backends return { results: [...] }
+        if (!data.items && Array.isArray(data.results)) {
+          data.items = data.results;
+          if (typeof data.count !== 'number') data.count = data.results.length;
+        }
+        return data as { date: string; count?: number; items: { class_id: number; class_name?: string; period_number: number; subject_id: number; subject_name?: string; teacher_id: number; teacher_name?: string }[] };
+      } catch {
+        // try next
+      }
+    }
+    // None worked → rethrow original error to let caller handle gracefully
+    throw e;
+  }
 }

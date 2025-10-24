@@ -142,6 +142,7 @@ if settings.DEBUG:
         ),
         # API and auth endpoints remain available
         path("api/", include("school.api.urls")),
+        path("api/", include("apps.attendance.urls")),  # expose attendance APIs under /api/* (in addition to /api/v1/*)
         path("api-auth/", include("rest_framework.urls")),
         path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
         path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
@@ -166,6 +167,7 @@ if settings.DEBUG:
 else:
     urlpatterns += [
         path("api/", include("school.api.urls")),
+        path("api/", include("apps.attendance.urls")),  # expose attendance APIs under /api/* in production too
         path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
         path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     ]

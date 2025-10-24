@@ -11,11 +11,13 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.views.decorators.cache import never_cache
 from ..models import Staff, TeachingAssignment, Wing
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+@never_cache
 def me(request: Request):
     from apps.common.roles import normalize_roles, pick_primary_route  # type: ignore
     user = request.user
@@ -79,6 +81,34 @@ def me(request: Request):
 
     primary_route = pick_primary_route(role_set)
 
+    # Optional cumulative history ribbon per user (lightweight, role-aware)
+    history = None
+    try:
+        if staff_obj:
+            from ..models import AttendanceRecord  # type: ignore
+            qs = AttendanceRecord.objects.filter(teacher_id=staff_obj.id)
+            total_entries = qs.count()
+            first_date = qs.order_by("date").values_list("date", flat=True).first()
+            last_date = qs.order_by("-date").values_list("date", flat=True).first()
+            active_days = qs.values("date").distinct().count()
+            by_status = {
+                "present": qs.filter(status="present").count(),
+                "late": qs.filter(status="late").count(),
+                "absent": qs.filter(status="absent").count(),
+                "excused": qs.filter(status="excused").count(),
+                "runaway": qs.filter(status="runaway").count(),
+            }
+            history = {
+                "scope": "teacher" if has_teaching_assignments else "staff",
+                "total_entries": int(total_entries),
+                "active_days": int(active_days),
+                "first_date": first_date.isoformat() if first_date else None,
+                "last_date": last_date.isoformat() if last_date else None,
+                "by_status": by_status,
+            }
+    except Exception:
+        history = None
+
     data = {
         "id": user.id,
         "username": user.username,
@@ -90,6 +120,7 @@ def me(request: Request):
         "hasTeachingAssignments": has_teaching_assignments,
         "capabilities": caps,
         "primary_route": primary_route,
+        "history": history,
     }
     return JsonResponse(data)
 
@@ -133,6 +164,7 @@ def change_password(request: Request) -> Response:
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@never_cache
 def logout(request: Request) -> Response:
     """
     Blacklist the refresh token to log the user out from this device.

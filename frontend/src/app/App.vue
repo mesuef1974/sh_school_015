@@ -5,7 +5,7 @@
         <div class="brand-images d-flex align-items-center">
           <img :src="logoSrc" alt="شعار" />
           <span class="brand-divider"></span>
-          <img :src="schoolNameSrc" alt="مدرسة الشحانية" />
+          <img v-if="!hideSchoolName" :src="schoolNameSrc" alt="مدرسة الشحانية" />
         </div>
         <span class="flex-fill"></span>
         <RouterLink v-if="!isHome" :to="{ name: 'home' }" class="btn btn-glass-home" aria-label="العودة إلى الرئيسية">
@@ -31,7 +31,7 @@
         <RouterLink v-else to="/login">دخول</RouterLink>
       </nav>
     </header>
-    <main class="page-main container py-3" v-if="!isLogin">
+    <main class="page-main container py-3" :class="{ 'wide-wing': isWing }" v-if="!isLogin">
       <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl" v-if="!isHome">
         <div class="flex-fill"></div>
         <BreadcrumbRtl />
@@ -67,6 +67,8 @@ const isSuper = computed(() => !!auth.profile?.is_superuser);
 const isTeacher = computed(() => auth.roles.includes('teacher'));
 const isHome = computed(() => route.name === 'home');
 const isLogin = computed(() => route.name === 'login');
+const hideSchoolName = computed(() => route.path?.startsWith('/supervisor'));
+const isWing = computed(() => route.path?.startsWith('/wing'));
 
 // Prevent page scrollbars on the login route
 let prevOverflow: string | null = null;
@@ -129,6 +131,8 @@ async function onLogout() {
 }
 
 .container { max-width: 1200px; }
+/* Expand Wing pages to use up to 95% of viewport width as requested */
+.page-main.wide-wing.container { max-width: 95vw; }
 .flex-fill { flex: 1 1 auto; }
 
 /* Ensure header/footer occupy stable space to allow calc(100vh - ...) layouts */

@@ -32,6 +32,7 @@ from .views import (
     data_relations,
     data_db_audit,
 )
+from .api_relations import api_data_relations
 
 urlpatterns = [
     # Auth routes (unified login/logout)
@@ -88,6 +89,8 @@ urlpatterns = [
     path("timetable/import/source.pdf", timetable_source_pdf, name="timetable_source_pdf"),
     path("api/timetable/add/", api_timetable_add, name="api_timetable_add"),
     path("api/timetable/move/", api_timetable_move, name="api_timetable_move"),
+    # Data relations API (live)
+    path("api/data/relations", api_data_relations, name="api_data_relations"),
     # Attendance entry
     path("attendance/teacher/", teacher_attendance_page, name="teacher_attendance_page"),
     path("api/attendance/records", api_attendance_records, name="api_attendance_records"),

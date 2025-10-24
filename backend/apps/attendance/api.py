@@ -1440,6 +1440,177 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         return Response({"date": dt.isoformat(), "count": len(items), "items": items})
 
 
+    @action(detail=False, methods=["get"], url_path="timetable")
+    def wing_timetable(self, request: Request) -> Response:
+        """Return wing timetable. Supports ?wing_id, ?date=YYYY-MM-DD, and ?mode=daily|weekly (default daily).
+        Data is scoped to the current user's supervised wings unless superuser.
+        Includes a lightweight meta object to explain empty states (diagnostics only).
+        """
+        try:
+            from school.models import Class, TimetableEntry, Term, Subject, Staff, Wing  # type: ignore
+            from common.day_utils import iso_to_school_dow
+        except Exception:
+            return Response({"days": {}, "date": None, "items": [], "meta": {"error": "import_failed"}})
+
+        meta: dict[str, object] = {}
+        # Determine staff and allowed wings
+        staff, allowed_wings = self._get_staff_and_wing_ids(request.user)
+        meta["allowed_wings_count"] = len(allowed_wings)
+        # wing_id selection
+        wing_qs = request.query_params.get("wing_id")
+        try:
+            wing_id = int(wing_qs) if wing_qs not in (None, "") else (allowed_wings[0] if allowed_wings else None)
+        except Exception:
+            return Response({"detail": "wing_id must be int"}, status=400)
+        if not wing_id:
+            meta["reason"] = "no_wing"
+            return Response({"date": None, "days": {}, "items": [], "meta": meta})
+        if allowed_wings and wing_id not in allowed_wings and not getattr(request.user, "is_superuser", False):
+            return Response({"detail": "not allowed for this wing"}, status=403)
+
+        term = Term.objects.filter(is_current=True).first()
+        if not term:
+            meta["reason"] = "no_term"
+            return Response({"date": None, "days": {}, "items": [], "meta": meta})
+
+        # Parse date and mode
+        dt, err = _parse_date_or_400(request.query_params.get("date"))
+        if err:
+            return err
+        mode = (request.query_params.get("mode") or "daily").lower()
+        if mode not in {"daily", "weekly"}:
+            mode = "daily"
+
+        # Resolve classes of this wing
+        class_ids = list(Class.objects.filter(wing_id=wing_id).values_list("id", flat=True))
+        if not class_ids:
+            meta["reason"] = "no_classes"
+            return Response({"date": dt.isoformat() if dt else None, "days": {}, "items": [], "meta": meta})
+
+        # Subject color helper
+        def subject_color(subj_id: int) -> str:
+            try:
+                h = (int(subj_id) * 47) % 360
+                return f"hsl({h}, 60%, 85%)"
+            except Exception:
+                return "#eef5ff"
+
+        if mode == "weekly":
+            # Build period time maps per school day using PeriodTemplate/TemplateSlot
+            times_per_day: dict[int, dict[int, tuple]] = {d: {} for d in range(1, 6)}
+            period_times: dict[int, tuple] = {}
+            try:
+                from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+                for sd in range(1, 6):  # Sun..Thu
+                    tpl_ids = list(
+                        PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True)
+                    )
+                    if not tpl_ids:
+                        continue
+                    slots = (
+                        TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                        .exclude(number__isnull=True)
+                        .order_by("number", "start_time")
+                    )
+                    td: dict[int, tuple] = {}
+                    for s in slots:
+                        td[int(s.number)] = (s.start_time, s.end_time)
+                    if td:
+                        times_per_day[sd] = td
+                # Consolidated representative period_times (first non-empty)
+                for d in range(1, 6):
+                    if times_per_day.get(d):
+                        period_times = dict(times_per_day[d])
+                        break
+            except Exception:
+                pass
+
+            days = {i: [] for i in [1, 2, 3, 4, 5]}
+            qs = (
+                TimetableEntry.objects.filter(classroom_id__in=class_ids, term=term)
+                .select_related("classroom", "subject", "teacher")
+                .order_by("day_of_week", "period_number", "classroom__name")
+            )
+            for e in qs:
+                if e.day_of_week not in days:
+                    continue
+                st_et = times_per_day.get(int(e.day_of_week), {}).get(int(e.period_number)) or period_times.get(int(e.period_number))
+                days[e.day_of_week].append(
+                    {
+                        "class_id": e.classroom_id,
+                        "class_name": getattr(e.classroom, "name", None),
+                        "period_number": e.period_number,
+                        "subject_id": e.subject_id,
+                        "subject_name": getattr(e.subject, "name_ar", None) or getattr(e.subject, "name", None),
+                        "teacher_id": e.teacher_id,
+                        "teacher_name": getattr(e.teacher, "full_name", None),
+                        "color": subject_color(e.subject_id),
+                        **({"start_time": st_et[0], "end_time": st_et[1]} if st_et else {}),
+                    }
+                )
+            # Convert keys to strings for JSON stability
+            meta["period_times"] = {int(k): v for k, v in period_times.items()} if period_times else {}
+            return Response({
+                "mode": "weekly",
+                "term_id": getattr(term, "id", None),
+                "wing_id": wing_id,
+                "days": {str(k): v for k, v in days.items()},
+                "meta": meta,
+            })
+
+        # Daily mode
+        dow = iso_to_school_dow(dt)
+        # Build period times for this day
+        period_times: dict[int, tuple] = {}
+        try:
+            from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+            tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=dow).values_list("id", flat=True))
+            if tpl_ids:
+                slots = (
+                    TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                    .exclude(number__isnull=True)
+                    .order_by("number", "start_time")
+                )
+                for s in slots:
+                    period_times[int(s.number)] = (s.start_time, s.end_time)
+        except Exception:
+            pass
+
+        qs = (
+            TimetableEntry.objects.filter(classroom_id__in=class_ids, day_of_week=dow, term=term)
+            .select_related("classroom", "subject", "teacher")
+            .order_by("period_number", "classroom__name")
+        )
+        items = []
+        for e in qs:
+            st_et = period_times.get(int(e.period_number))
+            items.append(
+                {
+                    "class_id": e.classroom_id,
+                    "class_name": getattr(e.classroom, "name", None),
+                    "period_number": e.period_number,
+                    "subject_id": e.subject_id,
+                    "subject_name": getattr(e.subject, "name_ar", None) or getattr(e.subject, "name", None),
+                    "teacher_id": e.teacher_id,
+                    "teacher_name": getattr(e.teacher, "full_name", None),
+                    "color": subject_color(e.subject_id),
+                    **({"start_time": st_et[0], "end_time": st_et[1]} if st_et else {}),
+                }
+            )
+        if not items:
+            meta["reason"] = "no_entries_today"
+        meta["period_times"] = {int(k): v for k, v in period_times.items()} if period_times else {}
+        return Response({
+            "mode": "daily",
+            "date": dt.isoformat(),
+            "dow": dow,
+            "term_id": getattr(term, "id", None),
+            "wing_id": wing_id,
+            "items": items,
+            "meta": meta,
+        })
+
 class ExitEventViewSet(viewsets.ModelViewSet):
     from rest_framework.permissions import IsAuthenticated
 

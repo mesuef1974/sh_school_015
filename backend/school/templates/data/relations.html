@@ -20,6 +20,10 @@
       <iconify-icon icon="solar:list-bold-duotone" width="18"></iconify-icon>
       <span class="d-none d-md-inline ms-1">كل الجداول</span>
     </a>
+    <button id="btn-refresh-live" class="btn btn-success" type="button" data-bs-toggle="tooltip" title="تحديث مباشر من القاعدة">
+      <iconify-icon icon="solar:refresh-bold-duotone" width="18"></iconify-icon>
+      <span class="d-none d-md-inline ms-1">تحديث</span>
+    </button>
     <div class="btn-group">
       <button id="btn-download-svg" class="btn btn-outline-secondary" type="button" data-bs-toggle="tooltip" title="تنزيل SVG">
         <iconify-icon icon="solar:file-text-bold-duotone" width="18"></iconify-icon>
@@ -86,6 +90,37 @@
     </div>
   </div>
 </div>
+
+<!-- Tables Summary -->
+{% if tables %}
+<div class="card shadow-sm mb-4" data-aos="fade-up" data-aos-delay="80">
+  <div class="card-header bg-white border-bottom py-3 d-flex align-items-center gap-2">
+    <iconify-icon icon="solar:table-bold-duotone" width="24" style="color: var(--maron-primary);"></iconify-icon>
+    <span class="fw-bold">ملخص الجداول (school_*)</span>
+    <span class="badge bg-primary ms-auto">{{ tables|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" id="tables-list">
+        <thead class="table-light">
+          <tr>
+            <th class="small fw-semibold">الجدول</th>
+            <th class="small fw-semibold">عدد الصفوف</th>
+          </tr>
+        </thead>
+        <tbody class="small">
+          {% for t in tables %}
+          <tr>
+            <td><code class="text-primary">{{ t.name }}</code></td>
+            <td>{% if t.count != None %}{{ t.count }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Enhanced Model Statistics -->
 <div class="row g-3 mb-4" data-aos="fade-up" data-aos-delay="50">
@@ -633,6 +668,70 @@
       this.innerHTML = originalHTML;
       this.disabled = false;
       busy = false;
+    });
+  })();
+
+  // Live Refresh from /api/data/relations
+  (function(){
+    const btn = document.getElementById('btn-refresh-live');
+    if (!btn) return;
+    let loading = false;
+    btn.addEventListener('click', async () => {
+      if (loading) return;
+      loading = true; btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = '<iconify-icon icon="solar:refresh-bold-duotone" width="18" class="spin"></iconify-icon> <span class="ms-1 d-none d-md-inline">جاري التحديث...</span>';
+      try {
+        const res = await fetch('/api/data/relations', { credentials: 'include' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        // Update counters
+        const setText = (selector, text) => { const el = document.querySelector(selector); if (el) el.textContent = String(text); };
+        setText('.card .h4.mb-0.fw-bold.text-dark:nth-of-type(1)', data.total_models ?? '0');
+        // More reliable: query by nearby labels
+        try {
+          document.querySelectorAll('.card .small.text-muted').forEach((el) => {
+            const label = el.textContent?.trim();
+            const valEl = el.parentElement?.querySelector('.h4.mb-0.fw-bold.text-dark');
+            if (!valEl) return;
+            if (label === 'Relations') valEl.textContent = String(data.total_relations ?? 0);
+            if (label === 'Foreign Keys') valEl.textContent = String(data.model_stats?.with_fk ?? 0);
+            if (label === 'Many-to-Many') valEl.textContent = String(data.model_stats?.with_m2m ?? 0);
+          });
+          // Constraints/Indexes badges in stats cards
+          const constraintsBadge = document.querySelectorAll('.card .h5.mb-0.fw-bold')[2];
+          const indexesBadge = document.querySelectorAll('.card .h5.mb-0.fw-bold')[3];
+          if (constraintsBadge) constraintsBadge.textContent = String((data.constraints||[]).length);
+          if (indexesBadge) indexesBadge.textContent = String((data.indexes||[]).length);
+        } catch {}
+        // Update tables list if present
+        try {
+          const tbody = document.querySelector('#tables-list tbody');
+          if (tbody && Array.isArray(data.tables)) {
+            tbody.innerHTML = '';
+            data.tables.forEach(t => {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `<td><code class="text-primary">${t.name}</code></td><td>${(t.count??'—')}</td>`;
+              tbody.appendChild(tr);
+            });
+            // Update badge count
+            const badge = document.querySelector('.card-header .badge.bg-primary.ms-auto');
+            if (badge) badge.textContent = String(data.tables.length);
+          }
+        } catch {}
+        // Update Mermaid source and re-render
+        const pre = document.getElementById('er-src');
+        if (pre && data.mermaid) {
+          pre.textContent = data.mermaid;
+          const container = document.getElementById('er-wrap');
+          container?.querySelectorAll('svg').forEach(el => el.remove());
+          if (window.mermaid) { await window.mermaid.init(undefined, pre); }
+        }
+      } catch(e) {
+        alert('تعذّر التحديث الحي: ' + (e?.message || e));
+      } finally {
+        btn.innerHTML = original; btn.disabled = false; loading = false;
+      }
     });
   })();
 })();

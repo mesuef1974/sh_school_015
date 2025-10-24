@@ -287,3 +287,15 @@ body {
   border-radius: 12px !important;
   background: #fff;
 }
+
+/* --- Semantic color palette (unified across SPA) ---
+   These variables provide consistent colors for icons, badges, and KPI values.
+   They intentionally map to our maroon brand and Bootstrap-friendly hues. */
+:root {
+  --color-primary: var(--maron-primary);
+  --color-secondary: #6c757d;
+  --color-success: #198754;
+  --color-danger: #dc3545;
+  --color-warning: #ffc107; /* Accessible yellow on white */
+  --color-info: #0dcaf0;
+}

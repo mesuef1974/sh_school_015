@@ -78,6 +78,11 @@ def get_summary(
     runaway = qs.filter(status="runaway").count()
     present = qs.filter(status="present").count()
 
+    # Compute effective totals for percentages excluding late/excused/runaway from denominator
+    effective_total = present + absent
+    present_pct = float(round((present / effective_total) * 100, 1)) if effective_total else 0.0
+    absent_pct = float(round((absent / effective_total) * 100, 1)) if effective_total else 0.0
+
     # Exit events KPIs (total and open) aligned to same scope/date filters
     exit_qs = ExitEvent.objects.filter(date=dt)
     if class_id:
@@ -90,19 +95,18 @@ def get_summary(
     exit_events_total = exit_qs.count()
     exit_events_open = exit_qs.filter(returned_at__isnull=True).count()
 
-    present_pct = float(round((present / total) * 100, 1)) if total else 0.0
-    # Expose raw counters to allow client-side aggregation when needed
-
-    # Top/Worst classes by present percentage (limit 5)
+    # Top/Worst classes by present percentage (limit 5) using effective_total per class
     per_class = qs.values(_CLASS_FK_ID).annotate(
         total=Count("id"),
         present=Count("id", filter=Q(status="present")),
+        absent=Count("id", filter=Q(status="absent")),
     )
     top_classes: List[Dict[str, Any]] = []
     for item in per_class:
-        t = item.get("total") or 0
-        p = item.get("present") or 0
-        pct = float(round((p / t) * 100, 1)) if t else 0.0
+        p = int(item.get("present") or 0)
+        a = int(item.get("absent") or 0)
+        eff = p + a
+        pct = float(round((p / eff) * 100, 1)) if eff else 0.0
         class_val = item.get(_CLASS_FK_ID)
         top_classes.append({"class_id": class_val, "present_pct": pct})
     # Attach class names for better UX (e.g., '7-1')
@@ -126,6 +130,8 @@ def get_summary(
         "scope": scope,
         "kpis": {
             "present_pct": present_pct,
+            "absent_pct": absent_pct,
+            "effective_total": int(effective_total),
             "absent": int(absent),
             "late": int(late),
             "excused": int(excused),
