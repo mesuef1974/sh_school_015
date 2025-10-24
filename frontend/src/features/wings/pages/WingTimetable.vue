@@ -25,6 +25,13 @@
         </div>
         <DsButton size="sm" variant="outline" icon="solar:printer-bold-duotone" @click="printPage" aria-label="طباعة الجدول">طباعة</DsButton>
         <DsButton size="sm" variant="outline" icon="solar:refresh-bold-duotone" :loading="loading" @click="loadData" aria-label="تحديث البيانات">تحديث</DsButton>
+        <div class="vr d-none d-sm-block"></div>
+        <div class="btn-group btn-group-sm" role="group" aria-label="تحكم عرض الأعمدة" v-if="mode==='weekly'">
+          <button type="button" class="btn" :class="enableResize ? 'btn-primary' : 'btn-outline-secondary'" @click="enableResize=!enableResize">
+            <Icon :icon="enableResize ? 'solar:align-horizontally-bold-duotone' : 'solar:align-right-bold-duotone'" /> تعديل العرض
+          </button>
+          <button type="button" class="btn btn-outline-secondary" @click="resetWeeklyWidths" :disabled="!hasCustomWidths">إعادة ضبط</button>
+        </div>
       </div>
     </div>
 
@@ -88,27 +95,37 @@
     <div v-else class="auto-card p-0 overflow-hidden">
       <div class="p-3 d-flex align-items-center gap-2 border-bottom">
         <Icon icon="solar:calendar-bold-duotone" />
-        <div class="fw-bold">الجدول الأسبوعي 7×7</div>
-        <span class="ms-auto small text-muted">حِصص × أيام (7 × 7)</span>
+        <div class="fw-bold">الجدول الأسبوعي للفصل</div>
+        <span class="ms-auto small text-muted">فصول × أيام (الأحد → الخميس)</span>
       </div>
       <div class="tt7-wrapper">
         <div class="tt7-scroller">
           <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي 7×7">
+            <colgroup>
+              <col :style="{ width: weeklyColPx(0) }">
+              <col v-for="(d, i) in DAYS5" :key="'cg-'+d[0]" :style="{ width: weeklyColPx(i+1) }">
+            </colgroup>
             <thead>
               <tr>
-                <th class="tt7-th tt7-th-sticky tt7-th-period">الحصة</th>
-                <th v-for="d in DAYS7" :key="'dh-'+d[0]" class="tt7-th">{{ d[1] }}</th>
+                <th class="tt7-th tt7-th-sticky tt7-th-period resizable-th">
+                  الفصل
+                  <span v-if="enableResize" class="col-resizer" @mousedown.prevent="onResizeStart(0, $event)"></span>
+                </th>
+                <th v-for="(d, i) in DAYS5" :key="'dh-'+d[0]" class="tt7-th resizable-th">
+                  {{ d[1] }}
+                  <span v-if="enableResize" class="col-resizer" @mousedown.prevent="onResizeStart(i+1, $event)"></span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="p in PERIODS" :key="'row-'+p">
+              <tr v-for="cls in classList" :key="'row-c-'+cls.id">
                 <th class="tt7-th tt7-th-period">
-                  <div class="hdr-line"><span class="badge text-bg-secondary no-wrap">حصة {{ p }}</span><span class="text-muted small" v-if="periodTimes[p]"><Icon icon="solar:clock-circle-bold-duotone" width="14" class="me-1" />{{ timeRange(p) }}</span></div>
+                  <div class="hdr-line"><span class="badge text-bg-secondary no-wrap">{{ cls.name }}</span></div>
                 </th>
-                <td v-for="d in DAYS7" :key="'c-'+d[0]+'-'+p" class="tt7-td">
+                <td v-for="d in DAYS5" :key="'cell-'+d[0]+'-'+cls.id" class="tt7-td">
                   <div class="tt7-cell">
-                    <template v-if="cellItems(d[0], p).length">
-                      <div v-for="item in cellItems(d[0], p)" :key="'it-'+d[0]+'-'+p+'-'+item.class_id" class="mini-cell" :style="{ backgroundColor: item.color || '#f5f7fb' }" :title="(item.class_name || ('صف #'+item.class_id)) + ' — ' + (item.subject_name || 'مادة') + ' — ' + (item.teacher_name || '—')">
+                    <template v-if="classDayItems(cls.id, d[0]).length">
+                      <div v-for="item in classDayItems(cls.id, d[0])" :key="'it-'+d[0]+'-'+cls.id+'-'+item.period_number" class="mini-cell" :style="{ backgroundColor: item.color || '#f5f7fb' }" :title="(item.subject_name || 'مادة') + ' — ' + (item.teacher_name || '—') + ' — حصة ' + (item.period_number || '')">
                         <div class="mini-subj one-line"><Icon :icon="subjectIcon(item.subject_name)" class="subject-icon" /><span class="subject-name truncate-1">{{ item.subject_name || 'مادة' }}</span></div>
                         <div class="mini-teacher one-line truncate-1">{{ item.teacher_name || '—' }}</div>
                       </div>
@@ -143,9 +160,9 @@ const wingOptions = ref<Record<number, string>>({});
 const DAYS = [
   [1,'الأحد'],[2,'الاثنين'],[3,'الثلاثاء'],[4,'الأربعاء'],[5,'الخميس']
 ] as const;
-// 7 أيام لعرض شبكة 7×7 (تتضمن الجمعة والسبت وقد تكون فارغة)
-const DAYS7 = [
-  [1,'الأحد'],[2,'الاثنين'],[3,'الثلاثاء'],[4,'الأربعاء'],[5,'الخميس'],[6,'الجمعة'],[7,'السبت']
+// أيام الدراسة: الأحد إلى الخميس فقط (إزالة الجمعة والسبت لطلبك)
+const DAYS5 = [
+  [1,'الأحد'],[2,'الاثنين'],[3,'الثلاثاء'],[4,'الأربعاء'],[5,'الخميس']
 ] as const;
 const PERIODS = [1,2,3,4,5,6,7];
 const activeDay = ref<number>(1);
@@ -155,6 +172,75 @@ const weekly = ref<Record<string, any[]>>({});
 const dailyItems = ref<any[]>([]);
 const meta = ref<Record<string, any>>({});
 const periodTimes = ref<Record<number, { start: string; end: string }>>({});
+
+// Weekly column resize state (period + 7 days)
+const enableResize = ref(false);
+const WEEKLY_COLS = 6; // 0 = class label, 1..5 = days (Sun..Thu)
+const weeklyWidths = ref<number[]>([]);
+const defaultWeeklyWidths = () => {
+  // Default: period=180px (sticky), each day share remaining equally (auto)
+  // We'll set explicit px for all to allow resizing; choose 140px per day as a good start
+  const arr = new Array(WEEKLY_COLS).fill(140);
+  arr[0] = 180; // period column
+  return arr;
+};
+const LS_KEY = 'wing_tt_weekly_col_widths';
+const hasCustomWidths = computed(() => {
+  const def = defaultWeeklyWidths();
+  if (weeklyWidths.value.length !== WEEKLY_COLS) return false;
+  return weeklyWidths.value.some((v, i) => v !== def[i]);
+});
+function weeklyColPx(i: number): string {
+  const w = weeklyWidths.value[i];
+  return (typeof w === 'number' && !isNaN(w)) ? `${w}px` : '';
+}
+function loadWeeklyWidths() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) { weeklyWidths.value = defaultWeeklyWidths(); return; }
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr) && arr.length === WEEKLY_COLS) {
+      weeklyWidths.value = arr.map((n: any, idx: number) => Number.isFinite(n) ? Math.max(idx===0?140:100, Math.min(Number(n), 600)) : defaultWeeklyWidths()[idx]);
+    } else {
+      weeklyWidths.value = defaultWeeklyWidths();
+    }
+  } catch { weeklyWidths.value = defaultWeeklyWidths(); }
+}
+function saveWeeklyWidths() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(weeklyWidths.value)); } catch {}
+}
+function resetWeeklyWidths() {
+  weeklyWidths.value = defaultWeeklyWidths();
+  saveWeeklyWidths();
+}
+// Drag-to-resize logic
+let dragState: null | { col: number; startX: number; startW: number } = null;
+function onResizeStart(colIndex: number, e: MouseEvent) {
+  // In RTL, moving mouse left increases width visually; but since we use clientX delta, we invert sign
+  dragState = { col: colIndex, startX: e.clientX, startW: weeklyWidths.value[colIndex] || 140 };
+  document.addEventListener('mousemove', onResizeMove);
+  document.addEventListener('mouseup', onResizeEnd, { once: true });
+  // prevent text selection
+  document.body.classList.add('resizing');
+}
+function onResizeMove(e: MouseEvent) {
+  if (!dragState) return;
+  const idx = dragState.col;
+  const delta = (document.dir === 'rtl' || (document.documentElement.getAttribute('dir') === 'rtl')) ? (dragState.startX - e.clientX) : (e.clientX - dragState.startX);
+  const minW = idx === 0 ? 140 : 100;
+  const maxW = 600;
+  const next = Math.max(minW, Math.min(dragState.startW + delta, maxW));
+  // apply
+  const arr = weeklyWidths.value.slice();
+  arr[idx] = next;
+  weeklyWidths.value = arr;
+}
+function onResizeEnd() {
+  document.removeEventListener('mousemove', onResizeMove);
+  document.body.classList.remove('resizing');
+  dragState = null;
+  saveWeeklyWidths();
+}
 
 const isEmpty = computed(() => (mode.value==='daily' ? dailyItems.value.length===0 : Object.values(weekly.value).every(a => (a as any[]).length===0)));
 const formattedDate = computed(() => formatDateDMY(dateStr.value));
@@ -254,6 +340,29 @@ function timeRange(p: number): string {
 function cellItems(d: number, p: number) {
   const arr = weekly.value[String(d)] || [];
   return arr.filter((i: any) => Number(i.period_number) === p);
+}
+
+// New: Build list of classes (unique across the week) for the weekly class×day grid
+const classList = computed<{ id: number; name: string }[]>(() => {
+  const seen = new Map<number, string>();
+  const days = [1,2,3,4,5];
+  for (const d of days) {
+    const arr = (weekly.value[String(d)] || []) as any[];
+    for (const it of arr) {
+      const cid = Number(it.class_id);
+      if (!Number.isFinite(cid)) continue;
+      if (!seen.has(cid)) seen.set(cid, it.class_name || `صف #${cid}`);
+    }
+  }
+  // Return sorted by name (locale-aware Arabic if available)
+  return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+});
+
+// New: items for a given class and day (all periods), sorted by period_number
+function classDayItems(classId: number, d: number) {
+  const arr = weekly.value[String(d)] || [];
+  return (arr as any[]).filter(it => Number(it.class_id) === Number(classId))
+    .sort((a, b) => Number(a.period_number) - Number(b.period_number));
 }
 
 function ensureWeeklyShape() {
@@ -381,6 +490,7 @@ async function loadData() {
 }
 
 onMounted(async () => {
+  loadWeeklyWidths();
   await loadMe();
   await loadData();
   startTimer();
@@ -485,12 +595,12 @@ section.full-bleed > * { width: 95%; margin-inline: auto; }
 /* 7×7 weekly grid styles */
 .tt7-wrapper { display: flex; justify-content: center; padding: 12px; }
 .tt7-scroller { max-width: 1200px; width: 100%; margin-inline: auto; overflow: auto; display: flex; justify-content: center; }
-.tt7-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; table-layout: fixed; }
+.tt7-table { width: 100%; border-collapse: separate; border-spacing: 8px 6px; background: #fff; table-layout: fixed; }
 .tt7-th { background: linear-gradient(135deg, #f8f9fa 0%, #edf1f5 100%); color: #333; font-weight: 700; text-align: center; padding: .75rem; border-bottom: 2px solid #e0e6ef; white-space: nowrap; }
 .tt7-th-period { text-align: right; position: sticky; inset-inline-start: 0; background: #fafbfc; border-inline-end: 1px solid #eef2f7; min-width: 180px; z-index: 1; }
 .tt7-td { vertical-align: top; padding: .5rem; border-bottom: 1px solid #f0f2f5; border-inline-start: 1px solid #f6f7f9; height: 120px; }
 .tt7-table tr:hover td { background: #fafbff; }
-.tt7-cell { display: block; max-height: 100%; overflow: auto; padding: 2px; }
+.tt7-cell { display: flex; flex-direction: column; gap: 6px; max-height: 100%; overflow: auto; padding: 2px; }
 .mini-cell { width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: .35rem .5rem; border: 1px solid rgba(0,0,0,0.06); border-radius: 10px; background: #f5f7fb; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
 .mini-subj { display: flex; align-items: center; justify-content: center; gap: .3rem; font-weight: 700; color: #1f2937; line-height: 1.1; max-width: 100%; overflow: hidden; }
 .mini-subj .subject-icon { font-size: 16px; color: var(--maron-primary, #8a1538); flex-shrink: 0; }
@@ -539,11 +649,34 @@ section.full-bleed > * { width: 95%; margin-inline: auto; }
 @media (max-width: 576px) {
   .period-cell { min-width: 120px; max-width: 180px; }
 }
+/* Column resizer (weekly 7×7) */
+.resizable-th { position: relative; }
+.col-resizer {
+  position: absolute;
+  top: 0; bottom: 0;
+  inset-inline-start: 0; /* works in RTL/LTR */
+  width: 8px;
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.resizable-th:hover .col-resizer { opacity: .6; }
+.resizable-th .col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  inset-inline-start: 3px;
+  width: 2px;
+  background: rgba(0,0,0,.1);
+}
+body.resizing { cursor: col-resize !important; user-select: none !important; }
+
 /* Print: ensure readable high-contrast */
 @media print {
   .period-cell { background: #fff !important; border-color: #ccc !important; box-shadow: none !important; }
   .cell-subject { color: #000 !important; }
   .cell-teacher { color: #333 !important; }
+  .col-resizer { display: none !important; }
 }
 </style>
 

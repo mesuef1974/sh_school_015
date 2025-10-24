@@ -22,7 +22,8 @@ const routes: RouteRecordRaw[] = [
   { path: '/principal/dashboard', name: 'principal-dashboard', component: () => import('../features/principal/pages/PrincipalDashboard.vue'), meta: { requiresAuth: true, requiredRoles: ['principal'], titleAr: 'لوحة المدير' } },
   { path: '/academic/dashboard', name: 'academic-dashboard', component: () => import('../features/academic/pages/AcademicDashboard.vue'), meta: { requiresAuth: true, requiredRoles: ['academic_deputy'], titleAr: 'لوحة الشؤون الأكاديمية' } },
   { path: '/timetable/teacher', name: 'teacher-timetable', component: () => import('../features/timetable/pages/TeacherTimetable.vue'), meta: { requiresAuth: true, requiredRoles: ['teacher'], titleAr: 'جدول المعلم' } },
-  { path: '/wing/timetable', name: 'wing-timetable', component: () => import('../features/wings/pages/WingTimetable.vue'), meta: { requiresAuth: true, requiredRoles: ['wing_supervisor'], titleAr: 'جدول الجناح' } }
+  { path: '/wing/timetable', name: 'wing-timetable', component: () => import('../features/wings/pages/WingTimetable.vue'), meta: { requiresAuth: true, requiredRoles: ['wing_supervisor'], titleAr: 'جدول الجناح' } },
+  { path: '/designer/tiles', name: 'tiles-designer', component: () => import('../features/design/TilesDesigner.vue'), meta: { requiresAuth: true, requiredRoles: ['principal','it','admin_deputy'], titleAr: 'مصمم الأيقونات' } }
 ];
 
 export const router = createRouter({

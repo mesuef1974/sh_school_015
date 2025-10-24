@@ -1,0 +1,733 @@
+{% extends "_base_maronia.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block extra_head %}
+  <style>
+    .catalog-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 16px; }
+    .role-section { margin: 22px 0 28px; }
+    .role-title { display:flex; align-items:center; gap:.5rem; font-weight:800; }
+    .role-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+    .card-ic { position:relative; border:1px solid rgba(0,0,0,.06); border-radius:14px; background:#fff; box-shadow:0 6px 18px rgba(0,0,0,.06); padding:12px; transition: transform .12s ease, box-shadow .12s ease; }
+    .card-ic:hover { transform: translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,.10); }
+    .card-ic .tile-preview { width:100%; aspect-ratio:1/1; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; background: rgba(255,255,255,0.55); -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1); border:1px solid rgba(0,0,0,.06); }
+    .tile-icon { width:64px; height:64px; border-radius:16px; display:grid; place-items:center; background: rgba(0,0,0,0.04); color: var(--tile-color, #8a1538); border:1px solid rgba(0,0,0,0.06); }
+    .tile-title { font-weight:800; text-align:center; line-height:1.1; }
+    .tile-sub { font-size:.8rem; color:#667085; text-align:center; }
+    .badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+    .badge-soft { background:#f6f7fb; border:1px solid #eef2f7; color:#334155; border-radius:999px; padding:2px 8px; font-size:.75rem; }
+    .route { direction:ltr; unicode-bidi: plaintext; }
+    .bi-fallback { display:none; }
+    html:not(.lordicon-ready) .bi-fallback { display:inline-flex; }
+    html:not(.lordicon-ready) lord-icon { display:none; }
+    /* Inline editor styles (visible only in edit mode) */
+    body.icons-edit-mode .card-ic .edit-panel { display: grid; }
+    .edit-panel { display:none; grid-template-columns: 1fr; gap:6px; margin-top:8px; padding:8px; border:1px dashed rgba(0,0,0,.15); border-radius:10px; background:#fafbff; }
+    .edit-row { display:flex; gap:6px; align-items:center; }
+    .edit-row .form-control, .edit-row .form-select { height: 30px; padding: 2px 8px; }
+    .edit-actions { display:flex; gap:6px; justify-content:flex-start; flex-wrap: wrap; }
+    .icon-chip { display:inline-flex; align-items:center; gap:6px; border:1px solid #e5e7eb; padding:4px 8px; border-radius:999px; background:#fff; }
+    .icon-chip .preview { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; }
+    /* Icon picker modal */
+    .icon-picker-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index: 1050; }
+    .icon-picker { width: min(900px, 96vw); max-height: 80vh; overflow: hidden; background:#fff; border-radius:14px; box-shadow: 0 18px 48px rgba(0,0,0,.25); display:flex; flex-direction:column; }
+    .icon-picker header { padding:10px 12px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px; }
+    .icon-picker .body { display:grid; grid-template-columns: 220px 1fr; gap:0; min-height: 360px; }
+    .icon-picker .side { border-inline-end:1px solid #eee; padding:10px; overflow:auto; }
+    .icon-picker .side .cat { display:block; padding:6px 8px; border-radius:8px; cursor:pointer; }
+    .icon-picker .side .cat.active { background:#f5f7fb; font-weight:700; }
+    .icon-picker .main { padding:10px; display:flex; flex-direction:column; gap:10px; }
+    .icon-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap:8px; overflow:auto; }
+    .icon-item { border:1px solid #eee; border-radius:10px; display:grid; place-items:center; aspect-ratio:1/1; cursor:pointer; transition:.12s ease; }
+    .icon-item:hover { box-shadow: 0 6px 14px rgba(0,0,0,.06); transform: translateY(-2px); }
+    .icon-preview { display:flex; align-items:center; gap:8px; }
+    .iconify { font-size: 28px; }
+    /* Print */
+    @media print { .catalog-header .btn, nav, .page-footer { display:none !important; } .card-ic { box-shadow:none !important; } .edit-panel, .icon-picker-backdrop { display:none !important; } }
+  </style>
+  {% if use_lordicon %}
+  <script src="https://cdn.lordicon.com/lordicon-1.3.0.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function(){ if (window.lordicon) { document.documentElement.classList.add('lordicon-ready'); }});
+  </script>
+  {% endif %}
+  <!-- Iconify (for live preview of Iconify icons in picker and chips) -->
+  <script src="https://code.iconify.design/3/2.2.1/iconify.min.js" defer></script>
+{% endblock %}
+{% block content %}
+  <div class="catalog-header" data-aos="fade-down">
+    <div>
+      <h1 class="h4 mb-1 d-flex align-items-center gap-2">
+        <lord-icon src="https://cdn.lordicon.com/vspbqszr.json" trigger="hover" class="anim-icon" style="width:28px;height:28px" colors="primary:#8a1538,secondary:#c49a6c" aria-label="كتالوج الأيقونات"></lord-icon>
+        <i class="bi bi-ui-checks-grid text-accent bi-fallback"></i>
+        {{ title }}
+      </h1>
+      <div class="text-muted small">كتالوج احترافي للأيقونات المقترحة حسب الأدوار والصلاحيات مع معاينة بطاقات مربعة</div>
+    </div>
+    <a href="{% url 'data_overview' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-right"></i> رجوع</a>
+  </div>
+
+  <style>
+    .best-card { border:1px solid rgba(0,0,0,.06); border-radius:12px; background:#fff; padding:10px 12px; margin: 8px 0 12px; box-shadow:0 4px 12px rgba(0,0,0,.04); }
+    .best-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 16px; }
+    .best-h { font-weight:800; color:#1f2937; margin-bottom:6px; }
+    .best-card ul { margin:0; padding-inline-start: 18px; }
+    .best-card li { line-height:1.6; }
+  </style>
+
+  <!-- Live tile preview (matches frontend IconTile aesthetics) -->
+  <div class="row g-3 mb-3" data-aos="fade-up">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card p-3">
+        <div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-eye"></i><strong>معاينة البطاقة</strong><span class="text-muted small">— شكل البلاطة المقترح</span></div>
+        <div class="tile-preview" style="--tile-color:#8a1538">
+          <div class="tile-icon">
+            <lord-icon src="https://cdn.lordicon.com/egiwmiit.json" trigger="loop" colors="primary:#8a1538,secondary:#c49a6c" style="width:36px;height:36px" aria-label="معاينة"></lord-icon>
+            <i class="bi bi-hexagon-half bi-fallback" style="font-size:28px;color:#8a1538"></i>
+          </div>
+          <div class="tile-title">عنوان البطاقة</div>
+          <div class="tile-sub">وصف مختصر للمهام</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-8">
+      <div class="card p-3 h-100">
+        <div class="d-flex align-items-center gap-2 mb-2"><i class="bi bi-info-circle"></i><strong>ملاحظات RBAC</strong></div>
+        <ul class="small mb-0">
+          <li>ظهور الأيقونات في الواجهة الأمامية مرتبط بالأدوار Roles وبالصلاحيات Permissions.</li>
+          <li>تظهر الأيقونة إذا تحقّق أي من الأدوار المطلوبة، ويمكن تقييدها أيضًا بصلاحيات محدّدة.</li>
+          <li>الأيقونة هنا لأغراض التوثيق والمعاينة — لا تمنح صلاحيات فعلية.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters toolbar -->
+  <div class="card p-3 mb-3" id="filters" data-aos="fade-up">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-6 col-lg-5">
+        <label class="form-label small fw-bold">بحث</label>
+        <div class="input-group input-group-sm">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input id="q" class="form-control" placeholder="ابحث بعنوان البطاقة أو الوصف…" autocomplete="off" />
+        </div>
+      </div>
+      <div class="col-6 col-md-3 col-lg-3">
+        <label class="form-label small fw-bold">الدور</label>
+        <select id="role" class="form-select form-select-sm">
+          <option value="">كل الأدوار</option>
+          {% for s in catalog %}
+            <option value="{{ s.role_key }}">{{ s.role }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3 col-lg-2">
+        <label class="form-label small fw-bold">أدواري فقط</label>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="mine">
+          <label class="form-check-label small" for="mine">إظهار ما يطابق أدواري</label>
+        </div>
+      </div>
+      <div class="col-12 col-lg-2 text-lg-end">
+        <button id="resetFilters" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x"></i> إعادة تعيين</button>
+      </div>
+    </div>
+  </div>
+
+  {% if is_designer %}
+  <!-- Designer toolbar: edit/add/cut/copy/paste/save -->
+  <div class="card p-3 mb-3" id="designer-toolbar" data-aos="fade-up">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="badge-soft"><i class="bi bi-pen"></i> وضع التحرير</span>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="editModeSwitch" />
+        <label class="form-check-label small" for="editModeSwitch">تفعيل</label>
+      </div>
+      <div class="vr"></div>
+      <button class="btn btn-sm btn-outline-primary" id="btnAdd"><i class="bi bi-plus-lg"></i> إضافة بطاقة</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnCut" disabled><i class="bi bi-scissors"></i> قص</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnCopy" disabled><i class="bi bi-files"></i> نسخ</button>
+      <button class="btn btn-sm btn-success" id="btnPaste" disabled><i class="bi bi-clipboard-check"></i> لصق</button>
+      <button class="btn btn-sm btn-outline-danger" id="btnDelete" disabled><i class="bi bi-trash"></i> حذف</button>
+      <div class="vr"></div>
+      <button class="btn btn-sm btn-primary" id="btnSave"><i class="bi bi-save"></i> حفظ</button>
+      <button class="btn btn-sm btn-outline-secondary" id="btnReset"><i class="bi bi-arrow-counterclockwise"></i> إعادة تحميل</button>
+      <span class="ms-auto small text-muted" id="selHint">—</span>
+    </div>
+    <div class="text-muted small mt-1">الحفظ يجري إلى ملف إعدادات واجهة المستخدم (ui_tiles.json) عبر واجهة /api/ui/tiles/save — لأغراض التوثيق وتجربة التخصيص.</div>
+  </div>
+  {% endif %}
+
+  {% for section in catalog %}
+    {% with sec_color=section.color|default:"#8a1538" dot_color=section.color|default:"#888" %}
+    <div class="role-section" data-aos="fade-up" data-role="{{ section.role_key }}">
+      <div class="role-title mb-2">
+        <span class="role-dot" style="background:{{ dot_color }}"></span>
+        <span class="h5 mb-0">{{ section.role }}</span>
+        <span class="text-muted small">({{ section.role_key }})</span>
+        {% if section.staff_count %}
+          <span class="badge-soft" title="عدد الموظفين في هذا الدور">{{ section.staff_count }} موظف</span>
+        {% endif %}
+      </div>
+      {% if section.best %}
+      <div class="best-card">
+        <div class="best-grid">
+          <div>
+            <div class="best-h">المهام اليومية</div>
+            <ul class="mb-2">{% for t in section.best.daily %}<li>{{ t }}</li>{% empty %}<li class="text-muted">—</li>{% endfor %}</ul>
+          </div>
+          <div>
+            <div class="best-h">أسبوعيًا</div>
+            <ul class="mb-2">{% for t in section.best.weekly %}<li>{{ t }}</li>{% empty %}<li class="text-muted">—</li>{% endfor %}</ul>
+          </div>
+          <div>
+            <div class="best-h">شهريًا</div>
+            <ul class="mb-2">{% for t in section.best.monthly %}<li>{{ t }}</li>{% empty %}<li class="text-muted">—</li>{% endfor %}</ul>
+          </div>
+          <div>
+            <div class="best-h">مؤشرات (KPIs)</div>
+            <div class="badges">{% for k in section.best.kpis %}<span class="badge-soft">{{ k }}</span>{% empty %}<span class="text-muted">—</span>{% endfor %}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      <div class="grid">
+        {% for it in section.items %}
+          <div class="card-ic" tabindex="0" draggable="false" data-id="{{ it.id }}" data-title="{{ it.title }}" data-desc="{{ it.desc }}" data-route="{{ it.route }}" data-roles="{% if it.roles %}{{ it.roles|join:',' }}{% endif %}" data-perms="{% if it.perms %}{{ it.perms|join:',' }}{% endif %}" data-icon="{{ it.icon }}" data-bi="{{ it.bi }}" data-color="{{ section.color|default:'#8a1538' }}">
+            <div class="tile-preview mb-2" style="--tile-color: {{ section.color|default:'#8a1538' }}">
+              <div class="tile-icon">
+                {% if it.icon %}
+                  <lord-icon src="{{ it.icon }}" trigger="hover" colors="primary:#8a1538,secondary:#c49a6c" style="width:34px;height:34px" aria-label="{{ it.title }}"></lord-icon>
+                {% endif %}
+                <i class="bi {{ it.bi|default:'bi-box' }} bi-fallback" style="font-size:26px;color:#8a1538"></i>
+              </div>
+              <div class="tile-title">{{ it.title }}</div>
+              <div class="tile-sub">{{ it.desc }}</div>
+            </div>
+            <div class="badges">
+              {% if it.route %}
+                <span class="badge-soft route" title="Route">{{ it.route }}</span>
+              {% endif %}
+              {% if it.roles %}
+                {% for r in it.roles %}
+                  <span class="badge-soft" title="Role">دور: {{ r }}</span>
+                {% endfor %}
+              {% endif %}
+              {% if it.perms %}
+                {% for p in it.perms %}
+                  <span class="badge-soft" title="Permission">صلاحية: {{ p }}</span>
+                {% endfor %}
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endwith %}
+  {% endfor %}
+
+  <!-- Icon Picker Modal -->
+  <div class="icon-picker-backdrop" id="iconPicker" aria-hidden="true">
+    <div class="icon-picker" role="dialog" aria-modal="true" aria-labelledby="iconPickerTitle">
+      <header>
+        <strong id="iconPickerTitle">اختيار أيقونة</strong>
+        <input id="iconSearch" class="form-control form-control-sm ms-2" placeholder="ابحث باسم الأيقونة (مثال: calendar, graph, settings)" style="max-width: 280px;" />
+        <span class="ms-auto"></span>
+        <button class="btn btn-sm btn-outline-secondary" id="iconPickerClose"><i class="bi bi-x"></i> إغلاق</button>
+      </header>
+      <div class="body">
+        <aside class="side">
+          <div class="cat active" data-cat="all">الكل</div>
+          <div class="cat" data-cat="dashboard">لوحات</div>
+          <div class="cat" data-cat="timetable">الجداول</div>
+          <div class="cat" data-cat="attendance">الحضور</div>
+          <div class="cat" data-cat="exams">امتحانات</div>
+          <div class="cat" data-cat="behavior">انضباط</div>
+          <div class="cat" data-cat="reports">تقارير</div>
+          <div class="cat" data-cat="ops">تشغيل</div>
+          <div class="cat" data-cat="it">تقنية</div>
+        </aside>
+        <main class="main">
+          <div class="icon-preview text-muted small">اختر أيقونة من الشبكة أو اكتب اسم Iconify (مثل solar:calendar-bold-duotone) في حقل الأيقونة داخل البطاقة.</div>
+          <div class="icon-grid" id="iconGrid"></div>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const q = document.getElementById('q');
+      const roleSel = document.getElementById('role');
+      const mine = document.getElementById('mine');
+      const reset = document.getElementById('resetFilters');
+      const userRoles = {{ user_roles|default:'[]'|safe }};
+      function norm(s){ return (s||'').toString().toLowerCase().trim(); }
+      function apply(){
+        const t = norm(q && q.value);
+        const role = roleSel ? roleSel.value : '';
+        const onlyMine = !!(mine && mine.checked);
+        const sections = document.querySelectorAll('.role-section');
+        sections.forEach(function(sec){
+          const secRole = sec.getAttribute('data-role') || '';
+          const inRole = !role || role === secRole;
+          let secAny = false;
+          const cards = sec.querySelectorAll('.card-ic');
+          cards.forEach(function(card){
+            const title = norm(card.getAttribute('data-title'));
+            const rolesCsv = (card.getAttribute('data-roles')||'').split(',').map(function(x){return x.trim();}).filter(Boolean);
+            const matchesText = !t || title.indexOf(t) !== -1;
+            const matchesMine = !onlyMine || rolesCsv.some(function(r){ return userRoles.indexOf(r) !== -1; });
+            const ok = matchesText && matchesMine;
+            card.style.display = ok ? '' : 'none';
+            if (ok) secAny = true;
+          });
+          sec.style.display = (inRole && secAny) ? '' : (inRole ? '' : 'none');
+        });
+      }
+      ['input','change','keyup'].forEach(function(evt){ if (q) q.addEventListener(evt, apply); });
+      if (roleSel) roleSel.addEventListener('change', apply);
+      if (mine) mine.addEventListener('change', apply);
+      if (reset) reset.addEventListener('click', function(e){ e.preventDefault(); if(q) q.value=''; if(roleSel) roleSel.value=''; if(mine) mine.checked=false; apply(); });
+      document.addEventListener('DOMContentLoaded', function(){
+        // Default to "my roles only" if the user has any roles, so the distribution appears logical per job role by default
+        try { if (Array.isArray(userRoles) && userRoles.length > 0 && mine) { mine.checked = true; } } catch(_) {}
+        apply();
+      });
+    })();
+  </script>
+{% if is_designer %}
+<script>
+(function(){
+  const IS_DESIGNER = {{ is_designer|yesno:"true,false" }};
+  if (!IS_DESIGNER) return;
+  const toolbar = document.getElementById('designer-toolbar');
+  if (!toolbar) return;
+  const editSwitch = document.getElementById('editModeSwitch');
+  const btnAdd = document.getElementById('btnAdd');
+  const btnCut = document.getElementById('btnCut');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnPaste = document.getElementById('btnPaste');
+  const btnDelete = document.getElementById('btnDelete');
+  const btnSave = document.getElementById('btnSave');
+  const btnReset = document.getElementById('btnReset');
+  const selHint = document.getElementById('selHint');
+
+  let editMode = false;
+  let selected = null;
+  let clipboard = null; // {data: {...}, cut: boolean}
+  let dragSrc = null;
+
+  function cards(){ return Array.from(document.querySelectorAll('.card-ic')); }
+  function setSelected(el){
+    cards().forEach(c => c.classList.remove('border-primary'));
+    selected = el;
+    if (selected) { selected.classList.add('border','border-primary'); selHint.textContent = 'المحدد: ' + (selected.dataset.id || selected.dataset.title || '—'); }
+    else { selHint.textContent = '—'; }
+    const hasSel = !!selected;
+    btnCut.disabled = !hasSel; btnCopy.disabled = !hasSel; btnDelete.disabled = !hasSel;
+    btnPaste.disabled = !(clipboard && hasSel);
+  }
+  function enableEditUI(on){
+    editMode = !!on;
+    document.body.classList.toggle('icons-edit-mode', editMode);
+    cards().forEach(c => { c.setAttribute('draggable', String(editMode)); c.style.cursor = editMode ? 'grab' : ''; });
+    if (editMode) { try { refreshEditors(); } catch(_){} }
+    if (!editMode) { setSelected(null); clipboard = null; }
+  }
+
+  function cardToTile(c){
+    const parentSec = c.closest('.role-section');
+    const roleKey = parentSec ? (parentSec.getAttribute('data-role')||'') : '';
+    const roles = roleKey ? [roleKey] : [];
+    const tile = {
+      id: (c.dataset.id || '').trim() || ('tile_'+Date.now()),
+      title: (c.dataset.title || '').trim() || 'بطاقة جديدة',
+      subtitle: (c.dataset.desc || '').trim() || null,
+      icon: (c.dataset.bi && c.dataset.bi.trim()) ? c.dataset.bi.trim() : 'solar:hexagon-bold-duotone',
+      color: (c.dataset.color || '').trim() || null,
+      to: (c.dataset.route || '').trim() || null,
+      href: null,
+      roles: roles,
+      permissions: (c.dataset.perms||'').split(',').map(s=>s.trim()).filter(Boolean),
+      kpiKey: null,
+      enabled: true,
+    };
+    return tile;
+  }
+
+  function updateIconPreview(c){
+    const iconWrap = c.querySelector('.tile-icon');
+    if (!iconWrap) return;
+    const lord = iconWrap.querySelector('lord-icon');
+    const biEl = iconWrap.querySelector('i.bi');
+    // Clear any existing Iconify child
+    const oldIconify = iconWrap.querySelector('span.iconify');
+    if (oldIconify) oldIconify.remove();
+    const icon = (c.dataset.bi || '').trim();
+    const iconifyLike = icon.indexOf(':') !== -1; // e.g., solar:calendar-bold-duotone
+    if (iconifyLike) {
+      // Hide lordicon/bi fallback visually and insert Iconify element
+      if (lord) lord.style.display = 'none';
+      if (biEl) biEl.style.display = 'none';
+      const span = document.createElement('span');
+      span.className = 'iconify';
+      span.setAttribute('data-icon', icon);
+      span.style.fontSize = '28px';
+      span.style.color = '#8a1538';
+      iconWrap.appendChild(span);
+    } else {
+      // Use Bootstrap class if provided
+      if (lord) lord.style.display = '';
+      if (biEl) {
+        biEl.className = 'bi ' + (icon || 'bi-box') + ' bi-fallback';
+        biEl.style.display = '';
+      }
+    }
+  }
+
+  function applyCardData(c, data){
+    if (!c) return;
+    if (data.id) c.dataset.id = data.id;
+    if (data.title!=null) c.dataset.title = data.title;
+    if (data.desc!=null) c.dataset.desc = data.desc;
+    if (data.route!=null) c.dataset.route = data.route;
+    if (data.icon!=null) c.dataset.bi = data.icon; // store Iconify id or Bootstrap class into data-bi
+    if (data.color!=null) c.dataset.color = data.color;
+    // Update DOM preview (title/sub)
+    const titleEl = c.querySelector('.tile-title'); if (titleEl && data.title!=null) titleEl.textContent = data.title;
+    const subEl = c.querySelector('.tile-sub'); if (subEl && data.desc!=null) subEl.textContent = (data.desc || '').trim();
+    // Update icon preview if icon changed
+    if (data.icon!=null) updateIconPreview(c);
+    // Update tile color variable
+    const tilePrev = c.querySelector('.tile-preview'); if (tilePrev && data.color!=null) tilePrev.style.setProperty('--tile-color', data.color);
+  }
+
+  function buildEditPanel(c){
+    if (c.querySelector('.edit-panel')) return;
+    const panel = document.createElement('div');
+    panel.className = 'edit-panel';
+    panel.innerHTML = `
+      <div class="edit-row">
+        <label class="small fw-bold" style="min-width:64px;">العنوان</label>
+        <input class="form-control form-control-sm inp-title" />
+      </div>
+      <div class="edit-row">
+        <label class="small fw-bold" style="min-width:64px;">الوصف</label>
+        <input class="form-control form-control-sm inp-desc" />
+      </div>
+      <div class="edit-row">
+        <label class="small fw-bold" style="min-width:64px;">Route</label>
+        <input class="form-control form-control-sm inp-route" placeholder="/path" />
+      </div>
+      <div class="edit-row">
+        <label class="small fw-bold" style="min-width:64px;">اللون</label>
+        <input class="form-control form-control-sm inp-color" placeholder="#8a1538" />
+      </div>
+      <div class="edit-row">
+        <label class="small fw-bold" style="min-width:64px;">الأيقونة</label>
+        <div class="icon-chip">
+          <span class="preview"><i class="bi bi-star"></i></span>
+          <input class="form-control form-control-sm inp-icon" style="width:220px" placeholder="solar:calendar-bold-duotone أو bi-graph-up" />
+          <button type="button" class="btn btn-sm btn-outline-secondary btn-choose-icon"><i class="bi bi-collection"></i> اختر</button>
+        </div>
+      </div>
+      <div class="edit-actions">
+        <button type="button" class="btn btn-sm btn-success btn-apply"><i class="bi bi-check2"></i> تطبيق</button>
+      </div>`;
+    c.appendChild(panel);
+    // Initialize values
+    (panel.querySelector('.inp-title')).value = c.dataset.title || '';
+    (panel.querySelector('.inp-desc')).value = c.dataset.desc || '';
+    (panel.querySelector('.inp-route')).value = c.dataset.route || '';
+    (panel.querySelector('.inp-color')).value = c.dataset.color || '';
+    (panel.querySelector('.inp-icon')).value = c.dataset.bi || '';
+    // Update small preview
+    const prev = panel.querySelector('.icon-chip .preview');
+    if (prev) { prev.innerHTML = ''; const i = document.createElement('i'); i.className = 'bi ' + ((c.dataset.bi||'bi-star')); prev.appendChild(i); }
+    // Handlers
+    panel.querySelector('.btn-choose-icon').addEventListener('click', function(){ openIconPicker(c, panel.querySelector('.inp-icon')); });
+    panel.querySelector('.btn-apply').addEventListener('click', function(){
+      const t = (panel.querySelector('.inp-title')).value.trim();
+      const d = (panel.querySelector('.inp-desc')).value.trim();
+      const r = (panel.querySelector('.inp-route')).value.trim();
+      const col = (panel.querySelector('.inp-color')).value.trim();
+      const ic = (panel.querySelector('.inp-icon')).value.trim();
+      applyCardData(c, { title: t, desc: d, route: r, color: col, icon: ic });
+    });
+  }
+
+  function onCardDblClick(c){
+    // Toggle inline editor instead of prompts
+    buildEditPanel(c);
+    const panel = c.querySelector('.edit-panel');
+    if (!panel) return;
+    panel.style.display = (panel.style.display === 'grid' || panel.style.display === '') ? 'none' : 'grid';
+  }
+
+  function attachCardEvents(c){
+    c.addEventListener('click', (e)=>{ if(!editMode) return; setSelected(c); });
+    c.addEventListener('dblclick', (e)=>{ if(!editMode) return; onCardDblClick(c); });
+    c.addEventListener('dragstart', (e)=>{ if(!editMode) return; dragSrc = c; try{ e.dataTransfer.setData('text/plain', c.dataset.id||''); e.dataTransfer.effectAllowed='move'; }catch(_){} c.style.opacity='0.6'; });
+    c.addEventListener('dragend', ()=>{ if(!editMode) return; c.style.opacity=''; dragSrc=null; });
+    c.addEventListener('dragover', (e)=>{ if(!editMode) return; e.preventDefault(); try{ e.dataTransfer.dropEffect='move'; }catch(_){} });
+    c.addEventListener('drop', (e)=>{ if(!editMode) return; e.preventDefault(); const target=c; if(dragSrc && target && dragSrc!==target){ target.parentElement.insertBefore(dragSrc, target); setSelected(dragSrc); }});
+  }
+
+  // Initial attach
+  cards().forEach(attachCardEvents);
+
+  // === Icon Picker Logic ===
+  const pickerEl = document.getElementById('iconPicker');
+  const gridEl = document.getElementById('iconGrid');
+  const searchEl = document.getElementById('iconSearch');
+  const closeBtn = document.getElementById('iconPickerClose');
+  const catContainer = pickerEl ? pickerEl.querySelector('.side') : null;
+  let currentCat = 'all';
+  let pickerTargetCard = null;
+  let pickerTargetInput = null;
+  // === Dynamic Iconify-powered icon library ===
+  // Curated static subset used as offline fallback and quick-start
+  const ICONS_STATIC = [
+    // Iconify (Solar)
+    'solar:speedometer-bold-duotone','solar:graph-new-bold-duotone','solar:calendar-bold-duotone','solar:calendar-date-bold-duotone','solar:clock-circle-bold-duotone','solar:book-2-bold-duotone','solar:clipboard-list-bold-duotone','solar:shield-warning-bold-duotone','solar:shield-check-bold-duotone','solar:warning-bold-duotone','solar:bell-bing-bold-duotone','solar:export-bold-duotone','solar:import-bold-duotone','solar:users-group-rounded-bold-duotone','solar:laptop-2-bold-duotone','solar:settings-bold-duotone','solar:wallet-bold-duotone','solar:table-bold-duotone',
+    // Bootstrap (class names, not Iconify id)
+    'bi-speedometer2','bi-graph-up','bi-calendar3','bi-table','bi-clipboard-check','bi-exclamation-triangle','bi-people','bi-wrench','bi-bus-front','bi-wallet2'
+  ];
+  // Icon sets to load from Iconify API dynamically
+  const ICONIFY_SETS = [
+    { prefix:'solar', label:'Solar Icons' },
+    { prefix:'mdi', label:'Material Design Icons' },
+    { prefix:'tabler', label:'Tabler Icons' },
+    { prefix:'bi', label:'Bootstrap Icons (Iconify)' },
+    { prefix:'material-symbols', label:'Material Symbols' },
+  ];
+  const setCache = new Map(); // prefix -> string[] of full ids `${prefix}:${name}`
+  const setErrors = new Map();
+  const MAX_RENDER_CHUNK = 300; // safety cap per render
+
+  function ensureSetCategories(){
+    if (!catContainer) return;
+    // Avoid duplicating categories
+    const existing = Array.from(catContainer.querySelectorAll('.cat[data-cat^="set:"]'));
+    if (existing.length) return;
+    // Add a divider label
+    const label = document.createElement('div');
+    label.className = 'mt-2 mb-1 small text-muted';
+    label.textContent = 'مجموعات Iconify';
+    catContainer.appendChild(label);
+    ICONIFY_SETS.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'cat'; el.setAttribute('data-cat', 'set:'+s.prefix);
+      el.textContent = s.label + ' ('+s.prefix+')';
+      catContainer.appendChild(el);
+    });
+  }
+
+  async function loadIconSet(prefix){
+    if (setCache.has(prefix) || setErrors.has(prefix)) return;
+    try {
+      const resp = await fetch('https://api.iconify.design/'+prefix+'.json');
+      if (!resp.ok) throw new Error('HTTP '+resp.status);
+      const data = await resp.json();
+      const names = Object.keys(data.icons || {});
+      const ids = names.map(n => prefix+':'+n);
+      setCache.set(prefix, ids);
+    } catch (e){
+      setErrors.set(prefix, String(e));
+      // Fallback: leave cache empty to avoid breaking UI
+      setCache.set(prefix, []);
+    }
+  }
+
+  function buildUnion(cat){
+    // Return array of icon ids according to selected category
+    if (cat && cat.startsWith('set:')){
+      const pref = cat.slice(4);
+      return setCache.get(pref) || [];
+    }
+    if (cat === 'all' || !cat){
+      // Union of all loaded sets + curated static
+      const arr = [...ICONS_STATIC];
+      ICONIFY_SETS.forEach(s => {
+        const list = setCache.get(s.prefix);
+        if (list && list.length) arr.push(...list.slice(0, 1000)); // cap to avoid DOM overload
+      });
+      return arr;
+    }
+    // Legacy categories map to a small subset by keyword
+    const kw = cat.toLowerCase();
+    return ICONS_STATIC.filter(id => id.toLowerCase().includes(kw));
+  }
+
+  // Loading indicator and "load more" support
+  let loadMoreBtn = null;
+  function setLoading(on){
+    if (!gridEl) return;
+    gridEl.innerHTML = on ? '<div class="text-center text-muted" style="grid-column:1/-1; padding:12px;">جاري تحميل الأيقونات…</div>' : '';
+  }
+
+  let lastRendered = { list: [], shown: 0 };
+  function renderIcons(cat, q){
+    if (!gridEl) return;
+    const query = (q||'').toLowerCase();
+    let list = buildUnion(cat);
+    if (query){ list = list.filter(id => id.toLowerCase().includes(query)); }
+    gridEl.innerHTML = '';
+    lastRendered = { list, shown: 0 };
+    appendMore();
+  }
+
+  function appendMore(){
+    const { list } = lastRendered;
+    const start = lastRendered.shown;
+    const end = Math.min(start + MAX_RENDER_CHUNK, list.length);
+    for (let i=start; i<end; i++){
+      const id = list[i];
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'icon-item'; btn.title = id;
+      if (id.indexOf(':') !== -1) {
+        const span = document.createElement('span'); span.className='iconify'; span.setAttribute('data-icon', id);
+        btn.appendChild(span);
+      } else {
+        const iEl = document.createElement('i'); iEl.className = 'bi ' + id; btn.appendChild(iEl);
+      }
+      btn.addEventListener('click', () => {
+        if (pickerTargetInput) pickerTargetInput.value = id;
+        if (pickerTargetCard) applyCardData(pickerTargetCard, { icon: id });
+        closeIconPicker();
+      });
+      gridEl.appendChild(btn);
+    }
+    lastRendered.shown = end;
+    // Manage load more button
+    if (!loadMoreBtn){
+      loadMoreBtn = document.createElement('button');
+      loadMoreBtn.type = 'button';
+      loadMoreBtn.className = 'btn btn-sm btn-light';
+      loadMoreBtn.textContent = 'عرض المزيد…';
+      loadMoreBtn.style.margin = '6px auto';
+      loadMoreBtn.addEventListener('click', appendMore);
+      // Wrapper row spanning grid
+      const wrap = document.createElement('div');
+      wrap.style.gridColumn = '1 / -1'; wrap.style.textAlign = 'center';
+      wrap.appendChild(loadMoreBtn);
+      gridEl.parentElement && gridEl.parentElement.appendChild(wrap);
+    }
+    loadMoreBtn.style.display = (lastRendered.shown < list.length) ? '' : 'none';
+  }
+
+  async function openIconPicker(card, input){
+    pickerTargetCard = card; pickerTargetInput = input;
+    if (!pickerEl) return;
+    pickerEl.style.display = 'flex';
+    ensureSetCategories();
+    currentCat = 'all'; if (catContainer){ catContainer.querySelectorAll('.cat').forEach(el=>el.classList.remove('active')); const first = catContainer.querySelector('.cat[data-cat="all"]'); if (first) first.classList.add('active'); }
+    // Load a couple of sets eagerly for a rich library
+    setLoading(true);
+    try { await Promise.all([loadIconSet('solar'), loadIconSet('mdi')]); } catch(_){ }
+    setLoading(false);
+    renderIcons(currentCat, '');
+    if (searchEl){ searchEl.value=''; setTimeout(()=>{ try{ searchEl.focus(); }catch(_){} }, 0); }
+  }
+  function closeIconPicker(){ if (!pickerEl) return; pickerEl.style.display = 'none'; pickerTargetCard = null; pickerTargetInput = null; }
+  if (closeBtn) closeBtn.addEventListener('click', closeIconPicker);
+  if (pickerEl) pickerEl.addEventListener('click', (e)=>{ if (e.target === pickerEl) closeIconPicker(); });
+  if (catContainer) catContainer.addEventListener('click', async (e)=>{ const t = e.target.closest('.cat'); if (!t) return; catContainer.querySelectorAll('.cat').forEach(el=>el.classList.remove('active')); t.classList.add('active'); currentCat = t.getAttribute('data-cat')||'all'; if(currentCat.startsWith('set:')){ try{ await loadIconSet(currentCat.slice(4)); }catch(_){} } renderIcons(currentCat, searchEl ? searchEl.value : ''); });
+  if (searchEl) ['input','keyup','change'].forEach(evt => searchEl.addEventListener(evt, ()=> renderIcons(currentCat, searchEl.value)) );
+
+  // Build editors when entering edit mode & update icon previews
+  function refreshEditors(){ cards().forEach(c => { buildEditPanel(c); updateIconPreview(c); }); }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e)=>{
+    if (!editMode) return;
+    if ((e.ctrlKey || e.metaKey) && (e.key==='s' || e.key==='S')) { e.preventDefault(); if (btnSave) btnSave.click(); }
+    if (e.key==='Delete' && selected) { e.preventDefault(); btnDelete && btnDelete.click(); }
+  });
+
+  // Toolbar actions
+  editSwitch && editSwitch.addEventListener('change', (e)=>{ enableEditUI(editSwitch.checked); });
+  btnAdd && btnAdd.addEventListener('click', ()=>{
+    if(!editMode) return;
+    const sec = selected ? selected.closest('.role-section') : document.querySelector('.role-section');
+    const grid = sec ? sec.querySelector('.grid') : document.querySelector('.grid');
+    if(!grid) return;
+    const div = document.createElement('div');
+    div.className='card-ic';
+    div.setAttribute('tabindex','0');
+    div.setAttribute('draggable','true');
+    div.dataset.id = 'tile_'+Date.now();
+    div.dataset.title = 'عنوان جديد';
+    div.dataset.desc = 'وصف مختصر';
+    div.dataset.route = '/';
+    div.dataset.bi = 'bi-hexagon-half';
+    div.dataset.color = '#8a1538';
+    div.innerHTML = grid.querySelector('.card-ic')?.innerHTML || '<div class="tile-preview"><div class="tile-icon"><i class="bi bi-hexagon-half"></i></div><div class="tile-title">عنوان جديد</div><div class="tile-sub">وصف مختصر</div></div><div class="badges"></div>';
+    // Update preview text
+    const tEl = document.createElement('div');
+    // Fix existing inner title/sub
+    const titleEl = div.querySelector('.tile-title'); if(titleEl) titleEl.textContent = 'عنوان جديد';
+    const subEl = div.querySelector('.tile-sub'); if(subEl) subEl.textContent = 'وصف مختصر';
+    grid.appendChild(div);
+    attachCardEvents(div);
+    setSelected(div);
+  });
+  btnCut && btnCut.addEventListener('click', ()=>{ if(!editMode||!selected) return; clipboard={ data: selected, cut:true }; btnPaste.disabled=false; });
+  btnCopy && btnCopy.addEventListener('click', ()=>{ if(!editMode||!selected) return; clipboard={ data: selected.cloneNode(true), cut:false }; btnPaste.disabled=true; });
+  btnPaste && btnPaste.addEventListener('click', ()=>{ if(!editMode||!selected||!clipboard) return; const target=selected; if(clipboard.cut){ target.parentElement.insertBefore(clipboard.data, target); setSelected(clipboard.data); clipboard=null; } else { const clone = clipboard.data; target.parentElement.insertBefore(clone, target); attachCardEvents(clone); setSelected(clone); }});
+  btnDelete && btnDelete.addEventListener('click', ()=>{ if(!editMode||!selected) return; const next = selected.nextElementSibling || selected.previousElementSibling; const p = selected.parentElement; selected.remove(); setSelected(next && next.classList.contains('card-ic')? next : null); });
+  btnReset && btnReset.addEventListener('click', ()=>{ location.reload(); });
+
+  btnSave && btnSave.addEventListener('click', async ()=>{
+    if(!editMode) return;
+    const all = cards();
+    const tiles = all.map(cardToTile);
+    function getCookie(name){
+      try {
+        const value = ('; ' + document.cookie).split('; ' + name + '=').pop();
+        return value ? decodeURIComponent(value.split(';').shift() || '') : '';
+      } catch(_) { return ''; }
+    }
+    const csrftoken = getCookie('csrftoken');
+    const headers = { 'Content-Type':'application/json', 'X-Requested-With':'XMLHttpRequest' };
+    if (csrftoken) headers['X-CSRFToken'] = csrftoken;
+    const body = JSON.stringify({ version: Date.now(), tiles });
+
+    async function postOnce(){
+      return fetch('/api/ui/tiles/save', { method:'POST', headers, body, credentials: 'same-origin' });
+    }
+
+    try {
+      let res = await postOnce();
+      // If non-OK, try to parse error and show meaningful message
+      if (!res.ok) {
+        let data = null;
+        try { data = await res.json(); } catch(_) {}
+        const detail = data && (data.detail || data.error);
+        alert('فشل الحفظ: ' + (detail || (res.status + ' ' + (res.statusText||''))));
+        return;
+      }
+      const data = await res.json();
+      alert('تم الحفظ: '+ (data.saved||tiles.length) + ' عنصر');
+    } catch(e){
+      // Network-level issue: retry once after a short delay
+      try {
+        await new Promise(r=>setTimeout(r, 500));
+        const res = await postOnce();
+        if (!res.ok) {
+          let data = null; try { data = await res.json(); } catch(_){ }
+          const detail = data && (data.detail || data.error);
+          alert('فشل الحفظ: ' + (detail || (res.status + ' ' + (res.statusText||''))));
+          return;
+        }
+        const data = await res.json();
+        alert('تم الحفظ: '+ (data.saved||tiles.length) + ' عنصر');
+      } catch(e2){
+        alert('خطأ في الاتصال أثناء الحفظ — تحقق من الشبكة ثم أعد المحاولة');
+      }
+    }
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

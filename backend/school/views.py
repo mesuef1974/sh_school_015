@@ -16,11 +16,12 @@ from django.db.models import (
     OuterRef,
     Sum,
     F,
+    Count,
 )
 from django.db.models.deletion import ProtectedError
 from django.db import IntegrityError, connection, transaction
 from django.core.paginator import Paginator
-from django.http import Http404, StreamingHttpResponse, JsonResponse, HttpResponse
+from django.http import Http404, StreamingHttpResponse, JsonResponse, HttpResponse, HttpResponseNotModified
 from django.db.models.functions import Coalesce
 from .models import (
     Class,
@@ -44,7 +45,7 @@ from .serializers import (
 import re
 from openpyxl import load_workbook
 from datetime import date as _date, time as _time
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_GET
 from django.contrib.auth import logout
 from django.views.decorators.cache import never_cache
 from django.utils import timezone
@@ -2094,6 +2095,521 @@ def data_overview(request):
         "tables": table_stats,
     }
     return render(request, "data/overview.html", context)
+
+
+@user_passes_test(_staff_only)
+@login_required
+def data_icons_catalog(request):
+    """Professional catalog of platform icons with descriptions, tasks, and role permissions.
+    Accessible under /data/icons/ and linked from /data/.
+    """
+    # Define catalog grouped by role with items: id, title, desc, route, roles, perms, icon (lordicon json url), bi (bootstrap icon class)
+    catalog = [
+        {
+            "role": "المعلم",
+            "role_key": "teacher",
+            "color": "#1565c0",
+            "items": [
+                {"id": "teacher_dashboard", "title": "لوحة التحكم", "desc": "نظرة عامة على مهام اليوم والتنبيهات.", "route": "/", "roles": ["teacher"], "perms": [], "icon": "https://cdn.lordicon.com/vspbqszr.json", "bi": "bi-speedometer2"},
+                {"id": "classes", "title": "صفوفي/أقسام", "desc": "إدارة الطلبة والأنشطة لكل صف.", "route": "/students", "roles": ["teacher"], "perms": ["academics.classes.read"], "icon": "https://cdn.lordicon.com/gqdnbnwt.json", "bi": "bi-people"},
+                {"id": "timetable", "title": "جدولي", "desc": "الجدول اليومي/الأسبوعي مع أوقات الحصص.", "route": "/timetable/teacher", "roles": ["teacher"], "perms": ["academics.timetable.read"], "icon": "https://cdn.lordicon.com/abwrkdvl.json", "bi": "bi-calendar-week"},
+                {"id": "attendance", "title": "تسجيل الحضور", "desc": "تسجيل حضور/غياب الحصة الحالية.", "route": "/attendance/teacher", "roles": ["teacher"], "perms": ["attendance.session.write"], "icon": "https://cdn.lordicon.com/dfxesbyu.json", "bi": "bi-clipboard-check"},
+                {"id": "attendance_history", "title": "سجل الغياب", "desc": "عرض وتصدير سجلات الغياب.", "route": "/attendance/teacher/history", "roles": ["teacher"], "perms": ["attendance.history.read"], "icon": "https://cdn.lordicon.com/wxnxiano.json", "bi": "bi-clock-history"},
+                {"id": "announcements", "title": "الإعلانات", "desc": "نشر التنبيهات للطلبة أو الصفوف.", "route": "/communications/announcements", "roles": ["teacher"], "perms": ["communications.announcements.write"], "icon": "https://cdn.lordicon.com/megfpqpw.json", "bi": "bi-megaphone"},
+                {"id": "assignments", "title": "الواجبات", "desc": "إنشاء وإدارة الواجبات.", "route": "/teacher/assignments", "roles": ["teacher"], "perms": ["academics.assignments"], "icon": "https://cdn.lordicon.com/ylvuooxd.json", "bi": "bi-clipboard-data"},
+                {"id": "quizzes", "title": "الاختبارات القصيرة", "desc": "إنشاء الكويز وتصحيحه.", "route": "/teacher/quizzes", "roles": ["teacher"], "perms": ["academics.quizzes"], "icon": "https://cdn.lordicon.com/zzcjjxew.json", "bi": "bi-ui-checks"},
+                {"id": "gradebook", "title": "دفتر العلامات", "desc": "إدخال الدرجات وتتبعها.", "route": "/teacher/gradebook", "roles": ["teacher"], "perms": ["academics.grades"], "icon": "https://cdn.lordicon.com/krmfspeu.json", "bi": "bi-bar-chart"},
+                {"id": "lesson_plans", "title": "تحضير الدروس", "desc": "خطة الدرس والموارد.", "route": "/teacher/lesson-plans", "roles": ["teacher"], "perms": ["academics.lesson_plans"], "icon": "https://cdn.lordicon.com/kvdgkbcy.json", "bi": "bi-journal-text"},
+                {"id": "resources", "title": "الموارد", "desc": "ملفات ومجلدات الدروس.", "route": "/teacher/resources", "roles": ["teacher"], "perms": ["academics.resources"], "icon": "https://cdn.lordicon.com/svbmmyue.json", "bi": "bi-folder2-open"},
+                {"id": "messages", "title": "الرسائل", "desc": "التواصل مع الطلبة والأهالي.", "route": "/messages", "roles": ["teacher"], "perms": ["communications.messages"], "icon": "https://cdn.lordicon.com/kthelypq.json", "bi": "bi-chat-dots"}
+            ],
+        },
+        {
+            "role": "مشرف الجناح",
+            "role_key": "wing_supervisor",
+            "color": "#8a1538",
+            "items": [
+                {"id": "wing_dashboard", "title": "لوحة الجناح", "desc": "مؤشرات اليوم للحضور والانضباط.", "route": "/wing/dashboard", "roles": ["wing_supervisor"], "perms": ["attendance.wing.read"], "icon": "https://cdn.lordicon.com/gqzfzudq.json", "bi": "bi-grid"},
+                {"id": "wing_daily", "title": "الغياب اليومي", "desc": "متابعة حضور اليوم لكل الصفوف.", "route": "/wing/attendance/daily", "roles": ["wing_supervisor"], "perms": ["attendance.daily.read"], "icon": "https://cdn.lordicon.com/akuwjdzh.json", "bi": "bi-calendar2-day"},
+                {"id": "wing_missing", "title": "حصص بلا إدخال", "desc": "رصد الحصص التي لم تُسجل.", "route": "/wing/attendance/missing", "roles": ["wing_supervisor"], "perms": ["attendance.missing.read"], "icon": "https://cdn.lordicon.com/lznlxwtc.json", "bi": "bi-exclamation-triangle-fill"},
+                {"id": "wing_exits", "title": "أذونات الخروج", "desc": "بدء/إيقاف وتتبع إذن الخروج.", "route": "/wing/exits", "roles": ["wing_supervisor"], "perms": ["attendance.exits.manage"], "icon": "https://cdn.lordicon.com/qhviklyi.json", "bi": "bi-box-arrow-up-right"},
+                {"id": "wing_incidents", "title": "البلاغات", "desc": "تسجيل ومتابعة الحوادث السلوكية.", "route": "/wing/incidents", "roles": ["wing_supervisor"], "perms": ["behavior.incidents.manage"], "icon": "https://cdn.lordicon.com/iqaqnsks.json", "bi": "bi-shield-exclamation"},
+                {"id": "wing_timetable", "title": "جدول 7×7", "desc": "شبكة أسبوعية 7×7 للحصص.", "route": "/wing/timetable", "roles": ["wing_supervisor"], "perms": ["academics.timetable.read"], "icon": "https://cdn.lordicon.com/abwrkdvl.json", "bi": "bi-table"},
+                {"id": "wing_reports", "title": "تقارير الجناح", "desc": "تصدير ومؤشرات أسبوعية/شهرية.", "route": "/wing/reports", "roles": ["wing_supervisor"], "perms": ["reports.wing"], "icon": "https://cdn.lordicon.com/lywgqtim.json", "bi": "bi-graph-up-arrow"}
+            ],
+        },
+        {
+            "role": "منسق المادة",
+            "role_key": "subject_coordinator",
+            "color": "#2e7d32",
+            "items": [
+                {"id": "subject_dashboard", "title": "لوحة المنسق", "desc": "تحليل أداء المادة ومتابعة الخطط.", "route": "/subject/dashboard", "roles": ["subject_coordinator"], "perms": ["analytics.subject.read"], "icon": "https://cdn.lordicon.com/oezixobx.json", "bi": "bi-graph-up"},
+                {"id": "question_bank", "title": "بنك الأسئلة", "desc": "إدارة بنك الأسئلة المشترك.", "route": "/subject/qbank", "roles": ["subject_coordinator"], "perms": ["academics.question_bank"], "icon": "https://cdn.lordicon.com/svbmmyue.json", "bi": "bi-database"},
+                {"id": "rubrics", "title": "قوالب التقييم (روبرك)", "desc": "إنشاء ومراجعة الروبركات.", "route": "/subject/rubrics", "roles": ["subject_coordinator"], "perms": ["academics.rubrics"], "icon": "https://cdn.lordicon.com/qtqvorle.json", "bi": "bi-list-check"}
+            ],
+        },
+        {
+            "role": "المدير",
+            "role_key": "principal",
+            "color": "#6a1b9a",
+            "items": [
+                {"id": "principal_dashboard", "title": "لوحة القيادة", "desc": "مؤشرات KPI شاملة: حضور، تحصيل، انضباط.", "route": "/principal/dashboard", "roles": ["principal"], "perms": ["analytics.kpi"], "icon": "https://cdn.lordicon.com/vspbqszr.json", "bi": "bi-speedometer"},
+                {"id": "reports_official", "title": "التقارير الرسمية", "desc": "تقارير وتصدير PDF/Excel.", "route": "/reports/official", "roles": ["principal"], "perms": ["reports.official"], "icon": "https://cdn.lordicon.com/kbtmbyzy.json", "bi": "bi-filetype-pdf"},
+                {"id": "users_roles", "title": "المستخدمون والأدوار", "desc": "إدارة المستخدمين والصلاحيات.", "route": "/admin/users", "roles": ["principal"], "perms": ["it.users"], "icon": "https://cdn.lordicon.com/iltqorsz.json", "bi": "bi-person-gear"}
+            ],
+        },
+        {
+            "role": "نائب أكاديمي",
+            "role_key": "academic_deputy",
+            "color": "#1e88e5",
+            "items": [
+                {"id": "timetable_master", "title": "الجداول الأكاديمية", "desc": "إدارة الجداول وقوالب الحصص.", "route": "/academic/dashboard", "roles": ["academic_deputy"], "perms": ["academics.timetable.manage"], "icon": "https://cdn.lordicon.com/abwrkdvl.json", "bi": "bi-calendar3"},
+                {"id": "assessments", "title": "الاختبارات المركزية", "desc": "ضبط الجداول والأسئلة الموحدة.", "route": "/academic/assessments", "roles": ["academic_deputy"], "perms": ["academics.assessments.manage"], "icon": "https://cdn.lordicon.com/zzcjjxew.json", "bi": "bi-ui-checks-grid"},
+                {"id": "curricula", "title": "المناهج والخطط", "desc": "تخطيط وتوزيع المنهاج.", "route": "/academic/curricula", "roles": ["academic_deputy"], "perms": ["academics.curricula"], "icon": "https://cdn.lordicon.com/wxnxiano.json", "bi": "bi-journal-richtext"}
+            ],
+        },
+        {
+            "role": "نائب إداري",
+            "role_key": "admin_deputy",
+            "color": "#ef6c00",
+            "items": [
+                {"id": "hr", "title": "الموارد البشرية", "desc": "ملفات العاملين والإجازات.", "route": "/ops/hr", "roles": ["admin_deputy"], "perms": ["admin_ops.hr"], "icon": "https://cdn.lordicon.com/iltqorsz.json", "bi": "bi-person-gear"},
+                {"id": "finance", "title": "المالية والرسوم", "desc": "الفوترة والتحصيل.", "route": "/ops/finance", "roles": ["admin_deputy"], "perms": ["admin_ops.finance"], "icon": "https://cdn.lordicon.com/vduvxizq.json", "bi": "bi-wallet2"},
+                {"id": "procurement", "title": "المشتريات", "desc": "أوامر الشراء والموردون.", "route": "/ops/procurement", "roles": ["admin_deputy"], "perms": ["admin_ops.procurement"], "icon": "https://cdn.lordicon.com/kbtmbyzy.json", "bi": "bi-cart-check"},
+                {"id": "assets", "title": "الأصول والعهد", "desc": "تتبع الأصول والجرد.", "route": "/ops/assets", "roles": ["admin_deputy"], "perms": ["admin_ops.assets"], "icon": "https://cdn.lordicon.com/qmcsqnle.json", "bi": "bi-box-seam"},
+                {"id": "facilities", "title": "المرافق والصيانة", "desc": "طلبات الصيانة ومتابعتها.", "route": "/ops/facilities", "roles": ["admin_deputy"], "perms": ["admin_ops.facilities"], "icon": "https://cdn.lordicon.com/nqtddedc.json", "bi": "bi-wrench"},
+                {"id": "transport", "title": "النقل المدرسي", "desc": "الحافلات والمسارات.", "route": "/ops/transport", "roles": ["admin_deputy"], "perms": ["admin_ops.transport"], "icon": "https://cdn.lordicon.com/vduvxizq.json", "bi": "bi-bus-front"}
+            ],
+        },
+        # Additional functional areas
+        {
+            "role": "شؤون الطلاب",
+            "role_key": "student_affairs",
+            "color": "#0d6efd",
+            "items": [
+                {"id": "admissions", "title": "القبول والتحويلات", "desc": "طلبات القبول والتحويل.", "route": "/affairs/admissions", "roles": ["student_affairs"], "perms": ["student_affairs.admissions"], "icon": "https://cdn.lordicon.com/qhviklyi.json", "bi": "bi-door-open"},
+                {"id": "records", "title": "السجلات والملفات", "desc": "ملفات الطلاب والوثائق.", "route": "/affairs/records", "roles": ["student_affairs"], "perms": ["student_affairs.records"], "icon": "https://cdn.lordicon.com/svbmmyue.json", "bi": "bi-file-earmark-text"}
+            ],
+        },
+        {
+            "role": "المالية",
+            "role_key": "finance",
+            "color": "#795548",
+            "items": [
+                {"id": "billing", "title": "الفوترة والتحصيل", "desc": "إدارة الرسوم والمدفوعات.", "route": "/finance/billing", "roles": ["finance"], "perms": ["finance.billing"], "icon": "https://cdn.lordicon.com/vduvxizq.json", "bi": "bi-receipt"}
+            ],
+        },
+        {
+            "role": "المكتبة",
+            "role_key": "library",
+            "color": "#009688",
+            "items": [
+                {"id": "catalog", "title": "الفهرس والإعارة", "desc": "عناوين وإعارات المكتبة.", "route": "/library/catalog", "roles": ["librarian"], "perms": ["library.catalog"], "icon": "https://cdn.lordicon.com/fgxwhgys.json", "bi": "bi-book"}
+            ],
+        },
+        {
+            "role": "تقنية المعلومات",
+            "role_key": "it",
+            "color": "#455a64",
+            "items": [
+                {"id": "it_users", "title": "المستخدمون والأدوار", "desc": "RBAC وإدارة الوصول.", "route": "/it/users", "roles": ["it"], "perms": ["it.users"], "icon": "https://cdn.lordicon.com/iltqorsz.json", "bi": "bi-people-fill"},
+                {"id": "integrations", "title": "التكاملات وAPI", "desc": "واجهات وربط الأنظمة.", "route": "/it/integrations", "roles": ["it"], "perms": ["it.integrations"], "icon": "https://cdn.lordicon.com/uvextprq.json", "bi": "bi-braces"}
+            ],
+        },
+        {
+            "role": "العيادة",
+            "role_key": "health",
+            "color": "#e53935",
+            "items": [
+                {"id": "clinic_records", "title": "السجلات الصحية", "desc": "زيارات ولقاحات وحوادث.", "route": "/health/clinic", "roles": ["nurse"], "perms": ["health.clinic"], "icon": "https://cdn.lordicon.com/hjbsbdhw.json", "bi": "bi-heart-pulse"}
+            ],
+        },
+        {
+            "role": "الإرشاد",
+            "role_key": "guidance",
+            "color": "#6d4c41",
+            "items": [
+                {"id": "counseling", "title": "الملفات الإرشادية", "desc": "جلسات ومتابعات وخطط تدخل.", "route": "/guidance/cases", "roles": ["counselor"], "perms": ["guidance.cases"], "icon": "https://cdn.lordicon.com/kjkiqtxg.json", "bi": "bi-people"}
+            ],
+        },
+    ]
+    # Extend with additional operational roles and catalogs (secretary, canteen, exams, safety, registrar, transport, attendance office, discipline, substitutions)
+    # Additional operational roles and catalogs (secretary, canteen, exams, safety, registrar, transport, attendance office, discipline, substitutions)
+    extra_sections = [
+        {
+            "role": "سكرتير المدرسة",
+            "role_key": "secretary",
+            "color": "#6c757d",
+            "items": [
+                {"id": "front_office", "title": "المكتب الأمامي", "desc": "استقبال المراجعين، المراسلات، الأختام.", "route": "/office/front", "roles": ["secretary"], "perms": ["office.front"], "icon": "https://cdn.lordicon.com/qhviklyi.json", "bi": "bi-envelope-paper"},
+                {"id": "letters", "title": "الكتب الرسمية", "desc": "إصدار واستقبال الكتب ومتابعتها.", "route": "/office/letters", "roles": ["secretary"], "perms": ["office.letters"], "icon": "https://cdn.lordicon.com/kbtmbyzy.json", "bi": "bi-mailbox"}
+            ],
+        },
+        {
+            "role": "مسؤول الامتحانات",
+            "role_key": "exams_officer",
+            "color": "#1f6feb",
+            "items": [
+                {"id": "exam_calendar", "title": "تقويم الامتحانات", "desc": "جداول وتوزيع اللجان.", "route": "/exams/calendar", "roles": ["exams_officer"], "perms": ["exams.manage"], "icon": "https://cdn.lordicon.com/zzcjjxew.json", "bi": "bi-calendar2-range"},
+                {"id": "exam_invigilation", "title": "المراقبات", "desc": "إسناد المراقبات والتبديل.", "route": "/exams/invigilation", "roles": ["exams_officer"], "perms": ["exams.invigilation"], "icon": "https://cdn.lordicon.com/kthelypq.json", "bi": "bi-clipboard2-check"}
+            ],
+        },
+        {
+            "role": "مسؤول المناوبات/الاحتياط",
+            "role_key": "substitutions_officer",
+            "color": "#9c27b0",
+            "items": [
+                {"id": "subs_assign", "title": "إسناد الاحتياط", "desc": "تغطيات فورية للحصص.", "route": "/subs/assign", "roles": ["substitutions_officer"], "perms": ["staffing.substitution"], "icon": "https://cdn.lordicon.com/egiwmiit.json", "bi": "bi-people"}
+            ],
+        },
+        {
+            "role": "مسؤول الانضباط",
+            "role_key": "discipline_officer",
+            "color": "#c62828",
+            "items": [
+                {"id": "behavior_cases", "title": "حالات السلوك", "desc": "فتح ومتابعة القضايا.", "route": "/behavior/cases", "roles": ["discipline_officer"], "perms": ["behavior.incidents.manage"], "icon": "https://cdn.lordicon.com/iqaqnsks.json", "bi": "bi-shield-exclamation"}
+            ],
+        },
+        {
+            "role": "مسؤول الحضور",
+            "role_key": "attendance_office",
+            "color": "#2e7d32",
+            "items": [
+                {"id": "attendance_office_daily", "title": "الحضور اليومي", "desc": "إغلاق اليوم، معالجة الأعذار.", "route": "/attendance/office/daily", "roles": ["attendance_office"], "perms": ["attendance.daily.manage"], "icon": "https://cdn.lordicon.com/akuwjdzh.json", "bi": "bi-calendar-check"}
+            ],
+        },
+        {
+            "role": "مسؤول السلامة",
+            "role_key": "safety_officer",
+            "color": "#f57f17",
+            "items": [
+                {"id": "safety_incidents", "title": "السلامة والحوادث", "desc": "الإبلاغ والمتابعة.", "route": "/safety/incidents", "roles": ["safety_officer"], "perms": ["safety.incidents"], "icon": "https://cdn.lordicon.com/lywgqtim.json", "bi": "bi-alarm"}
+            ],
+        },
+        {
+            "role": "مسؤول السجلات",
+            "role_key": "registrar",
+            "color": "#37474f",
+            "items": [
+                {"id": "registry", "title": "السجل الأكاديمي", "desc": "الملفات والشهادات.", "route": "/registrar/records", "roles": ["registrar"], "perms": ["student_affairs.records"], "icon": "https://cdn.lordicon.com/svbmmyue.json", "bi": "bi-archive"}
+            ],
+        },
+        {
+            "role": "مسؤول النقل",
+            "role_key": "transport_officer",
+            "color": "#1565c0",
+            "items": [
+                {"id": "transport_routes", "title": "مسارات الحافلات", "desc": "الجداول والطلاب.", "route": "/transport/routes", "roles": ["transport_officer"], "perms": ["admin_ops.transport"], "icon": "https://cdn.lordicon.com/vduvxizq.json", "bi": "bi-bus-front"}
+            ],
+        },
+        {
+            "role": "المقصف المدرسي",
+            "role_key": "canteen_manager",
+            "color": "#8d6e63",
+            "items": [
+                {"id": "canteen", "title": "إدارة المقصف", "desc": "القوائم والحسابات.", "route": "/canteen", "roles": ["canteen_manager"], "perms": ["ops.canteen"], "icon": "https://cdn.lordicon.com/kbtmbyzy.json", "bi": "bi-basket3"}
+            ],
+        },
+        {
+            "role": "المرشد الاجتماعي",
+            "role_key": "social_counselor",
+            "color": "#6d4c41",
+            "items": [
+                {"id": "guidance_cases", "title": "ملفات الإرشاد الاجتماعي", "desc": "حالات سلوكية وجلسات ومتابعات.", "route": "/guidance/social/cases", "roles": ["social_counselor"], "perms": ["guidance.cases"], "icon": "https://cdn.lordicon.com/kjkiqtxg.json", "bi": "bi-people"},
+                {"id": "interventions", "title": "خطط التدخل", "desc": "خطط دعم وتدخل فردية.", "route": "/guidance/social/interventions", "roles": ["social_counselor"], "perms": ["guidance.interventions"], "icon": "https://cdn.lordicon.com/qtqvorle.json", "bi": "bi-list-check"},
+                {"id": "parents_comm", "title": "التواصل مع أولياء الأمور", "desc": "اتصالات منظمة ومؤرشفة.", "route": "/guidance/social/parents", "roles": ["social_counselor"], "perms": ["communications.parents"], "icon": "https://cdn.lordicon.com/megfpqpw.json", "bi": "bi-chat-dots"}
+            ],
+        },
+        {
+            "role": "المرشد الأكاديمي",
+            "role_key": "academic_counselor",
+            "color": "#1e88e5",
+            "items": [
+                {"id": "academic_advising", "title": "الإرشاد الأكاديمي", "desc": "خطط دراسية وإرشاد تحصيلي.", "route": "/guidance/academic/advising", "roles": ["academic_counselor"], "perms": ["guidance.academic"], "icon": "https://cdn.lordicon.com/oezixobx.json", "bi": "bi-mortarboard"},
+                {"id": "remedial_programs", "title": "برامج علاجية", "desc": "خطط تعويض الفجوات الأكاديمية.", "route": "/guidance/academic/remedial", "roles": ["academic_counselor"], "perms": ["guidance.remedial"], "icon": "https://cdn.lordicon.com/krmfspeu.json", "bi": "bi-bar-chart"},
+                {"id": "risk_alerts", "title": "تنبيهات التراجع", "desc": "رصد الطلبة المعرضين للخطر.", "route": "/guidance/academic/alerts", "roles": ["academic_counselor"], "perms": ["analytics.risk"], "icon": "https://cdn.lordicon.com/lywgqtim.json", "bi": "bi-exclamation-triangle"}
+            ],
+        },
+    ]
+    # Merge base catalog with extra sections
+    catalog += extra_sections
+
+    # Place teacher evaluation items under their respective roles (instead of a separate section)
+    eval_by_coordinator = {"id": "eval_by_coordinator", "title": "تقييم المنسق", "desc": "زيارات صفية وروبرك.", "route": "/evaluations/coordinator", "roles": ["subject_coordinator"], "perms": ["evaluations.write"], "icon": "https://cdn.lordicon.com/qtqvorle.json", "bi": "bi-clipboard2-data"}
+    eval_by_academic = {"id": "eval_by_academic", "title": "تقييم النائب الأكاديمي", "desc": "متابعة الأداء الأكاديمي.", "route": "/evaluations/academic", "roles": ["academic_deputy"], "perms": ["evaluations.manage"], "icon": "https://cdn.lordicon.com/oezixobx.json", "bi": "bi-clipboard2-check"}
+    eval_by_principal = {"id": "eval_by_principal", "title": "تقييم المدير", "desc": "تقييم شامل وملاحظات.", "route": "/evaluations/principal", "roles": ["principal"], "perms": ["evaluations.approve"], "icon": "https://cdn.lordicon.com/vspbqszr.json", "bi": "bi-clipboard2-pulse"}
+
+    for _sec in catalog:
+        rk = _sec.get("role_key")
+        if rk == "subject_coordinator":
+            _sec.setdefault("items", []).append(eval_by_coordinator)
+        elif rk == "academic_deputy":
+            _sec.setdefault("items", []).append(eval_by_academic)
+        elif rk == "principal":
+            _sec.setdefault("items", []).append(eval_by_principal)
+
+    use_lordicon = not bool(request.GET.get("no_lordicon"))
+    # Best-practice guidance per role (daily/weekly/monthly/KPIs/permissions hints)
+    best_practices = {
+        "teacher": {
+            "daily": [
+                "تسجيل حضور الحصة فور بدايتها (≤ 5 دقائق)",
+                "مراجعة التأخر وإضافة ملاحظة تربوية مختصرة عند الحاجة",
+                "نشر واجب واحد على الأقل لكل مادة نشطة",
+            ],
+            "weekly": [
+                "تحديث خطط الدروس للأسبوع القادم",
+                "مراجعة نتائج الكويزات ومعالجة فجوات الإتقان",
+            ],
+            "monthly": [
+                "مزامنة دفتر العلامات والتقارير القصيرة مع ولي الأمر",
+            ],
+            "kpis": ["نسبة الحضور", "إنجاز الواجبات", "تقدّم الأهداف"],
+            "perms": ["attendance.session.write", "academics.lesson_plans", "academics.grades"],
+        },
+        "wing_supervisor": {
+            "daily": [
+                "مراقبة الغياب اليومي وإغلاق اليوم للجناح",
+                "متابعة حصص بلا إدخال وإشعار المعلمين",
+                "إدارة أذونات الخروج ومتابعة العائدين",
+            ],
+            "weekly": [
+                "تحليل الصفوف الأكثر غيابًا ووضع خطة تدخل",
+                "مراجعة البلاغات السلوكية المفتوحة",
+            ],
+            "monthly": [
+                "تقرير شهري لنسبة الحضور والتأخر على مستوى الجناح",
+            ],
+            "kpis": ["absentToday", "exit_events_open", "present_pct"],
+            "perms": ["attendance.wing.read", "attendance.exits.manage", "behavior.incidents.manage"],
+        },
+        "subject_coordinator": {
+            "daily": ["دعم المعلمين بالمحتوى والأسئلة"],
+            "weekly": ["توحيد التقييمات القصيرة", "مراجعة بنك الأسئلة"],
+            "monthly": ["تقارير مقارنة بين الصفوف والمعلمين"],
+            "kpis": ["اتساق التقييم", "تقدم المنهج"],
+            "perms": ["academics.question_bank", "academics.rubrics", "analytics.subject.read"],
+        },
+        "principal": {
+            "daily": ["مراجعة لوحة القيادة والتنبيهات المهمة"],
+            "weekly": ["اجتماع متابعة مع النواب"],
+            "monthly": ["تقارير رسمية للوزارة/المالك"],
+            "kpis": ["حضور المدرسة", "تحصيل أكاديمي", "انضباط"],
+            "perms": ["analytics.kpi", "reports.official", "it.users"],
+        },
+        "academic_deputy": {
+            "daily": ["حل تعارضات الجدول"],
+            "weekly": ["ضبط جداول الاختبارات", "متابعة تنفيذ المنهج"],
+            "monthly": ["تقييم جودة التقييمات والروبركات"],
+            "kpis": ["اكتمال الجداول", "معدلات التقييم"],
+            "perms": ["academics.timetable.manage", "academics.assessments.manage", "academics.curricula"],
+        },
+        "admin_deputy": {
+            "daily": ["موافقات الإجازات والطلبات التشغيلية"],
+            "weekly": ["مراجعة أوامر الشراء والصيانة"],
+            "monthly": ["موازنة الرسوم والتحصيل"],
+            "kpis": ["طلبات صيانة مفتوحة", "تحصيل الرسوم"],
+            "perms": ["admin_ops.hr", "admin_ops.finance", "admin_ops.facilities", "admin_ops.procurement"],
+        },
+        "student_affairs": {
+            "daily": ["معالجة طلبات القبول والتحويل"],
+            "weekly": ["تحديث السجلات والوثائق"],
+            "monthly": ["تقارير الحضور والانضباط للطلاب"],
+            "kpis": ["زمن إنجاز الطلبات"],
+            "perms": ["student_affairs.admissions", "student_affairs.records"],
+        },
+        "finance": {
+            "daily": ["إصدار الفواتير ومعالجة المدفوعات"],
+            "weekly": ["مطابقات مالية"],
+            "monthly": ["تقارير مالية"],
+            "kpis": ["التحصيل", "المتأخرات"],
+            "perms": ["finance.billing"],
+        },
+        "library": {
+            "daily": ["إعارات وإرجاعات الكتب"],
+            "weekly": ["تحديث الفهرس"],
+            "monthly": ["تقارير الإعارة"],
+            "kpis": ["نشاط المكتبة"],
+            "perms": ["library.catalog"],
+        },
+        "it": {
+            "daily": ["دعم المستخدمين وإدارة الأدوار"],
+            "weekly": ["مراجعة السجلات والتكاملات"],
+            "monthly": ["نسخ احتياطية واختبارات استرداد"],
+            "kpis": ["طلبات الدعم", "نجاح النسخ"],
+            "perms": ["it.users", "it.integrations"],
+        },
+        "health": {
+            "daily": ["تسجيل الزيارات والإسعافات"],
+            "weekly": ["متابعة الحالات"],
+            "monthly": ["تقارير صحية"],
+            "kpis": ["حالات طارئة", "زيارات"],
+            "perms": ["health.clinic"],
+        },
+        "guidance": {
+            "daily": ["جلسات إرشاد ومتابعة"],
+            "weekly": ["خطط تدخل"],
+            "monthly": ["تقارير متابعة"],
+            "kpis": ["حالات مفتوحة", "خطة لكل طالب"],
+            "perms": ["guidance.cases"],
+        },
+        "social_counselor": {
+            "daily": [
+                "استقبال الحالات السلوكية وتوثيقها",
+                "جلسات إرشاد فردية قصيرة",
+                "اتصال بولي الأمر عند الحاجة"
+            ],
+            "weekly": [
+                "مراجعة خطط التدخل النشطة",
+                "اجتماع تنسيقي مع مشرف الجناح/المرشد الأكاديمي"
+            ],
+            "monthly": [
+                "تقرير شهري عن الحالات المفتوحة والمغلقة",
+                "تحليل أنماط السلوك ووضع توصيات"
+            ],
+            "kpis": ["عدد الحالات المفتوحة", "نسبة الحالات المغلقة", "متوسط زمن المعالجة"],
+            "perms": ["guidance.cases", "guidance.interventions", "communications.parents"],
+        },
+        "academic_counselor": {
+            "daily": [
+                "متابعة الطلبة ذوي التراجع الأكاديمي",
+                "إرشاد حول تنظيم الدراسة ووضع أهداف قصيرة المدى"
+            ],
+            "weekly": [
+                "خطة علاجية فردية بالتنسيق مع المعلم والمنسق",
+                "تحليل نتائج الكويزات/الاختبارات لرصد الفجوات"
+            ],
+            "monthly": [
+                "تقرير تحصيلي لفئات الخطر",
+                "تقييم فاعلية البرامج العلاجية"
+            ],
+            "kpis": ["تحسن الدرجات", "نسبة حضور الجلسات الأكاديمية", "عدد الطلبة في خطر"],
+            "perms": ["guidance.academic", "guidance.remedial", "analytics.risk"],
+        },
+    }
+    # Attach best practices per role to each section for straightforward template access
+    try:
+        for _sec in catalog:
+            rk = _sec.get("role_key")
+            _sec["best"] = best_practices.get(rk, {})
+    except Exception:
+        pass
+    # User roles (groups) for role-based filtering in template
+    try:
+        user_roles = list(request.user.groups.values_list("name", flat=True))
+    except Exception:
+        user_roles = []
+    # ---- Dynamic enhancement from database staff job titles ----
+    # Build role counts and title mapping using Staff.job_title to strengthen catalog based on real workforce
+    try:
+        title_rows = (
+            Staff.objects.exclude(job_title__isnull=True)
+            .exclude(job_title="")
+            .values("job_title")
+            .annotate(cnt=Count("id"))
+            .order_by("job_title")
+        )
+    except Exception:
+        title_rows = []
+
+    # Mapping rules from Arabic job titles to platform role keys
+    ROLE_MAP_RULES: list[tuple[re.Pattern, str]] = [
+        (re.compile(r"مدير|المدير|قائد"), "principal"),
+        (re.compile(r"نائب\s*أكاديمي|وكيل\s*أكاديمي|الشؤون\s*الأكاديمية"), "academic_deputy"),
+        (re.compile(r"نائب\s*إداري|وكيل\s*إداري|الشؤون\s*الإدارية"), "admin_deputy"),
+        (re.compile(r"منسق|منسّق|منسق مادة|رئيس قسم"), "subject_coordinator"),
+        (re.compile(r"مشرف\s*جناح|مشرف مرحلة|رائد|head of wing"), "wing_supervisor"),
+        (re.compile(r"معلم|معلّم|teacher"), "teacher"),
+        (re.compile(r"سكرتير|سكرتارية|secretary"), "secretary"),
+        (re.compile(r"امتحان|الامتحانات|اختبار|تقويم|امتحانات|امتحاني|امتحانيه|exams"), "exams_officer"),
+        (re.compile(r"مناوب|احتياط|تغطية|بديل"), "substitutions_officer"),
+        (re.compile(r"انضباط|سلوك|تأديب|discipline"), "discipline_officer"),
+        (re.compile(r"حضور|الغياب|Attendance"), "attendance_office"),
+        (re.compile(r"سلامة|أمن|طوارئ|سلامه"), "safety_officer"),
+        (re.compile(r"سجلات|مسجل|Registrar"), "registrar"),
+        (re.compile(r"نقل|مواصلات|حافلات|باص"), "transport_officer"),
+        (re.compile(r"مقصف|كانتين|مطعم مدرسي"), "canteen_manager"),
+        (re.compile(r"مكتبة|أمين مكتبة|librar"), "library"),
+        (re.compile(r"تقنية المعلومات|نظم|مبرمج|شبكات|حاسوب|IT|تقني"), "it"),
+        (re.compile(r"ممرض|عيادة|صحة|تمريض|nurse|clinic"), "health"),
+        (re.compile(r"مرشد\s*اجتماعي|اجتماعي|إرشاد اجتماعي"), "social_counselor"),
+        (re.compile(r"مرشد\s*أكاديمي|إرشاد أكاديمي|ارشاد اكاديمي"), "academic_counselor"),
+        (re.compile(r"شؤون\s*الطلاب|سجلات الطلاب|قبول|تسجيل"), "student_affairs"),
+        (re.compile(r"مالية|محاسب|رسوم|تحصيل|Finance"), "finance"),
+    ]
+
+    def map_title_to_role(title: str) -> str | None:
+        t = (title or "").strip()
+        for rx, rk in ROLE_MAP_RULES:
+            try:
+                if rx.search(t):
+                    return rk
+            except Exception:
+                continue
+        return None
+
+    role_counts: dict[str, int] = {}
+    job_titles_map: list[dict] = []
+    for row in title_rows:
+        jt = str(row.get("job_title") or "").strip()
+        cnt = int(row.get("cnt") or 0)
+        rk = map_title_to_role(jt)
+        job_titles_map.append({"job_title": jt, "count": cnt, "role_key": rk})
+        if rk:
+            role_counts[rk] = role_counts.get(rk, 0) + cnt
+
+    # Strengthen teacher count using authoritative sources: Staff.role/group + TeachingAssignment + TimetableEntry(current term)
+    try:
+        from .models import Staff as _Staff, TeachingAssignment as _TA, TimetableEntry as _TE, Term as _Term  # type: ignore
+        teacher_ids: set[int] = set()
+        # Staff.role = 'teacher'
+        try:
+            teacher_ids.update(int(i) for i in _Staff.objects.filter(role="teacher").values_list("id", flat=True))
+        except Exception:
+            pass
+        # Group membership 'teacher'
+        try:
+            teacher_ids.update(int(i) for i in _Staff.objects.filter(user__groups__name="teacher").values_list("id", flat=True).distinct())
+        except Exception:
+            pass
+        # TeachingAssignment teacher ids
+        try:
+            teacher_ids.update(int(i) for i in _TA.objects.values_list("teacher_id", flat=True).distinct() if i)
+        except Exception:
+            pass
+        # TimetableEntry teacher ids for current term (if any)
+        try:
+            _term = _Term.objects.filter(is_current=True).first()
+            if _term:
+                teacher_ids.update(int(i) for i in _TE.objects.filter(term=_term).values_list("teacher_id", flat=True).distinct() if i)
+        except Exception:
+            pass
+        if teacher_ids:
+            role_counts["teacher"] = len({i for i in teacher_ids if i})
+    except Exception:
+        pass
+
+    # Attach staff_count to each catalog section
+    for _sec in catalog:
+        rk = _sec.get("role_key")
+        _sec["staff_count"] = role_counts.get(rk, 0)
+
+    # Determine if current user can edit (UI designer roles)
+    try:
+        is_designer = _is_ui_designer(request.user)  # type: ignore[name-defined]
+    except Exception:
+        is_designer = False
+    context = {
+        "title": "منظومة الأيقونات والصلاحيات",
+        "catalog": catalog,
+        "use_lordicon": use_lordicon,
+        "best_practices": best_practices,
+        "user_roles": user_roles,
+        "role_counts": role_counts,
+        "job_titles_map": job_titles_map,
+        "is_designer": is_designer,
+    }
+    return render(request, "data/icons_catalog.html", context)
 
 
 @user_passes_test(_staff_only)
@@ -4356,3 +4872,199 @@ def data_db_audit(request):
         "checks_warn": len(suggestions_all),
     }
     return render(request, "data/audit.html", context)
+
+# === UI Tiles persistence (file-based, minimal backend) ===
+from django.views.decorators.http import require_http_methods
+import json
+
+_UI_RUNTIME_DIR = os.path.join(settings.BASE_DIR, 'backend', '.runtime') if hasattr(settings, 'BASE_DIR') else os.path.join(os.path.dirname(__file__), '..', '.runtime')
+_UI_TILES_FILE = os.path.join(_UI_RUNTIME_DIR, 'ui_tiles.json')
+
+
+def _ensure_runtime_dir():
+    try:
+        os.makedirs(_UI_RUNTIME_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+
+def _is_ui_designer(user) -> bool:
+    try:
+        if getattr(user, 'is_superuser', False):
+            return True
+        groups = set(user.groups.values_list('name', flat=True))  # type: ignore
+        return bool(groups.intersection({'principal', 'it', 'admin_deputy'}))
+    except Exception:
+        return False
+
+
+@require_http_methods(["GET"])
+@login_required
+def api_ui_tiles_effective(request):
+    """Return saved tiles (draft/effective). If missing, return empty array.
+    This endpoint is read-only for any authenticated user to allow SPA to render.
+    """
+    try:
+        _ensure_runtime_dir()
+        if os.path.exists(_UI_TILES_FILE):
+            with open(_UI_TILES_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            # Validate basic shape
+            if isinstance(data, dict) and 'tiles' in data and isinstance(data['tiles'], list):
+                return JsonResponse(data, safe=False)
+            if isinstance(data, list):
+                return JsonResponse({'tiles': data}, safe=False)
+    except Exception:
+        # fall through to empty
+        pass
+    return JsonResponse({'tiles': []})
+
+
+@require_http_methods(["POST"])
+@login_required
+def api_ui_tiles_save(request):
+    """Persist tiles JSON to the runtime file. Restricted to UI designers.
+    Body: { tiles: [ { id, title, subtitle?, icon, color?, to?, href?, roles?, permissions?, kpiKey? } ], version?: int }
+    """
+    if not _is_ui_designer(request.user):
+        return JsonResponse({'detail': 'forbidden'}, status=403)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({'detail': 'invalid json'}, status=400)
+    tiles = payload.get('tiles')
+    if not isinstance(tiles, list):
+        return JsonResponse({'detail': 'tiles must be a list'}, status=400)
+    # Basic validation and normalization
+    seen = set()
+    norm_tiles = []
+    for t in tiles:
+        if not isinstance(t, dict):
+            continue
+        tid = str(t.get('id') or '').strip()
+        title = str(t.get('title') or '').strip()
+        icon = str(t.get('icon') or '').strip()
+        if not tid or not title or not icon:
+            continue
+        if tid in seen:
+            continue
+        seen.add(tid)
+        item = {
+            'id': tid,
+            'title': title,
+            'subtitle': (t.get('subtitle') or '').strip() or None,
+            'icon': icon,
+            'color': (t.get('color') or '').strip() or None,
+            'to': (t.get('to') or '').strip() or None,
+            'href': (t.get('href') or '').strip() or None,
+            'roles': t.get('roles') if isinstance(t.get('roles'), list) else [],
+            'permissions': t.get('permissions') if isinstance(t.get('permissions'), list) else [],
+            'kpiKey': (t.get('kpiKey') or None),
+            'enabled': bool(t.get('enabled', True)),
+        }
+        norm_tiles.append(item)
+    data = {
+        'version': int(payload.get('version') or 1),
+        'updated_by': getattr(request.user, 'username', None),
+        'tiles': norm_tiles,
+    }
+    try:
+        _ensure_runtime_dir()
+        with open(_UI_TILES_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return JsonResponse({'saved': len(norm_tiles), 'version': data['version']})
+    except Exception as e:
+        return JsonResponse({'detail': f'failed to save: {e}'}, status=500)
+# --- Icons API (filesystem-backed) ---
+# Minimal viable implementation to support sc:* icons with caching.
+from typing import List, Tuple
+
+ICON_DIRS: List[str] = [
+    os.path.join(settings.BASE_DIR, 'assets', 'icons'),
+    os.path.join(settings.BASE_DIR, 'backend', 'static', 'data', 'icons'),
+]
+
+def _iter_icon_files() -> List[Tuple[str, str]]:
+    out: List[Tuple[str, str]] = []
+    seen = set()
+    for d in ICON_DIRS:
+        if not os.path.isdir(d):
+            continue
+        try:
+            for fn in os.listdir(d):
+                if not fn.lower().endswith('.svg'):
+                    continue
+                name = fn[:-4]
+                if name in seen:
+                    continue
+                seen.add(name)
+                out.append((name, os.path.join(d, fn)))
+        except Exception:
+            continue
+    return out
+
+@require_GET
+def icons_manifest(request):
+    data = {}
+    files = _iter_icon_files()
+    for name, path in files:
+        try:
+            stat = os.stat(path)
+            ver = int(stat.st_mtime)
+            data[name] = {"v": ver}
+        except Exception:
+            data[name] = {"v": 1}
+    return JsonResponse(data)
+
+def _read_icon_file(name: str) -> Tuple[bytes, str, int]:
+    name_norm = name.strip().lower()
+    for d in ICON_DIRS:
+        if not os.path.isdir(d):
+            continue
+        # try exact
+        cand = os.path.join(d, f"{name}.svg")
+        if os.path.isfile(cand):
+            with open(cand, 'rb') as f:
+                b = f.read()
+            st = os.stat(cand)
+            return b, cand, int(st.st_mtime)
+        # try case-insensitive scan
+        try:
+            for fn in os.listdir(d):
+                if fn.lower() == f"{name_norm}.svg":
+                    full = os.path.join(d, fn)
+                    with open(full, 'rb') as f:
+                        b = f.read()
+                    st = os.stat(full)
+                    return b, full, int(st.st_mtime)
+        except Exception:
+            pass
+    raise Http404("Icon not found")
+
+@require_GET
+def icon_svg(request, name: str):
+    try:
+        content, path, ver = _read_icon_file(name)
+    except Http404:
+        return HttpResponse(status=404)
+    # ETag from sha1 of content
+    import hashlib as _hl
+    etag = '"' + _hl.sha1(content).hexdigest() + '"'
+    inm = request.META.get('HTTP_IF_NONE_MATCH')
+    if inm and inm.strip() == etag:
+        return HttpResponseNotModified()
+
+    # Normalize basic headers
+    resp = HttpResponse(content, content_type='image/svg+xml; charset=utf-8')
+    resp["ETag"] = etag
+    # Cache aggressively if client passes correct version
+    v = request.GET.get('v')
+    try:
+        v_int = int(v) if v else None
+    except Exception:
+        v_int = None
+    if v_int and v_int == ver:
+        resp["Cache-Control"] = 'public, max-age=31536000, immutable'
+    else:
+        resp["Cache-Control"] = 'public, max-age=60'
+    return resp

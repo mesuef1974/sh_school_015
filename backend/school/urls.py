@@ -31,6 +31,11 @@ from .views import (
     assignments_vs_timetable,
     data_relations,
     data_db_audit,
+    data_icons_catalog,
+    api_ui_tiles_effective,
+    api_ui_tiles_save,
+    icons_manifest,
+    icon_svg,
 )
 from .api_relations import api_data_relations
 
@@ -51,6 +56,9 @@ urlpatterns = [
     # Role-based portal
     path("portal/", portal_home, name="portal_home"),
     path("data/", data_overview, name="data_overview"),
+    path("data/icons/", data_icons_catalog, name="data_icons_catalog"),
+    path("data/icons/manifest.json", icons_manifest, name="icons_manifest"),
+    path("data/icons/<str:name>.svg", icon_svg, name="icon_svg"),
     path("data/relations/", data_relations, name="data_relations"),
     path("data/audit/", data_db_audit, name="data_db_audit"),
     path("data/<str:table>/export", export_table_csv, name="data_export_csv"),
@@ -91,6 +99,9 @@ urlpatterns = [
     path("api/timetable/move/", api_timetable_move, name="api_timetable_move"),
     # Data relations API (live)
     path("api/data/relations", api_data_relations, name="api_data_relations"),
+    # UI Tiles API (file-based persistence)
+    path("api/ui/tiles/effective", api_ui_tiles_effective, name="api_ui_tiles_effective"),
+    path("api/ui/tiles/save", api_ui_tiles_save, name="api_ui_tiles_save"),
     # Attendance entry
     path("attendance/teacher/", teacher_attendance_page, name="teacher_attendance_page"),
     path("api/attendance/records", api_attendance_records, name="api_attendance_records"),

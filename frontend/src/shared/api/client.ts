@@ -259,3 +259,18 @@ export async function getWingEntered(params: { date?: string }) {
     throw e;
   }
 }
+
+// ---- UI Tiles Designer API ----
+export async function getUiTilesEffective() {
+  try {
+    const res = await api.get('/ui/tiles/effective');
+    return res.data as { version?: number; updated_by?: string | null; tiles: any[] };
+  } catch {
+    return { tiles: [] } as any;
+  }
+}
+
+export async function postUiTilesSave(payload: { version?: number; tiles: any[] }) {
+  const res = await api.post('/ui/tiles/save', payload);
+  return res.data as { saved: number; version?: number };
+}

@@ -1,0 +1,1058 @@
+{
+  "version": 1761301629215,
+  "updated_by": "mesuef",
+  "tiles": [
+    {
+      "id": "teacher_dashboard",
+      "title": "لوحة التحكم",
+      "subtitle": "نظرة عامة على مهام اليوم والتنبيهات.",
+      "icon": "bi-speedometer2",
+      "color": "#1565c0",
+      "to": "/",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "classes",
+      "title": "صفوفي/أقسام",
+      "subtitle": "إدارة الطلبة والأنشطة لكل صف.",
+      "icon": "bi-people",
+      "color": "#1565c0",
+      "to": "/students",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "academics.classes.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "timetable",
+      "title": "جدولي",
+      "subtitle": "الجدول اليومي/الأسبوعي مع أوقات الحصص.",
+      "icon": "bi-calendar-week",
+      "color": "#1565c0",
+      "to": "/timetable/teacher",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "academics.timetable.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "attendance",
+      "title": "تسجيل الحضور",
+      "subtitle": "تسجيل حضور/غياب الحصة الحالية.",
+      "icon": "bi-clipboard-check",
+      "color": "#1565c0",
+      "to": "/attendance/teacher",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "attendance.session.write"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "attendance_history",
+      "title": "سجل الغياب",
+      "subtitle": "عرض وتصدير سجلات الغياب.",
+      "icon": "bi-clock-history",
+      "color": "#1565c0",
+      "to": "/attendance/teacher/history",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "attendance.history.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "announcements",
+      "title": "الإعلانات",
+      "subtitle": "نشر التنبيهات للطلبة أو الصفوف.",
+      "icon": "bi-megaphone",
+      "color": "#1565c0",
+      "to": "/communications/announcements",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "communications.announcements.write"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "assignments",
+      "title": "الواجبات",
+      "subtitle": "إنشاء وإدارة الواجبات.",
+      "icon": "bi-clipboard-data",
+      "color": "#1565c0",
+      "to": "/teacher/assignments",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "academics.assignments"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "quizzes",
+      "title": "الاختبارات القصيرة",
+      "subtitle": "إنشاء الكويز وتصحيحه.",
+      "icon": "bi-ui-checks",
+      "color": "#1565c0",
+      "to": "/teacher/quizzes",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "academics.quizzes"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "gradebook",
+      "title": "دفتر العلامات",
+      "subtitle": "إدخال الدرجات وتتبعها.",
+      "icon": "bi-bar-chart",
+      "color": "#1565c0",
+      "to": "/teacher/gradebook",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "academics.grades"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "lesson_plans",
+      "title": "تحضير الدروس",
+      "subtitle": "خطة الدرس والموارد.",
+      "icon": "bi-journal-text",
+      "color": "#1565c0",
+      "to": "/teacher/lesson-plans",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "academics.lesson_plans"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "resources",
+      "title": "الموارد",
+      "subtitle": "ملفات ومجلدات الدروس.",
+      "icon": "bi-folder2-open",
+      "color": "#1565c0",
+      "to": "/teacher/resources",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "academics.resources"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "messages",
+      "title": "الرسائل",
+      "subtitle": "التواصل مع الطلبة والأهالي.",
+      "icon": "bi-chat-dots",
+      "color": "#1565c0",
+      "to": "/messages",
+      "href": null,
+      "roles": [
+        "teacher"
+      ],
+      "permissions": [
+        "communications.messages"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "wing_dashboard",
+      "title": "لوحة الجناح",
+      "subtitle": "مؤشرات اليوم للحضور والانضباط.",
+      "icon": "bi-grid",
+      "color": "#8a1538",
+      "to": "/wing/dashboard",
+      "href": null,
+      "roles": [
+        "wing_supervisor"
+      ],
+      "permissions": [
+        "attendance.wing.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "wing_daily",
+      "title": "الغياب اليومي",
+      "subtitle": "متابعة حضور اليوم لكل الصفوف.",
+      "icon": "bi-calendar2-day",
+      "color": "#8a1538",
+      "to": "/wing/attendance/daily",
+      "href": null,
+      "roles": [
+        "wing_supervisor"
+      ],
+      "permissions": [
+        "attendance.daily.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "wing_missing",
+      "title": "حصص بلا إدخال",
+      "subtitle": "رصد الحصص التي لم تُسجل.",
+      "icon": "bi-exclamation-triangle-fill",
+      "color": "#8a1538",
+      "to": "/wing/attendance/missing",
+      "href": null,
+      "roles": [
+        "wing_supervisor"
+      ],
+      "permissions": [
+        "attendance.missing.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "wing_exits",
+      "title": "أذونات الخروج",
+      "subtitle": "بدء/إيقاف وتتبع إذن الخروج.",
+      "icon": "bi-box-arrow-up-right",
+      "color": "#8a1538",
+      "to": "/wing/exits",
+      "href": null,
+      "roles": [
+        "wing_supervisor"
+      ],
+      "permissions": [
+        "attendance.exits.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "wing_incidents",
+      "title": "البلاغات",
+      "subtitle": "تسجيل ومتابعة الحوادث السلوكية.",
+      "icon": "bi-shield-exclamation",
+      "color": "#8a1538",
+      "to": "/wing/incidents",
+      "href": null,
+      "roles": [
+        "wing_supervisor"
+      ],
+      "permissions": [
+        "behavior.incidents.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "wing_timetable",
+      "title": "جدول 7×7",
+      "subtitle": "شبكة أسبوعية 7×7 للحصص.",
+      "icon": "bi-table",
+      "color": "#8a1538",
+      "to": "/wing/timetable",
+      "href": null,
+      "roles": [
+        "wing_supervisor"
+      ],
+      "permissions": [
+        "academics.timetable.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "wing_reports",
+      "title": "تقارير الجناح",
+      "subtitle": "تصدير ومؤشرات أسبوعية/شهرية.",
+      "icon": "bi-graph-up-arrow",
+      "color": "#8a1538",
+      "to": "/wing/reports",
+      "href": null,
+      "roles": [
+        "wing_supervisor"
+      ],
+      "permissions": [
+        "reports.wing"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "subject_dashboard",
+      "title": "لوحة المنسق",
+      "subtitle": "تحليل أداء المادة ومتابعة الخطط.",
+      "icon": "bi-graph-up",
+      "color": "#2e7d32",
+      "to": "/subject/dashboard",
+      "href": null,
+      "roles": [
+        "subject_coordinator"
+      ],
+      "permissions": [
+        "analytics.subject.read"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "question_bank",
+      "title": "بنك الأسئلة",
+      "subtitle": "إدارة بنك الأسئلة المشترك.",
+      "icon": "bi-database",
+      "color": "#2e7d32",
+      "to": "/subject/qbank",
+      "href": null,
+      "roles": [
+        "subject_coordinator"
+      ],
+      "permissions": [
+        "academics.question_bank"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "subs_assign",
+      "title": "إسناد الاحتياط",
+      "subtitle": "تغطيات فورية للحصص.",
+      "icon": "bi-people",
+      "color": "#9c27b0",
+      "to": "/subs/assign",
+      "href": null,
+      "roles": [
+        "subject_coordinator"
+      ],
+      "permissions": [
+        "staffing.substitution"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "rubrics",
+      "title": "قوالب التقييم (روبرك)",
+      "subtitle": "إنشاء ومراجعة الروبركات.",
+      "icon": "bi-list-check",
+      "color": "#2e7d32",
+      "to": "/subject/rubrics",
+      "href": null,
+      "roles": [
+        "subject_coordinator"
+      ],
+      "permissions": [
+        "academics.rubrics"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "eval_by_coordinator",
+      "title": "تقييم المنسق",
+      "subtitle": "زيارات صفية وروبرك.",
+      "icon": "bi-clipboard2-data",
+      "color": "#2e7d32",
+      "to": "/evaluations/coordinator",
+      "href": null,
+      "roles": [
+        "subject_coordinator"
+      ],
+      "permissions": [
+        "evaluations.write"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "principal_dashboard",
+      "title": "لوحة القيادة",
+      "subtitle": "مؤشرات KPI شاملة: حضور، تحصيل، انضباط.",
+      "icon": "bi-speedometer",
+      "color": "#6a1b9a",
+      "to": "/principal/dashboard",
+      "href": null,
+      "roles": [
+        "principal"
+      ],
+      "permissions": [
+        "analytics.kpi"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "reports_official",
+      "title": "التقارير الرسمية",
+      "subtitle": "تقارير وتصدير PDF/Excel.",
+      "icon": "bi-filetype-pdf",
+      "color": "#6a1b9a",
+      "to": "/reports/official",
+      "href": null,
+      "roles": [
+        "principal"
+      ],
+      "permissions": [
+        "reports.official"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "users_roles",
+      "title": "المستخدمون والأدوار",
+      "subtitle": "إدارة المستخدمين والصلاحيات.",
+      "icon": "bi-person-gear",
+      "color": "#6a1b9a",
+      "to": "/admin/users",
+      "href": null,
+      "roles": [
+        "principal"
+      ],
+      "permissions": [
+        "it.users"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "eval_by_principal",
+      "title": "تقييم المدير",
+      "subtitle": "تقييم شامل وملاحظات.",
+      "icon": "bi-clipboard2-pulse",
+      "color": "#6a1b9a",
+      "to": "/evaluations/principal",
+      "href": null,
+      "roles": [
+        "principal"
+      ],
+      "permissions": [
+        "evaluations.approve"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "timetable_master",
+      "title": "الجداول الأكاديمية",
+      "subtitle": "إدارة الجداول وقوالب الحصص.",
+      "icon": "bi-calendar3",
+      "color": "#1e88e5",
+      "to": "/academic/dashboard",
+      "href": null,
+      "roles": [
+        "academic_deputy"
+      ],
+      "permissions": [
+        "academics.timetable.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "assessments",
+      "title": "الاختبارات المركزية",
+      "subtitle": "ضبط الجداول والأسئلة الموحدة.",
+      "icon": "bi-ui-checks-grid",
+      "color": "#1e88e5",
+      "to": "/academic/assessments",
+      "href": null,
+      "roles": [
+        "academic_deputy"
+      ],
+      "permissions": [
+        "academics.assessments.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "curricula",
+      "title": "المناهج والخطط",
+      "subtitle": "تخطيط وتوزيع المنهاج.",
+      "icon": "bi-journal-richtext",
+      "color": "#1e88e5",
+      "to": "/academic/curricula",
+      "href": null,
+      "roles": [
+        "academic_deputy"
+      ],
+      "permissions": [
+        "academics.curricula"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "eval_by_academic",
+      "title": "تقييم النائب الأكاديمي",
+      "subtitle": "متابعة الأداء الأكاديمي.",
+      "icon": "bi-clipboard2-check",
+      "color": "#1e88e5",
+      "to": "/evaluations/academic",
+      "href": null,
+      "roles": [
+        "academic_deputy"
+      ],
+      "permissions": [
+        "evaluations.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "hr",
+      "title": "الموارد البشرية",
+      "subtitle": "ملفات العاملين والإجازات.",
+      "icon": "bi-person-gear",
+      "color": "#ef6c00",
+      "to": "/ops/hr",
+      "href": null,
+      "roles": [
+        "admin_deputy"
+      ],
+      "permissions": [
+        "admin_ops.hr"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "finance",
+      "title": "المالية والرسوم",
+      "subtitle": "الفوترة والتحصيل.",
+      "icon": "bi-wallet2",
+      "color": "#ef6c00",
+      "to": "/ops/finance",
+      "href": null,
+      "roles": [
+        "admin_deputy"
+      ],
+      "permissions": [
+        "admin_ops.finance"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "procurement",
+      "title": "المشتريات",
+      "subtitle": "أوامر الشراء والموردون.",
+      "icon": "bi-cart-check",
+      "color": "#ef6c00",
+      "to": "/ops/procurement",
+      "href": null,
+      "roles": [
+        "admin_deputy"
+      ],
+      "permissions": [
+        "admin_ops.procurement"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "assets",
+      "title": "الأصول والعهد",
+      "subtitle": "تتبع الأصول والجرد.",
+      "icon": "bi-box-seam",
+      "color": "#ef6c00",
+      "to": "/ops/assets",
+      "href": null,
+      "roles": [
+        "admin_deputy"
+      ],
+      "permissions": [
+        "admin_ops.assets"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "facilities",
+      "title": "المرافق والصيانة",
+      "subtitle": "طلبات الصيانة ومتابعتها.",
+      "icon": "bi-wrench",
+      "color": "#ef6c00",
+      "to": "/ops/facilities",
+      "href": null,
+      "roles": [
+        "admin_deputy"
+      ],
+      "permissions": [
+        "admin_ops.facilities"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "transport",
+      "title": "النقل المدرسي",
+      "subtitle": "الحافلات والمسارات.",
+      "icon": "bi-bus-front",
+      "color": "#ef6c00",
+      "to": "/ops/transport",
+      "href": null,
+      "roles": [
+        "admin_deputy"
+      ],
+      "permissions": [
+        "admin_ops.transport"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "billing",
+      "title": "الفوترة والتحصيل",
+      "subtitle": "إدارة الرسوم والمدفوعات.",
+      "icon": "bi-receipt",
+      "color": "#795548",
+      "to": "/finance/billing",
+      "href": null,
+      "roles": [
+        "finance"
+      ],
+      "permissions": [
+        "finance.billing"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "catalog",
+      "title": "الفهرس والإعارة",
+      "subtitle": "عناوين وإعارات المكتبة.",
+      "icon": "bi-book",
+      "color": "#009688",
+      "to": "/library/catalog",
+      "href": null,
+      "roles": [
+        "library"
+      ],
+      "permissions": [
+        "library.catalog"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "it_users",
+      "title": "المستخدمون والأدوار",
+      "subtitle": "RBAC وإدارة الوصول.",
+      "icon": "bi-people-fill",
+      "color": "#455a64",
+      "to": "/it/users",
+      "href": null,
+      "roles": [
+        "it"
+      ],
+      "permissions": [
+        "it.users"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "integrations",
+      "title": "التكاملات وAPI",
+      "subtitle": "واجهات وربط الأنظمة.",
+      "icon": "bi-braces",
+      "color": "#455a64",
+      "to": "/it/integrations",
+      "href": null,
+      "roles": [
+        "it"
+      ],
+      "permissions": [
+        "it.integrations"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "clinic_records",
+      "title": "السجلات الصحية",
+      "subtitle": "زيارات ولقاحات وحوادث.",
+      "icon": "bi-heart-pulse",
+      "color": "#e53935",
+      "to": "/health/clinic",
+      "href": null,
+      "roles": [
+        "health"
+      ],
+      "permissions": [
+        "health.clinic"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "counseling",
+      "title": "ملفات الارشاد النفسي",
+      "subtitle": "جلسات ومتابعات وخطط تدخل.",
+      "icon": "bi-people",
+      "color": "#6d4c41",
+      "to": "/guidance/cases",
+      "href": null,
+      "roles": [
+        "guidance"
+      ],
+      "permissions": [
+        "guidance.cases"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "front_office",
+      "title": "المكتب الأمامي",
+      "subtitle": "استقبال المراجعين، المراسلات، الأختام.",
+      "icon": "bi-envelope-paper",
+      "color": "#6c757d",
+      "to": "/office/front",
+      "href": null,
+      "roles": [
+        "secretary"
+      ],
+      "permissions": [
+        "office.front"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "letters",
+      "title": "الكتب الرسمية",
+      "subtitle": "إصدار واستقبال الكتب ومتابعتها.",
+      "icon": "bi-mailbox",
+      "color": "#6c757d",
+      "to": "/office/letters",
+      "href": null,
+      "roles": [
+        "secretary"
+      ],
+      "permissions": [
+        "office.letters"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "exam_calendar",
+      "title": "تقويم الامتحانات",
+      "subtitle": "جداول وتوزيع اللجان.",
+      "icon": "bi-calendar2-range",
+      "color": "#1f6feb",
+      "to": "/exams/calendar",
+      "href": null,
+      "roles": [
+        "exams_officer"
+      ],
+      "permissions": [
+        "exams.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "exam_invigilation",
+      "title": "المراقبات",
+      "subtitle": "إسناد المراقبات والتبديل.",
+      "icon": "bi-clipboard2-check",
+      "color": "#1f6feb",
+      "to": "/exams/invigilation",
+      "href": null,
+      "roles": [
+        "exams_officer"
+      ],
+      "permissions": [
+        "exams.invigilation"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "attendance_office_daily",
+      "title": "الحضور اليومي",
+      "subtitle": "إغلاق اليوم، معالجة الأعذار.",
+      "icon": "bi-calendar-check",
+      "color": "#2e7d32",
+      "to": "/attendance/office/daily",
+      "href": null,
+      "roles": [
+        "attendance_office"
+      ],
+      "permissions": [
+        "attendance.daily.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "safety_incidents",
+      "title": "السلامة والحوادث",
+      "subtitle": "الإبلاغ والمتابعة.",
+      "icon": "bi-alarm",
+      "color": "#f57f17",
+      "to": "/safety/incidents",
+      "href": null,
+      "roles": [
+        "safety_officer"
+      ],
+      "permissions": [
+        "safety.incidents"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "transport_routes",
+      "title": "مسارات الحافلات",
+      "subtitle": "الجداول والطلاب.",
+      "icon": "bi-bus-front",
+      "color": "#1565c0",
+      "to": "/transport/routes",
+      "href": null,
+      "roles": [
+        "transport_officer"
+      ],
+      "permissions": [
+        "admin_ops.transport"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "canteen",
+      "title": "إدارة المقصف",
+      "subtitle": "القوائم والحسابات.",
+      "icon": "bi-basket3",
+      "color": "#8d6e63",
+      "to": "/canteen",
+      "href": null,
+      "roles": [
+        "canteen_manager"
+      ],
+      "permissions": [
+        "ops.canteen"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "guidance_cases",
+      "title": "ملفات الإرشاد الاجتماعي",
+      "subtitle": "حالات سلوكية وجلسات ومتابعات.",
+      "icon": "bi-people",
+      "color": "#6d4c41",
+      "to": "/guidance/social/cases",
+      "href": null,
+      "roles": [
+        "social_counselor"
+      ],
+      "permissions": [
+        "guidance.cases"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "behavior_cases",
+      "title": "حالات السلوك",
+      "subtitle": "فتح ومتابعة القضايا.",
+      "icon": "bi-shield-exclamation",
+      "color": "#c62828",
+      "to": "/behavior/cases",
+      "href": null,
+      "roles": [
+        "social_counselor"
+      ],
+      "permissions": [
+        "behavior.incidents.manage"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "interventions",
+      "title": "خطط التدخل",
+      "subtitle": "خطط دعم وتدخل فردية.",
+      "icon": "bi-list-check",
+      "color": "#6d4c41",
+      "to": "/guidance/social/interventions",
+      "href": null,
+      "roles": [
+        "social_counselor"
+      ],
+      "permissions": [
+        "guidance.interventions"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "parents_comm",
+      "title": "التواصل مع أولياء الأمور",
+      "subtitle": "اتصالات منظمة ومؤرشفة.",
+      "icon": "bi-chat-dots",
+      "color": "#6d4c41",
+      "to": "/guidance/social/parents",
+      "href": null,
+      "roles": [
+        "social_counselor"
+      ],
+      "permissions": [
+        "communications.parents"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "academic_advising",
+      "title": "الإرشاد الأكاديمي",
+      "subtitle": "خطط دراسية وإرشاد تحصيلي.",
+      "icon": "bi-mortarboard",
+      "color": "#1e88e5",
+      "to": "/guidance/academic/advising",
+      "href": null,
+      "roles": [
+        "academic_counselor"
+      ],
+      "permissions": [
+        "guidance.academic"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "registry",
+      "title": "السجل الأكاديمي",
+      "subtitle": "الملفات والشهادات.",
+      "icon": "bi-archive",
+      "color": "#37474f",
+      "to": "/registrar/records",
+      "href": null,
+      "roles": [
+        "academic_counselor"
+      ],
+      "permissions": [
+        "student_affairs.records"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "remedial_programs",
+      "title": "برامج علاجية",
+      "subtitle": "خطط تعويض الفجوات الأكاديمية.",
+      "icon": "bi-bar-chart",
+      "color": "#1e88e5",
+      "to": "/guidance/academic/remedial",
+      "href": null,
+      "roles": [
+        "academic_counselor"
+      ],
+      "permissions": [
+        "guidance.remedial"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "admissions",
+      "title": "القبول والتحويلات",
+      "subtitle": "طلبات القبول والتحويل.",
+      "icon": "bi-door-open",
+      "color": "#0d6efd",
+      "to": "/affairs/admissions",
+      "href": null,
+      "roles": [
+        "academic_counselor"
+      ],
+      "permissions": [
+        "student_affairs.admissions"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "records",
+      "title": "السجلات والملفات",
+      "subtitle": "ملفات الطلاب والوثائق.",
+      "icon": "bi-file-earmark-text",
+      "color": "#0d6efd",
+      "to": "/affairs/records",
+      "href": null,
+      "roles": [
+        "academic_counselor"
+      ],
+      "permissions": [
+        "student_affairs.records"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    },
+    {
+      "id": "risk_alerts",
+      "title": "تنبيهات التراجع",
+      "subtitle": "رصد الطلبة المعرضين للخطر.",
+      "icon": "bi-exclamation-triangle",
+      "color": "#1e88e5",
+      "to": "/guidance/academic/alerts",
+      "href": null,
+      "roles": [
+        "academic_counselor"
+      ],
+      "permissions": [
+        "analytics.risk"
+      ],
+      "kpiKey": null,
+      "enabled": true
+    }
+  ]
+}

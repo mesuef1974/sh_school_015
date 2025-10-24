@@ -9,7 +9,8 @@ import './styles/professional-tables.css';
 import { VueQueryPlugin, QueryClient, VueQueryPluginOptions } from '@tanstack/vue-query';
 import 'vue-toastification/dist/index.css';
 import Toast from 'vue-toastification';
-import { Icon } from '@iconify/vue';
+// Unified Icon component: wraps Iconify and supports school icons (sc:*)
+import AppIcon from './components/ui/Icon.vue';
 import Vue3Lottie from 'vue3-lottie';
 
 // PrimeVue imports
@@ -30,7 +31,7 @@ pinia.use(piniaPluginPersistedstate);
 app.use(pinia);
 
 // Register global components
-app.component('Icon', Icon);
+app.component('Icon', AppIcon);
 app.component('Toaster', Toaster);
 
 // PrimeVue setup with RTL support

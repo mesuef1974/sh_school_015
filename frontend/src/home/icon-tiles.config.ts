@@ -19,6 +19,15 @@ export const tiles: Tile[] = [
   { id: 'teacher_timetable', title: 'جدولي', subtitle: 'جدولي الدراسي', to: '/timetable/teacher', icon: 'solar:calendar-bold-duotone', color: '#1565c0', roles: ['teacher'] },
   { id: 'attendance_history', title: 'سجل الغياب', subtitle: 'عرض سجلات الغياب', to: '/attendance/teacher/history', icon: 'solar:history-bold-duotone', color: '#8a1538', roles: ['teacher'] },
 
+  // Subject Coordinator tiles
+  { id: 'subject_dashboard', title: 'لوحة المنسق', subtitle: 'مؤشرات وأدوات المادة', to: '/subject/dashboard', icon: 'solar:graph-new-bold-duotone', color: '#2e7d32', roles: ['subject_coordinator'] },
+
+  // Principal tiles
+  { id: 'principal_dashboard', title: 'لوحة المدير', subtitle: 'مؤشرات الأداء الشاملة', to: '/principal/dashboard', icon: 'solar:speedometer-bold-duotone', color: '#6a1b9a', roles: ['principal'] },
+
+  // Academic Deputy tiles
+  { id: 'academic_dashboard', title: 'الشؤون الأكاديمية', subtitle: 'الجداول والاختبارات والمناهج', to: '/academic/dashboard', icon: 'solar:calendar-bold-duotone', color: '#1e88e5', roles: ['academic_deputy'] },
+
   // Wing supervisor tiles (new)
   { id: 'wing_dashboard', title: 'لوحة الجناح', subtitle: 'مؤشرات اليوم', to: '/wing/dashboard', icon: 'solar:layers-minimalistic-bold-duotone', color: '#66aa66', roles: ['wing_supervisor'] },
   { id: 'wing_att_daily', title: 'الغياب اليومي', subtitle: 'متابعة حضور اليوم', to: '/wing/attendance/daily', icon: 'solar:calendar-bold-duotone', color: '#1565c0', roles: ['wing_supervisor'] },
