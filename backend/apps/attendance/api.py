@@ -1496,13 +1496,13 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 return "#eef5ff"
 
         if mode == "weekly":
-            # Build period time maps per school day using PeriodTemplate/TemplateSlot
-            times_per_day: dict[int, dict[int, tuple]] = {d: {} for d in range(1, 6)}
+            # Build period time maps per school day using PeriodTemplate/TemplateSlot (1=Sun..7=Sat)
+            times_per_day: dict[int, dict[int, tuple]] = {d: {} for d in range(1, 8)}
             period_times: dict[int, tuple] = {}
             try:
                 from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
-                for sd in range(1, 6):  # Sun..Thu
+                for sd in range(1, 8):  # Sun..Sat
                     tpl_ids = list(
                         PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True)
                     )
@@ -1518,15 +1518,26 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                         td[int(s.number)] = (s.start_time, s.end_time)
                     if td:
                         times_per_day[sd] = td
-                # Consolidated representative period_times (first non-empty)
-                for d in range(1, 6):
+                # Fallback: fill empty days with first non-empty day's map
+                fallback_map = None
+                for d in range(1, 8):
+                    if times_per_day.get(d):
+                        fallback_map = times_per_day[d]
+                        break
+                if fallback_map:
+                    for d in range(1, 8):
+                        if not times_per_day.get(d):
+                            times_per_day[d] = fallback_map
+                # Representative period_times (preserve existing field for backward compatibility)
+                for d in range(1, 8):
                     if times_per_day.get(d):
                         period_times = dict(times_per_day[d])
                         break
             except Exception:
                 pass
 
-            days = {i: [] for i in [1, 2, 3, 4, 5]}
+            # Build week days structure including Fri/Sat (may remain empty)
+            days = {i: [] for i in [1, 2, 3, 4, 5, 6, 7]}
             qs = (
                 TimetableEntry.objects.filter(classroom_id__in=class_ids, term=term)
                 .select_related("classroom", "subject", "teacher")
@@ -1549,7 +1560,8 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                         **({"start_time": st_et[0], "end_time": st_et[1]} if st_et else {}),
                     }
                 )
-            # Convert keys to strings for JSON stability
+            # Convert keys to strings for JSON stability and expose per-day period times
+            meta["period_times_by_day"] = {str(d): {int(k): v for k, v in (times_per_day.get(d) or {}).items()} for d in range(1, 8)}
             meta["period_times"] = {int(k): v for k, v in period_times.items()} if period_times else {}
             return Response({
                 "mode": "weekly",
@@ -1561,21 +1573,35 @@ class WingSupervisorViewSet(viewsets.ViewSet):
 
         # Daily mode
         dow = iso_to_school_dow(dt)
-        # Build period times for this day
-        period_times: dict[int, tuple] = {}
+        # Build period times for all school days and pick the active day's map with fallback
+        period_times_by_day: dict[int, dict[int, tuple]] = {d: {} for d in range(1, 8)}
         try:
             from school.models import PeriodTemplate, TemplateSlot  # type: ignore
-            tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=dow).values_list("id", flat=True))
-            if tpl_ids:
+            for sd in range(1, 8):
+                tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True))
+                if not tpl_ids:
+                    continue
                 slots = (
                     TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
                     .exclude(number__isnull=True)
                     .order_by("number", "start_time")
                 )
+                td: dict[int, tuple] = {}
                 for s in slots:
-                    period_times[int(s.number)] = (s.start_time, s.end_time)
+                    td[int(s.number)] = (s.start_time, s.end_time)
+                if td:
+                    period_times_by_day[sd] = td
+            # Fallback: use first non-empty day's map when selected day is empty
+            fallback_map = None
+            for d2 in range(1, 8):
+                if period_times_by_day.get(d2):
+                    fallback_map = period_times_by_day[d2]
+                    break
+            if fallback_map and not period_times_by_day.get(dow):
+                period_times_by_day[dow] = fallback_map
         except Exception:
             pass
+        period_times = period_times_by_day.get(dow, {})
 
         qs = (
             TimetableEntry.objects.filter(classroom_id__in=class_ids, day_of_week=dow, term=term)
@@ -1600,6 +1626,8 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             )
         if not items:
             meta["reason"] = "no_entries_today"
+        # Expose both the effective map and all-day maps for the UI
+        meta["period_times_by_day"] = {str(d): {int(k): v for k, v in (period_times_by_day.get(d) or {}).items()} for d in range(1, 8)}
         meta["period_times"] = {int(k): v for k, v in period_times.items()} if period_times else {}
         return Response({
             "mode": "daily",

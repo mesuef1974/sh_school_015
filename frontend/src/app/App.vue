@@ -58,7 +58,7 @@ const router = useRouter();
 const route = useRoute();
 const logoSrc = '/assets/img/logo.png';
 // Append a version query to ensure updated image is not served from browser cache
-const SCHOOL_ASSETS_VERSION = '20251023';
+const SCHOOL_ASSETS_VERSION = '20251024-3';
 const schoolNameSrc = `/assets/img/school_name.png?v=${SCHOOL_ASSETS_VERSION}`;
 
 const auth = useAuthStore();

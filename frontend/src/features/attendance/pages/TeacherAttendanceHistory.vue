@@ -603,9 +603,9 @@ section.full-bleed > * { width: 95%; margin-inline: auto; }
   color: #6c757d;
   font-size: 0.85rem;
   max-width: 600px;
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.4;
 }
 

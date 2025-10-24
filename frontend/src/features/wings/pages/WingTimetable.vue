@@ -73,8 +73,8 @@
             <template v-if="groupedDaily.groups[p] && groupedDaily.groups[p].length">
               <template v-for="(item, idx) in groupedDaily.groups[p]" :key="'it-'+p+'-'+item.class_id">
                 <div class="period-cell" :style="{ backgroundColor: item.color || '#f5f7fb' }" :title="(item.class_name || ('صف #' + item.class_id)) + ' — ' + (item.subject_name || 'مادة') + ' — ' + (item.teacher_name || '—')">
-                  <div class="cell-subject one-line">{{ item.subject_name || 'مادة' }}</div>
-                  <div class="cell-teacher one-line">{{ item.teacher_name || '—' }}</div>
+                  <div class="cell-subject one-line"><Icon :icon="subjectIcon(item.subject_name)" class="subject-icon" /><span class="subject-name truncate-1">{{ item.subject_name || 'مادة' }}</span></div>
+                  <div class="cell-teacher one-line truncate-1">{{ item.teacher_name || '—' }}</div>
                 </div>
               </template>
             </template>
@@ -109,8 +109,8 @@
                   <div class="tt7-cell">
                     <template v-if="cellItems(d[0], p).length">
                       <div v-for="item in cellItems(d[0], p)" :key="'it-'+d[0]+'-'+p+'-'+item.class_id" class="mini-cell" :style="{ backgroundColor: item.color || '#f5f7fb' }" :title="(item.class_name || ('صف #'+item.class_id)) + ' — ' + (item.subject_name || 'مادة') + ' — ' + (item.teacher_name || '—')">
-                        <div class="mini-subj one-line">{{ item.subject_name || 'مادة' }}</div>
-                        <div class="mini-teacher one-line">{{ item.teacher_name || '—' }}</div>
+                        <div class="mini-subj one-line"><Icon :icon="subjectIcon(item.subject_name)" class="subject-icon" /><span class="subject-name truncate-1">{{ item.subject_name || 'مادة' }}</span></div>
+                        <div class="mini-teacher one-line truncate-1">{{ item.teacher_name || '—' }}</div>
                       </div>
                     </template>
                     <span v-else class="text-muted">—</span>
@@ -126,7 +126,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import DsButton from '../../../components/ui/DsButton.vue';
 import { getWingMe, getWingTimetable } from '../../../shared/api/client';
 import { formatDateDMY } from '../../../shared/utils/date';
@@ -188,7 +188,53 @@ function dayNameAr(d: string): string {
   return N[dt.getDay()] || '—';
 }
 
-function setMode(m: 'daily'|'weekly') { if (mode.value !== m) { mode.value = m; loadData(); } }
+// Map subject name to an expressive icon shown before the subject (maroon)
+const SUBJECT_ICON_RULES: { re: RegExp; icon: string }[] = [
+  // Math & related
+  { re: /(رياض|رياضيات|math|جبر|هندسة|مثلثات|تفاضل|تكامل|إحصاء|احصاء|تحليل|احتمالات|احتمالات|قياس)/i, icon: 'solar:calculator-bold-duotone' },
+  // Sciences
+  { re: /(فيزياء|phys|كهرومغناطيسية|ميكانيكا|فلك|فلكية|فضاء|فضاء)/i, icon: 'mdi:atom' },
+  { re: /(كيمياء|chem|حيوية|عضوية|غير عضوية|تحليلية)/i, icon: 'mdi:flask' },
+  { re: /(أحياء|احياء|biology|bio|أحياء دقيقة|علم الأحياء|بيولوجيا)/i, icon: 'mdi:dna' },
+  { re: /(علوم|science|بيئة|بيئي|environment|جيولوجيا|علوم الأرض|أرض|فضاء|جيولوجي)/i, icon: 'solar:test-tube-bold-duotone' },
+  { re: /(مختبر|مختبرات|معمل|لاب|lab)/i, icon: 'mdi:flask-outline' },
+  // Languages
+  { re: /(لغة عربية|عربي|عرب|قراءة|كتابة|بلاغة|نحو|قواعد|إملاء|تعبير)/i, icon: 'solar:book-line-duotone' },
+  { re: /(لغة إنجليزية|انجليز|إنجليز|english|قراءة انج|writing|grammar|listening|speaking)/i, icon: 'solar:translate-bold-duotone' },
+  { re: /(فرنسي|فرنساوي|فرنسية|french)/i, icon: 'mdi:alpha-f-box' },
+  { re: /(ألماني|المانية|الماني|german)/i, icon: 'mdi:alpha-g-box' },
+  { re: /(تركي|تركية|تركيا|turkish)/i, icon: 'mdi:alpha-t-box' },
+  { re: /(إسباني|اسباني|إسبانية|spanish)/i, icon: 'mdi:alpha-s-box' },
+  { re: /(إيطالي|ايطالي|إيطالية|italian)/i, icon: 'mdi:alpha-i-box' },
+  { re: /(صيني|صينية|chinese)/i, icon: 'mdi:ideogram-cjk-variant' },
+  { re: /(ياباني|يابانية|japanese)/i, icon: 'mdi:ideogram-cjk' },
+  { re: /(أردو|فارسي|فارسية|كردي|كردية|urdu|persian|farsi|kurdish)/i, icon: 'mdi:alphabetical-variant' },
+  { re: /(لغات|لغة)/i, icon: 'solar:chat-square-like-bold-duotone' },
+  // Tech/Computing
+  { re: /(حاسوب|حاسب|كمبيوتر|تقنية|تقانة|تكنولوجيا|معلومات|حاسوبية|مهارات رقمية|برمجة|coding|برمج|ذكاء اصطناعي|ذكاء|ai|روبوت|روبوتات|شبكات|نظم|قواعد بيانات|database|أمن معلومات|cyber|سحابي|سحابة|cloud|برمجيات|software|هندسة برمجيات)/i, icon: 'solar:laptop-2-bold-duotone' },
+  // Social Studies & National
+  { re: /(تاريخ|جغرافيا|اجتماع|اجتماعيات|علوم اجتماعية|وطنية|مواطنة|قانون|ثقافة|تربية وطنية|مدنيات|سياسة|اقتصاد سياسي)/i, icon: 'solar:globe-bold-duotone' },
+  // Islamic Studies & Ethics
+  { re: /(دين|تربية إسلامية|اسلامية|قرآن|قران|شرعية|تفسير|حديث|سيرة|تجويد|تلاوة|توحيد|فقه|أخلاق|عقيدة|ثقافة دينية)/i, icon: 'solar:book-favorite-bold-duotone' },
+  // Arts & Music & Theater
+  { re: /(فن|رسم|تشكيلي|فنية|موسيقى|مسرح|دراما|خط عربي|تربية فنية|تربية فنيه)/i, icon: 'solar:palette-bold-duotone' },
+  // Physical Education & Health
+  { re: /(رياضة|بدنية|تربية بدنية|health|physical|صحة|سلامة|سلامة مرورية|إسعافات)/i, icon: 'solar:ball-basketball-bold-duotone' },
+  // Vocational, Engineering, Home Economics
+  { re: /(تصميم|نجارة|ميكانيكا|كهرباء|إلكترون|الكترون|إلكترونيات|كهروميكانيك|ورش|مهنية|مهنة|حدادة|هندسة|تطبيقية|صيانة|تبريد|تكييف|لحام)/i, icon: 'mdi:cog' },
+  { re: /(اقتصاد منزلي|تربية أسرية|اسرية|منزلية|خياطة|تغذية|منزلي|أسرية)/i, icon: 'mdi:silverware-fork-knife' },
+  // Business & Economics
+  { re: /(اقتصاد|محاسبة|مالية|تجارة|ريادة|مشروع|إدارة|تسويق|مصارف|بنوك|ثقافة مالية|إدارة أعمال)/i, icon: 'solar:graph-up-bold-duotone' },
+  // Life skills, Library, Guidance, Special Ed
+  { re: /(مهارات|حياتية|life|قيم|سلوك|مرشد|ارشاد|إرشاد|توجيه|قيادة|اتصال|تواصل|مكتبة|بحث|بحث علمي|تعلّم|تعلم|تعلم نشط|تفكير نقدي|منطق|إبداع|ابتكار|تربية خاصة|صعوبات تعلم|دعم تعلم)/i, icon: 'solar:leaf-bold-duotone' },
+];
+function subjectIcon(name?: string | null): string {
+  const s = (name || '').toLowerCase();
+  for (const r of SUBJECT_ICON_RULES) { if (r.re.test(s)) return r.icon; }
+  return 'solar:book-2-bold-duotone';
+}
+
+function setMode(m: 'daily'|'weekly') { if (mode.value !== m) { mode.value = m; loadData(); if (m === 'daily') { nextTick().then(() => updateUnifiedCellWidth()); } } }
 
 function timeToHM(t: string | undefined | null): string {
   if (!t) return '';
@@ -292,11 +338,17 @@ async function loadData() {
   loading.value = true; error.value = null;
   try {
     const res = await getWingTimetable({ wing_id: wingId.value || undefined, date: dateStr.value, mode: mode.value });
-    // Extract period_times to local map
-    const m = (res as any).meta?.period_times || {};
+    // Extract period_times (prefer per-day if available)
+    const metaRes = (res as any).meta || {};
+    const byDay = (metaRes as any).period_times_by_day || null;
+    const generic = (metaRes as any).period_times || {};
     const pt: Record<number, { start: string; end: string }> = {};
-    Object.keys(m).forEach(k => {
-      const v = (m as any)[k];
+    let rawMap: any = generic;
+    if ((res as any).mode === 'daily' && byDay && typeof (res as any).dow === 'number') {
+      rawMap = byDay[String((res as any).dow)] || generic;
+    }
+    Object.keys(rawMap || {}).forEach(k => {
+      const v = (rawMap as any)[k];
       if (Array.isArray(v) && v.length >= 2) {
         pt[Number(k)] = { start: String(v[0]), end: String(v[1]) };
       } else if (v && typeof v === 'object') {
@@ -316,6 +368,11 @@ async function loadData() {
     }
     // After data load, (re)start countdown timer for daily mode
     if (mode.value === 'daily') startTimer(); else stopTimer();
+    // Measure and unify cell widths for daily view after DOM updates
+    await nextTick();
+    if (mode.value === 'daily') {
+      updateUnifiedCellWidth();
+    }
   } catch (e: any) {
     error.value = e?.response?.data?.detail || e?.message || String(e);
   } finally {
@@ -327,11 +384,77 @@ onMounted(async () => {
   await loadMe();
   await loadData();
   startTimer();
+  setupResizeObserver();
 });
 
 onBeforeUnmount(() => {
   stopTimer();
+  teardownResizeObserver();
 });
+
+// === Equalize daily cell width across items (based on longest content) ===
+let _resizeHandler: any = null;
+
+// Measure intrinsic width of a given element's text by cloning its computed text styles (safe with Vue scoped CSS)
+function _measureElementText(el: HTMLElement | null): number {
+  if (!el) return 0;
+  const cs = window.getComputedStyle(el);
+  const ruler = document.createElement('div');
+  ruler.style.position = 'absolute';
+  ruler.style.visibility = 'hidden';
+  ruler.style.whiteSpace = 'nowrap';
+  ruler.style.pointerEvents = 'none';
+  ruler.style.zIndex = '-1';
+  // Copy key text styles so measurement matches the real rendering even under scoped CSS
+  ruler.style.font = cs.font; // shorthand includes weight/size/family when available
+  ruler.style.fontSize = cs.fontSize;
+  ruler.style.fontFamily = cs.fontFamily;
+  ruler.style.fontWeight = cs.fontWeight as any;
+  ruler.style.letterSpacing = cs.letterSpacing;
+  ruler.style.textTransform = cs.textTransform as any;
+  ruler.style.lineHeight = cs.lineHeight;
+  ruler.textContent = el.textContent || '';
+  document.body.appendChild(ruler);
+  const rect = ruler.getBoundingClientRect();
+  const w = Math.ceil(rect.width);
+  ruler.remove();
+  return w;
+}
+
+function updateUnifiedCellWidth() {
+  if (mode.value !== 'daily') {
+    document.documentElement.style.removeProperty('--wing-cell-w');
+    return;
+  }
+  try {
+    const nodes = Array.from(document.querySelectorAll('.period-cell')) as HTMLElement[];
+    if (!nodes.length) { document.documentElement.style.setProperty('--wing-cell-w', '160px'); return; }
+    let max = 0;
+    for (const el of nodes) {
+      const subjTextEl = el.querySelector('.cell-subject .subject-name') as HTMLElement | null;
+      const teacherEl = el.querySelector('.cell-teacher') as HTMLElement | null;
+      const iconWidth = 18; // approx icon + gap
+      const gap = 8; // subject/teacher internal gap
+      const subjW = (subjTextEl ? _measureElementText(subjTextEl) : 0) + iconWidth + gap;
+      const teachW = teacherEl ? _measureElementText(teacherEl) : 0;
+      const inner = Math.max(subjW, teachW);
+      const paddings = 16; // .period-cell has 0.5rem left + 0.5rem right ≈ 16px total
+      max = Math.max(max, inner + paddings);
+    }
+    // Double the measured width and clamp
+    const increased = max * 2.0;
+    const clamped = Math.max(160, Math.min(increased, 900));
+    document.documentElement.style.setProperty('--wing-cell-w', clamped + 'px');
+  } catch {}
+}
+function setupResizeObserver() {
+  if (_resizeHandler) return;
+  _resizeHandler = () => { if (mode.value === 'daily') { updateUnifiedCellWidth(); } };
+  window.addEventListener('resize', _resizeHandler);
+}
+function teardownResizeObserver() {
+  if (_resizeHandler) { window.removeEventListener('resize', _resizeHandler); _resizeHandler = null; }
+}
 </script>
 
 <style scoped>
@@ -348,6 +471,9 @@ section.full-bleed > * { width: 95%; margin-inline: auto; }
 .days-tabs { background: linear-gradient(135deg, #f8f9fa 0%, #edf1f5 100%); border-bottom: 1px solid #e9ecef; }
 .no-wrap { white-space: nowrap; }
 .one-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Multi-line truncation helpers */
+.truncate-1 { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
+.truncate-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
 /* Prevent content from forcing wrap: allow text to shrink within flex container */
 .slot-card .flex-fill { min-width: 0; }
 .slot-card .icon-wrap, .slot-card .badge { flex-shrink: 0; }
@@ -358,16 +484,17 @@ section.full-bleed > * { width: 95%; margin-inline: auto; }
 
 /* 7×7 weekly grid styles */
 .tt7-wrapper { display: flex; justify-content: center; padding: 12px; }
-.tt7-scroller { max-width: 1200px; width: 100%; margin-inline: auto; overflow: auto; }
+.tt7-scroller { max-width: 1200px; width: 100%; margin-inline: auto; overflow: auto; display: flex; justify-content: center; }
 .tt7-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; table-layout: fixed; }
 .tt7-th { background: linear-gradient(135deg, #f8f9fa 0%, #edf1f5 100%); color: #333; font-weight: 700; text-align: center; padding: .75rem; border-bottom: 2px solid #e0e6ef; white-space: nowrap; }
 .tt7-th-period { text-align: right; position: sticky; inset-inline-start: 0; background: #fafbfc; border-inline-end: 1px solid #eef2f7; min-width: 180px; z-index: 1; }
 .tt7-td { vertical-align: top; padding: .5rem; border-bottom: 1px solid #f0f2f5; border-inline-start: 1px solid #f6f7f9; height: 120px; }
 .tt7-table tr:hover td { background: #fafbff; }
 .tt7-cell { display: block; max-height: 100%; overflow: auto; padding: 2px; }
-.mini-cell { width: 100%; display: flex; flex-direction: column; gap: 2px; padding: .35rem .5rem; border: 1px solid rgba(0,0,0,0.06); border-radius: 10px; background: #f5f7fb; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
-.mini-subj { font-weight: 700; color: #1f2937; line-height: 1.1; }
-.mini-teacher { font-size: .82rem; color: #6b7280; line-height: 1.1; }
+.mini-cell { width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: .35rem .5rem; border: 1px solid rgba(0,0,0,0.06); border-radius: 10px; background: #f5f7fb; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
+.mini-subj { display: flex; align-items: center; justify-content: center; gap: .3rem; font-weight: 700; color: #1f2937; line-height: 1.1; max-width: 100%; overflow: hidden; }
+.mini-subj .subject-icon { font-size: 16px; color: var(--maron-primary, #8a1538); flex-shrink: 0; }
+.mini-teacher { font-size: .82rem; color: #6b7280; line-height: 1.1; text-align: center; }
 @media (max-width: 768px) { .tt7-th-period { position: static; } .mini-cell { flex-basis: 140px; } }
 
 /* New single-row daily layout */
@@ -387,8 +514,10 @@ section.full-bleed > * { width: 95%; margin-inline: auto; }
   display: inline-flex;
   flex-direction: column;
   justify-content: center;
-  align-items: flex-start;
-  width: 160px;
+  align-items: center; /* center content horizontally within the cell */
+  text-align: center; /* center text inside lines */
+  width: var(--wing-cell-w, 160px);
+  min-width: var(--wing-cell-w, 160px);
   height: 64px;
   padding: .35rem .5rem;
   border: 1px solid rgba(0,0,0,0.06);
@@ -396,16 +525,17 @@ section.full-bleed > * { width: 95%; margin-inline: auto; }
   background: #f5f7fb;
   box-shadow: 0 2px 6px rgba(0,0,0,.04);
 }
-.cell-subject {
-  font-weight: 700;
-  color: #1f2937; /* dark slate */
-  line-height: 1.1;
-}
+.cell-subject { display: flex; align-items: center; justify-content: center; gap: .35rem; font-weight: 700; color: #1f2937; /* dark slate */ line-height: 1.1; max-width: 100%; overflow: hidden; }
+.cell-subject .subject-icon { font-size: 16px; color: var(--maron-primary, #8a1538); flex-shrink: 0; }
 .cell-teacher {
   font-size: .82rem;
   color: #6b7280; /* muted */
   line-height: 1.1;
+  text-align: center;
 }
+/* Ensure subject text can ellipsize within flex containers */
+.subject-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; word-break: break-word; }
+.mini-teacher, .cell-teacher { overflow-wrap: anywhere; word-break: break-word; }
 @media (max-width: 576px) {
   .period-cell { min-width: 120px; max-width: 180px; }
 }
