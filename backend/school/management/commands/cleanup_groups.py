@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 # Optional bootstrap to allow running this file directly with Python
 if not os.environ.get('DJANGO_SETTINGS_MODULE'):

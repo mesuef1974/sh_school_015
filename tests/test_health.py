@@ -1,6 +1,8 @@
 from django.test import Client
+import pytest
 
 
+@pytest.mark.django_db
 def test_livez_and_healthz_ok():
     client = Client()
     resp1 = client.get("/livez")

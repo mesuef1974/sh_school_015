@@ -1385,12 +1385,11 @@ class WingSupervisorViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["get"], url_path="missing")
     def missing(self, request: Request) -> Response:
-        from django.db.models import Value
         dt, err = _parse_date_or_400(request.query_params.get("date"))
         if err:
             return err
         try:
-            from school.models import Class, AttendanceRecord, TimetableEntry, Term, Subject, Staff  # type: ignore
+            from school.models import Class, AttendanceRecord, TimetableEntry, Term  # type: ignore
             from common.day_utils import iso_to_school_dow
         except Exception:
             return Response({"date": dt.isoformat(), "items": []})
@@ -1447,7 +1446,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         Includes a lightweight meta object to explain empty states (diagnostics only).
         """
         try:
-            from school.models import Class, TimetableEntry, Term, Subject, Staff, Wing  # type: ignore
+            from school.models import Class, TimetableEntry, Term  # type: ignore
             from common.day_utils import iso_to_school_dow
         except Exception:
             return Response({"days": {}, "date": None, "items": [], "meta": {"error": "import_failed"}})

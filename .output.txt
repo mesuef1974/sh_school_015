@@ -1,0 +1,408 @@
+EEEF.....F..F                             [100%]
+==================== ERRORS ====================
+_ ERROR at setup of test_change_password_and_login _
+file D:\sh_school_015\tests\test_account_api.py, line 5
+  @pytest.mark.django_db
+  def test_change_password_and_login(client):
+E       fixture 'client' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+D:\sh_school_015\tests\test_account_api.py:5
+_ ERROR at setup of test_logout_blacklists_refresh_token _
+file D:\sh_school_015\tests\test_account_api.py, line 48
+  @pytest.mark.django_db
+  def test_logout_blacklists_refresh_token(client):
+E       fixture 'client' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+D:\sh_school_015\tests\test_account_api.py:48
+_ ERROR at setup of test_attendance_students_requires_auth _
+file D:\sh_school_015\tests\test_attendance_api.py, line 4
+  @pytest.mark.django_db
+  def test_attendance_students_requires_auth(client):
+E       fixture 'client' not found
+>       available fixtures: anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+D:\sh_school_015\tests\test_attendance_api.py:4
+=================== FAILURES ===================
+_ test_bulk_save_sets_day_of_week_and_returns_200 _
+self = <django.db.backends.postgresql.base.CursorDebugWrapper object at 0x0000027A020E4B00>
+sql = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$JMdO56X06lBIarHsm9iW7A$tPxI9sPU7F/+NT7sbNhX82XCxSksJAVm0KY0WtThzqQ=', None, True, 'admin', '', '', ...)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.postgresql.base.CursorDebugWrapper object at 0x0000027A020E4B00>})
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+self = <django.db.backends.postgresql.base.Cursor [closed] [IDLE] (host=127.0.0.1 port=5433 user=postgres database=sh_school) at 0x27a023ccdd0>
+query = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$JMdO56X06lBIarHsm9iW7A$tPxI9sPU7F/+NT7sbNhX82XCxSksJAVm0KY0WtThzqQ=', None, True, 'admin', '', '', ...)
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.UniqueViolation: duplicate key value violates unique constraint "auth_user_username_key"
+E           DETAIL:  Key (username)=(admin) already exists.
+.venv\Lib\site-packages\psycopg\cursor.py:97: UniqueViolation
+The above exception was the direct cause of the following exception:
+    @pytest.mark.django_db
+    def test_bulk_save_sets_day_of_week_and_returns_200():
+        # Create a superuser to bypass teacher assignment checks
+        User = get_user_model()
+>       User.objects.create_superuser(username="admin", password="Pass!234", email="admin@example.com")
+tests\test_attendance_bulk_save.py:13:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv\Lib\site-packages\django\contrib\auth\models.py:195: in create_superuser
+    return self._create_user(username, email, password, **extra_fields)
+.venv\Lib\site-packages\django\contrib\auth\models.py:163: in _create_user
+    user.save(using=self._db)
+.venv\Lib\site-packages\django\contrib\auth\base_user.py:65: in save
+    super().save(*args, **kwargs)
+.venv\Lib\site-packages\django\db\models\base.py:902: in save
+    self.save_base(
+.venv\Lib\site-packages\django\db\models\base.py:1008: in save_base
+    updated = self._save_table(
+.venv\Lib\site-packages\django\db\models\base.py:1169: in _save_table
+    results = self._do_insert(
+.venv\Lib\site-packages\django\db\models\base.py:1210: in _do_insert
+    return manager._insert(
+.venv\Lib\site-packages\django\db\models\manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+.venv\Lib\site-packages\django\db\models\query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+.venv\Lib\site-packages\django\db\models\sql\compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:122: in execute
+    return super().execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:79: in execute
+    return self._execute_with_wrappers(
+.venv\Lib\site-packages\django\db\backends\utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+.venv\Lib\site-packages\django\db\backends\utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+.venv\Lib\site-packages\django\db\utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+.venv\Lib\site-packages\django\db\backends\utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+self = <django.db.backends.postgresql.base.Cursor [closed] [IDLE] (host=127.0.0.1 port=5433 user=postgres database=sh_school) at 0x27a023ccdd0>
+query = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$JMdO56X06lBIarHsm9iW7A$tPxI9sPU7F/+NT7sbNhX82XCxSksJAVm0KY0WtThzqQ=', None, True, 'admin', '', '', ...)
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           django.db.utils.IntegrityError: duplicate key value violates unique constraint "auth_user_username_key"
+E           DETAIL:  Key (username)=(admin) already exists.
+.venv\Lib\site-packages\psycopg\cursor.py:97: IntegrityError
+___ test_me_returns_roles_when_authenticated ___
+self = <django.db.backends.postgresql.base.CursorDebugWrapper object at 0x0000027A03F1FA40>
+sql = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$FrjalPHcEJCuFGoudxDQin$vXpeCuTv/l5EvEej3EOPaQ0zRUwcv7uJypn/yMqGKdI=', None, False, 't1', '', '', ...)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.postgresql.base.CursorDebugWrapper object at 0x0000027A03F1FA40>})
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+self = <django.db.backends.postgresql.base.Cursor [closed] [IDLE] (host=127.0.0.1 port=5433 user=postgres database=sh_school) at 0x27a03f3c4d0>
+query = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$FrjalPHcEJCuFGoudxDQin$vXpeCuTv/l5EvEej3EOPaQ0zRUwcv7uJypn/yMqGKdI=', None, False, 't1', '', '', ...)
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.UniqueViolation: duplicate key value violates unique constraint "auth_user_username_key"
+E           DETAIL:  Key (username)=(t1) already exists.
+.venv\Lib\site-packages\psycopg\cursor.py:97: UniqueViolation
+The above exception was the direct cause of the following exception:
+    @pytest.mark.django_db
+    def test_me_returns_roles_when_authenticated():
+        User = get_user_model()
+>       u = User.objects.create_user(username="t1", password="pass123")
+tests\test_me_api.py:17:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv\Lib\site-packages\django\contrib\auth\models.py:175: in create_user
+    return self._create_user(username, email, password, **extra_fields)
+.venv\Lib\site-packages\django\contrib\auth\models.py:163: in _create_user
+    user.save(using=self._db)
+.venv\Lib\site-packages\django\contrib\auth\base_user.py:65: in save
+    super().save(*args, **kwargs)
+.venv\Lib\site-packages\django\db\models\base.py:902: in save
+    self.save_base(
+.venv\Lib\site-packages\django\db\models\base.py:1008: in save_base
+    updated = self._save_table(
+.venv\Lib\site-packages\django\db\models\base.py:1169: in _save_table
+    results = self._do_insert(
+.venv\Lib\site-packages\django\db\models\base.py:1210: in _do_insert
+    return manager._insert(
+.venv\Lib\site-packages\django\db\models\manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+.venv\Lib\site-packages\django\db\models\query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+.venv\Lib\site-packages\django\db\models\sql\compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:122: in execute
+    return super().execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:79: in execute
+    return self._execute_with_wrappers(
+.venv\Lib\site-packages\django\db\backends\utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+.venv\Lib\site-packages\django\db\backends\utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+.venv\Lib\site-packages\django\db\utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+.venv\Lib\site-packages\django\db\backends\utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+self = <django.db.backends.postgresql.base.Cursor [closed] [IDLE] (host=127.0.0.1 port=5433 user=postgres database=sh_school) at 0x27a03f3c4d0>
+query = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$FrjalPHcEJCuFGoudxDQin$vXpeCuTv/l5EvEej3EOPaQ0zRUwcv7uJypn/yMqGKdI=', None, False, 't1', '', '', ...)
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           django.db.utils.IntegrityError: duplicate key value violates unique constraint "auth_user_username_key"
+E           DETAIL:  Key (username)=(t1) already exists.
+.venv\Lib\site-packages\psycopg\cursor.py:97: IntegrityError
+_ test_teacher_classes_returns_list_for_teacher _
+self = <django.db.backends.postgresql.base.CursorDebugWrapper object at 0x0000027A7FDDC680>
+sql = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$f6CfE6MCstTopc86fPIqQA$y7UMLHcUUH3TF/cmJIFsh+hjMyYxny7UbcFLnfibA78=', None, False, 't1', '', '', ...)
+ignored_wrapper_args = (False, {'connection': <DatabaseWrapper vendor='postgresql' alias='default'>, 'cursor': <django.db.backends.postgresql.base.CursorDebugWrapper object at 0x0000027A7FDDC680>})
+    def _execute(self, sql, params, *ignored_wrapper_args):
+        # Raise a warning during app initialization (stored_app_configs is only
+        # ever set during testing).
+        if not apps.ready and not apps.stored_app_configs:
+            warnings.warn(self.APPS_NOT_READY_WARNING_MSG, category=RuntimeWarning)
+        self.db.validate_no_broken_transaction()
+        with self.db.wrap_database_errors:
+            if params is None:
+                # params default might be backend specific.
+                return self.cursor.execute(sql)
+            else:
+>               return self.cursor.execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:105:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+self = <django.db.backends.postgresql.base.Cursor [closed] [IDLE] (host=127.0.0.1 port=5433 user=postgres database=sh_school) at 0x27a03f3d3d0>
+query = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$f6CfE6MCstTopc86fPIqQA$y7UMLHcUUH3TF/cmJIFsh+hjMyYxny7UbcFLnfibA78=', None, False, 't1', '', '', ...)
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.UniqueViolation: duplicate key value violates unique constraint "auth_user_username_key"
+E           DETAIL:  Key (username)=(t1) already exists.
+.venv\Lib\site-packages\psycopg\cursor.py:97: UniqueViolation
+The above exception was the direct cause of the following exception:
+    @pytest.mark.django_db
+    def test_teacher_classes_returns_list_for_teacher():
+        User = get_user_model()
+>       u = User.objects.create_user(username="t1", password="pass123")
+tests\test_teacher_classes_api.py:34:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+.venv\Lib\site-packages\django\contrib\auth\models.py:175: in create_user
+    return self._create_user(username, email, password, **extra_fields)
+.venv\Lib\site-packages\django\contrib\auth\models.py:163: in _create_user
+    user.save(using=self._db)
+.venv\Lib\site-packages\django\contrib\auth\base_user.py:65: in save
+    super().save(*args, **kwargs)
+.venv\Lib\site-packages\django\db\models\base.py:902: in save
+    self.save_base(
+.venv\Lib\site-packages\django\db\models\base.py:1008: in save_base
+    updated = self._save_table(
+.venv\Lib\site-packages\django\db\models\base.py:1169: in _save_table
+    results = self._do_insert(
+.venv\Lib\site-packages\django\db\models\base.py:1210: in _do_insert
+    return manager._insert(
+.venv\Lib\site-packages\django\db\models\manager.py:87: in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+.venv\Lib\site-packages\django\db\models\query.py:1868: in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+.venv\Lib\site-packages\django\db\models\sql\compiler.py:1882: in execute_sql
+    cursor.execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:122: in execute
+    return super().execute(sql, params)
+.venv\Lib\site-packages\django\db\backends\utils.py:79: in execute
+    return self._execute_with_wrappers(
+.venv\Lib\site-packages\django\db\backends\utils.py:92: in _execute_with_wrappers
+    return executor(sql, params, many, context)
+.venv\Lib\site-packages\django\db\backends\utils.py:100: in _execute
+    with self.db.wrap_database_errors:
+.venv\Lib\site-packages\django\db\utils.py:91: in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+.venv\Lib\site-packages\django\db\backends\utils.py:105: in _execute
+    return self.cursor.execute(sql, params)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+self = <django.db.backends.postgresql.base.Cursor [closed] [IDLE] (host=127.0.0.1 port=5433 user=postgres database=sh_school) at 0x27a03f3d3d0>
+query = 'INSERT INTO "auth_user" ("password", "last_login", "is_superuser", "username", "first_name", "last_name", "email", "is_staff", "is_active", "date_joined") VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING "auth_user"."id"'
+params = ('pbkdf2_sha256$1000000$f6CfE6MCstTopc86fPIqQA$y7UMLHcUUH3TF/cmJIFsh+hjMyYxny7UbcFLnfibA78=', None, False, 't1', '', '', ...)
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           django.db.utils.IntegrityError: duplicate key value violates unique constraint "auth_user_username_key"
+E           DETAIL:  Key (username)=(t1) already exists.
+.venv\Lib\site-packages\psycopg\cursor.py:97: IntegrityError
+=============== warnings summary ===============
+.venv\Lib\site-packages\_pytest\config\__init__.py:1441
+  D:\sh_school_015\.venv\Lib\site-packages\_pytest\config\__init__.py:1441: PytestConfigWarning: Unknown config option: DJANGO_SETTINGS_MODULE
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+.venv\Lib\site-packages\_pytest\config\__init__.py:1441
+  D:\sh_school_015\.venv\Lib\site-packages\_pytest\config\__init__.py:1441: PytestConfigWarning: Unknown config option: django_find_project
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+tests\test_account_api.py:5
+  D:\sh_school_015\tests\test_account_api.py:5: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_account_api.py:48
+  D:\sh_school_015\tests\test_account_api.py:48: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_attendance_api.py:4
+  D:\sh_school_015\tests\test_attendance_api.py:4: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_attendance_bulk_save.py:9
+  D:\sh_school_015\tests\test_attendance_bulk_save.py:9: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_attendance_summary_api.py:6
+  D:\sh_school_015\tests\test_attendance_summary_api.py:6: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_attendance_summary_api.py:13
+  D:\sh_school_015\tests\test_attendance_summary_api.py:13: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_attendance_summary_api.py:35
+  D:\sh_school_015\tests\test_attendance_summary_api.py:35: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_health.py:5
+  D:\sh_school_015\tests\test_health.py:5: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_me_api.py:7
+  D:\sh_school_015\tests\test_me_api.py:7: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_me_api.py:14
+  D:\sh_school_015\tests\test_me_api.py:14: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_teacher_classes_api.py:7
+  D:\sh_school_015\tests\test_teacher_classes_api.py:7: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_teacher_classes_api.py:14
+  D:\sh_school_015\tests\test_teacher_classes_api.py:14: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+tests\test_teacher_classes_api.py:31
+  D:\sh_school_015\tests\test_teacher_classes_api.py:31: PytestUnknownMarkWarning: Unknown pytest.mark.django_db - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.django_db
+.venv\Lib\site-packages\_pytest\cacheprovider.py:429
+  D:\sh_school_015\.venv\Lib\site-packages\_pytest\cacheprovider.py:429: PytestCacheWarning: cache could not write path D:\sh_school_015\.pytest_cache\v\cache\lastfailed: [Errno 13] Permission denied: 'D:\\sh_school_015\\.pytest_cache\\v\\cache\\lastfailed'
+    config.cache.set("cache/lastfailed", self.lastfailed)
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========== short test summary info ============
+FAILED tests/test_attendance_bulk_save.py::test_bulk_save_sets_day_of_week_and_returns_200 - django.db.utils.IntegrityError: duplicate ke...
+FAILED tests/test_me_api.py::test_me_returns_roles_when_authenticated - django.db.utils.IntegrityError: duplicate ke...
+FAILED tests/test_teacher_classes_api.py::test_teacher_classes_returns_list_for_teacher - django.db.utils.IntegrityError: duplicate ke...
+ERROR tests/test_account_api.py::test_change_password_and_login
+ERROR tests/test_account_api.py::test_logout_blacklists_refresh_token
+ERROR tests/test_attendance_api.py::test_attendance_students_requires_auth

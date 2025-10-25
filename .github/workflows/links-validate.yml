@@ -25,6 +25,7 @@ jobs:
             --exclude-mail
             --accept 200,204,403,429
             --retry-wait-time 2 --retry-count 3
+            --exclude '(https?://(127\.0\.0\.1|localhost)(:\d+)?/.*|file://.*)'
             '**/*.md' '**/*.html'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
