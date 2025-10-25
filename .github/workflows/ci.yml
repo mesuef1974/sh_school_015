@@ -1,9 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
+  workflow_dispatch:
+# Disabled automatic triggers; use Python CI instead.
 
 jobs:
   test:

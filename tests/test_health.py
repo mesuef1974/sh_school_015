@@ -1,8 +1,11 @@
 from django.test import Client
+from django.test import override_settings
 import pytest
 
 
 @pytest.mark.django_db
+@override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"])  # ensure Django accepts test client host
+
 def test_livez_and_healthz_ok():
     client = Client()
     resp1 = client.get("/livez")
