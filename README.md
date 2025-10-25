@@ -463,12 +463,7 @@ python backend/manage.py import_students "D:\path\to\students.xlsx" --all-sheets
 <div dir="ltr">
 
 ```powershell
-python backend/manage.py import_students "D:\path\to\students.xlsx" \
-    --all-sheets \
-    --sheet-per-class \
-    --clean \
-    --nationality-xlsx "D:\path\to\nationalities.xlsx" \
-    --expect-total 742
+python backend/manage.py import_students "D:\path\to\students.xlsx" --all-sheets --sheet-per-class --clean --nationality-xlsx "D:\path\to\nationalities.xlsx" --expect-total 742
 ```
 
 </div>
@@ -1109,3 +1104,67 @@ Notes:
 - If a remote named "mean" exists, the script will rename it to "origin" automatically.
 - If you accidentally pass -Remote "mean", the script fails early with a clear error.
 - Default branch is main; override with -Branch if needed.
+
+
+---
+
+## ‏📦 كيف أستفيد من فحوصات CI الآن؟
+
+> هذه الفحوصات تعمل تلقائيًا على GitHub Actions لكل دفع (push) أو طلب دمج (Pull Request) على الفرعين main/master. فيما يلي خطوات استخدامها فورًا، وتشغيل نفس الفحوصات محليًا لتسريع التطوير.
+
+### 1) ادفع أي تغيير لتشغيل الفحوصات
+لديك خياران:
+- باستخدام سكربت التحميل السريع:
+  - PowerShell:
+    - pwsh -File scripts/git_force_publish.ps1 -Remote "https://github.com/ORG/REPO.git" -Branch main
+    - استبدل ORG/REPO بمستودعك الحقيقي (SSH يعمل أيضًا).
+- يدويًا عبر Git:
+  - git add .
+  - git commit -m "chore: trigger CI"
+  - git push origin main
+
+بعد الدفع، افتح تبويب Actions في GitHub لترى 4 تدفقات عمل:
+- Python CI: lint-and-check + test
+- Links Validator: check-links
+- CodeQL: analyze
+- Quality Checks: Backend & Frontend Quality
+
+ستظهر النتائج على شارات README أيضًا.
+
+### 2) كيف أقرأ النتائج بسرعة؟
+- اللون الأخضر يعني نجاح الفحص؛ الأحمر يعني وجود مشكلة.
+- انقر على أي Job لعرض السجل؛ ابحث عن كلمة error أو traceback.
+- يمكن الضغط على Re-run jobs لإعادة المحاولة عند مشاكل الشبكة المؤقتة (خاصة روابط Lychee).
+
+### 3) شغّل نفس الفحوصات محليًا (للإصلاح السريع)
+- المتطلبات: Python 3.11 مفعّل، ومن داخل جذر المشروع.
+- لنت (Ruff):
+  - pip install ruff
+  - ruff check
+- اختبارات (pytest) بنفس إعدادات CI:
+  - set PYTHONPATH=backend
+  - set DJANGO_SETTINGS_MODULE=core.settings
+  - pytest -q
+- فحص الأنواع (اختياري وغير حاجز في CI):
+  - pip install mypy
+  - mypy
+- فحص الروابط (اختياري محليًا):
+  - الأسهل الاعتماد على CI، أو استخدام lychee محليًا إذا كان مثبتًا لديك.
+
+ملاحظة: ملف pytest.ini وpyproject.toml مجهزين ليتوافقا مع إعدادات CI.
+
+### 4) اجعل الفحوصات شرطًا قبل الدمج (اختياري موصى به)
+- في المستودع على GitHub: Settings > Branches > Add rule
+- اختر الفرع main
+- فعّل Require status checks to pass before merging
+- أضِف هذه الفحوصات كشرط: Python CI, Links Validator, CodeQL, Quality Checks
+
+### 5) أعطال شائعة وحلول سريعة
+- فشل روابط Lychee بسبب 403/429: تمت تهيئة CI ليقبلها ويعيد المحاولة. إن بقي الفشل، تحقّق من الروابط الداخلية أو الروابط المقطوعة فعلًا.
+- فشل التثبيت: تأكد من صحة requirements*.txt. إن ظهرت تعارضات إصدارات، قم بتثبيت الإصدارات محليًا وتحديث الملفات.
+- فشل pytest بسبب إعدادات Django: تأكد من أن المتغيرات البيئية كما في CI أو شغّل الأوامر كما هو مذكور أعلاه.
+- npm غير متوفر: خطوة lint للواجهة الأمامية اختيارية ولن تعيق مرور الـ CI.
+
+### 6) ماذا بعد؟
+- استمر بالدفع والعمل عبر فروع وPull Requests؛ سيعمل CI بقياسات موحّدة.
+- إن رغبت بجعل ruff أو mypy حاجزين للدمج، أخبرنا لنشدد الإعدادات.
