@@ -336,3 +336,40 @@ body {
   .navbar-maronia .brand-logo-gold,
   .navbar-maronia .brand-name-gold { animation-duration: 20s; }
 }
+
+/* === Header adjustments per request (static gold logo, bigger school name, closer spacing) === */
+/* Disable any animations on the golden brand in the header */
+.navbar-maronia .brand-logo-gold,
+.navbar-maronia .brand-name-gold { animation: none !important; }
+@media (prefers-reduced-motion: no-preference) {
+  .navbar-maronia .brand-logo-gold,
+  .navbar-maronia .brand-name-gold { animation: none !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .navbar-maronia .brand-logo-gold,
+  .navbar-maronia .brand-name-gold { animation: none !important; }
+}
+/* Increase school name by ~15% and bring it closer to the logo */
+.navbar-maronia .brand-name-gold { height: calc(28px * 1.15); width: calc(320px * 1.15); }
+.navbar-maronia .brand-images { gap: .2rem; }
+.navbar-maronia .brand-divider { margin: 0 .2rem; }
+
+/* Static metallic gold text helper (no animation) */
+.text-gold-metal {
+  color: #D4AF37; /* fallback for browsers without background-clip */
+  background-image: conic-gradient(
+    from 0deg,
+    #8B7500 0%, #B8860B 14%, #D4AF37 28%, #FFD700 44%, #E6C200 62%, #B8860B 78%, #8B7500 92%, #D4AF37 100%
+  );
+  background-size: 120% 120%;
+  background-position: center;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-fill-color: transparent;
+}
+/* --- Global portal background image (cache-busted) appended to ensure all frontend pages use the latest image --- */
+/* Update version string when replacing D:/sh_school_015/assets/img/portal_bg.png */
+body {
+  background-image: url('/assets/img/portal_bg.png?v=20251027-01');
+}

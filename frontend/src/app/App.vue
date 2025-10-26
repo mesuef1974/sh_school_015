@@ -51,7 +51,7 @@
     </main>
     <footer class="page-footer py-3 bg-maroon">
       <div class="container d-flex justify-content-between small">
-        <span class="text-white text-center w-100">©2025 - جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية بنين - تطوير( المعلم/ سفيان مسيف s.mesyef0904@education.qa )</span>
+        <span class="text-gold-metal text-center w-100">©2025 - جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية بنين - تطوير( المعلم/ سفيان مسيف s.mesyef0904@education.qa )</span>
       </div>
     </footer>
   </div>

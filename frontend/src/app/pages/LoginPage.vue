@@ -1,20 +1,18 @@
 <template>
   <div class="login-container">
-    <div class="login-wrapper">
-      <div class="login-wrapper-bg" aria-hidden="true"></div>
-      <!-- Left Side - Branding -->
+    <div class="login-stage">
+      <div class="login-wrapper">
+        <div class="login-wrapper-bg" aria-hidden="true"></div>
+        <!-- Left Side - Branding -->
       <div
         class="login-brand"
-        v-motion
-        :initial="{ opacity: 0, x: -32 }"
-        :enter="{ opacity: 1, x: 0, transition: { type: 'spring', stiffness: 180, damping: 22, mass: 0.9 } }"
       >
         <div class="brand-content">
           <span class="brand-logo-mask" aria-hidden="true"></span>
-          <h1 class="brand-title">مدرسة الشحانية</h1>
-          <p class="brand-subtitle">الإعدادية الثانوية للبنين</p>
+          <h1 class="brand-title text-gold-metal">مدرسة الشحانية</h1>
+          <p class="brand-subtitle text-gold-metal">الإعدادية الثانوية للبنين</p>
           <div class="brand-divider"></div>
-          <p class="brand-description">
+          <p class="brand-description text-gold-metal">
             منصة الإدارة المدرسية الذكية
             <br />
             إدارة شاملة وتقارير فورية
@@ -24,15 +22,15 @@
           <div class="features-list">
             <div class="feature-item">
               <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
-              <span>إدارة الحضور والغياب</span>
+              <span class="text-gold-metal">إدارة الحضور والغياب</span>
             </div>
             <div class="feature-item">
               <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
-              <span>تقارير تفصيلية فورية</span>
+              <span class="text-gold-metal">تقارير تفصيلية فورية</span>
             </div>
             <div class="feature-item">
               <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
-              <span>واجهة سهلة الاستخدام</span>
+              <span class="text-gold-metal">واجهة سهلة الاستخدام</span>
             </div>
           </div>
         </div>
@@ -41,19 +39,13 @@
       <!-- Right Side - Login Form -->
       <div
         class="login-form-wrapper"
-        v-motion
-        :initial="{ opacity: 0, x: 32 }"
-        :enter="{ opacity: 1, x: 0, transition: { type: 'spring', stiffness: 180, damping: 22, mass: 0.9, delay: 120 } }"
       >
         <DsCard
           class="login-card"
           :animate="false"
-          v-motion
-          :initial="{ opacity: 0, y: 16, scale: 0.98 }"
-          :enter="{ opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 220, damping: 24, mass: 0.9, delay: 150 } }"
         >
           <div class="login-header">
-            <span class="login-card-logo" aria-hidden="true"></span>
+            <Icon icon="solar:shield-check-bold-duotone" class="login-card-logo" aria-hidden="true" />
             <h2 class="login-title">تسجيل الدخول</h2>
             <p class="login-subtitle">أدخل بيانات الدخول للوصول إلى المنصة</p>
           </div>
@@ -116,7 +108,7 @@
               size="lg"
               :loading="loading"
               :disabled="loading"
-              icon="solar:login-3-bold-duotone"
+              icon="solar:shield-check-bold-duotone"
               class="w-100"
             >
               {{ loading ? 'جاري الدخول...' : 'دخول' }}
@@ -132,6 +124,7 @@
         </DsCard>
       </div>
     </div>
+  </div>
   </div>
 </template>
 
@@ -218,10 +211,22 @@ async function onSubmit() {
   overflow: hidden; /* prevent scrollbars on the login page */
 }
 
+/* Stage wrapper (no outer border now; golden frame will be on the card itself) */
+.login-stage {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  border-radius: var(--radius-2xl);
+  background: transparent;
+  padding: 0;
+}
+
+
 .login-wrapper {
   /* Tuning knobs */
-  --login-frame-w: 10px;        /* border thickness (doubled) */
-  --login-shine-speed: 10s;     /* shine speed (slower, more professional) */
+  --login-frame-w: 10px;        /* golden border width */
 
   max-width: 1200px;
   width: 100%;
@@ -234,60 +239,32 @@ async function onSubmit() {
   /* Backdrop card behind both the branding and the login panel */
   position: relative;
   border-radius: 0; /* square corners */
-  /* Border and shine are drawn via ::before/::after with masks */
-  -webkit-backdrop-filter: blur(50px);
-  backdrop-filter: blur(50px); /* 50px blur */
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
+  border: var(--login-frame-w) solid transparent; /* show gold frame via gradient border */
+  background:
+    /* Ensure interior is solid maroon, only the border shows gold */
+    linear-gradient(var(--maron-primary), var(--maron-primary)) padding-box,
+    conic-gradient(from 0deg,
+      #8B7500 0%,
+      #B08D57 12%,
+      #D4AF37 25%,
+      #FFD700 37%,
+      #B08D57 50%,
+      #8B7500 62%,
+      #E6C200 75%,
+      #FFD700 87%,
+      #B08D57 100%
+    ) border-box;
+  -webkit-backdrop-filter: none; /* remove blur */
+  backdrop-filter: none;         /* remove blur */
+  box-shadow: none;              /* remove shadow */
   padding: var(--space-8);
 }
 
+
+
+
 /* Animated glossy shine over the golden frame */
 
-/* Metallic gold ring (border-only) */
-.login-wrapper::before {
-  content: '';
-  position: absolute; inset: 0; border-radius: inherit;
-  padding: var(--login-frame-w);
-  background: conic-gradient(
-    from 0deg,
-    #8B7500 0%, #B8860B 10%, #D4AF37 25%, #FFD700 40%, #E6C200 55%, #B8860B 70%, #8B7500 85%, #D4AF37 100%
-  );
-  /* Clip to border area only */
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* Animated glossy shine over the golden frame (border-only) */
-.login-wrapper::after {
-  content: '';
-  position: absolute; inset: 0; border-radius: inherit;
-  padding: var(--login-frame-w);
-  background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,.7) 50%, transparent 70%);
-  background-size: 240% 240%;
-  background-position: 200% 0;
-  mix-blend-mode: screen;
-  /* Clip to border area only */
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  animation: wrapperBorderShine var(--login-shine-speed, 10s) ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes wrapperBorderShine {
-  0% { background-position: 200% 0; }
-  50% { background-position: 0 200%; }
-  100% { background-position: -200% 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .login-wrapper::after { animation-duration: 16s; }
-}
-
-@supports not (mask-composite: exclude) {
-  /* Graceful fallback: keep ring; disable moving shine if masking unsupported */
-  .login-wrapper::after { animation: none; opacity: .6; }
-}
 
 /* Inner maroon fill moved into a dedicated background element to avoid conflicts with ::after */
 .login-wrapper-bg {
@@ -296,11 +273,10 @@ async function onSubmit() {
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  background-image: url('/assets/img/arabesque_qatar.svg?v=20251023'), linear-gradient(rgba(128, 0, 0, 0.9), rgba(128, 0, 0, 0.9));
-  background-repeat: repeat, no-repeat;
-  background-size: 448px 448px, auto;
-  background-position: center, center;
-  background-blend-mode: soft-light, normal;
+  /* Solid maroon interior */
+  background: var(--maron-primary);
+  /* Keep the interior static and readable */
+  filter: none;
   opacity: 1;
 }
 
@@ -315,11 +291,40 @@ async function onSubmit() {
   z-index: 1;
 }
 
+/* Disable interior animations inside the two panels only; allow entrance on the panels themselves
+   Allow shine animation on the brand logo mask exclusively */
+.login-form-wrapper * {
+  animation: none !important;
+}
+.login-brand *:not(.brand-logo-mask) {
+  animation: none !important;
+}
+/* Neutralize hover/transition motions for interior UI elements */
+.login-wrapper .ds-card,
+.login-wrapper .ds-btn,
+.login-wrapper .ds-input,
+.login-wrapper .feature-icon,
+.login-wrapper .brand-logo-mask,
+.login-wrapper .login-card-logo {
+  transition: none !important;
+}
+.login-wrapper .ds-card:hover,
+.login-wrapper .ds-btn:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 /* Left Side - Branding */
 .login-brand {
-  color: var(--maron-primary);
+  /* Brand panel: empty/transparent with white text; no border/background */
+  position: relative;
+  color: #ffffff;
+  background: transparent;
+  border: none;
+  border-radius: 0; /* square corners */
   padding: var(--space-8);
 }
+
 
 .brand-content {
   max-width: 500px;
@@ -332,13 +337,21 @@ async function onSubmit() {
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
 
-/* Maroon-tinted school logo above the brand title */
+/* Metallic gold school logo above the brand title, with continuous professional shine */
 .brand-logo-mask {
+  --logo-shine-speed: 12s;
   width: 120px;
   height: 120px;
   display: block;
+  position: relative;
   margin-bottom: var(--space-6);
-  background-color: #ffffff; /* logo in white */
+  /* Base metallic gold fill clipped by logo mask */
+  background-image: conic-gradient(
+    from 0deg,
+    #8B7500 0%, #B8860B 14%, #D4AF37 28%, #FFD700 44%, #E6C200 62%, #B8860B 78%, #8B7500 92%, #D4AF37 100%
+  );
+  background-size: 140% 140%;
+  background-position: center;
   -webkit-mask-image: url('/assets/img/logo.png');
   mask-image: url('/assets/img/logo.png');
   -webkit-mask-repeat: no-repeat;
@@ -349,17 +362,39 @@ async function onSubmit() {
   mask-size: contain;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
 }
+/* Moving glossy sweep confined to the same mask */
+.brand-logo-mask::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 38%, rgba(255,255,255,.65) 50%, transparent 62%);
+  background-size: 220% 220%;
+  background-position: 200% 0;
+  -webkit-mask-image: url('/assets/img/logo.png');
+  mask-image: url('/assets/img/logo.png');
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  animation: goldLogoShine var(--logo-shine-speed) linear infinite;
+  pointer-events: none;
+}
+@keyframes goldLogoShine {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .brand-logo-mask::after { animation: none; }
+}
 
 .brand-title {
   font-size: var(--font-size-4xl);
   font-weight: var(--font-weight-bold);
   margin-bottom: var(--space-2);
-  /* Metallic gold text */
-  color: #D4AF37; /* fallback solid gold */
-  background-image: linear-gradient(135deg, #8B7500 0%, #B8860B 18%, #D4AF37 36%, #FFD700 54%, #E6C200 72%, #B8860B 90%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  /* Solid white title (no gold) */
+  color: #ffffff;
 }
 
 .brand-subtitle {
@@ -372,7 +407,7 @@ async function onSubmit() {
 .brand-divider {
   width: 80px;
   height: 4px;
-  background: var(--maron-accent);
+  background: #ffffff; /* simple white divider, no gold accent */
   border-radius: var(--radius-full);
   margin-bottom: var(--space-6);
 }
@@ -400,7 +435,7 @@ async function onSubmit() {
 
 .feature-icon {
   font-size: var(--font-size-xl);
-  color: #f5d08a; /* keep a warm accent that contrasts on maroon */
+  color: #ffffff; /* simple white, no gold */
 }
 
 /* Right Side - Form */
@@ -415,6 +450,10 @@ async function onSubmit() {
   width: 100%;
   max-width: 576px; /* reverted to previous size */
   will-change: transform;
+  /* Simple WHITE card (Arrow 1 requirement) */
+  background: #ffffff;
+  color: var(--maron-primary);
+  border: 1px solid #e5e7eb;
 }
 
 .login-header {
@@ -428,33 +467,27 @@ async function onSubmit() {
   margin-bottom: var(--space-4);
 }
 
-/* Maroon school logo inside the login card header */
+/* Security icon inside the login card header, same size as previous mask */
 .login-card-logo {
   width: 72px;
   height: 72px;
   display: block;
   margin: 0 auto var(--space-4);
-  background-color: var(--maron-primary);
-  -webkit-mask-image: url('/assets/img/logo.png');
-  mask-image: url('/assets/img/logo.png');
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
+  color: var(--maron-primary); /* maroon icon on white card */
+  font-size: 72px; /* ensure Icon component renders at same visual size */
+  line-height: 72px;
 }
 
 .login-title {
   font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-bold);
-  color: var(--maron-primary);
+  color: var(--maron-primary); /* maroon title on white card */
   margin-bottom: var(--space-2);
 }
 
 .login-subtitle {
   font-size: var(--font-size-base);
-  color: #6b7280;
+  color: var(--maron-primary-700); /* maroon subtitle on white card */
   margin: 0;
 }
 
@@ -476,7 +509,7 @@ async function onSubmit() {
   gap: var(--space-2);
   font-weight: var(--font-weight-medium);
   font-size: var(--font-size-sm);
-  color: #374151;
+  color: var(--maron-primary); /* maroon labels on white card */
 }
 
 .label-icon {
@@ -606,3 +639,24 @@ async function onSubmit() {
   .login-brand { grid-area: brand; text-align: right; }
 }
 </style>
+
+/* === Entrance animations for login panels (one-time, professional) === */
+@keyframes formEnter {
+  0% { opacity: 0; transform: translateX(-24px) scale(.98); filter: blur(2px); }
+  60% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+@keyframes brandEnter {
+  0% { opacity: 0; transform: translateX(24px) scale(.98); filter: blur(2px); }
+  60% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: none; }
+}
+
+/* Apply only to the container panels, not their inner elements */
+.login-form-wrapper { animation: formEnter 700ms cubic-bezier(.22,.61,.36,1) both; }
+.login-brand { animation: brandEnter 720ms cubic-bezier(.22,.61,.36,1) both 60ms; }
+
+/* Respect Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .login-form-wrapper, .login-brand { animation: none !important; }
+}
