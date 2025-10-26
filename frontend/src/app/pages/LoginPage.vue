@@ -258,6 +258,11 @@ async function onSubmit() {
   opacity: 1;
 }
 
+
+/* Animated glossy shine over the golden frame */
+
+/* Inner maroon fill only (no shine) */
+
 /* Ensure all children sit above the ::after cover */
 .login-wrapper > * {
   position: relative;
@@ -355,7 +360,7 @@ async function onSubmit() {
 
 .login-card {
   width: 100%;
-  max-width: 480px;
+  max-width: 600px; /* enlarged (stronger visibility) */
   will-change: transform;
 }
 
@@ -537,4 +542,5 @@ async function onSubmit() {
     font-size: var(--font-size-2xl);
   }
 }
+
 </style>
