@@ -212,12 +212,8 @@ async function onSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Maroon + Arabesque background (page level) */
-  background-image: url('/assets/img/arabesque_qatar.svg?v=20251023'), linear-gradient(180deg, rgba(128,0,0,0.95), rgba(128,0,0,0.95));
-  background-size: 448px 448px, cover;
-  background-position: center, center;
-  background-repeat: repeat, no-repeat;
-  background-blend-mode: soft-light, normal;
+  /* Make the page-level background transparent so arabesque appears only inside the golden frame */
+  background: transparent;
   padding: 0;
   overflow: hidden; /* prevent scrollbars on the login page */
 }
