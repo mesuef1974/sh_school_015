@@ -350,3 +350,34 @@
         display: none !important;
     }
 }
+
+/* ===== Global viewport utilization (use ~98% of the screen) ===== */
+html, body, #app { height: 100%; }
+body { margin: 0; background-color: var(--maron-bg); }
+/* Use border-box to avoid accidental overflow when approaching 98vw */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ===== Cards Grid Utilities (7 per row on wide screens) ===== */
+:root { --cards-gap: var(--space-4); --page-w: 98vw; --page-pad-x: 0; }
+/* Width unification helpers */
+.use-98vw { max-width: var(--page-w); margin-inline: auto; }
+.full-bleed-safe { width: min(var(--page-w), 100%); margin-inline: auto; }
+.no-overflow-x { overflow-x: hidden; }
+/* Enforce 98% on legacy wrappers */
+section.full-bleed > * { width: min(var(--page-w), 100%) !important; margin-inline: auto !important; }
+.full-bleed-95 { width: min(var(--page-w), 100%) !important; margin-inline: auto !important; }
+.students-two-col { width: var(--page-w) !important; }
+.cards-grid-7 {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: var(--cards-gap);
+}
+@media (max-width: 1399.98px) { .cards-grid-7 { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (max-width: 1199.98px) { .cards-grid-7 { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 991.98px)  { .cards-grid-7 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 767.98px)  { .cards-grid-7 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 575.98px)  { .cards-grid-7 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 380px)      { .cards-grid-7 { grid-template-columns: repeat(1, minmax(0, 1fr)); } }
+
+/* ===== Compact card variant ===== */
+.ds-card.ds-card--compact { padding: var(--space-3); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }

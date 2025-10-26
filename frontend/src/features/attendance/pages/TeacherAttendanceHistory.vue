@@ -1,5 +1,5 @@
 <template>
-  <section class="full-bleed">
+  <section>
     <!-- Compact Toolbar: Title + Filters + Search in one card -->
     <DsCard class="mb-3 toolbar-card" v-motion :initial="{ opacity: 0, y: -12 }" :enter="{ opacity: 1, y: 0 }">
       <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
@@ -473,10 +473,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
-/* Center all top-level cards within this page and slightly reduce width for visual comfort */
-section.full-bleed > * { width: 95%; margin-inline: auto; }
-@media (max-width: 576px) { section.full-bleed > * { width: 100%; } }
 
 /* Toolbar compact styles */
 .toolbar-card :is(.form-label){ margin-bottom: 0.25rem; }

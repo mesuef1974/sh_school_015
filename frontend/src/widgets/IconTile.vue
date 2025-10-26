@@ -3,7 +3,7 @@
     :is="to ? 'RouterLink' : 'a'"
     :to="to"
     :href="href"
-    class="tile"
+    :class="['tile', compact ? 'tile--compact' : '']"
     :style="{ '--tile-color': color || '#7a6' }"
     target="_self"
     rel="noopener"
@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ to?: string; href?: string; icon: string; title: string; subtitle?: string; color?: string; badge?: string | number }>();
+defineProps<{ to?: string; href?: string; icon: string; title: string; subtitle?: string; color?: string; badge?: string | number; compact?: boolean }>();
 </script>
 
 <style scoped>
@@ -34,8 +34,7 @@ defineProps<{ to?: string; href?: string; icon: string; title: string; subtitle?
   gap:10px;
   align-items:center;
   justify-content: center;
-  width: 78%; /* حجم أنسب بصريًا داخل العمود */
-  margin-inline: auto; /* توسيط داخل العمود */
+  width: 100%; /* امتلاء خلية الشبكة */
   aspect-ratio: 1 / 1; /* مربعة */
   padding:16px;
   border-radius:18px;
@@ -60,6 +59,12 @@ defineProps<{ to?: string; href?: string; icon: string; title: string; subtitle?
   border: 1px solid rgba(0,0,0,0.06);
   font-size: 36px;
 }
+
+/* نمط مضغوط */
+.tile--compact { padding: 10px; border-radius: 14px; gap: 8px; }
+.tile--compact .tile-icon { width: 56px; height: 56px; font-size: 28px; border-radius: 16px; }
+.tile--compact .tile-title { font-size: .95rem; }
+.tile--compact .tile-subtitle { font-size: .8rem; }
 
 .tile-text { text-align: center; max-width: 92%; }
 .tile-title { font-weight:800; line-height: 1.15; letter-spacing: .1px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

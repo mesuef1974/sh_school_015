@@ -1,5 +1,5 @@
 <template>
-  <section class="full-bleed d-grid gap-3">
+  <section class="d-grid gap-3">
     <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap toolbar-card">
       <Icon icon="solar:clock-circle-bold-duotone" class="text-2xl" />
       <div class="fw-bold">جدول الجناح</div>
@@ -568,9 +568,6 @@ function teardownResizeObserver() {
 </script>
 
 <style scoped>
-.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
-section.full-bleed > * { width: 95%; margin-inline: auto; }
-@media (max-width: 576px) { section.full-bleed > * { width: 100%; } }
 
 .toolbar-controls .btn { white-space: nowrap; }
 

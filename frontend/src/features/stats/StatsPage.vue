@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3 full-bleed-95">
+  <section class="d-grid gap-3">
     <DsCard
       v-motion
       :initial="{ opacity: 0, y: -30 }"
@@ -567,12 +567,6 @@ onMounted(async () => {
 .segmented { display: inline-flex; gap: 6px; }
 .segmented-btn { white-space: nowrap; }
 
-/* Full-bleed wrapper at 95% of viewport width */
-.full-bleed-95 {
-  width: 95vw;
-  margin-inline: calc(50% - 47.5vw);
-  box-sizing: border-box;
-}
 
 /* Ensure charts keep consistent heights within their cards */
 :deep(.ds-card) { overflow: hidden; }

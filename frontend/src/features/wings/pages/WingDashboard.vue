@@ -1,5 +1,5 @@
 <template>
-  <section class="wing-dashboard d-grid gap-3 page-grid full-bleed">
+  <section class="wing-dashboard d-grid gap-3 page-grid">
     <div class="auto-card p-3 d-flex align-items-center gap-3">
       <Icon icon="solar:shield-star-bold-duotone" class="header-icon" />
       <div>

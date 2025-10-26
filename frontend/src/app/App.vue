@@ -31,14 +31,13 @@
         <RouterLink v-else to="/login">دخول</RouterLink>
       </nav>
     </header>
-    <main class="page-main container py-3" :class="{ 'wide-wing': isWing }" v-if="!isLogin">
-      <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl" v-if="!isHome">
+    <main class="page-main container" :class="{ 'wide-wing': isWing, 'is-login': isLogin, 'py-3': !isLogin }">
+      <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl" v-if="!isHome && !isLogin">
         <div class="flex-fill"></div>
         <BreadcrumbRtl />
       </div>
       <RouterView />
     </main>
-    <RouterView v-else />
     <footer class="page-footer py-3 bg-maroon">
       <div class="container d-flex justify-content-between small">
         <span class="text-white text-center w-100">©2025 - جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية بنين - تطوير( المعلم/ سفيان مسيف s.mesyef0904@education.qa )</span>
@@ -48,7 +47,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watchEffect, onMounted, onBeforeUnmount } from 'vue';
+import { computed } from 'vue';
 import { useAuthStore } from './stores/auth';
 import { logout } from '../shared/api/client';
 import { useRouter, useRoute } from 'vue-router';
@@ -70,51 +69,6 @@ const isLogin = computed(() => route.name === 'login');
 const hideSchoolName = computed(() => route.path?.startsWith('/supervisor'));
 const isWing = computed(() => route.path?.startsWith('/wing'));
 
-// Prevent page scrollbars on the login route
-let prevOverflow: string | null = null;
-let prevBgImage: string | null = null;
-watchEffect(() => {
-  if (isLogin.value) {
-    // Lock body scroll on login
-    prevOverflow = document.body.style.overflow || '';
-    document.body.style.overflow = 'hidden';
-    // Remove global body background image on login to prevent double background
-    prevBgImage = document.body.style.backgroundImage || '';
-    document.body.style.backgroundImage = 'none';
-  } else {
-    // Restore scroll state
-    if (prevOverflow !== null) {
-      document.body.style.overflow = prevOverflow;
-      prevOverflow = null;
-    } else {
-      document.body.style.removeProperty('overflow');
-    }
-    // Restore background image state
-    if (prevBgImage !== null) {
-      document.body.style.backgroundImage = prevBgImage;
-      prevBgImage = null;
-    } else {
-      document.body.style.removeProperty('background-image');
-    }
-  }
-});
-
-onBeforeUnmount(() => {
-  // Restore body scroll
-  if (prevOverflow !== null) {
-    document.body.style.overflow = prevOverflow;
-    prevOverflow = null;
-  } else {
-    document.body.style.removeProperty('overflow');
-  }
-  // Restore body background image
-  if (prevBgImage !== null) {
-    document.body.style.backgroundImage = prevBgImage;
-    prevBgImage = null;
-  } else {
-    document.body.style.removeProperty('background-image');
-  }
-});
 
 async function onLogout() {
   await logout();
@@ -130,14 +84,22 @@ async function onLogout() {
   --app-footer-h: 56px;
 }
 
-.container { max-width: 1200px; }
-/* Expand Wing pages to use up to 95% of viewport width as requested */
-.page-main.wide-wing.container { max-width: 95vw; }
+/* Use up to 98% of viewport width across the app */
+.container { max-width: var(--page-w); margin-inline: auto; }
+/* Wing pages also respect the 98% rule */
+.page-main.wide-wing.container { max-width: var(--page-w); }
 .flex-fill { flex: 1 1 auto; }
 
+/* Make the app fill ~98% of the viewport height */
+.page-container { min-height: 98vh; display: flex; flex-direction: column; }
+.page-main { flex: 1 1 auto; }
+/* Login-specific layout tweaks: keep footer fully visible and center content */
+.page-main.is-login { height: calc(100vh - var(--app-header-h) - var(--app-footer-h)); height: calc(100dvh - var(--app-header-h) - var(--app-footer-h)); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+
 /* Ensure header/footer occupy stable space to allow calc(100vh - ...) layouts */
-.navbar-maronia { min-height: var(--app-header-h); display: flex; align-items: center; }
-.page-footer { min-height: var(--app-footer-h); }
+.navbar-maronia { height: var(--app-header-h); display: flex; align-items: center; }
+.navbar-maronia > nav { height: 100%; padding-top: 0; padding-bottom: 0; }
+.page-footer { height: var(--app-footer-h); display: flex; align-items: center; padding-top: 0; padding-bottom: 0; }
 
 /* زر الرجوع للرئيسية بأسلوب زجاجي دائري */
 .btn-glass-home {

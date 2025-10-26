@@ -5,8 +5,8 @@
       <div
         class="login-brand"
         v-motion
-        :initial="{ opacity: 0, x: -100 }"
-        :enter="{ opacity: 1, x: 0, transition: { duration: 600 } }"
+        :initial="{ opacity: 0, x: -32 }"
+        :enter="{ opacity: 1, x: 0, transition: { type: 'spring', stiffness: 180, damping: 22, mass: 0.9 } }"
       >
         <div class="brand-content">
           <span class="brand-logo-mask" aria-hidden="true"></span>
@@ -41,15 +41,15 @@
       <div
         class="login-form-wrapper"
         v-motion
-        :initial="{ opacity: 0, x: 100 }"
-        :enter="{ opacity: 1, x: 0, transition: { duration: 600, delay: 200 } }"
+        :initial="{ opacity: 0, x: 32 }"
+        :enter="{ opacity: 1, x: 0, transition: { type: 'spring', stiffness: 180, damping: 22, mass: 0.9, delay: 120 } }"
       >
         <DsCard
           class="login-card"
           :animate="false"
           v-motion
-          :initial="{ opacity: 0, y: 24, scale: 0.96 }"
-          :enter="{ opacity: 1, y: 0, scale: 1, transition: { duration: 500, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', delay: 120 } }"
+          :initial="{ opacity: 0, y: 16, scale: 0.98 }"
+          :enter="{ opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 220, damping: 24, mass: 0.9, delay: 150 } }"
         >
           <div class="login-header">
             <span class="login-card-logo" aria-hidden="true"></span>
@@ -207,7 +207,7 @@ async function onSubmit() {
 <style scoped>
 .login-container {
   /* Fit exactly between header and footer to avoid any vertical scroll */
-  height: calc(100vh - var(--app-header-h) - var(--app-footer-h));
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -356,8 +356,7 @@ async function onSubmit() {
 .login-card {
   width: 100%;
   max-width: 480px;
-  transform: scale(0.9);
-  transform-origin: center;
+  will-change: transform;
 }
 
 .login-header {

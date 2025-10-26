@@ -1,5 +1,5 @@
 <template>
-  <section class="full-bleed d-grid gap-3">
+  <section class="d-grid gap-3">
     <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap">
       <Icon icon="solar:ui-bold-duotone" class="text-2xl" />
       <div class="fw-bold">مصمم الأيقونات — الصفحة الرئيسية</div>
@@ -97,9 +97,9 @@
             <input class="form-control form-control-sm" v-model.trim="q" placeholder="فلترة بالعنوان" style="max-width: 220px;" />
           </div>
         </div>
-        <div class="row g-3 tile-grid">
-          <div class="col-6 col-md-4 col-xl-3" v-for="t in filtered" :key="t.id">
-            <IconTile :icon="t.icon" :title="t.title" :subtitle="t.subtitle" :color="t.color" :to="undefined" :href="undefined" />
+        <div class="cards-grid-7 tile-grid">
+          <div v-for="t in filtered" :key="t.id">
+            <IconTile :icon="t.icon" :title="t.title" :subtitle="t.subtitle" :color="t.color" :to="undefined" :href="undefined" compact />
           </div>
           <div v-if="filtered.length===0" class="text-muted small text-center py-4">لا توجد بطاقات وفق الفلتر الحالي</div>
         </div>
@@ -196,9 +196,6 @@ onMounted(loadInitial);
 </script>
 
 <style scoped>
-.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
-section.full-bleed > * { width: 95%; margin-inline: auto; }
-@media (max-width: 576px) { section.full-bleed > * { width: 100%; } }
 .tile-grid .col-6,.tile-grid .col-md-4,.tile-grid .col-xl-3 { position: relative; }
 .sortable-list .list-group-item { user-select: none; }
 .toolbar :deep(button){ white-space: nowrap; }

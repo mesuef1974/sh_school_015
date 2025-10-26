@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3 full-bleed">
+  <section class="d-grid gap-3">
     <header class="auto-card p-3 d-flex align-items-center gap-3">
       <Icon icon="fa6-solid:clipboard-list" style="font-size:28px;color:#6a1b9a" />
       <div>
@@ -24,8 +24,5 @@
 </script>
 
 <style scoped>
-.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
-/* Center all cards on this page and slightly reduce width; keep full width on small screens */
-section.full-bleed .auto-card { width: 95%; margin-inline: auto; }
-@media (max-width: 576px) { section.full-bleed .auto-card { width: 100%; } }
+/* Page-local tweaks can be added here if needed */
 </style>

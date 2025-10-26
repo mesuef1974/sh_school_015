@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3 wide-95">
+  <section class="d-grid gap-3">
     <DsCard
       v-motion
       :initial="{ opacity: 0, y: -30 }"
@@ -17,11 +17,10 @@
 
 
     <!-- Main Actions -->
-    <div class="row g-3">
+    <div class="cards-grid-7">
       <div
         v-for="(tile, index) in tiles"
         :key="tile.name"
-        class="col-6 col-md-4 col-xl-3"
         v-motion
         :initial="{ opacity: 0, y: 30 }"
         :enter="{ opacity: 1, y: 0, transition: { duration: 400, delay: 250 + (index * 50) } }"
@@ -32,6 +31,7 @@
           :title="tile.title"
           :subtitle="tile.subtitle"
           :color="tile.color"
+          compact
         />
       </div>
     </div>

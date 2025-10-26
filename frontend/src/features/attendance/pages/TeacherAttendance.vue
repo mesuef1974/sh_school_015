@@ -1,5 +1,5 @@
 <template>
-  <section class="d-grid gap-3 page-grid full-bleed">
+  <section class="d-grid gap-3 page-grid">
     <div
       v-motion
       :initial="{ opacity: 0, x: -50 }"
@@ -645,10 +645,6 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 .auto-card { border: 2px solid var(--maron-primary, #8a1538); border-radius: 12px; }
 
 /* Center cards horizontally and reduce width by 5% (scoped to this page) */
-section.full-bleed .auto-card { width: 95%; margin-inline: auto; justify-self: center; }
-@media (max-width: 576px) {
-  section.full-bleed .auto-card { width: 100%; justify-self: stretch; }
-}
 
 .glass-form {
   background: rgba(255,255,255,0.65);
@@ -840,7 +836,7 @@ section.full-bleed .auto-card { width: 95%; margin-inline: auto; justify-self: c
 }
 
 /* Two-column students grid (full-bleed) */
-.students-two-col { display: grid; grid-template-columns: 1fr; gap: 16px; width: 95vw; margin-inline-start: 0; margin-inline-end: auto; padding-inline-start: 0; padding-inline-end: 12px; box-sizing: border-box; }
+.students-two-col { display: grid; grid-template-columns: 1fr; gap: 16px; width: var(--page-w); margin-inline: auto; padding-inline: 0 12px; box-sizing: border-box; }
 @media (min-width: 992px) { /* lg breakpoint */
   .students-two-col { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
 }
@@ -891,7 +887,6 @@ section.full-bleed .auto-card { width: 95%; margin-inline: auto; justify-self: c
 .page-grid .auto-card.p-0 { }
 
 /* Align the 95% width container to the right edge (RTL) */
-.full-bleed { width: 100vw; margin-inline: calc(50% - 50vw); }
 /* Larger screens: slightly increase grid density */
 @media (min-width: 1400px) {
   .student-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }

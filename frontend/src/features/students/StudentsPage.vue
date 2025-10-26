@@ -15,12 +15,11 @@
       </div>
     </DsCard>
 
-    <div class="row g-3">
+    <div class="cards-grid-7">
       <div
         v-motion
-        :initial="{ opacity: 0, scale: 0.8 }"
+        :initial="{ opacity: 0, scale: 0.9 }"
         :enter="{ opacity: 1, scale: 1, transition: { duration: 400, delay: 100 } }"
-        class="col-6 col-md-4 col-xl-3"
       >
         <IconTile
           :to="{ name: 'students-absence' }"
@@ -28,6 +27,7 @@
           title="غياب الطلبة"
           subtitle="إدارة ومراجعة"
           color="#2e7d32"
+          compact
         />
       </div>
     </div>

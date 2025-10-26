@@ -34,13 +34,12 @@
       <DsButton size="sm" variant="outline" icon="solar:refresh-bold-duotone" @click="resetOrder">إعادة ضبط</DsButton>
     </div>
 
-    <div class="row g-3 tile-grid" :class="{ reordering: reorderMode }">
+    <div class="cards-grid-7 tile-grid" :class="{ reordering: reorderMode }">
       <div
         v-for="(t, index) in orderedTiles"
         :key="t.__key"
-        class="col-6 col-md-4 col-xl-3"
         v-motion
-        :initial="{ opacity: 0, scale: 0.8 }"
+        :initial="{ opacity: 0, scale: 0.9 }"
         :enter="{
           opacity: 1,
           scale: 1,
@@ -59,7 +58,7 @@
           @drop.prevent="onDrop(index, $event)"
           @click.prevent="onTileClick(t.id)"
         >
-          <IconTile :to="reorderMode ? undefined : t.to" :href="reorderMode ? undefined : t.href" :icon="t.icon" :title="t.title" :subtitle="t.subtitle" :color="t.color" :badge="t.kpiKey ? (kpiMap as any)[t.kpiKey] : undefined" />
+          <IconTile :to="reorderMode ? undefined : t.to" :href="reorderMode ? undefined : t.href" :icon="t.icon" :title="t.title" :subtitle="t.subtitle" :color="t.color" :badge="t.kpiKey ? (kpiMap as any)[t.kpiKey] : undefined" compact />
         </div>
       </div>
     </div>
@@ -259,7 +258,7 @@ function retryAnimation() {
 }
 </script>
 <style scoped>
-.tile-grid .col-6,.tile-grid .col-md-4,.tile-grid .col-xl-3 { position: relative; }
+.tile-grid > div { position: relative; }
 /* تعزيز الإحساس بالعوم عبر مسافة وظل خفيفين تأتي من مكون IconTile */
 
 /* أنماط شاشة الترحيب */

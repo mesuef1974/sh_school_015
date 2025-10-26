@@ -30,6 +30,7 @@ interface Props {
   noPadding?: boolean;
   animate?: boolean;
   delay?: number;
+  compact?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -37,12 +38,14 @@ const props = withDefaults(defineProps<Props>(), {
   noPadding: false,
   animate: true,
   delay: 0,
+  compact: false,
 });
 
 const cardClasses = computed(() => {
   const classes = ['ds-card'];
   if (props.interactive) classes.push('ds-card-interactive');
   if (props.noPadding) classes.push('ds-card-no-padding');
+  if (props.compact) classes.push('ds-card--compact');
   return classes.join(' ');
 });
 </script>
