@@ -255,10 +255,11 @@ $DotEnv = Read-DotEnv -Path $EnvFile
 # Ensure DEBUG=true by default in local dev if not explicitly set
 if (-not $Env:DJANGO_DEBUG -or $Env:DJANGO_DEBUG -eq '') { $Env:DJANGO_DEBUG = 'true' }
 
-# Probe DB connectivity; require PostgreSQL (no SQLite fallback)
+# Probe DB connectivity; prefer PostgreSQL but do not hard-fail in dev
+# If DB is down or misconfigured, we still start the server so /livez and static pages work,
+# and developers can bring DB up afterward. Endpoints needing DB will fail until DB is ready.
 if (-not (Test-DjangoDbConnection)) {
-  Write-Error -Message "Failed to connect to PostgreSQL. Ensure PostgreSQL is running and PG_* settings are set in backend/.env, then retry."
-  exit 1
+  Write-Warning "PostgreSQL connection check failed. Will continue starting the dev server; ensure DB is running and PG_* settings in backend/.env are correct."
 }
 
 Invoke-DjangoMigrateIfNeeded

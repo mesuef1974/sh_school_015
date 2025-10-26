@@ -1108,6 +1108,43 @@ Notes:
 
 ---
 
+## ✅ كيف أتأكد أن كل شيء على ما يرام؟
+
+> هذا القسم يعطيك خطوات سريعة للتحقق من سلامة المنصة محليًا وعلى GitHub.
+
+### تحقق سريع محليًا (PowerShell على Windows)
+- من جذر المشروع:
+
+<div dir="ltr">
+
+```powershell
+# تشغيل تحقق شامل (يستخدم SQLite للاختبارات السريعة)
+pwsh -File scripts\verify_all.ps1
+
+# إن أردت تشغيل PostgreSQL وRedis تلقائيًا قبل التحقق
+pwsh -File scripts\verify_all.ps1 -UpServices
+
+# إن أردت تخطي اختبارات PostgreSQL والاكتفاء بـ SQLite
+pwsh -File scripts\verify_all.ps1 -SkipPostgresTests
+```
+
+</div>
+
+- معنى النتائج:
+  - PASS بجانب كل خطوة يعني أنها سليمة.
+  - FAIL سيُظهر أين المشكلة تحديدًا (migrate، pytest، أو غيرها). انسخ آخر 30–50 سطرًا من الإخراج وسأحلّها لك.
+  - Health endpoints يتم فحصها فقط إذا كان الخادم يعمل مسبقًا.
+
+### تحقق من CI على GitHub
+- افتح تبويب Actions في المستودع وتأكد أن الوظائف التالية خضراء على آخر تشغيل للفرع main/master:
+  - Python CI: lint-and-check + test (SQLite) + test (PostgreSQL)
+  - Links Validator
+  - CodeQL
+  - Quality Checks
+- كذلك ستظهر الشارات أعلى README باللون الأخضر عند النجاح.
+
+---
+
 ## ‏📦 كيف أستفيد من فحوصات CI الآن؟
 
 > هذه الفحوصات تعمل تلقائيًا على GitHub Actions لكل دفع (push) أو طلب دمج (Pull Request) على الفرعين main/master. فيما يلي خطوات استخدامها فورًا، وتشغيل نفس الفحوصات محليًا لتسريع التطوير.
@@ -1143,7 +1180,7 @@ Notes:
   - ruff check
 - اختبارات (pytest) بنفس إعدادات CI:
   - set PYTHONPATH=backend
-  - set DJANGO_SETTINGS_MODULE=core.settings
+  - set DJANGO_SETTINGS_MODULE=core.settings_test
   - pytest -q
 - فحص الأنواع (اختياري وغير حاجز في CI):
   - pip install mypy
@@ -1168,3 +1205,99 @@ Notes:
 ### 6) ماذا بعد؟
 - استمر بالدفع والعمل عبر فروع وPull Requests؛ سيعمل CI بقياسات موحّدة.
 - إن رغبت بجعل ruff أو mypy حاجزين للدمج، أخبرنا لنشدد الإعدادات.
+
+
+---
+
+## ‏🐘 تشغيل PostgreSQL وRedis عبر Docker Compose (موصى به للمطورين)
+
+> هذه الطريقة تجهّز قاعدة بيانات PostgreSQL 16 وRedis 7 محليًا بسرعة وثبات. تم ضبط المنفذ 5433 بدل 5432 لتجنّب التعارضات.
+
+### المتطلبات
+- تثبيت Docker Desktop أو أي توزيعة تدعم docker compose.
+
+### التشغيل
+- من جذر المشروع:
+
+<div dir="ltr">
+
+```powershell
+# تشغيل الحاويات بالخلفية
+docker compose -f infra/docker-compose.yml up -d
+
+# التحقق من الصحة
+docker ps
+
+# الاطلاع على سجلات PostgreSQL/Redis
+docker logs pg-sh-school --tail=100
+docker logs redis-sh --tail=100
+```
+
+</div>
+
+### الإعدادات البيئية
+- حدّث ملف backend/.env ليتطابق مع الخدمة:
+
+<div dir="ltr">
+
+```env
+PG_DB=sh_school
+PG_USER=postgres
+PG_PASSWORD=postgres
+PG_HOST=127.0.0.1
+PG_PORT=5433  # لاحظ المنفذ
+```
+
+</div>
+
+### الهجرات (migrations) وpg_trgm
+- لا تحتاج لأي إجراء يدوي. ملفّات الهجرة تتكفّل بإنشاء الامتداد pg_trgm والفهارس اللازمة تلقائيًا عند استخدام PostgreSQL.
+- إذا كانت قاعدة البيانات قديمة جدًا وتواجه قفلًا أو تضاربًا، أعد المحاولة بعد:
+
+<div dir="ltr">
+
+```powershell
+# تطبيق الهجرات
+python backend/manage.py migrate
+
+# إعادة تشغيل الخدمات إن لزم
+docker compose -f infra/docker-compose.yml restart postgres
+```
+
+</div>
+
+### الإيقاف والتنظيف
+
+<div dir="ltr">
+
+```powershell
+# إيقاف الحاويات مع الإبقاء على البيانات
+docker compose -f infra/docker-compose.yml down
+
+# حذف البيانات (تحذير: سيؤدي لفقدان قاعدة البيانات)
+docker compose -f infra/docker-compose.yml down -v
+```
+
+</div>
+
+ملاحظات:
+- يتعايش هذا النهج مع سكربتات التشغيل dev_up.ps1/dev_all.ps1. إن كنت تستخدم السكربت الذي يشغّل PostgreSQL بنفس المنافذ، تجنّب تشغيل الطريقتين معًا.
+- في CI، لدينا مساران: اختبارات سريعة على SQLite، ومسار PostgreSQL حقيقي. محليًا أنت تعمل على PostgreSQL كما في الإنتاج.
+
+
+## Quick start: Verify locally (Windows PowerShell)
+
+- Open PowerShell in the project root (D:\sh_school_015)
+- Activate the project virtual environment and run the verification script:
+
+```
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+pwsh -File scripts\verify_all.ps1 -SkipPostgresTests   # fast lane (SQLite)
+pwsh -File scripts\verify_all.ps1                      # full (includes PostgreSQL)
+```
+
+Notes:
+- The verification script now auto-prefers `.venv\Scripts\python.exe` when present.
+- If `pytest` is missing, it prints guidance and marks test lanes as SKIP instead of FAIL.
+- HTTPS health probes will pass if your dev server (with TLS) is up; HTTP probes show INFO if the plain server isn’t running.

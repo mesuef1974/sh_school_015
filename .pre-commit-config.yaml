@@ -18,8 +18,8 @@ repos:
       - id: pycln
         args: ["--all"]
 
-  - repo: https://github.com/hakancelikdev/unimport
-    rev: 1.3.2
+  - repo: https://github.com/unimport/unimport
+    rev: 1.3.0
     hooks:
       - id: unimport
         args: ["--include-star-import", "--remove"]
