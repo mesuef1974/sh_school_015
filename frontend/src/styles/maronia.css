@@ -299,3 +299,40 @@ body {
   --color-warning: #ffc107; /* Accessible yellow on white */
   --color-info: #0dcaf0;
 }
+
+/* Metallic gold brand in navbar (logo + school name) */
+.navbar-maronia .brand-logo-gold,
+.navbar-maronia .brand-name-gold {
+  display: inline-block;
+  background-image: conic-gradient(
+    from 0deg,
+    #8B7500 0%, #B8860B 12%, #D4AF37 28%, #FFD700 44%, #E6C200 60%, #B8860B 78%, #8B7500 90%, #D4AF37 100%
+  ), linear-gradient(45deg, rgba(255,255,255,.12), rgba(255,255,255,.02));
+  background-blend-mode: overlay, normal;
+  background-size: 120% 120%, 200% 200%;
+  background-position: center, 200% 0;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: contain; mask-size: contain;
+}
+/* Subtle glossy sweep across gold (very slow, professional) */
+@keyframes headerGoldShine {
+  0% { background-position: center, 200% 0; }
+  50% { background-position: center, 0 200%; }
+  100% { background-position: center, -200% 0; }
+}
+
+.navbar-maronia .brand-logo-gold { width: 44px; height: 44px; }
+/* School name width can be adjusted if needed */
+.navbar-maronia .brand-name-gold { height: 28px; width: 320px; }
+/* Activate a very subtle animation only on capable browsers */
+@media (prefers-reduced-motion: no-preference) {
+  .navbar-maronia .brand-logo-gold,
+  .navbar-maronia .brand-name-gold {
+    animation: headerGoldShine 14s ease-in-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .navbar-maronia .brand-logo-gold,
+  .navbar-maronia .brand-name-gold { animation-duration: 20s; }
+}

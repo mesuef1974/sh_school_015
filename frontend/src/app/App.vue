@@ -3,9 +3,20 @@
     <header class="navbar-maronia">
       <nav class="container d-flex align-items-center gap-3 py-2">
         <div class="brand-images d-flex align-items-center">
-          <img :src="logoSrc" alt="شعار" />
+          <span
+            class="brand-logo-gold"
+            role="img"
+            aria-label="شعار"
+            :style="{ WebkitMaskImage: `url(${logoSrc})`, maskImage: `url(${logoSrc})` }"
+          ></span>
           <span class="brand-divider"></span>
-          <img v-if="!hideSchoolName" :src="schoolNameSrc" alt="مدرسة الشحانية" />
+          <span
+            v-if="!hideSchoolName"
+            class="brand-name-gold"
+            role="img"
+            aria-label="مدرسة الشحانية"
+            :style="{ WebkitMaskImage: `url(${schoolNameSrc})`, maskImage: `url(${schoolNameSrc})` }"
+          ></span>
         </div>
         <span class="flex-fill"></span>
         <RouterLink v-if="!isHome" :to="{ name: 'home' }" class="btn btn-glass-home" aria-label="العودة إلى الرئيسية">

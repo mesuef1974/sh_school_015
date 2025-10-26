@@ -1,6 +1,7 @@
 <template>
   <div class="login-container">
     <div class="login-wrapper">
+      <div class="login-wrapper-bg" aria-hidden="true"></div>
       <!-- Left Side - Branding -->
       <div
         class="login-brand"
@@ -211,29 +212,33 @@ async function onSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Background image as requested */
-  background-image: url('/assets/img/portal_bg.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  /* Maroon + Arabesque background (page level) */
+  background-image: url('/assets/img/arabesque_qatar.svg?v=20251023'), linear-gradient(180deg, rgba(128,0,0,0.95), rgba(128,0,0,0.95));
+  background-size: 448px 448px, cover;
+  background-position: center, center;
+  background-repeat: repeat, no-repeat;
+  background-blend-mode: soft-light, normal;
   padding: 0;
   overflow: hidden; /* prevent scrollbars on the login page */
 }
 
 .login-wrapper {
+  /* Tuning knobs */
+  --login-frame-w: 10px;        /* border thickness (doubled) */
+  --login-shine-speed: 10s;     /* shine speed (slower, more professional) */
+
   max-width: 1200px;
   width: 100%;
+  margin-inline: auto; /* ensure centered horizontally within container */
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-8);
-  align-items: center;
+  align-items: center;           /* prevent children from stretching vertically */
+  justify-items: center;         /* keep both columns' contents centered horizontally */
   /* Backdrop card behind both the branding and the login panel */
   position: relative;
   border-radius: 0; /* square corners */
-  border: 5px solid transparent; /* 5px golden frame */
-  /* Metallic gold border (border-box) only; maroon fill provided by ::after */
-  background:
-    linear-gradient(135deg, #7a5e2e, #cdaa2c, #b8890b, #fff2b2, #b8890b, #d4af37, #7a5e2e) border-box;
+  /* Border and shine are drawn via ::before/::after with masks */
   -webkit-backdrop-filter: blur(50px);
   backdrop-filter: blur(50px); /* 50px blur */
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
@@ -242,14 +247,59 @@ async function onSubmit() {
 
 /* Animated glossy shine over the golden frame */
 
-/* Inner maroon fill only (no shine) */
+/* Metallic gold ring (border-only) */
+.login-wrapper::before {
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit;
+  padding: var(--login-frame-w);
+  background: conic-gradient(
+    from 0deg,
+    #8B7500 0%, #B8860B 10%, #D4AF37 25%, #FFD700 40%, #E6C200 55%, #B8860B 70%, #8B7500 85%, #D4AF37 100%
+  );
+  /* Clip to border area only */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Animated glossy shine over the golden frame (border-only) */
 .login-wrapper::after {
-  content: "";
+  content: '';
+  position: absolute; inset: 0; border-radius: inherit;
+  padding: var(--login-frame-w);
+  background: linear-gradient(45deg, transparent 30%, rgba(255,255,255,.7) 50%, transparent 70%);
+  background-size: 240% 240%;
+  background-position: 200% 0;
+  mix-blend-mode: screen;
+  /* Clip to border area only */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: wrapperBorderShine var(--login-shine-speed, 10s) ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes wrapperBorderShine {
+  0% { background-position: 200% 0; }
+  50% { background-position: 0 200%; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-wrapper::after { animation-duration: 16s; }
+}
+
+@supports not (mask-composite: exclude) {
+  /* Graceful fallback: keep ring; disable moving shine if masking unsupported */
+  .login-wrapper::after { animation: none; opacity: .6; }
+}
+
+/* Inner maroon fill moved into a dedicated background element to avoid conflicts with ::after */
+.login-wrapper-bg {
   position: absolute;
-  inset: 5px; /* match the 5px golden border */
+  inset: var(--login-frame-w);
   border-radius: inherit;
   pointer-events: none;
-  /* Maroon fill with Qatari heritage arabesque overlay (inside area only) */
+  z-index: 0;
   background-image: url('/assets/img/arabesque_qatar.svg?v=20251023'), linear-gradient(rgba(128, 0, 0, 0.9), rgba(128, 0, 0, 0.9));
   background-repeat: repeat, no-repeat;
   background-size: 448px 448px, auto;
@@ -308,7 +358,12 @@ async function onSubmit() {
   font-size: var(--font-size-4xl);
   font-weight: var(--font-weight-bold);
   margin-bottom: var(--space-2);
-  color: #ffffff;
+  /* Metallic gold text */
+  color: #D4AF37; /* fallback solid gold */
+  background-image: linear-gradient(135deg, #8B7500 0%, #B8860B 18%, #D4AF37 36%, #FFD700 54%, #E6C200 72%, #B8860B 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .brand-subtitle {
@@ -354,13 +409,15 @@ async function onSubmit() {
 
 /* Right Side - Form */
 .login-form-wrapper {
+  /* Place login form on the left side on wide screens */
+  grid-column: 1;
   display: flex;
   justify-content: center;
 }
 
 .login-card {
   width: 100%;
-  max-width: 600px; /* enlarged (stronger visibility) */
+  max-width: 576px; /* reverted to previous size */
   will-change: transform;
 }
 
@@ -543,4 +600,13 @@ async function onSubmit() {
   }
 }
 
+</style>
+
+<style scoped>
+/* Desktop ordering: brand on the right, form on the left; keep centered */
+@media (min-width: 992px) {
+  .login-wrapper { grid-template-areas: 'form brand'; }
+  .login-form-wrapper { grid-area: form; }
+  .login-brand { grid-area: brand; text-align: right; }
+}
 </style>
