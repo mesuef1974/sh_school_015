@@ -1390,7 +1390,10 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             return err
         try:
             from school.models import Class, AttendanceRecord, TimetableEntry, Term  # type: ignore
-            from common.day_utils import iso_to_school_dow
+            try:
+                from backend.common.day_utils import iso_to_school_dow
+            except Exception:
+                from common.day_utils import iso_to_school_dow  # type: ignore
         except Exception:
             return Response({"date": dt.isoformat(), "items": []})
 
@@ -1447,7 +1450,10 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         """
         try:
             from school.models import Class, TimetableEntry, Term  # type: ignore
-            from common.day_utils import iso_to_school_dow
+            try:
+                from backend.common.day_utils import iso_to_school_dow
+            except Exception:
+                from common.day_utils import iso_to_school_dow  # type: ignore
         except Exception:
             return Response({"days": {}, "date": None, "items": [], "meta": {"error": "import_failed"}})
 

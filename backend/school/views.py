@@ -57,7 +57,10 @@ import io
 from .services.timetable_import import import_timetable_csv
 from .services.timetable_ocr import try_extract_csv_from_pdf, try_extract_csv_from_image
 from .services.ocr_table_parser import parse_ocr_raw_to_csv
-from common.day_utils import iso_to_school_dow
+try:
+    from backend.common.day_utils import iso_to_school_dow
+except Exception:
+    from common.day_utils import iso_to_school_dow  # type: ignore
 
 
 class ClassViewSet(ModelViewSet):

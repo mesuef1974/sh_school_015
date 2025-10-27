@@ -9,7 +9,10 @@ from django.utils import timezone
 from school.models import AttendanceRecord, Staff, TimetableEntry  # type: ignore
 from ..models import AttendanceStatus
 from ..selectors import _current_term  # reuse existing helper
-from common.day_utils import iso_to_school_dow
+try:
+    from backend.common.day_utils import iso_to_school_dow
+except Exception:
+    from common.day_utils import iso_to_school_dow  # type: ignore
 
 
 def _class_fk_id_field() -> str:

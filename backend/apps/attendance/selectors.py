@@ -4,7 +4,10 @@ from typing import List, Dict, Any
 from django.db.models import QuerySet, Count, Q
 
 from school.models import Student, Class, AttendanceRecord, TimetableEntry, Term, ExitEvent  # type: ignore
-from common.day_utils import iso_to_school_dow
+try:
+    from backend.common.day_utils import iso_to_school_dow
+except Exception:
+    from common.day_utils import iso_to_school_dow  # type: ignore
 
 
 def _class_fk_id_field() -> str:

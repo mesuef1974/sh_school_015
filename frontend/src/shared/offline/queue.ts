@@ -58,10 +58,18 @@ export async function flushAttendanceQueue(postFn: (p: AttendanceBulkItem) => Pr
 
 let initialized = false;
 
-export function initOfflineQueue(postFn: (p: AttendanceBulkItem) => Promise<any>) {
+import { postBulkSave } from "../../api/attendance";
+
+export function initOfflineQueue(postFn?: (p: AttendanceBulkItem) => Promise<any>) {
   if (initialized) return;
   initialized = true;
+  const runner = async (item: AttendanceBulkItem) => {
+    if (postFn) return postFn(item);
+    // default implementation uses our API adapter
+    const { class_id, date, records } = item;
+    return postBulkSave({ class_id, date, records });
+  };
   window.addEventListener('online', () => {
-    flushAttendanceQueue(postFn).catch(() => {});
+    flushAttendanceQueue(runner).catch(() => {});
   });
 }
