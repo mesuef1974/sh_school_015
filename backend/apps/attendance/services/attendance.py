@@ -253,6 +253,13 @@ def bulk_save_attendance(
         if "source" in model_fields and not payload.get("source"):
             defaults["source"] = "teacher"
 
+        # Load previous attendance record once, to reuse in logic below
+        prev: Optional[AttendanceRecord] = None
+        try:
+            prev = AttendanceRecord.objects.filter(**lookup).order_by("-updated_at").first()
+        except Exception:
+            prev = None
+
         # Preserve submission marker if present on previous version to keep items pending until supervisor decision
         try:
             prev_note = (getattr(prev, "note", "") or "").strip() if prev is not None else ""
@@ -274,11 +281,7 @@ def bulk_save_attendance(
             defaults["updated_by_id"] = actor_user_id
 
         # Exit permission fields handling (إذن خروج)
-        prev: Optional[AttendanceRecord] = None
-        try:
-            prev = AttendanceRecord.objects.filter(**lookup).order_by("-updated_at").first()
-        except Exception:
-            prev = None
+        # 'prev' already loaded above; reuse it here.
         # Normalize input reasons to comma-separated string
         reasons_str: Optional[str] = None
         if exit_reasons_in is not None:
