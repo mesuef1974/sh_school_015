@@ -97,7 +97,7 @@
     </DsCard>
 
     <!-- Timetable Card -->
-    <DsCard v-else ref="timetableRef" class="p-0 overflow-hidden timetable-card outlined-card">
+    <DsCard v-else ref="timetableRef" :noPadding="true" class="p-0 overflow-hidden timetable-card outlined-card">
       <!-- Actions toolbar -->
       <div class="timetable-toolbar">
         <button class="tt-btn" @click="toggle()" :title="isFullscreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'">
@@ -165,20 +165,6 @@
                 </div>
               </th>
             </tr>
-            <!-- First helper row: shows class/section for each period (today) -->
-            <tr class="classes-row">
-              <th class="timetable-th day-column classes-head">
-                <div class="th-content">
-                  <Icon icon="solar:home-2-bold-duotone" width="18" />
-                  <span>الصف</span>
-                </div>
-              </th>
-              <th v-for="p in periodsDesc" :key="'cHead'+p" class="timetable-th period-column">
-                <div class="class-head-badge" :title="classroomHeadTitle(p)">
-                  {{ classroomHeadLabel(p) }}
-                </div>
-              </th>
-            </tr>
           </thead>
           <tbody>
             <tr
@@ -218,7 +204,7 @@
                       color: getClassColor(cell(d, p)!.classroom_id).text
                     }"
                   >
-                    <Icon icon="solar:book-2-bold-duotone" width="16" />
+                    <Icon :icon="subjectIcon(cell(d, p)?.subject_name)" width="16" />
                     <span class="subject-name">{{ cell(d, p)?.subject_name || '—' }}</span>
                   </div>
                   <div class="classroom-info">
@@ -374,7 +360,10 @@
 .timetable-wrapper.dense .subject-badge{ font-size:.8rem; }
 
 /* Scale down table content inside timetable card by 5% (width and height) */
-.tt-scale-95{ transform: none; transform-origin: top center; }
+.tt-scale-95{ transform: none; transform-origin: top center; width: 100%; }
+
+/* Ensure the 95% container fills the card and is centered */
+.in-card-95{ width: 95%; max-width: 100%; margin-inline: auto; display: block; }
 
 /* Page-level adjustments to avoid window scrollbars on timetable page */
 .timetable-page{
@@ -442,21 +431,6 @@ function currentSchoolDay(): number {
   return jsDay === 0 ? 1 : (jsDay + 1);
 }
 
-function classroomHeadLabel(p: number): string {
-  const d = currentSchoolDay();
-  const c = cell(d, p) as any;
-  if (!c) return '—';
-  return String(c.classroom_name || `صف #${c.classroom_id}`);
-}
-function classroomHeadTitle(p: number): string {
-  const d = currentSchoolDay();
-  const c = cell(d, p) as any;
-  if (!c) return '';
-  const subj = c.subject_name ? ` • ${c.subject_name}` : '';
-  const t = cellTime(d, p);
-  const time = t ? ` (${fmtTime(t[0])}–${fmtTime(t[1])})` : '';
-  return `${c.classroom_name || ('صف #' + c.classroom_id)}${subj}${time}`;
-}
 const maxPeriods = computed(() => {
   let m = 0;
   for (const k of Object.keys(days.value || {})) {
@@ -478,6 +452,8 @@ function fmtTime(t?: string) {
   // Expect 'HH:MM[:SS]' — show only HH:MM using Latin numerals
   return t.slice(0,5);
 }
+
+import { subjectIcon } from '../../../shared/icons/subjectIcons';
 
 function cell(d: number, p: number) {
   const arr = days.value[String(d)] || [];
@@ -738,21 +714,20 @@ onMounted(load);
 .timetable-wrapper {
   overflow-x: auto;
   overflow-y: visible;
+  width: 100%;
 }
 
 .timetable-modern {
   width: 100%;
+  max-width: 100%;
+  margin-inline: auto;
   border-collapse: separate;
   border-spacing: 0;
+  table-layout: fixed;
   min-width: 900px;
 }
 
 /* Table Header */
-/* Extra helper header row for classes */
-.classes-row .timetable-th{ position: sticky; top: 56px; z-index: 9; background: #6c757d; color:#fff; }
-.classes-head{ background:#495057 !important; }
-.class-head-badge{ display:inline-flex; align-items:center; justify-content:center; padding:.25rem .5rem; border-radius:8px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); min-height:28px; font-weight:600; }
-@media print{ .classes-row .timetable-th{ position: static !important; } }
 
 .timetable-th {
   background: linear-gradient(135deg, var(--maron-primary, #7b1e1e) 0%, #a52a2a 100%);

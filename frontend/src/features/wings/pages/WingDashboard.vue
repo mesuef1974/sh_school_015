@@ -127,7 +127,13 @@
                     <tr v-for="(row, idx) in filteredMissing.items" :key="'m-'+idx">
                       <td>{{ row.class_name || ('#' + row.class_id) }}</td>
                       <td>حصة {{ row.period_number }}</td>
-                      <td>{{ row.subject_name || '—' }}</td>
+                      <td>
+                                              <span v-if="row.subject_name" class="d-inline-flex align-items-center gap-1">
+                                                <Icon :icon="subjectIcon(row.subject_name)" class="me-1" />
+                                                <span>{{ row.subject_name }}</span>
+                                              </span>
+                                              <span v-else>—</span>
+                                            </td>
                       <td>{{ row.teacher_name || ('#' + row.teacher_id) }}</td>
                       <td class="text-center">
                         <RouterLink class="btn btn-sm btn-outline-primary" :to="{ path: '/attendance/teacher', query: { class_id: row.class_id, period: row.period_number, date: currentDate } }">
@@ -146,6 +152,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { subjectIcon } from '../../../shared/icons/subjectIcons';
 import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getWingMe, getWingOverview, getWingMissing, getMe } from '../../../shared/api/client';

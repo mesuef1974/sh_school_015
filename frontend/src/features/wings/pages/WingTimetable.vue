@@ -103,8 +103,8 @@
         <div class="tt7-scroller">
           <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي 7×7">
             <colgroup>
-              <col :style="{ width: weeklyColPx(0) }">
-              <col v-for="(d, i) in DAYS5" :key="'cg-'+d[0]" :style="{ width: weeklyColPx(i+1) }">
+              <col :style="{ minWidth: weeklyColPx(0) }">
+              <col v-for="(d, i) in DAYS5" :key="'cg-'+d[0]" :style="{ minWidth: weeklyColPx(i+1) }">
             </colgroup>
             <thead>
               <tr>
@@ -276,51 +276,7 @@ function dayNameAr(d: string): string {
   return N[dt.getDay()] || '—';
 }
 
-// Map subject name to an expressive icon shown before the subject (maroon)
-const SUBJECT_ICON_RULES: { re: RegExp; icon: string }[] = [
-  // Math & related
-  { re: /(رياض|رياضيات|math|جبر|هندسة|مثلثات|تفاضل|تكامل|إحصاء|احصاء|تحليل|احتمالات|احتمالات|قياس)/i, icon: 'solar:calculator-bold-duotone' },
-  // Sciences
-  { re: /(فيزياء|phys|كهرومغناطيسية|ميكانيكا|فلك|فلكية|فضاء|فضاء)/i, icon: 'mdi:atom' },
-  { re: /(كيمياء|chem|حيوية|عضوية|غير عضوية|تحليلية)/i, icon: 'mdi:flask' },
-  { re: /(أحياء|احياء|biology|bio|أحياء دقيقة|علم الأحياء|بيولوجيا)/i, icon: 'mdi:dna' },
-  { re: /(علوم|science|بيئة|بيئي|environment|جيولوجيا|علوم الأرض|أرض|فضاء|جيولوجي)/i, icon: 'solar:test-tube-bold-duotone' },
-  { re: /(مختبر|مختبرات|معمل|لاب|lab)/i, icon: 'mdi:flask-outline' },
-  // Languages
-  { re: /(لغة عربية|عربي|عرب|قراءة|كتابة|بلاغة|نحو|قواعد|إملاء|تعبير)/i, icon: 'solar:book-line-duotone' },
-  { re: /(لغة إنجليزية|انجليز|إنجليز|english|قراءة انج|writing|grammar|listening|speaking)/i, icon: 'solar:translate-bold-duotone' },
-  { re: /(فرنسي|فرنساوي|فرنسية|french)/i, icon: 'mdi:alpha-f-box' },
-  { re: /(ألماني|المانية|الماني|german)/i, icon: 'mdi:alpha-g-box' },
-  { re: /(تركي|تركية|تركيا|turkish)/i, icon: 'mdi:alpha-t-box' },
-  { re: /(إسباني|اسباني|إسبانية|spanish)/i, icon: 'mdi:alpha-s-box' },
-  { re: /(إيطالي|ايطالي|إيطالية|italian)/i, icon: 'mdi:alpha-i-box' },
-  { re: /(صيني|صينية|chinese)/i, icon: 'mdi:ideogram-cjk-variant' },
-  { re: /(ياباني|يابانية|japanese)/i, icon: 'mdi:ideogram-cjk' },
-  { re: /(أردو|فارسي|فارسية|كردي|كردية|urdu|persian|farsi|kurdish)/i, icon: 'mdi:alphabetical-variant' },
-  { re: /(لغات|لغة)/i, icon: 'solar:chat-square-like-bold-duotone' },
-  // Tech/Computing
-  { re: /(حاسوب|حاسب|كمبيوتر|تقنية|تقانة|تكنولوجيا|معلومات|حاسوبية|مهارات رقمية|برمجة|coding|برمج|ذكاء اصطناعي|ذكاء|ai|روبوت|روبوتات|شبكات|نظم|قواعد بيانات|database|أمن معلومات|cyber|سحابي|سحابة|cloud|برمجيات|software|هندسة برمجيات)/i, icon: 'solar:laptop-2-bold-duotone' },
-  // Social Studies & National
-  { re: /(تاريخ|جغرافيا|اجتماع|اجتماعيات|علوم اجتماعية|وطنية|مواطنة|قانون|ثقافة|تربية وطنية|مدنيات|سياسة|اقتصاد سياسي)/i, icon: 'solar:globe-bold-duotone' },
-  // Islamic Studies & Ethics
-  { re: /(دين|تربية إسلامية|اسلامية|قرآن|قران|شرعية|تفسير|حديث|سيرة|تجويد|تلاوة|توحيد|فقه|أخلاق|عقيدة|ثقافة دينية)/i, icon: 'solar:book-favorite-bold-duotone' },
-  // Arts & Music & Theater
-  { re: /(فن|رسم|تشكيلي|فنية|موسيقى|مسرح|دراما|خط عربي|تربية فنية|تربية فنيه)/i, icon: 'solar:palette-bold-duotone' },
-  // Physical Education & Health
-  { re: /(رياضة|بدنية|تربية بدنية|health|physical|صحة|سلامة|سلامة مرورية|إسعافات)/i, icon: 'solar:ball-basketball-bold-duotone' },
-  // Vocational, Engineering, Home Economics
-  { re: /(تصميم|نجارة|ميكانيكا|كهرباء|إلكترون|الكترون|إلكترونيات|كهروميكانيك|ورش|مهنية|مهنة|حدادة|هندسة|تطبيقية|صيانة|تبريد|تكييف|لحام)/i, icon: 'mdi:cog' },
-  { re: /(اقتصاد منزلي|تربية أسرية|اسرية|منزلية|خياطة|تغذية|منزلي|أسرية)/i, icon: 'mdi:silverware-fork-knife' },
-  // Business & Economics
-  { re: /(اقتصاد|محاسبة|مالية|تجارة|ريادة|مشروع|إدارة|تسويق|مصارف|بنوك|ثقافة مالية|إدارة أعمال)/i, icon: 'solar:graph-up-bold-duotone' },
-  // Life skills, Library, Guidance, Special Ed
-  { re: /(مهارات|حياتية|life|قيم|سلوك|مرشد|ارشاد|إرشاد|توجيه|قيادة|اتصال|تواصل|مكتبة|بحث|بحث علمي|تعلّم|تعلم|تعلم نشط|تفكير نقدي|منطق|إبداع|ابتكار|تربية خاصة|صعوبات تعلم|دعم تعلم)/i, icon: 'solar:leaf-bold-duotone' },
-];
-function subjectIcon(name?: string | null): string {
-  const s = (name || '').toLowerCase();
-  for (const r of SUBJECT_ICON_RULES) { if (r.re.test(s)) return r.icon; }
-  return 'solar:book-2-bold-duotone';
-}
+import { subjectIcon } from '../../../shared/icons/subjectIcons';
 
 function setMode(m: 'daily'|'weekly') { if (mode.value !== m) { mode.value = m; loadData(); if (m === 'daily') { nextTick().then(() => updateUnifiedCellWidth()); } } }
 
@@ -573,6 +529,9 @@ function teardownResizeObserver() {
 
 .toolbar-controls .btn { white-space: nowrap; }
 
+/* Ensure inner content is centered at 95% of the card width (same pattern as TeacherTimetable) */
+.in-card-95 { width: 95%; max-width: 100%; margin-inline: auto; display: block; }
+
 .slot-card { border: 1px solid rgba(0,0,0,0.06); border-radius: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.05); }
 .slot-card .icon-wrap { width: 30px; height: 30px; display:grid; place-items:center; color: #8a1538; background: rgba(0,0,0,0.04); border-radius: 8px; }
 .tiny { font-size: .8rem; }
@@ -592,8 +551,8 @@ function teardownResizeObserver() {
 .hdr-line .badge { white-space: nowrap; }
 
 /* 7×7 weekly grid styles */
-.tt7-wrapper { display: flex; justify-content: center; padding: 12px; }
-.tt7-scroller { max-width: 1200px; width: 100%; margin-inline: auto; overflow: auto; display: flex; justify-content: center; }
+.tt7-wrapper { display: block; width: 100%; padding: 12px; }
+.tt7-scroller { width: 100%; max-width: 100%; margin-inline: auto; overflow: auto; }
 .tt7-table { width: 100%; border-collapse: separate; border-spacing: 8px 6px; background: #fff; table-layout: fixed; }
 .tt7-th { background: linear-gradient(135deg, #f8f9fa 0%, #edf1f5 100%); color: #333; font-weight: 700; text-align: center; padding: .75rem; border-bottom: 2px solid #e0e6ef; white-space: nowrap; }
 .tt7-th-period { text-align: right; position: sticky; inset-inline-start: 0; background: #fafbfc; border-inline-end: 1px solid #eef2f7; min-width: 180px; z-index: 1; }
@@ -612,11 +571,18 @@ function teardownResizeObserver() {
   align-items: center;
   gap: .6rem;
   white-space: nowrap;
-  overflow-x: auto;
   padding: .5rem .75rem;
   border-bottom: 1px solid #f0f0f0;
 }
-.period-line .items-inline { display: inline-flex; align-items: stretch; gap: .5rem; }
+/* Make the items container fill the remaining row width and distribute cells across available space */
+.period-line .items-inline {
+  flex: 1;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: stretch;
+  gap: .5rem;
+}
 .period-line .countdown { font-weight: 600; }
 /* Professional inline cells for each class in the period */
 .period-cell {
@@ -625,8 +591,8 @@ function teardownResizeObserver() {
   justify-content: center;
   align-items: center; /* center content horizontally within the cell */
   text-align: center; /* center text inside lines */
-  width: var(--wing-cell-w, 160px);
-  min-width: var(--wing-cell-w, 160px);
+  width: 100%;
+  min-width: 0; /* allow grid to control width via minmax */
   height: 64px;
   padding: .35rem .5rem;
   border: 1px solid rgba(0,0,0,0.06);

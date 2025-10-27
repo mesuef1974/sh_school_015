@@ -193,7 +193,7 @@
               </td>
               <td class="modern-td">
                 <div v-if="row.subject_name" class="subject-cell">
-                  <Icon icon="solar:book-2-bold-duotone" width="16" style="color: var(--maron-primary)" />
+                  <Icon :icon="subjectIcon(row.subject_name)" width="16" style="color: var(--maron-primary)" />
                   <span class="subject-name-text">{{ row.subject_name }}</span>
                 </div>
                 <span v-else class="text-muted">—</span>
@@ -255,6 +255,7 @@
 </template>
 
 <script setup lang="ts">
+import { subjectIcon } from '../../../shared/icons/subjectIcons';
 import { ref, onMounted, computed } from 'vue';
 import { getAttendanceHistory, getTeacherClasses, getAttendanceStudents } from '../../../shared/api/client';
 import { formatDateDMY } from '../../../shared/utils/date';
