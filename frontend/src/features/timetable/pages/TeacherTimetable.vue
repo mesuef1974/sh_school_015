@@ -713,7 +713,7 @@ onMounted(load);
 
 .timetable-wrapper {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
   width: 100%;
 }
 
