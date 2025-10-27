@@ -1,66 +1,69 @@
 <template>
-  <div class="container py-3">
-    <div class="row justify-content-center">
-      <div class="col-12 col-lg-8">
-        <div class="card p-3 mb-3">
-          <div class="d-flex align-items-center mb-3">
-            <h2 class="h5 mb-0">ملفي الشخصي</h2>
-            <span class="ms-auto"></span>
-            <button class="btn btn-sm btn-outline-danger" @click.prevent="onLogout">
-              <i class="bi bi-box-arrow-right"></i>
-              تسجيل الخروج
-            </button>
-          </div>
-          <div v-if="auth.loading">جاري التحميل…</div>
-          <div v-else>
-            <div class="row g-3">
-              <div class="col-12 col-md-6">
-                <div class="form-floating">
-                  <input type="text" class="form-control" :value="auth.profile?.username" readonly id="fldUsername" />
-                  <label for="fldUsername">اسم المستخدم</label>
+  <div class="identity-stage">
+    <div class="identity-stage-bg" aria-hidden="true"></div>
+    <div class="container py-3">
+      <div class="row justify-content-center">
+        <div class="col-12 col-lg-8">
+          <div class="card p-3 mb-3">
+            <div class="d-flex align-items-center mb-3">
+              <h2 class="h5 mb-0">ملفي الشخصي</h2>
+              <span class="ms-auto"></span>
+              <button class="btn btn-sm btn-outline-danger" @click.prevent="onLogout">
+                <i class="bi bi-box-arrow-right"></i>
+                تسجيل الخروج
+              </button>
+            </div>
+            <div v-if="auth.loading">جاري التحميل…</div>
+            <div v-else>
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" :value="auth.profile?.username" readonly id="fldUsername" />
+                    <label for="fldUsername">اسم المستخدم</label>
+                  </div>
                 </div>
-              </div>
-              <div class="col-12 col-md-6">
-                <div class="form-floating">
-                  <input type="text" class="form-control" :value="auth.profile?.full_name" readonly id="fldFullname" />
-                  <label for="fldFullname">الاسم الكامل</label>
+                <div class="col-12 col-md-6">
+                  <div class="form-floating">
+                    <input type="text" class="form-control" :value="auth.profile?.full_name" readonly id="fldFullname" />
+                    <label for="fldFullname">الاسم الكامل</label>
+                  </div>
                 </div>
-              </div>
-              <div class="col-12">
-                <label class="form-label">الأدوار</label>
-                <div>
-                  <span v-for="r in auth.profile?.roles || []" :key="r" class="badge text-bg-secondary me-1">{{ r }}</span>
-                  <span v-if="(auth.profile?.roles || []).length === 0" class="text-muted">لا توجد أدوار محددة</span>
+                <div class="col-12">
+                  <label class="form-label">الأدوار</label>
+                  <div>
+                    <span v-for="r in auth.profile?.roles || []" :key="r" class="badge text-bg-secondary me-1">{{ r }}</span>
+                    <span v-if="(auth.profile?.roles || []).length === 0" class="text-muted">لا توجد أدوار محددة</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div class="card p-3">
-          <h2 class="h6 mb-3">تغيير كلمة المرور</h2>
-          <form @submit.prevent="onChangePassword" class="row g-3">
-            <div class="col-12 col-md-6">
-              <label class="form-label">كلمة المرور الحالية</label>
-              <input v-model="current" type="password" class="form-control" required autocomplete="current-password" />
-            </div>
-            <div class="col-12 col-md-6"></div>
-            <div class="col-12 col-md-6">
-              <label class="form-label">كلمة المرور الجديدة</label>
-              <input v-model="new1" type="password" class="form-control" required autocomplete="new-password" />
-            </div>
-            <div class="col-12 col-md-6">
-              <label class="form-label">تأكيد كلمة المرور الجديدة</label>
-              <input v-model="new2" type="password" class="form-control" required autocomplete="new-password" />
-            </div>
-            <div class="col-12 d-flex align-items-center gap-2">
-              <button class="btn btn-maron" :disabled="saving">حفظ</button>
-              <span v-if="msg" :class="{'text-success': success, 'text-danger': !success}">{{ msg }}</span>
-            </div>
-            <ul v-if="errors.length" class="text-danger small mb-0">
-              <li v-for="(e,i) in errors" :key="i">{{ e }}</li>
-            </ul>
-          </form>
+          <div class="card p-3">
+            <h2 class="h6 mb-3">تغيير كلمة المرور</h2>
+            <form @submit.prevent="onChangePassword" class="row g-3">
+              <div class="col-12 col-md-6">
+                <label class="form-label">كلمة المرور الحالية</label>
+                <input v-model="current" type="password" class="form-control" required autocomplete="current-password" />
+              </div>
+              <div class="col-12 col-md-6"></div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">كلمة المرور الجديدة</label>
+                <input v-model="new1" type="password" class="form-control" required autocomplete="new-password" />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">تأكيد كلمة المرور الجديدة</label>
+                <input v-model="new2" type="password" class="form-control" required autocomplete="new-password" />
+              </div>
+              <div class="col-12 d-flex align-items-center gap-2">
+                <button class="btn btn-maron" :disabled="saving">حفظ</button>
+                <span v-if="msg" :class="{'text-success': success, 'text-danger': !success}">{{ msg }}</span>
+              </div>
+              <ul v-if="errors.length" class="text-danger small mb-0">
+                <li v-for="(e,i) in errors" :key="i">{{ e }}</li>
+              </ul>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -119,5 +122,27 @@ async function onLogout() {
 </script>
 
 <style scoped>
+.identity-stage {
+  position: relative;
+}
+.identity-stage-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* solid maroon base with golden arabesque overlay */
+  background-color: var(--maron-primary);
+  background-image: url('/assets/img/arabesque_gs.svg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(65%, 520px);
+  background-attachment: fixed; /* pinned to viewport */
+}
+/* keep page content above the fixed background */
+.identity-stage > .container {
+  position: relative;
+  z-index: 1;
+}
+
 .card { border-radius: .75rem; box-shadow: 0 6px 24px rgba(0,0,0,.06); }
 </style>

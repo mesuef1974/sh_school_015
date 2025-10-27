@@ -9,17 +9,33 @@
     /* إذا تعذّر تحميل مكتبة lordicon، أظهر بديل Bootstrap */
     html:not(.lordicon-ready) .li-fallback { display:inline; }
     html:not(.lordicon-ready) lord-icon { display:none; }
+
+    /* شبكة الأيقونات المربعة (٧ في كل صف على الشاشات الكبيرة) */
+    .icon-grid{ display:grid; gap: 1.35rem; grid-template-columns: repeat(2, minmax(0,1fr)); align-items: stretch; }
+    @media (min-width: 576px){ .icon-grid{ grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 768px){ .icon-grid{ grid-template-columns: repeat(4, 1fr); } }
+    @media (min-width: 992px){ .icon-grid{ grid-template-columns: repeat(5, 1fr); } }
+    @media (min-width: 1200px){ .icon-grid{ grid-template-columns: repeat(7, 1fr); } }
+    /* اجعل أغلفة bootstrap للأعمدة شفافة للغريد حتى لا تُفسد توزيع المربعات */
+    .icon-grid > [class*="col-"]{ display: contents; }
+    .icon-grid a{ text-decoration: none; color: inherit; }
+    .icon-grid .card{ width: 100%; aspect-ratio: 1 / 1; display:flex; border-radius: 16px; border: 1px solid rgba(0,0,0,.08); box-shadow: 0 6px 14px rgba(0,0,0,.06); background: rgba(255,255,255,.75); backdrop-filter: blur(4px); transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+    .icon-grid .card.card-hover:hover{ transform: translateY(-6px); box-shadow: 0 16px 34px rgba(0,0,0,.14); border-color: rgba(0,0,0,.12); }
+    .icon-grid .card:focus-within{ outline: 2px solid var(--bs-primary,#0d6efd); outline-offset: 2px; }
+    .icon-grid .card-body{ display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding: 1.1rem; }
+    .icon-grid .badge{ display:none; }
+    /* تكبير الأيقونة والنص داخل البطاقات مع اعتناء بالقراءة */
+    .icon-grid .anim-icon{ width: 44px; height: 44px; margin-inline: 0; margin-bottom: .55rem; vertical-align: 0; }
+    .icon-grid .fw-bold{ font-size: 1.1rem; letter-spacing: .1px; line-height: 1.25; }
+    .icon-grid .text-muted.small{ font-size: .95rem; opacity: .96; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
     /* بطاقات الجداول */
     .tbl-card .badge { border-radius: 999px; }
     .card-hover{ transition: transform .12s ease, box-shadow .12s ease; }
     .card-hover:hover{ transform: translateY(-2px); box-shadow: 0 10px 26px rgba(0,0,0,.08); }
-    /* شريط أدوات لاصق على الشاشات الكبيرة */
-    @media (min-width: 992px){
-      #data-toolbar{ position: sticky; top: 64px; z-index: 10; background: transparent; }
-    }
     /* طباعة: إخفاء عناصر الواجهة والتركيز على المحتوى */
     @media print{
-      .page-header, #data-toolbar, nav, .btn, .input-group { display: none !important; }
+      .page-header, nav, .btn, .input-group { display: none !important; }
       .card { box-shadow: none !important; border: 1px solid #ccc; }
     }
   </style>
@@ -45,35 +61,8 @@
     </div>
   </div>
 
-  <div id="data-toolbar" class="row g-2 g-md-3 mb-4 align-items-center" data-aos="fade-up">
-    <div class="col-12 col-md-4">
-      <div class="input-group input-group-sm">
-        <span class="input-group-text"><i class="bi bi-search"></i> بحث</span>
-        <input id="q" class="form-control" placeholder="ابحث عن جدول… (student, timetable, …)" autocomplete="off"/>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <select id="filter-category" class="form-select form-select-sm" aria-label="تصفية حسب الفئة">
-        <option value="">كل الفئات</option>
-        <option value="core">بيانات أساسية</option>
-        <option value="junction">جداول ربط</option>
-        <option value="time">جداول زمنية</option>
-      </select>
-    </div>
-    <div class="col-6 col-md-3">
-      <select id="sort" class="form-select form-select-sm" aria-label="ترتيب النتائج">
-        <option value="name">الاسم (أ-ي)</option>
-        <option value="rows">عدد الصفوف (الأكبر)</option>
-        <option value="updated">آخر تحديث</option>
-      </select>
-    </div>
-    <div class="col-12 col-md-2 text-md-end small text-muted">
-      <span id="result-count">—</span>
-    </div>
-  </div>
-
-  <!-- روابط سريعة لصفحات الجداول الاحترافية -->
-  <div class="row g-3 mb-4" data-aos="fade-up">
+  <!-- روابط سريعة (الأيقونات المتبقية فقط) -->
+  <div class="icon-grid mb-4" data-aos="fade-up">
     <div class="col-md-6 col-lg-4">
       <a class="text-decoration-none" href="{% url 'data_icons_catalog' %}">
         <div class="card card-hover h-100">
@@ -196,115 +185,6 @@
   </div>
 
 
-  {% if tables %}
-  <div id="tbl-grid" class="row g-3" data-aos="fade-up">
-    {% for t in tables %}
-    <div class="col-md-6 col-lg-4 tbl-card" data-name="{{ t.name|lower }}" data-rows="{{ t.count|default:0 }}" data-updated="{{ t.updated_ts|default:0 }}" data-kind="{{ t.kind|default:'' }}">
-      <a class="text-decoration-none" href="{% url 'data_table_detail' t.name %}" aria-label="عرض جدول {{ t.name }}">
-        <div class="card card-hover h-100" tabindex="0" role="link">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <div class="fw-bold">
-                  <lord-icon class="anim-icon" src="https://cdn.lordicon.com/iqytlvst.json" trigger="hover" colors="primary:#c49a6c,secondary:#7b1e1e" aria-label="جدول"></lord-icon>
-                  <i class="bi bi-table text-accent me-1 li-fallback"></i>
-                  {{ t.name }}
-                </div>
-                <div class="text-muted small">
-                  <lord-icon class="anim-sm" src="https://cdn.lordicon.com/qzkqnuod.json" trigger="hover" colors="primary:#6c757d,secondary:#343a40" aria-label="عدد"></lord-icon>
-                  <i class="bi bi-123 me-1 li-fallback"></i>
-                  عدد الصفوف: {{ t.count|default:'—' }}
-                </div>
-              </div>
-              <span class="badge badge-accent">
-                <lord-icon class="anim-sm" src="https://cdn.lordicon.com/oqhlhtfq.json" trigger="hover" colors="primary:#ffffff,secondary:#ffffff" aria-label="عرض"></lord-icon>
-                <i class="bi bi-eye-fill me-1 li-fallback"></i> عرض
-              </span>
-            </div>
-          </div>
-        </div>
-      </a>
-    </div>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="card border-0 text-center py-5 bg-light" data-aos="fade-up">
-    <div class="card-body">
-      <i class="bi bi-inboxes text-secondary" style="font-size:42px"></i>
-      <div class="mt-2 mb-3">لا توجد جداول لعرضها حاليًا.</div>
-      <a href="/admin/" class="btn btn-sm btn-outline-secondary">لوحة الإدارة</a>
-    </div>
-  </div>
-  {% endif %}
+  {# تم إخفاء شبكة الجداول نهائيًا حسب الطلب لعرض الأيقونات المختارة فقط. #}
 
-  <script>
-    // بحث + فلاتر + فرز + عداد + اختصار لوحة المفاتيح
-    (function(){
-      const q = document.getElementById('q');
-      const grid = document.getElementById('tbl-grid');
-      const cat = document.getElementById('filter-category');
-      const sort = document.getElementById('sort');
-      const counter = document.getElementById('result-count');
-      if(!grid) return;
-      let t;
-      function apply(){
-        const val = (q?.value||'').trim().toLowerCase();
-        const c   = (cat?.value||'');
-        const cards = Array.from(grid.querySelectorAll('.tbl-card'));
-        let visible = 0;
-        cards.forEach(card=>{
-          const name = (card.dataset.name||'');
-          const k    = (card.dataset.kind||'');
-          const show = (!val || name.includes(val)) && (!c || c===k);
-          card.style.display = show ? '' : 'none';
-          if(show) visible++;
-        });
-        if(counter) counter.textContent = `نتائج: ${visible}`;
-        if(sort){
-          const by = sort.value;
-          const vCards = cards.filter(c=>c.style.display!== 'none');
-          vCards.sort((a,b)=>{
-            if(by==='rows') return (+b.dataset.rows||0) - (+a.dataset.rows||0);
-            if(by==='updated') return (+b.dataset.updated||0) - (+a.dataset.updated||0);
-            return a.dataset.name.localeCompare(b.dataset.name, 'ar');
-          });
-          vCards.forEach(c=>grid.appendChild(c));
-        }
-      }
-      ['input','change'].forEach(ev=>{
-        [q,cat,sort].forEach(el=> el && el.addEventListener(ev, ()=>{ clearTimeout(t); t=setTimeout(apply,120); }));
-      });
-      document.addEventListener('keydown', (e)=>{
-        if(e.key==='/' && !/input|textarea|select/i.test(document.activeElement.tagName)){
-          e.preventDefault(); q?.focus();
-        }
-      });
-      apply();
-    })();
-  </script>
 {% endblock %}
-
-  <script>
-    // توزيع أيقونات Lordicon متنوعة على بطاقات الجداول لإحساس شبكي احترافي
-    (function(){
-      const grid = document.getElementById('tbl-grid');
-      if(!grid) return;
-      const icons = [
-        'https://cdn.lordicon.com/iqytlvst.json', // table
-        'https://cdn.lordicon.com/qhviklyi.json', // chart
-        'https://cdn.lordicon.com/qtqvorle.json', // network
-        'https://cdn.lordicon.com/qzkqnuod.json', // counter
-        'https://cdn.lordicon.com/mecwbjnp.json', // calendar
-        'https://cdn.lordicon.com/abwrkdvl.json', // grid
-        'https://cdn.lordicon.com/akbwczov.json', // shield
-        'https://cdn.lordicon.com/oqhlhtfq.json'  // eye
-      ];
-      const cards = grid.querySelectorAll('.tbl-card');
-      let i = 0;
-      cards.forEach(card=>{
-        const icon = card.querySelector('lord-icon.anim-icon');
-        if(icon){ icon.setAttribute('src', icons[i % icons.length]); }
-        i++;
-      });
-    })();
-  </script>

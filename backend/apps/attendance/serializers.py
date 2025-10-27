@@ -21,6 +21,8 @@ class ExitEventSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(required=False)
     # Read-only denormalized fields for UI convenience
     student_name = serializers.CharField(source="student.full_name", read_only=True)
+    reviewer_id = serializers.IntegerField(source="reviewer.id", read_only=True)
+    reviewer_username = serializers.CharField(source="reviewer.username", read_only=True)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -48,13 +50,30 @@ class ExitEventSerializer(serializers.ModelSerializer):
             "period_number",
             "reason",
             "note",
+            # Review fields
+            "review_status",
+            "reviewed_at",
+            "review_comment",
+            "reviewer_id",
+            "reviewer_username",
+            # Session timing
             "started_at",
             "returned_at",
             "duration_seconds",
         ]
-        read_only_fields = ["started_at", "returned_at", "duration_seconds", "student_name"]
+        read_only_fields = [
+            "started_at",
+            "returned_at",
+            "duration_seconds",
+            "student_name",
+            "review_status",
+            "reviewed_at",
+            "reviewer_id",
+            "reviewer_username",
+        ]
         extra_kwargs = {
             "note": {"required": False, "allow_blank": True, "allow_null": True},
+            "review_comment": {"required": False, "allow_blank": True},
         }
 
     def validate(self, data):

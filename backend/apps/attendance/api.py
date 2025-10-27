@@ -65,9 +65,9 @@ def _filter_by_teacher_subjects(qs, user, class_id):
 
     # Get valid (teacher, classroom, subject) combinations from TeachingAssignment
     # This ensures BOTH conditions: teacher teaches classroom AND teaches subject to that classroom
-    valid_assignments = TeachingAssignment.objects.filter(
-        teacher_id=staff.id, classroom_id=class_id
-    ).values_list("subject_id", flat=True)
+    valid_assignments = TeachingAssignment.objects.filter(teacher_id=staff.id, classroom_id=class_id).values_list(
+        "subject_id", flat=True
+    )
 
     if valid_assignments:
         # Filter by: records created by this teacher AND for subjects they teach to this classroom
@@ -325,9 +325,7 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                 bio = BytesIO()
                 wb.save(bio)
                 data = bio.getvalue()
-                filename = (
-                    f"attendance_history_{class_id}_{dt_from.isoformat()}_{dt_to.isoformat()}.xlsx"
-                )
+                filename = f"attendance_history_{class_id}_{dt_from.isoformat()}_{dt_to.isoformat()}.xlsx"
                 resp = HttpResponse(
                     data,
                     content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -557,6 +555,56 @@ class AttendanceViewSetBase(viewsets.ViewSet):
         except ValueError as e:
             return Response({"detail": str(e)}, status=400)
         return Response({"saved": len(saved)}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["post"], url_path="submit")
+    def submit_for_review(self, request: Request) -> Response:
+        """Mark all attendance records for the given class/date (and optional period)
+        as submitted without closing them. Records remain editable until a wing supervisor approves.
+        Submission is indicated by a '[SUBMITTED @ ts]' tag in note and keeping locked=False.
+        Payload: { class_id:int, date:YYYY-MM-DD, period_number?:int|null }
+        """
+        payload = request.data or {}
+        try:
+            class_id = int(payload.get("class_id"))
+            dt = _date.fromisoformat(payload.get("date")) if payload.get("date") else _date.today()
+            period_number = payload.get("period_number")
+            period_number = int(period_number) if period_number not in (None, "") else None
+        except Exception as e:
+            return Response({"detail": f"Invalid payload: {e}"}, status=400)
+        # access control
+        if not self._user_has_access_to_class(request.user, class_id):
+            return Response({"detail": "not allowed for this class"}, status=403)
+        try:
+            from school.models import AttendanceRecord, Term  # type: ignore
+            from django.utils import timezone
+            # resolve term best-effort similar to services
+            term = Term.objects.filter(start_date__lte=dt, end_date__gte=dt).order_by("-start_date").first()
+            if not term:
+                term = Term.objects.order_by("-start_date").first()
+            qs = AttendanceRecord.objects.filter(classroom_id=class_id, date=dt, term=term)
+            if period_number:
+                qs = qs.filter(period_number=period_number)
+            now = timezone.now().strftime("%Y-%m-%d %H:%M")
+            tag = f"[SUBMITTED @ {now}]"
+            submitted = 0
+            for r in qs:
+                note = (getattr(r, "note", "") or "").strip()
+                # Avoid duplicate tag
+                if "[SUBMITTED" not in note:
+                    r.note = f"{tag} {note}".strip()[:300]
+                # Keep open/editable until supervisor approval
+                r.locked = False
+                # Ensure source reflects teacher submission unless already supervisor
+                if getattr(r, "source", "teacher") != "supervisor":
+                    r.source = "teacher"
+                try:
+                    r.save(update_fields=["note", "locked", "source", "updated_at"])
+                    submitted += 1
+                except Exception:
+                    continue
+            return Response({"submitted": int(submitted), "class_id": class_id, "date": dt.isoformat(), "period_number": period_number})
+        except Exception as e:
+            return Response({"detail": f"failed to submit: {e}"}, status=500)
 
 
 class AttendanceViewSet(viewsets.ViewSet):
@@ -805,9 +853,7 @@ class AttendanceViewSet(viewsets.ViewSet):
                 bio = BytesIO()
                 wb.save(bio)
                 data = bio.getvalue()
-                filename = (
-                    f"attendance_history_{class_id}_{dt_from.isoformat()}_{dt_to.isoformat()}.xlsx"
-                )
+                filename = f"attendance_history_{class_id}_{dt_from.isoformat()}_{dt_to.isoformat()}.xlsx"
                 resp = HttpResponse(
                     data,
                     content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1132,6 +1178,7 @@ class AttendanceViewSetV2(AttendanceViewSet):
             return Response({"detail": "no teaching assignments"}, status=403)
         classes = [{"id": row["classroom_id"], "name": row.get("classroom__name")} for row in qs]
         return Response({"classes": classes})
+
     @action(detail=False, methods=["get"], url_path="history-strict")
     def list_history_strict(self, request: Request) -> Response:
         """Strict history: in addition to classroom filter, ensure student's current class matches.
@@ -1176,9 +1223,7 @@ class AttendanceViewSetV2(AttendanceViewSet):
         from school.models import AttendanceRecord  # type: ignore
 
         qs = (
-            AttendanceRecord.objects.filter(
-                **{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to
-            )
+            AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date__gte=dt_from, date__lte=dt_to)
             .filter(student__class_fk_id=class_id)
             .select_related("student", "subject")
         )
@@ -1276,8 +1321,12 @@ class AttendanceViewSetV2(AttendanceViewSet):
 class WingSupervisorViewSet(viewsets.ViewSet):
     """APIs for Wing Supervisors: overview KPIs and missing attendance entries for today (or a given date).
     Scopes data to the wings supervised by the current user. Superusers see all wings.
+    Also exposes a minimal approvals workflow over teacher-submitted attendance, where
+    submission is modeled by the `locked` flag on AttendanceRecord.
     """
+
     from rest_framework.permissions import IsAuthenticated
+
     permission_classes = [IsAuthenticated]
 
     def _get_staff_and_wing_ids(self, user):
@@ -1328,15 +1377,20 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     "is_superuser": bool(getattr(request.user, "is_superuser", False)),
                 },
                 "roles": roles,
-                "staff": {"id": getattr(staff, "id", None), "full_name": getattr(staff, "full_name", None)},
+                "staff": {
+                    "id": getattr(staff, "id", None),
+                    "full_name": getattr(staff, "full_name", None),
+                },
                 "wings": {"ids": wing_ids, "names": wing_names},
-                "has_wing_supervisor_role": ("wing_supervisor" in roles) or bool(getattr(request.user, "is_superuser", False)),
+                "has_wing_supervisor_role": ("wing_supervisor" in roles)
+                or bool(getattr(request.user, "is_superuser", False)),
             }
         )
 
     @action(detail=False, methods=["get"], url_path="overview")
     def overview(self, request: Request) -> Response:
         from . import selectors  # lazy import to avoid circulars
+
         dt, err = _parse_date_or_400(request.query_params.get("date"))
         if err:
             return err
@@ -1383,6 +1437,113 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             summary["scope"] = "wings"
         return Response(summary)
 
+    @action(detail=False, methods=["get"], url_path="pending")
+    def pending(self, request: Request) -> Response:
+        """List submitted attendance items awaiting supervisor decision.
+        Submission is indicated by a '[SUBMITTED @ ts]' tag in note OR legacy locked=True without supervisor source.
+        Results are scoped to the wings supervised by the current user (or all if superuser).
+        Query params: date=YYYY-MM-DD (default today), class_id?:int
+        """
+        dt, err = _parse_date_or_400(request.query_params.get("date"))
+        if err:
+            return err
+        class_id_qs = request.query_params.get("class_id")
+        try:
+            class_id_int = int(class_id_qs) if class_id_qs else None
+        except Exception:
+            class_id_int = None
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"date": dt.isoformat(), "count": 0, "items": []})
+        try:
+            from django.db.models import Q
+            from school.models import AttendanceRecord  # type: ignore
+
+            qs = (
+                AttendanceRecord.objects.filter(date=dt)
+                .select_related("student", "classroom", "subject", "teacher")
+                .order_by("classroom_id", "period_number", "student_id")
+            )
+            # Pending criteria: marked submitted in note OR legacy locked but not yet approved by supervisor
+            qs = qs.filter(Q(note__icontains="[SUBMITTED") | (Q(locked=True) & ~Q(source="supervisor")))
+            if class_id_int:
+                qs = qs.filter(classroom_id=class_id_int)
+            if wing_ids and not getattr(request.user, "is_superuser", False):
+                qs = qs.filter(classroom__wing_id__in=wing_ids)
+            items = []
+            for r in qs[:2000]:  # safety cap
+                items.append(
+                    {
+                        "id": r.id,
+                        "student_id": r.student_id,
+                        "student_name": getattr(getattr(r, "student", None), "full_name", None),
+                        "class_id": getattr(r, "classroom_id", None),
+                        "class_name": getattr(getattr(r, "classroom", None), "name", None),
+                        "period_number": getattr(r, "period_number", None),
+                        "status": getattr(r, "status", None),
+                        "note": getattr(r, "note", None),
+                        "subject_name": getattr(getattr(r, "subject", None), "name_ar", None),
+                        "teacher_name": getattr(getattr(r, "teacher", None), "full_name", None),
+                    }
+                )
+            return Response({"date": dt.isoformat(), "count": len(items), "items": items})
+        except Exception as e:
+            return Response({"detail": f"failed: {e}"}, status=500)
+
+    @action(detail=False, methods=["post"], url_path="decide")
+    def approvals_decide(self, request: Request) -> Response:
+        """Approve or reject a batch of attendance records by IDs.
+        Payload: { action: 'approve'|'reject', ids: number[], comment?: string }
+        Approve keeps records locked and annotates note; reject unlocks records for teacher correction.
+        """
+        payload = request.data or {}
+        action = (payload.get("action") or "").strip().lower()
+        ids = payload.get("ids") or []
+        if action not in ("approve", "reject"):
+            return Response({"detail": "action must be approve|reject"}, status=400)
+        if not isinstance(ids, list) or not ids:
+            return Response({"detail": "ids must be a non-empty list"}, status=400)
+        comment = (payload.get("comment") or "").strip()
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"detail": "no wing scope"}, status=403)
+        try:
+            from django.utils import timezone
+            from school.models import AttendanceRecord  # type: ignore
+
+            now = timezone.now().strftime("%Y-%m-%d %H:%M")
+            reviewer = getattr(staff, "full_name", None) or getattr(request.user, "username", "")
+            prefix = "APPROVED" if action == "approve" else "REJECTED"
+            updated = 0
+            qs = AttendanceRecord.objects.filter(id__in=ids)
+            if wing_ids and not getattr(request.user, "is_superuser", False):
+                qs = qs.filter(classroom__wing_id__in=wing_ids)
+            import re
+            submitted_re = re.compile(r"\[SUBMITTED[^\]]*\]\s*", re.IGNORECASE)
+            for r in qs:
+                raw_note = (getattr(r, "note", "") or "").strip()
+                # Strip any previous submission markers to avoid lingering in pending
+                cleaned_note = submitted_re.sub("", raw_note).strip()
+                tag = f"[{prefix} by {reviewer} @ {now}]"
+                new_note = f"{tag} {comment} | {cleaned_note}".strip().strip("|")[:300]
+                r.note = new_note
+                if action == "reject":
+                    r.locked = False  # allow teacher to edit and resubmit
+                    # Keep source as teacher for rejected items
+                    if getattr(r, "source", "teacher") != "supervisor":
+                        r.source = "teacher"
+                else:
+                    r.locked = True  # close on approval
+                    r.source = "supervisor"
+                try:
+                    r.save(update_fields=["note", "locked", "source", "updated_at"])
+                    updated += 1
+                except Exception:
+                    continue
+            return Response({"updated": updated, "action": action})
+        except Exception as e:
+            return Response({"detail": f"failed: {e}"}, status=500)
+
     @action(detail=False, methods=["get"], url_path="missing")
     def missing(self, request: Request) -> Response:
         dt, err = _parse_date_or_400(request.query_params.get("date"))
@@ -1390,6 +1551,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             return err
         try:
             from school.models import Class, AttendanceRecord, TimetableEntry, Term  # type: ignore
+
             try:
                 from backend.common.day_utils import iso_to_school_dow
             except Exception:
@@ -1417,7 +1579,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         )
         # Determine class-periods already recorded
         rec = (
-            AttendanceRecord.objects.filter(date=dt, classroom_id__in=class_ids)
+            AttendanceRecord.objects.filter(date=dt, classroom_id__in=class_ids, source="supervisor", locked=True)
             .values("classroom_id", "period_number")
             .distinct()
         )
@@ -1441,7 +1603,6 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             )
         return Response({"date": dt.isoformat(), "count": len(items), "items": items})
 
-
     @action(detail=False, methods=["get"], url_path="timetable")
     def wing_timetable(self, request: Request) -> Response:
         """Return wing timetable. Supports ?wing_id, ?date=YYYY-MM-DD, and ?mode=daily|weekly (default daily).
@@ -1450,6 +1611,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         """
         try:
             from school.models import Class, TimetableEntry, Term  # type: ignore
+
             try:
                 from backend.common.day_utils import iso_to_school_dow
             except Exception:
@@ -1508,9 +1670,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
                 for sd in range(1, 8):  # Sun..Sat
-                    tpl_ids = list(
-                        PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True)
-                    )
+                    tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True))
                     if not tpl_ids:
                         continue
                     slots = (
@@ -1551,7 +1711,9 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             for e in qs:
                 if e.day_of_week not in days:
                     continue
-                st_et = times_per_day.get(int(e.day_of_week), {}).get(int(e.period_number)) or period_times.get(int(e.period_number))
+                st_et = times_per_day.get(int(e.day_of_week), {}).get(int(e.period_number)) or period_times.get(
+                    int(e.period_number)
+                )
                 days[e.day_of_week].append(
                     {
                         "class_id": e.classroom_id,
@@ -1566,15 +1728,19 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     }
                 )
             # Convert keys to strings for JSON stability and expose per-day period times
-            meta["period_times_by_day"] = {str(d): {int(k): v for k, v in (times_per_day.get(d) or {}).items()} for d in range(1, 8)}
+            meta["period_times_by_day"] = {
+                str(d): {int(k): v for k, v in (times_per_day.get(d) or {}).items()} for d in range(1, 8)
+            }
             meta["period_times"] = {int(k): v for k, v in period_times.items()} if period_times else {}
-            return Response({
-                "mode": "weekly",
-                "term_id": getattr(term, "id", None),
-                "wing_id": wing_id,
-                "days": {str(k): v for k, v in days.items()},
-                "meta": meta,
-            })
+            return Response(
+                {
+                    "mode": "weekly",
+                    "term_id": getattr(term, "id", None),
+                    "wing_id": wing_id,
+                    "days": {str(k): v for k, v in days.items()},
+                    "meta": meta,
+                }
+            )
 
         # Daily mode
         dow = iso_to_school_dow(dt)
@@ -1582,6 +1748,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         period_times_by_day: dict[int, dict[int, tuple]] = {d: {} for d in range(1, 8)}
         try:
             from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
             for sd in range(1, 8):
                 tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True))
                 if not tpl_ids:
@@ -1632,17 +1799,22 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         if not items:
             meta["reason"] = "no_entries_today"
         # Expose both the effective map and all-day maps for the UI
-        meta["period_times_by_day"] = {str(d): {int(k): v for k, v in (period_times_by_day.get(d) or {}).items()} for d in range(1, 8)}
+        meta["period_times_by_day"] = {
+            str(d): {int(k): v for k, v in (period_times_by_day.get(d) or {}).items()} for d in range(1, 8)
+        }
         meta["period_times"] = {int(k): v for k, v in period_times.items()} if period_times else {}
-        return Response({
-            "mode": "daily",
-            "date": dt.isoformat(),
-            "dow": dow,
-            "term_id": getattr(term, "id", None),
-            "wing_id": wing_id,
-            "items": items,
-            "meta": meta,
-        })
+        return Response(
+            {
+                "mode": "daily",
+                "date": dt.isoformat(),
+                "dow": dow,
+                "term_id": getattr(term, "id", None),
+                "wing_id": wing_id,
+                "items": items,
+                "meta": meta,
+            }
+        )
+
 
 class ExitEventViewSet(viewsets.ModelViewSet):
     from rest_framework.permissions import IsAuthenticated
@@ -1650,6 +1822,13 @@ class ExitEventViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = ExitEventSerializer
     queryset = None  # set in get_queryset to apply permissions
+
+    def _is_wing_or_super(self, user) -> bool:
+        try:
+            roles = set(user.groups.values_list('name', flat=True))  # type: ignore
+        except Exception:
+            roles = set()
+        return bool(getattr(user, 'is_superuser', False) or ('wing_supervisor' in roles))
 
     def get_queryset(self):
         from school.models import ExitEvent  # type: ignore
@@ -1659,6 +1838,7 @@ class ExitEventViewSet(viewsets.ModelViewSet):
         student_id = self.request.query_params.get("student_id")
         class_id = self.request.query_params.get("class_id")
         date = self.request.query_params.get("date")
+        review_status = self.request.query_params.get("review_status")
         if student_id:
             try:
                 qs = qs.filter(student_id=int(student_id))
@@ -1674,6 +1854,8 @@ class ExitEventViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(date=date)
             except Exception:
                 pass
+        if review_status:
+            qs = qs.filter(review_status=review_status)
         return qs
 
     def create(self, request: Request, *args, **kwargs):
@@ -1697,9 +1879,7 @@ class ExitEventViewSet(viewsets.ModelViewSet):
 
         # Debug: log validated data
         logger.info(f"ExitEvent validated_data: {ser.validated_data}")
-        logger.info(
-            f"ExitEvent validated_data types: {[(k, type(v).__name__) for k, v in ser.validated_data.items()]}"
-        )
+        logger.info(f"ExitEvent validated_data types: {[(k, type(v).__name__) for k, v in ser.validated_data.items()]}")
 
         # Get student instance from validated data (PrimaryKeyRelatedField returns the instance)
         student = ser.validated_data.get("student")
@@ -1716,9 +1896,7 @@ class ExitEventViewSet(viewsets.ModelViewSet):
             pass
 
         # Only block if an open session exists for the same student on the same date
-        open_exists = ExitEvent.objects.filter(
-            student=student, date=req_date, returned_at__isnull=True
-        ).exists()
+        open_exists = ExitEvent.objects.filter(student=student, date=req_date, returned_at__isnull=True).exists()
         if open_exists:
             return Response(
                 {
@@ -1728,11 +1906,15 @@ class ExitEventViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        # Save the exit event
+        # Save the exit event and mark as submitted for supervisor review by default
         obj = ser.save(started_by=getattr(request, "user", None))
-        return Response(
-            {"id": obj.id, "started_at": timezone.localtime(obj.started_at).isoformat()}, status=201
-        )
+        try:
+            if obj.review_status is None:
+                obj.review_status = 'submitted'
+                obj.save(update_fields=['review_status'])
+        except Exception:
+            pass
+        return Response({"id": obj.id, "started_at": timezone.localtime(obj.started_at).isoformat()}, status=201)
 
     @action(detail=True, methods=["patch"], url_path="return")
     def return_now(self, request: Request, pk=None):
@@ -1746,9 +1928,7 @@ class ExitEventViewSet(viewsets.ModelViewSet):
         return Response(
             {
                 "id": obj.id,
-                "returned_at": (
-                    timezone.localtime(obj.returned_at).isoformat() if obj.returned_at else None
-                ),
+                "returned_at": (timezone.localtime(obj.returned_at).isoformat() if obj.returned_at else None),
                 "duration_seconds": obj.duration_seconds,
             }
         )
@@ -1778,3 +1958,56 @@ class ExitEventViewSet(viewsets.ModelViewSet):
             for e in qs
         ]
         return Response(data)
+
+    @action(detail=False, methods=["get"], url_path="pending")
+    def pending(self, request: Request):
+        # List exit events awaiting supervisor approval
+        from school.models import ExitEvent  # type: ignore
+        qs = ExitEvent.objects.filter(review_status='submitted')
+        date = request.query_params.get('date')
+        class_id = request.query_params.get('class_id')
+        if date:
+            qs = qs.filter(date=date)
+        if class_id:
+            try:
+                qs = qs.filter(classroom_id=int(class_id))
+            except Exception:
+                pass
+        # TODO: Optionally restrict by supervisor wing coverage in future
+        ser = ExitEventSerializer(qs, many=True)
+        return Response({"count": qs.count(), "items": ser.data})
+
+    @action(detail=False, methods=["post"], url_path="decide")
+    def decide(self, request: Request):
+        from django.utils import timezone
+        from school.models import ExitEvent  # type: ignore
+
+        if not self._is_wing_or_super(request.user):
+            return Response({"detail": "forbidden"}, status=403)
+        payload = request.data or {}
+        action = (payload.get('action') or '').strip().lower()
+        ids = payload.get('ids') or []
+        comment = (payload.get('comment') or payload.get('review_comment') or '').strip()
+        if action not in ('approve', 'reject'):
+            return Response({"detail": "invalid action"}, status=400)
+        if not isinstance(ids, list) or not ids:
+            return Response({"detail": "ids is required (list)"}, status=400)
+        updated = 0
+        for _id in ids:
+            try:
+                obj = ExitEvent.objects.get(pk=int(_id))
+            except Exception:
+                continue
+            # Idempotent: skip if already decided
+            if obj.review_status in ('approved', 'rejected'):
+                continue
+            obj.review_status = 'approved' if action == 'approve' else 'rejected'
+            obj.reviewer = request.user
+            obj.reviewed_at = timezone.now()
+            if comment:
+                # Append to any existing comment with separator
+                obj.review_comment = (obj.review_comment or '')
+                obj.review_comment = (obj.review_comment + ('\n' if obj.review_comment else '') + comment)[:300]
+            obj.save(update_fields=['review_status', 'reviewer', 'reviewed_at', 'review_comment'])
+            updated += 1
+        return Response({"updated": updated, "action": action})

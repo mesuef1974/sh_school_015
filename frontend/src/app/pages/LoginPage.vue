@@ -227,6 +227,7 @@ async function onSubmit() {
 .login-wrapper {
   /* Tuning knobs */
   --login-frame-w: 10px;        /* golden border width */
+  --arabesque-tile: 480px;      /* tile size for repeating arabesque (doubled) */
 
   max-width: 1200px;
   width: 100%;
@@ -243,6 +244,7 @@ async function onSubmit() {
   background:
     /* Ensure interior is solid maroon, only the border shows gold */
     linear-gradient(var(--maron-primary), var(--maron-primary)) padding-box,
+    /* Golden frame using gradient border */
     conic-gradient(from 0deg,
       #8B7500 0%,
       #B08D57 12%,
@@ -260,6 +262,21 @@ async function onSubmit() {
   padding: var(--space-8);
 }
 
+/* Repeating arabesque overlay inside the golden frame, atop the maroon fill */
+.login-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: var(--login-frame-w);
+  border-radius: 0; /* match square corners inside frame */
+  background-image: url('/assets/img/arabesque_gs.svg');
+  background-repeat: repeat;
+  background-position: center; /* center-align tiles */
+  background-size: var(--arabesque-tile) var(--arabesque-tile);
+  opacity: 0.1; /* 90% transparency (10% opacity) */
+  pointer-events: none;
+  z-index: 0; /* below content, above backgrounds */
+}
+
 
 
 
@@ -273,11 +290,9 @@ async function onSubmit() {
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  /* Solid maroon interior */
-  background: var(--maron-primary);
-  /* Keep the interior static and readable */
+  /* Interior fill comes from parent (.login-wrapper). Keep this layer transparent to avoid covering the arabesque overlay. */
+  background: transparent;
   filter: none;
-  opacity: 1;
 }
 
 

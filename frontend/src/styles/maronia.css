@@ -349,10 +349,10 @@ body {
   .navbar-maronia .brand-logo-gold,
   .navbar-maronia .brand-name-gold { animation: none !important; }
 }
-/* Increase school name by ~15% and bring it closer to the logo */
-.navbar-maronia .brand-name-gold { height: calc(28px * 1.15); width: calc(320px * 1.15); }
-.navbar-maronia .brand-images { gap: .2rem; }
-.navbar-maronia .brand-divider { margin: 0 .2rem; }
+/* Increase school name by ~20% and bring it closer to the logo */
+.navbar-maronia .brand-name-gold { height: calc(28px * 1.2); width: calc(320px * 1.2); }
+.navbar-maronia .brand-images { gap: 0; }
+.navbar-maronia .brand-divider { display: none !important; margin: 0; width: 0; }
 
 /* Static metallic gold text helper (no animation) */
 .text-gold-metal {
@@ -373,3 +373,6 @@ body {
 body {
   background-image: url('/assets/img/portal_bg.png?v=20251027-01');
 }
+
+/* Utility: constrain content to 95% of its container (centered) */
+.in-card-95 { width: 95%; max-width: 100%; margin-inline: auto; }

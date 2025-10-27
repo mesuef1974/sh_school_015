@@ -71,7 +71,7 @@
         <div class="fw-bold">جدول اليوم — {{ formattedDate }} — {{ dayNameAr(dateStr) }}</div>
         <span class="ms-auto small text-muted">{{ groupedDaily.total }} عنصر</span>
       </div>
-      <div class="p-2">
+      <div class="p-2 in-card-95">
         <div v-for="p in PERIODS" :key="'row-'+p" class="period-line">
           <span class="badge text-bg-primary no-wrap">حصة {{ p }}</span>
           <span class="text-muted small" v-if="periodTimes[p]"><Icon icon="solar:clock-circle-bold-duotone" width="14" class="me-1" />{{ timeRange(p) }}</span>
@@ -98,7 +98,8 @@
         <div class="fw-bold">الجدول الأسبوعي للفصل</div>
         <span class="ms-auto small text-muted">فصول × أيام (الأحد → الخميس)</span>
       </div>
-      <div class="tt7-wrapper">
+      <div class="in-card-95">
+        <div class="tt7-wrapper">
         <div class="tt7-scroller">
           <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي 7×7">
             <colgroup>
@@ -137,6 +138,7 @@
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   </section>

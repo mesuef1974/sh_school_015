@@ -47,7 +47,34 @@
       color: #fff !important;
     }
     .brand-images img { height: 34px; }
-    .brand-divider { width:1px; height:28px; background: rgba(255,255,255,.35); margin: 0 .5rem; }
+    .brand-images { gap: 0; }
+    .brand-divider { display: none !important; width: 0; height: 0; margin: 0; }
+    /* Metallic gold brand (static, no animation) */
+    .brand-logo-gold,
+    .brand-name-gold {
+      display: inline-block;
+      background-image: conic-gradient(
+        from 0deg,
+        #8B7500 0%, #B8860B 12%, #D4AF37 28%, #FFD700 44%, #E6C200 60%, #B8860B 78%, #8B7500 90%, #D4AF37 100%
+      ), linear-gradient(45deg, rgba(255,255,255,.12), rgba(255,255,255,.02));
+      background-blend-mode: overlay, normal;
+      background-size: 120% 120%, 200% 200%;
+      background-position: center, 200% 0;
+      -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+      -webkit-mask-position: center; mask-position: center;
+      -webkit-mask-size: contain; mask-size: contain;
+      animation: none !important;
+    }
+    .brand-logo-gold {
+      width: 44px; height: 44px;
+      -webkit-mask-image: url("{% static 'img/logo.png' %}?v=20251027-02");
+      mask-image: url("{% static 'img/logo.png' %}?v=20251027-02");
+    }
+    .brand-name-gold {
+      height: calc(32px * 1.2); width: calc(360px * 1.2);
+      -webkit-mask-image: url("{% static 'img/school_name.png' %}?v=20251027-02");
+      mask-image: url("{% static 'img/school_name.png' %}?v=20251027-02");
+    }
     .btn-maron {
       background-color: var(--maron-primary); color: #fff; border-color: var(--maron-primary);
     }
@@ -161,9 +188,7 @@ console.log('getSchoolDayOfWeek:', window.getSchoolDayOfWeek());
     <div class="container-fluid">
       <a class="navbar-brand fw-bold d-flex align-items-center" href="/">
         <span class="brand-images d-flex align-items-center">
-          <img src="{% static 'img/logo.png' %}" alt="شعار" onerror="this.style.display='none'" class="me-2">
-          <span class="brand-divider"></span>
-          <img src="{% static 'img/school_name.png' %}?v=20251024-3" alt="اسم المدرسة" onerror="this.style.display='none'">
+          <img src="{% static 'img/logo02.png' %}?v=20251027-01" alt="شعار" style="height:44px; width:auto; display:block;"/>
         </span>
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain" aria-controls="navMain" aria-expanded="false" aria-label="Toggle navigation">

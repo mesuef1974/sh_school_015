@@ -70,6 +70,10 @@
             <span class="btn-text">حفظ الحضور</span>
             <span class="btn-text-short">حفظ</span>
           </DsButton>
+          <DsButton type="button" variant="warning" icon="solar:shield-check-bold-duotone" :disabled="!students.length || submitting" :loading="submitting" @click="submitForReview">
+            <span class="btn-text">إرسال للمراجعة</span>
+            <span class="btn-text-short">إرسال</span>
+          </DsButton>
         </div>
       </form>
     </div>
@@ -183,6 +187,7 @@
 </template>
 
 <script setup lang="ts">
+import { postSubmit as postAttendanceSubmit } from '../../../api/attendance';
 import { onMounted, onBeforeUnmount, reactive, ref, computed } from 'vue';
 import { getAttendanceStudents, getAttendanceRecords, postAttendanceBulkSave, getTeacherClasses, getTeacherTimetableToday, getAttendanceSummary, getOpenExitEvents, postExitEvent, patchExitReturn } from '../../../shared/api/client';
 import { useToast } from 'vue-toastification';
@@ -196,6 +201,7 @@ const dateStr = ref<string>(today);
 const loading = ref(false);
 const saving = ref(false);
 const saveMsg = ref('');
+const submitting = ref(false);
 
 // Class/day summary KPIs
 const classSummary = ref<{ kpis?: any } | null>(null);
@@ -626,6 +632,30 @@ onMounted(async () => {
     currentTime.value = Date.now();
   }, 1000);
 });
+
+async function submitForReview() {
+  if (!classId.value) return;
+  // If multiple periods exist, require explicit period selection for precision
+  const manyPeriods = Array.isArray(todayPeriods.value) && todayPeriods.value.length > 1;
+  if (manyPeriods && !periodNo.value) {
+    const msg = 'يرجى اختيار الحصة قبل الإرسال للمراجعة.';
+    saveMsg.value = msg;
+    try { toast.warning(msg, { autoClose: 3500 }); } catch {}
+    return;
+  }
+  submitting.value = true;
+  try {
+    const res = await postAttendanceSubmit({ class_id: classId.value, date: dateStr.value, period_number: periodNo.value ?? undefined as any });
+    const msg = `تم إرسال ${res.submitted} سجلًا للمراجعة`;
+    try { toast.success(msg, { autoClose: 2500 }); } catch {}
+    await loadData();
+  } catch (e: any) {
+    const msg = e?.response?.data?.detail || e?.message || 'تعذر الإرسال للمراجعة';
+    try { toast.error(msg, { autoClose: 3500 }); } catch {}
+  } finally {
+    submitting.value = false;
+  }
+}
 
 onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 </script>

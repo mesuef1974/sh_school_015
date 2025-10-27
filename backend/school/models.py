@@ -627,12 +627,38 @@ class ExitEvent(models.Model):
         ("restroom", "دورة المياه"),
     )
 
+    REVIEW_STATUSES = (
+        ("submitted", "بانتظار الاعتماد"),
+        ("approved", "موافق عليه"),
+        ("rejected", "مرفوض"),
+    )
+
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="exit_events")
     classroom = models.ForeignKey(Class, on_delete=models.SET_NULL, null=True, blank=True)
     date = models.DateField(db_index=True)
     period_number = models.PositiveSmallIntegerField(null=True, blank=True)
     reason = models.CharField(max_length=20, choices=REASONS)
     note = models.CharField(max_length=300, blank=True)
+
+    # موافقة المشرف على إذن الخروج
+    review_status = models.CharField(
+        max_length=20,
+        choices=REVIEW_STATUSES,
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text="حالة اعتماد إذن الخروج من قبل مشرف الجناح"
+    )
+    reviewer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exit_events_reviewed",
+        help_text="المستخدم الذي اعتمد أو رفض إذن الخروج"
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_comment = models.CharField(max_length=300, blank=True, default="")
 
     started_at = models.DateTimeField(auto_now_add=True)
     returned_at = models.DateTimeField(null=True, blank=True)
@@ -662,6 +688,7 @@ class ExitEvent(models.Model):
             models.Index(fields=["student", "date"]),
             models.Index(fields=["reason"]),
             models.Index(fields=["started_at"]),
+            models.Index(fields=["review_status", "date"]),
         ]
         ordering = ["-started_at"]
         verbose_name = "جلسة خروج"

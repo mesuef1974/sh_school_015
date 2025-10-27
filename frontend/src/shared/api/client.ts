@@ -260,6 +260,17 @@ export async function getWingEntered(params: { date?: string }) {
   }
 }
 
+// Approvals workflow (pending list and decisions)
+export async function getWingPending(params: { date?: string; class_id?: number }) {
+  const res = await api.get('/wing/pending/', { params });
+  return res.data as { date: string; count: number; items: { id: number; student_id: number; student_name?: string | null; class_id?: number; class_name?: string | null; period_number?: number | null; status: string; note?: string | null; subject_name?: string | null; teacher_name?: string | null }[] };
+}
+
+export async function postWingDecide(payload: { action: 'approve'|'reject'; ids: number[]; comment?: string }) {
+  const res = await api.post('/wing/decide/', payload);
+  return res.data as { updated: number; action: 'approve'|'reject' };
+}
+
 // ---- UI Tiles Designer API ----
 export async function getUiTilesEffective() {
   try {

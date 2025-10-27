@@ -148,8 +148,9 @@
 
       <div class="timetable-wrapper" :class="{ dense: prefs.dense }">
         <div class="tt-scale-95">
-          <table class="timetable-modern">
-          <thead>
+          <div class="in-card-95">
+            <table class="timetable-modern">
+            <thead>
             <tr>
               <th class="timetable-th day-column">
                 <div class="th-content">
@@ -161,6 +162,20 @@
                 <div class="th-content">
                   <Icon icon="solar:clock-circle-bold-duotone" width="18" />
                   <span>حصة {{ p }}</span>
+                </div>
+              </th>
+            </tr>
+            <!-- First helper row: shows class/section for each period (today) -->
+            <tr class="classes-row">
+              <th class="timetable-th day-column classes-head">
+                <div class="th-content">
+                  <Icon icon="solar:home-2-bold-duotone" width="18" />
+                  <span>الصف</span>
+                </div>
+              </th>
+              <th v-for="p in periodsDesc" :key="'cHead'+p" class="timetable-th period-column">
+                <div class="class-head-badge" :title="classroomHeadTitle(p)">
+                  {{ classroomHeadLabel(p) }}
                 </div>
               </th>
             </tr>
@@ -234,6 +249,7 @@
             </tr>
           </tbody>
           </table>
+          </div>
         </div>
       </div>
 
@@ -358,7 +374,7 @@
 .timetable-wrapper.dense .subject-badge{ font-size:.8rem; }
 
 /* Scale down table content inside timetable card by 5% (width and height) */
-.tt-scale-95{ transform: scale(0.95); transform-origin: top center; }
+.tt-scale-95{ transform: none; transform-origin: top center; }
 
 /* Page-level adjustments to avoid window scrollbars on timetable page */
 .timetable-page{
@@ -419,6 +435,28 @@ const periodTimes = ref<Record<number, [string, string]>>({} as any);
 const daysOrder = [1,2,3,4,5];
 const periodsDesc = [1,2,3,4,5,6,7];
 const empty = computed(() => Object.values(days.value || {}).every(arr => (arr||[]).length === 0));
+
+// Helper: current school day index (Sun=1..Sat=7) to align header classes
+function currentSchoolDay(): number {
+  const jsDay = new Date().getDay(); // Sun=0
+  return jsDay === 0 ? 1 : (jsDay + 1);
+}
+
+function classroomHeadLabel(p: number): string {
+  const d = currentSchoolDay();
+  const c = cell(d, p) as any;
+  if (!c) return '—';
+  return String(c.classroom_name || `صف #${c.classroom_id}`);
+}
+function classroomHeadTitle(p: number): string {
+  const d = currentSchoolDay();
+  const c = cell(d, p) as any;
+  if (!c) return '';
+  const subj = c.subject_name ? ` • ${c.subject_name}` : '';
+  const t = cellTime(d, p);
+  const time = t ? ` (${fmtTime(t[0])}–${fmtTime(t[1])})` : '';
+  return `${c.classroom_name || ('صف #' + c.classroom_id)}${subj}${time}`;
+}
 const maxPeriods = computed(() => {
   let m = 0;
   for (const k of Object.keys(days.value || {})) {
@@ -710,6 +748,12 @@ onMounted(load);
 }
 
 /* Table Header */
+/* Extra helper header row for classes */
+.classes-row .timetable-th{ position: sticky; top: 56px; z-index: 9; background: #6c757d; color:#fff; }
+.classes-head{ background:#495057 !important; }
+.class-head-badge{ display:inline-flex; align-items:center; justify-content:center; padding:.25rem .5rem; border-radius:8px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.25); min-height:28px; font-weight:600; }
+@media print{ .classes-row .timetable-th{ position: static !important; } }
+
 .timetable-th {
   background: linear-gradient(135deg, var(--maron-primary, #7b1e1e) 0%, #a52a2a 100%);
   color: white;

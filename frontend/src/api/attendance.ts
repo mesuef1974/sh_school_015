@@ -22,3 +22,15 @@ export async function postBulkSave(params: {
   }
   return resp.json();
 }
+
+import { api } from "../shared/api/client";
+
+export async function postSubmit(params: {
+  class_id: number;
+  date: string; // YYYY-MM-DD
+  period_number?: number | null;
+}): Promise<{ submitted: number; class_id: number; date: string; period_number?: number | null }> {
+  // Use shared Axios client to ensure Authorization header and token refresh logic are applied
+  const res = await api.post('/attendance/submit/', params);
+  return res.data as { submitted: number; class_id: number; date: string; period_number?: number | null };
+}

@@ -3,20 +3,7 @@
     <header class="navbar-maronia">
       <nav class="container d-flex align-items-center gap-3 py-2">
         <div class="brand-images d-flex align-items-center">
-          <span
-            class="brand-logo-gold"
-            role="img"
-            aria-label="شعار"
-            :style="{ WebkitMaskImage: `url(${logoSrc})`, maskImage: `url(${logoSrc})` }"
-          ></span>
-          <span class="brand-divider"></span>
-          <span
-            v-if="!hideSchoolName"
-            class="brand-name-gold"
-            role="img"
-            aria-label="مدرسة الشحانية"
-            :style="{ WebkitMaskImage: `url(${schoolNameSrc})`, maskImage: `url(${schoolNameSrc})` }"
-          ></span>
+          <img src="https://127.0.0.1:8443/static/img/logo02.png?v=20251027-01" alt="شعار" style="height:44px; width:auto; display:block;" />
         </div>
         <span class="flex-fill"></span>
         <RouterLink v-if="!isHome" :to="{ name: 'home' }" class="btn btn-glass-home" aria-label="العودة إلى الرئيسية">
@@ -66,9 +53,9 @@ import BreadcrumbRtl from '../components/BreadcrumbRtl.vue';
 
 const router = useRouter();
 const route = useRoute();
-const logoSrc = '/assets/img/logo.png';
 // Append a version query to ensure updated image is not served from browser cache
-const SCHOOL_ASSETS_VERSION = '20251024-3';
+const SCHOOL_ASSETS_VERSION = '20251027-02';
+const logoSrc = `/assets/img/logo.png?v=${SCHOOL_ASSETS_VERSION}`;
 const schoolNameSrc = `/assets/img/school_name.png?v=${SCHOOL_ASSETS_VERSION}`;
 
 const auth = useAuthStore();

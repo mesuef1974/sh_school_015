@@ -9,6 +9,7 @@ from django.utils import timezone
 from school.models import AttendanceRecord, Staff, TimetableEntry  # type: ignore
 from ..models import AttendanceStatus
 from ..selectors import _current_term  # reuse existing helper
+
 try:
     from backend.common.day_utils import iso_to_school_dow
 except Exception:
@@ -49,9 +50,7 @@ def _period_times_for_day(school_day: int) -> Dict[int, tuple]:
     try:
         from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
-        tpl_ids = list(
-            PeriodTemplate.objects.filter(day_of_week=school_day).values_list("id", flat=True)
-        )
+        tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=school_day).values_list("id", flat=True))
         if not tpl_ids:
             return {}
         slots = (
@@ -140,9 +139,7 @@ def bulk_save_attendance(
         school_day = iso_to_school_dow(dt)
 
     # Build timetable candidates for this class/day (and teacher if available)
-    qs = TimetableEntry.objects.filter(
-        classroom_id=class_id, term_id=term.id, day_of_week=school_day
-    )
+    qs = TimetableEntry.objects.filter(classroom_id=class_id, term_id=term.id, day_of_week=school_day)
     if staff:
         qs = qs.filter(teacher_id=getattr(staff, "id", None))
     if period_number:
@@ -174,11 +171,10 @@ def bulk_save_attendance(
     # Pre-validate: ensure all targeted students are active; otherwise block the whole operation
     try:
         from school.models import Student  # type: ignore
+
         target_ids = [int(p.get("student_id")) for p in records if p.get("student_id") is not None]
         if target_ids:
-            inactive_ids = set(
-                Student.objects.filter(id__in=target_ids, active=False).values_list("id", flat=True)
-            )
+            inactive_ids = set(Student.objects.filter(id__in=target_ids, active=False).values_list("id", flat=True))
             if inactive_ids:
                 # Arabic message: inactive students cannot be acted upon
                 ids_str = ", ".join(str(i) for i in sorted(inactive_ids))
@@ -256,6 +252,22 @@ def bulk_save_attendance(
             defaults["note"] = note
         if "source" in model_fields and not payload.get("source"):
             defaults["source"] = "teacher"
+
+        # Preserve submission marker if present on previous version to keep items pending until supervisor decision
+        try:
+            prev_note = (getattr(prev, "note", "") or "").strip() if prev is not None else ""
+            has_submitted_tag = "[SUBMITTED" in prev_note
+        except Exception:
+            prev_note = ""
+            has_submitted_tag = False
+        if has_submitted_tag and "note" in model_fields:
+            # If new note is missing or empty, keep previous note (to retain [SUBMITTED] tag)
+            if (note is None) or (str(note).strip() == ""):
+                defaults.pop("note", None)
+            else:
+                # Ensure the marker stays in the note if teacher typed a new note
+                if "[SUBMITTED" not in str(defaults.get("note", "")):
+                    defaults["note"] = f"{prev_note}"
         if "updated_at" in model_fields:
             defaults["updated_at"] = timezone.now()
         if actor_user_id and ("updated_by" in model_fields or "updated_by_id" in model_fields):
@@ -272,9 +284,7 @@ def bulk_save_attendance(
         if exit_reasons_in is not None:
             if isinstance(exit_reasons_in, list):
                 try:
-                    reasons_str = ",".join(
-                        [str(x).strip() for x in exit_reasons_in if str(x).strip()]
-                    )
+                    reasons_str = ",".join([str(x).strip() for x in exit_reasons_in if str(x).strip()])
                 except Exception:
                     reasons_str = None
             elif isinstance(exit_reasons_in, str):
@@ -282,6 +292,17 @@ def bulk_save_attendance(
         # Apply reasons if provided
         if reasons_str is not None and "exit_reasons" in model_fields:
             defaults["exit_reasons"] = reasons_str
+
+        # Prevent overwriting closed (approved) records by non-wing users
+        # If a previous record exists and is locked, only allow modification when the actor is a wing supervisor
+        try:
+            is_wing_supervisor = bool(getattr(staff, "role", "") == "wing_supervisor") if staff is not None else False
+        except Exception:
+            is_wing_supervisor = False
+        if prev is not None and getattr(prev, "locked", False) and not is_wing_supervisor:
+            # Skip saving this record to preserve the approved/closed state
+            saved.append(prev)
+            continue
 
         # Ensure the exit reason is also reflected in the note (human-readable) when status is 'excused'
         # Mapping of reason codes to Arabic labels
@@ -332,7 +353,7 @@ def bulk_save_attendance(
         )
         # Handle lateness event creation
         try:
-            if str(status) == 'late':
+            if str(status) == "late":
                 from datetime import datetime as _dt
                 from django.utils.timezone import make_aware, get_current_timezone
                 from school.models import AttendanceLateEvent, Student, Class, Subject  # type: ignore
@@ -346,7 +367,7 @@ def bulk_save_attendance(
                 # Update late_minutes on the record (floor)
                 try:
                     obj.late_minutes = max(0, late_seconds // 60)
-                    obj.save(update_fields=['late_minutes', 'updated_at'])
+                    obj.save(update_fields=["late_minutes", "updated_at"])
                 except Exception:
                     pass
                 # Format mm:ss (cap at 59:59 display if needed)
@@ -354,10 +375,10 @@ def bulk_save_attendance(
                 ss = max(0, (late_seconds % 60))
                 late_mmss = f"{mm:02d}:{ss:02d}"
                 # Resolve context
-                student_fk = getattr(obj, 'student', None)
-                classroom_fk = getattr(obj, 'classroom', None)
-                subject_fk = getattr(obj, 'subject', None)
-                teacher_fk = getattr(obj, 'teacher', None)
+                student_fk = getattr(obj, "student", None)
+                classroom_fk = getattr(obj, "classroom", None)
+                subject_fk = getattr(obj, "subject", None)
+                teacher_fk = getattr(obj, "teacher", None)
                 # Fallback by ids if relations not loaded
                 if student_fk is None:
                     try:
@@ -369,9 +390,9 @@ def bulk_save_attendance(
                         classroom_fk = Class.objects.get(id=class_id)
                     except Exception:
                         classroom_fk = None
-                if subject_fk is None and getattr(obj, 'subject_id', None):
+                if subject_fk is None and getattr(obj, "subject_id", None):
                     try:
-                        subject_fk = Subject.objects.get(id=getattr(obj, 'subject_id'))
+                        subject_fk = Subject.objects.get(id=getattr(obj, "subject_id"))
                     except Exception:
                         subject_fk = None
                 # Create event
@@ -384,12 +405,16 @@ def bulk_save_attendance(
                         teacher=teacher_fk,
                         recorded_by_id=actor_user_id,
                         date=dt,
-                        day_of_week=defaults.get('day_of_week') or getattr(obj, 'day_of_week', 0) or iso_to_school_dow(dt),
-                        period_number=int(period_number) if period_number else int(getattr(obj, 'period_number', 1) or 1),
+                        day_of_week=defaults.get("day_of_week")
+                        or getattr(obj, "day_of_week", 0)
+                        or iso_to_school_dow(dt),
+                        period_number=(
+                            int(period_number) if period_number else int(getattr(obj, "period_number", 1) or 1)
+                        ),
                         start_time=start_time,
                         late_seconds=late_seconds,
                         late_mmss=late_mmss,
-                        note=note or '',
+                        note=note or "",
                     )
                 except Exception:
                     # Do not block bulk save if event creation fails

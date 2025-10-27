@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 from django.db.models import QuerySet, Count, Q
 
 from school.models import Student, Class, AttendanceRecord, TimetableEntry, Term, ExitEvent  # type: ignore
+
 try:
     from backend.common.day_utils import iso_to_school_dow
 except Exception:
@@ -36,13 +37,9 @@ def get_students_for_class_on_date(class_id: int, dt: _date) -> QuerySet[Student
     return Student.objects.filter(class_fk_id=class_id).order_by("full_name")
 
 
-def get_attendance_records(
-    class_id: int, dt: _date, period_number: int | None = None
-) -> QuerySet[AttendanceRecord]:
+def get_attendance_records(class_id: int, dt: _date, period_number: int | None = None) -> QuerySet[AttendanceRecord]:
     # Enforce strict class scope by classroom FK and student's current class
-    qs = AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date=dt).filter(
-        student__class_fk_id=class_id
-    )
+    qs = AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date=dt).filter(student__class_fk_id=class_id)
     if period_number is not None:
         qs = qs.filter(period_number=period_number)
     return qs
@@ -73,6 +70,18 @@ def get_summary(
     if wing_id and hasattr(Class, "wing_id"):
         wing_class_ids = Class.objects.filter(wing_id=wing_id).values_list("id", flat=True)
         qs = qs.filter(**{f"{_CLASS_FK_ID}__in": wing_class_ids})
+
+    # Approval gating: For non-teacher scopes and aggregate views (wing or school-wide),
+    # only include records approved by wing supervisors. This ensures that student
+    # attendance isn’t considered closed until supervisor approval.
+    try:
+        if scope != "teacher":
+            # When wing-scoped, always require supervisor-approved records.
+            if wing_id or (not class_id and not class_ids):
+                qs = qs.filter(source="supervisor")
+    except Exception:
+        # If source field missing in older schemas, skip gating gracefully
+        pass
 
     total = qs.count()
     absent = qs.filter(status="absent").count()
@@ -115,9 +124,7 @@ def get_summary(
     # Attach class names for better UX (e.g., '7-1')
     try:
         ids = [x.get("class_id") for x in top_classes if x.get("class_id")]
-        name_map = {
-            cid: name for cid, name in Class.objects.filter(id__in=ids).values_list("id", "name")
-        }
+        name_map = {cid: name for cid, name in Class.objects.filter(id__in=ids).values_list("id", "name")}
         for x in top_classes:
             cid = x.get("class_id")
             if cid in name_map:
@@ -180,9 +187,7 @@ def get_teacher_today_periods(*, staff_id: int, dt: _date) -> List[Dict[str, Any
         from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
         # PeriodTemplate.day_of_week follows school numbering (1=Sun..7=Sat)
-        tpl_ids = list(
-            PeriodTemplate.objects.filter(day_of_week=school_day).values_list("id", flat=True)
-        )
+        tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=school_day).values_list("id", flat=True))
         if tpl_ids:
             slots = (
                 TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
@@ -231,9 +236,7 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
         from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
         for sd in range(1, 6):  # Sun..Thu
-            tpl_ids = list(
-                PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True)
-            )
+            tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True))
             if not tpl_ids:
                 continue
             slots = (
@@ -277,9 +280,7 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
         d = int(e.day_of_week)
         if d < 1 or d > 5:
             continue
-        st_et = times_per_day.get(d, {}).get(int(e.period_number)) or period_times.get(
-            int(e.period_number)
-        )
+        st_et = times_per_day.get(d, {}).get(int(e.period_number)) or period_times.get(int(e.period_number))
         days[str(d)].append(
             {
                 "period_number": e.period_number,
