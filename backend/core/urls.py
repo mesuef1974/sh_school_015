@@ -22,6 +22,7 @@ from django.views.static import serve as static_serve
 from django.http import HttpResponse
 from django.db import connection
 from school.auth import CustomTokenObtainPairView, CustomTokenRefreshView
+from school.api.views import logout as api_logout
 from pathlib import Path
 
 # Use restricted admin site that allows only superusers or Staff with role 'admin'
@@ -144,8 +145,13 @@ if settings.DEBUG:
         path("api/", include("school.api.urls")),
         path("api/", include("apps.attendance.urls")),  # expose attendance APIs under /api/* (in addition to /api/v1/*)
         path("api-auth/", include("rest_framework.urls")),
+        # SimpleJWT default endpoints (pair/refresh)
         path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
         path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
+        # New unified auth endpoints under /api/v1/auth/* for the frontend
+        path("api/v1/auth/login/", CustomTokenObtainPairView.as_view(), name="api_v1_auth_login"),
+        path("api/v1/auth/refresh/", CustomTokenRefreshView.as_view(), name="api_v1_auth_refresh"),
+        path("api/v1/auth/logout/", api_logout, name="api_v1_auth_logout"),
     ]
     # Serve Font Awesome webfonts at /webfonts/* from the installed package during DEBUG
     try:
@@ -168,8 +174,13 @@ else:
     urlpatterns += [
         path("api/", include("school.api.urls")),
         path("api/", include("apps.attendance.urls")),  # expose attendance APIs under /api/* in production too
+        # SimpleJWT default endpoints (pair/refresh)
         path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
         path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
+        # New unified auth endpoints under /api/v1/auth/* for the frontend
+        path("api/v1/auth/login/", CustomTokenObtainPairView.as_view(), name="api_v1_auth_login"),
+        path("api/v1/auth/refresh/", CustomTokenRefreshView.as_view(), name="api_v1_auth_refresh"),
+        path("api/v1/auth/logout/", api_logout, name="api_v1_auth_logout"),
     ]
 
 # django-rq dashboard (development only for now)

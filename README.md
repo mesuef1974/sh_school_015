@@ -1301,3 +1301,37 @@ Notes:
 - The verification script now auto-prefers `.venv\Scripts\python.exe` when present.
 - If `pytest` is missing, it prints guidance and marks test lanes as SKIP instead of FAIL.
 - HTTPS health probes will pass if your dev server (with TLS) is up; HTTP probes show INFO if the plain server isn’t running.
+
+
+
+## Quick Start (DEV) — تشغيل سريع
+
+- المتطلبات:
+  - Python 3.11+
+  - Node.js + npm
+  - Docker Desktop (لتشغيل PostgreSQL وRedis محليًا)
+  - PowerShell 7 (pwsh) أو Windows PowerShell 5.1
+
+- تهيئة البيئة أولًا:
+  - انسخ ملفات البيئة النموذجية ثم حدّث القيم محليًا:
+    - `cp backend/.env.example backend/.env`
+    - `cp frontend/.env.example frontend/.env`
+
+- تشغيل البنية الأساسية والباك-إند:
+  - `pwsh -File scripts/dev_up.ps1`
+  - سيتولّى السكربت: تشغيل Postgres/Redis عبر Docker، تنفيذ الترحيلات، تهيئة المشرف (اختياري)، تشغيل عامل RQ، وتشغيل خادم HTTPS محلي.
+
+- تشغيل الواجهة الأمامية مع انتظار جاهزية الباك-إند:
+  - `pwsh -File scripts/dev_all.ps1`  (أو `pwsh -File scripts/dev_all.ps1 -ForceFrontend` لتشغيل الفرونت بغض النظر عن الجاهزية)
+
+- فحوصات الصحة:
+  - Health (HTTP): http://127.0.0.1:8000/healthz
+  - Live (HTTPS): https://127.0.0.1:8443/livez
+
+- الوصول السريع:
+  - Django Admin: http://127.0.0.1:8000/admin/ أو https://127.0.0.1:8443/admin/
+  - واجهة الجدول (معلم): http://localhost:5173/timetable/teacher
+
+ملاحظات:
+- لا تضع أي أسرار حقيقية في ملفات `.env` داخل Git. استخدم الأمثلة كنقطة بداية فقط.
+- للمزيد راجع: `DOC/SECRETS_AND_ENV_ar.md` و`DOC/SECURE_IMPLEMENTATION_PLAN_ar.md`.

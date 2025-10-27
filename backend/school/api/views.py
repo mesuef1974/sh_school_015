@@ -168,18 +168,59 @@ def change_password(request: Request) -> Response:
 def logout(request: Request) -> Response:
     """
     Blacklist the refresh token to log the user out from this device.
-    Expects: {"refresh": "<token>"}
+    Accepts refresh token from JSON body or from HttpOnly cookie.
+    Also clears the refresh cookie on successful logout.
     """
+    # Try to get refresh from body; if missing, fallback to cookie
     refresh_str = (request.data or {}).get("refresh")
     if not refresh_str:
-        return Response(
-            {"detail": "رمز التحديث (refresh) مطلوب"},
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        try:
+            from ..auth import REFRESH_COOKIE_NAME  # local constant
+        except Exception:
+            REFRESH_COOKIE_NAME = "refresh_token"  # fallback
+        refresh_str = request.COOKIES.get(REFRESH_COOKIE_NAME)
+    if not refresh_str:
+        # Nothing to do, but clear cookie if present and return 200
+        resp = Response({"detail": "لا يوجد رمز تحديث لإلغائه"}, status=status.HTTP_200_OK)
+        try:
+            from django.conf import settings as _settings
+            from ..auth import REFRESH_COOKIE_SAMESITE, REFRESH_COOKIE_SECURE
+            resp.delete_cookie(
+                key=getattr(_settings, "SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token"),
+                samesite=REFRESH_COOKIE_SAMESITE,
+                secure=REFRESH_COOKIE_SECURE,
+            )
+        except Exception:
+            pass
+        return resp
+    # Blacklist provided refresh token
     try:
         token = RefreshToken(refresh_str)
-        # Will raise if blacklist app not configured; we added it in settings
         token.blacklist()
     except Exception:
-        return Response({"detail": "رمز التحديث غير صالح"}, status=status.HTTP_400_BAD_REQUEST)
-    return Response({"detail": "تم تسجيل الخروج بنجاح"}, status=status.HTTP_200_OK)
+        # Even if blacklist fails (e.g., invalid), still clear cookie and return 200
+        resp = Response({"detail": "تمت محاولة تسجيل الخروج"}, status=status.HTTP_200_OK)
+        try:
+            from django.conf import settings as _settings
+            from ..auth import REFRESH_COOKIE_SAMESITE, REFRESH_COOKIE_SECURE
+            resp.delete_cookie(
+                key=getattr(_settings, "SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token"),
+                samesite=REFRESH_COOKIE_SAMESITE,
+                secure=REFRESH_COOKIE_SECURE,
+            )
+        except Exception:
+            pass
+        return resp
+    # Success: clear cookie and confirm
+    resp = Response({"detail": "تم تسجيل الخروج بنجاح"}, status=status.HTTP_200_OK)
+    try:
+        from django.conf import settings as _settings
+        from ..auth import REFRESH_COOKIE_SAMESITE, REFRESH_COOKIE_SECURE
+        resp.delete_cookie(
+            key=getattr(_settings, "SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token"),
+            samesite=REFRESH_COOKIE_SAMESITE,
+            secure=REFRESH_COOKIE_SECURE,
+        )
+    except Exception:
+        pass
+    return resp
