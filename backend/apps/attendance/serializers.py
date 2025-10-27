@@ -30,9 +30,7 @@ class ExitEventSerializer(serializers.ModelSerializer):
         # This allows accepting integer IDs and converting to model instances
         from school.models import Class
 
-        self.fields["student"] = serializers.PrimaryKeyRelatedField(
-            queryset=Student.objects.all(), required=False
-        )
+        self.fields["student"] = serializers.PrimaryKeyRelatedField(queryset=Student.objects.all(), required=False)
         self.fields["classroom"] = serializers.PrimaryKeyRelatedField(
             queryset=Class.objects.all(), required=False, allow_null=True
         )

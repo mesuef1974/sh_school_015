@@ -91,7 +91,7 @@ export async function getAttendanceHistory(params: { class_id: number; from?: st
 
 export async function getAttendanceSummary(params: { scope?: 'teacher'|'wing'|'school'; date?: string; class_id?: number; wing_id?: number } = {}) {
   const res = await api.get('/v1/attendance/summary/', { params });
-  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent_pct?: number; effective_total?: number; absent: number; late: number; excused: number; 
+  return res.data as { date: string; scope: string; kpis: { present_pct: number; absent_pct?: number; effective_total?: number; absent: number; late: number; excused: number;
     exit_events_total?: number; exit_events_open?: number; present?: number; total?: number };
     top_classes: { class_id: number; class_name?: string | null; present_pct: number }[]; worst_classes: { class_id: number; class_name?: string | null; present_pct: number }[] };
 }

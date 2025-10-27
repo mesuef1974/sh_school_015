@@ -577,6 +577,7 @@ class AttendanceViewSetBase(viewsets.ViewSet):
         try:
             from school.models import AttendanceRecord, Term  # type: ignore
             from django.utils import timezone
+
             # resolve term best-effort similar to services
             term = Term.objects.filter(start_date__lte=dt, end_date__gte=dt).order_by("-start_date").first()
             if not term:
@@ -602,7 +603,14 @@ class AttendanceViewSetBase(viewsets.ViewSet):
                     submitted += 1
                 except Exception:
                     continue
-            return Response({"submitted": int(submitted), "class_id": class_id, "date": dt.isoformat(), "period_number": period_number})
+            return Response(
+                {
+                    "submitted": int(submitted),
+                    "class_id": class_id,
+                    "date": dt.isoformat(),
+                    "period_number": period_number,
+                }
+            )
         except Exception as e:
             return Response({"detail": f"failed to submit: {e}"}, status=500)
 
@@ -1519,6 +1527,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             if wing_ids and not getattr(request.user, "is_superuser", False):
                 qs = qs.filter(classroom__wing_id__in=wing_ids)
             import re
+
             submitted_re = re.compile(r"\[SUBMITTED[^\]]*\]\s*", re.IGNORECASE)
             for r in qs:
                 raw_note = (getattr(r, "note", "") or "").strip()
@@ -1825,10 +1834,10 @@ class ExitEventViewSet(viewsets.ModelViewSet):
 
     def _is_wing_or_super(self, user) -> bool:
         try:
-            roles = set(user.groups.values_list('name', flat=True))  # type: ignore
+            roles = set(user.groups.values_list("name", flat=True))  # type: ignore
         except Exception:
             roles = set()
-        return bool(getattr(user, 'is_superuser', False) or ('wing_supervisor' in roles))
+        return bool(getattr(user, "is_superuser", False) or ("wing_supervisor" in roles))
 
     def get_queryset(self):
         from school.models import ExitEvent  # type: ignore
@@ -1910,8 +1919,8 @@ class ExitEventViewSet(viewsets.ModelViewSet):
         obj = ser.save(started_by=getattr(request, "user", None))
         try:
             if obj.review_status is None:
-                obj.review_status = 'submitted'
-                obj.save(update_fields=['review_status'])
+                obj.review_status = "submitted"
+                obj.save(update_fields=["review_status"])
         except Exception:
             pass
         return Response({"id": obj.id, "started_at": timezone.localtime(obj.started_at).isoformat()}, status=201)
@@ -1963,9 +1972,10 @@ class ExitEventViewSet(viewsets.ModelViewSet):
     def pending(self, request: Request):
         # List exit events awaiting supervisor approval
         from school.models import ExitEvent  # type: ignore
-        qs = ExitEvent.objects.filter(review_status='submitted')
-        date = request.query_params.get('date')
-        class_id = request.query_params.get('class_id')
+
+        qs = ExitEvent.objects.filter(review_status="submitted")
+        date = request.query_params.get("date")
+        class_id = request.query_params.get("class_id")
         if date:
             qs = qs.filter(date=date)
         if class_id:
@@ -1985,10 +1995,10 @@ class ExitEventViewSet(viewsets.ModelViewSet):
         if not self._is_wing_or_super(request.user):
             return Response({"detail": "forbidden"}, status=403)
         payload = request.data or {}
-        action = (payload.get('action') or '').strip().lower()
-        ids = payload.get('ids') or []
-        comment = (payload.get('comment') or payload.get('review_comment') or '').strip()
-        if action not in ('approve', 'reject'):
+        action = (payload.get("action") or "").strip().lower()
+        ids = payload.get("ids") or []
+        comment = (payload.get("comment") or payload.get("review_comment") or "").strip()
+        if action not in ("approve", "reject"):
             return Response({"detail": "invalid action"}, status=400)
         if not isinstance(ids, list) or not ids:
             return Response({"detail": "ids is required (list)"}, status=400)
@@ -1999,15 +2009,15 @@ class ExitEventViewSet(viewsets.ModelViewSet):
             except Exception:
                 continue
             # Idempotent: skip if already decided
-            if obj.review_status in ('approved', 'rejected'):
+            if obj.review_status in ("approved", "rejected"):
                 continue
-            obj.review_status = 'approved' if action == 'approve' else 'rejected'
+            obj.review_status = "approved" if action == "approve" else "rejected"
             obj.reviewer = request.user
             obj.reviewed_at = timezone.now()
             if comment:
                 # Append to any existing comment with separator
-                obj.review_comment = (obj.review_comment or '')
-                obj.review_comment = (obj.review_comment + ('\n' if obj.review_comment else '') + comment)[:300]
-            obj.save(update_fields=['review_status', 'reviewer', 'reviewed_at', 'review_comment'])
+                obj.review_comment = obj.review_comment or ""
+                obj.review_comment = (obj.review_comment + ("\n" if obj.review_comment else "") + comment)[:300]
+            obj.save(update_fields=["review_status", "reviewer", "reviewed_at", "review_comment"])
             updated += 1
         return Response({"updated": updated, "action": action})

@@ -65,9 +65,7 @@ class Student(models.Model):
     english_name = models.CharField(max_length=200, blank=True)
     national_no = models.CharField(max_length=30, unique=True, null=True, blank=True)
     needs = models.BooleanField(default=False, help_text="احتياجات خاصة")
-    class_fk = models.ForeignKey(
-        Class, on_delete=models.SET_NULL, null=True, related_name="students"
-    )
+    class_fk = models.ForeignKey(Class, on_delete=models.SET_NULL, null=True, related_name="students")
     grade_label = models.CharField(max_length=50, blank=True, help_text="مثل 12-Science")
     section_label = models.CharField(max_length=50, blank=True, help_text="مثل 12/1")
     dob = models.DateField(null=True, blank=True)
@@ -77,9 +75,7 @@ class Student(models.Model):
     email = models.EmailField(blank=True)
     parent_name = models.CharField(max_length=200, blank=True)
     parent_relation = models.CharField(max_length=50, blank=True)
-    parent_national_no = models.CharField(
-        max_length=30, blank=True, help_text="الرقم الوطني لولي الأمر"
-    )
+    parent_national_no = models.CharField(max_length=30, blank=True, help_text="الرقم الوطني لولي الأمر")
     parent_phone = models.CharField(max_length=200, blank=True)
     extra_phone_no = models.CharField(max_length=200, blank=True)
     parent_email = models.EmailField(blank=True)
@@ -109,11 +105,7 @@ class Student(models.Model):
 
             if self.dob:
                 today = _date.today()
-                years = (
-                    today.year
-                    - self.dob.year
-                    - ((today.month, today.day) < (self.dob.month, self.dob.day))
-                )
+                years = today.year - self.dob.year - ((today.month, today.day) < (self.dob.month, self.dob.day))
                 if years < 0:
                     years = 0
                 self.age = years
@@ -317,16 +309,10 @@ class TeachingAssignment(models.Model):
         super().clean()
         # Ensure the selected subject is available for the selected classroom
         if self.classroom_id and self.subject_id:
-            exists = ClassSubject.objects.filter(
-                classroom_id=self.classroom_id, subject_id=self.subject_id
-            ).exists()
+            exists = ClassSubject.objects.filter(classroom_id=self.classroom_id, subject_id=self.subject_id).exists()
             if not exists:
                 raise ValidationError(
-                    {
-                        "subject": (
-                            "هذه المادة غير مضافة لهذا الصف. " "أضفها من صفحة المواد للصف أولاً."
-                        )
-                    }
+                    {"subject": ("هذه المادة غير مضافة لهذا الصف. " "أضفها من صفحة المواد للصف أولاً.")}
                 )
 
     def save(self, *args, **kwargs):
@@ -336,8 +322,7 @@ class TeachingAssignment(models.Model):
 
     def __str__(self) -> str:
         return (
-            f"{self.teacher.full_name} – {self.classroom.name} – "
-            f"{self.subject.name_ar} ({self.no_classes_weekly})"
+            f"{self.teacher.full_name} – {self.classroom.name} – " f"{self.subject.name_ar} ({self.no_classes_weekly})"
         )
 
 
@@ -503,9 +488,7 @@ class AttendanceRecord(models.Model):
     runaway_reason = models.CharField(max_length=30, blank=True)  # no_show | left_and_not_returned
 
     # Generic excuse fields (legacy)
-    excuse_type = models.CharField(
-        max_length=20, blank=True
-    )  # medical|official|family|transport|other
+    excuse_type = models.CharField(max_length=20, blank=True)  # medical|official|family|transport|other
     excuse_note = models.CharField(max_length=300, blank=True)
 
     # Unified human-readable note column (stores free notes and exit permission text)
@@ -647,7 +630,7 @@ class ExitEvent(models.Model):
         null=True,
         blank=True,
         db_index=True,
-        help_text="حالة اعتماد إذن الخروج من قبل مشرف الجناح"
+        help_text="حالة اعتماد إذن الخروج من قبل مشرف الجناح",
     )
     reviewer = models.ForeignKey(
         User,
@@ -655,7 +638,7 @@ class ExitEvent(models.Model):
         null=True,
         blank=True,
         related_name="exit_events_reviewed",
-        help_text="المستخدم الذي اعتمد أو رفض إذن الخروج"
+        help_text="المستخدم الذي اعتمد أو رفض إذن الخروج",
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
     review_comment = models.CharField(max_length=300, blank=True, default="")
@@ -679,9 +662,7 @@ class ExitEvent(models.Model):
         related_name="exits_returned",
     )
 
-    attendance_record = models.ForeignKey(
-        AttendanceRecord, on_delete=models.SET_NULL, null=True, blank=True
-    )
+    attendance_record = models.ForeignKey(AttendanceRecord, on_delete=models.SET_NULL, null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -711,13 +692,12 @@ class ExitEvent(models.Model):
 
 class AttendanceLateEvent(models.Model):
     """حدث تأخر لحصة: يسجّل مدة التأخر mm:ss مع كامل سياق الحصة والطالب والمعلم الذي أدخل السجل."""
-    attendance_record = models.ForeignKey(
-        'AttendanceRecord', on_delete=models.CASCADE, related_name='late_events'
-    )
-    student = models.ForeignKey('Student', on_delete=models.CASCADE)
-    classroom = models.ForeignKey('Class', on_delete=models.CASCADE)
-    subject = models.ForeignKey('Subject', on_delete=models.PROTECT)
-    teacher = models.ForeignKey('Staff', on_delete=models.PROTECT)
+
+    attendance_record = models.ForeignKey("AttendanceRecord", on_delete=models.CASCADE, related_name="late_events")
+    student = models.ForeignKey("Student", on_delete=models.CASCADE)
+    classroom = models.ForeignKey("Class", on_delete=models.CASCADE)
+    subject = models.ForeignKey("Subject", on_delete=models.PROTECT)
+    teacher = models.ForeignKey("Staff", on_delete=models.PROTECT)
     recorded_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
 
     date = models.DateField(db_index=True)
@@ -730,17 +710,17 @@ class AttendanceLateEvent(models.Model):
     late_seconds = models.PositiveIntegerField()
     late_mmss = models.CharField(max_length=8)  # mm:ss
 
-    note = models.CharField(max_length=300, blank=True, default='')
+    note = models.CharField(max_length=300, blank=True, default="")
 
     class Meta:
         indexes = [
-            models.Index(fields=['date', 'period_number']),
-            models.Index(fields=['student', 'date']),
-            models.Index(fields=['classroom', 'date']),
-            models.Index(fields=['teacher', 'date']),
+            models.Index(fields=["date", "period_number"]),
+            models.Index(fields=["student", "date"]),
+            models.Index(fields=["classroom", "date"]),
+            models.Index(fields=["teacher", "date"]),
         ]
-        verbose_name = 'حدث تأخر'
-        verbose_name_plural = 'أحداث التأخر'
+        verbose_name = "حدث تأخر"
+        verbose_name_plural = "أحداث التأخر"
 
     def __str__(self) -> str:
         return f"{self.student} – {self.date} P{self.period_number} تأخر {self.late_mmss}"

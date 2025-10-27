@@ -5,35 +5,52 @@ from django.conf import settings
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('school', '0036_rename_late_date_period_idx_school_atte_date_e50fa1_idx_and_more'),
+        ("school", "0036_rename_late_date_period_idx_school_atte_date_e50fa1_idx_and_more"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='exitevent',
-            name='review_status',
-            field=models.CharField(blank=True, choices=[('submitted', 'بانتظار الاعتماد'), ('approved', 'موافق عليه'), ('rejected', 'مرفوض')], db_index=True, help_text='حالة اعتماد إذن الخروج من قبل مشرف الجناح', max_length=20, null=True),
+            model_name="exitevent",
+            name="review_status",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("submitted", "بانتظار الاعتماد"),
+                    ("approved", "موافق عليه"),
+                    ("rejected", "مرفوض"),
+                ],
+                db_index=True,
+                help_text="حالة اعتماد إذن الخروج من قبل مشرف الجناح",
+                max_length=20,
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='exitevent',
-            name='reviewer',
-            field=models.ForeignKey(blank=True, help_text='المستخدم الذي اعتمد أو رفض إذن الخروج', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='exit_events_reviewed', to=settings.AUTH_USER_MODEL),
+            model_name="exitevent",
+            name="reviewer",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="المستخدم الذي اعتمد أو رفض إذن الخروج",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="exit_events_reviewed",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
-            model_name='exitevent',
-            name='reviewed_at',
+            model_name="exitevent",
+            name="reviewed_at",
             field=models.DateTimeField(blank=True, null=True),
         ),
         migrations.AddField(
-            model_name='exitevent',
-            name='review_comment',
-            field=models.CharField(blank=True, default='', max_length=300),
+            model_name="exitevent",
+            name="review_comment",
+            field=models.CharField(blank=True, default="", max_length=300),
         ),
         migrations.AddIndex(
-            model_name='exitevent',
-            index=models.Index(fields=['review_status', 'date'], name='school_exitevent_review_status_date_idx'),
+            model_name="exitevent",
+            index=models.Index(fields=["review_status", "date"], name="school_exitevent_review_status_date_idx"),
         ),
     ]
