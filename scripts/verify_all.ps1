@@ -18,6 +18,10 @@
 .PARAMETER SkipPostgresTests
   If set, skip running pytest against PostgreSQL settings.
 
+.PARAMETER StartBackend
+  If set, attempts to start the backend dev server (scripts/serve_https.ps1) in the background before health probes,
+  waiting briefly so that /livez and /healthz can respond.
+
 .EXAMPLE
   pwsh -File scripts/verify_all.ps1
 
@@ -30,7 +34,8 @@
 #>
 param(
   [switch]$UpServices,
-  [switch]$SkipPostgresTests
+  [switch]$SkipPostgresTests,
+  [switch]$StartBackend
 )
 
 Set-StrictMode -Version Latest
@@ -41,6 +46,24 @@ function Write-Ok($msg){ Write-Host "[OK] $msg" -ForegroundColor Green }
 function Write-Warn($msg){ Write-Host "[WARN] $msg" -ForegroundColor Yellow }
 function Write-Err($msg){ Write-Host "[ERR] $msg" -ForegroundColor Red }
 function Write-Info($msg){ Write-Host "[INFO] $msg" -ForegroundColor DarkGray }
+
+# Quick port-busy probe (localhost). Returns $true if something is already listening on the port.
+function Test-PortBusy([int]$Port){
+  try {
+    $ok = Test-NetConnection -ComputerName 127.0.0.1 -Port $Port -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+    return [bool]$ok
+  } catch { return $false }
+}
+
+# Find a free TCP port on localhost starting from a base; returns the first free port or the base if none found.
+function Find-FreePort([int]$StartPort, [int]$MaxTries = 50){
+  $p = [int]$StartPort
+  for ($i = 0; $i -lt $MaxTries; $i++) {
+    if (-not (Test-PortBusy -Port $p)) { return $p }
+    $p++
+  }
+  return [int]$StartPort
+}
 
 # Move to repo root
 $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
@@ -74,9 +97,60 @@ if ($UpServices) {
   else {
     try {
       docker --version | Out-Null
-      docker compose -f $compose up -d | Out-Null
-      Write-Ok 'Docker services are up'
-      $results.services = 'PASS'
+      # Determine host ports intended for binding
+      $pgPort = if ($Env:PG_HOST_PORT -and $Env:PG_HOST_PORT -ne '') { [int]$Env:PG_HOST_PORT } else { 5433 }
+      $redisPort = if ($Env:REDIS_HOST_PORT -and $Env:REDIS_HOST_PORT -ne '') { [int]$Env:REDIS_HOST_PORT } else { 6379 }
+      # Preflight: auto-select free host ports if defaults are in use
+      $conflicts = @()
+      $pgBusy = (Test-PortBusy -Port $pgPort)
+      $redisBusy = (Test-PortBusy -Port $redisPort)
+      if ($pgBusy) { $conflicts += "PostgreSQL:$pgPort" }
+      if ($redisBusy) { $conflicts += "Redis:$redisPort" }
+      if ($conflicts.Count -gt 0) {
+        Write-Warn ("Port(s) in use: {0}. Auto-selecting free ports..." -f ($conflicts -join ', '))
+        if ($pgBusy) {
+          $newPg = Find-FreePort -StartPort ($pgPort + 1)
+          Write-Info ("Using PG_HOST_PORT={0}" -f $newPg)
+          $Env:PG_HOST_PORT = "$newPg"
+          $pgPort = $newPg
+        }
+        if ($redisBusy) {
+          $newRedis = Find-FreePort -StartPort ($redisPort + 1)
+          Write-Info ("Using REDIS_HOST_PORT={0}" -f $newRedis)
+          $Env:REDIS_HOST_PORT = "$newRedis"
+          $redisPort = $newRedis
+        }
+      }
+      {#CONTINUE_UP#}
+        $null = & docker compose -f $compose up -d
+        $upExit = $LASTEXITCODE
+        if ($upExit -ne 0) {
+          Write-Warn "'docker compose up -d' exited with code $upExit"
+          Write-Info ("Hint: If PostgreSQL port {0} is occupied, choose another free port and re-run:" -f $pgPort)
+          Write-Host "    `$Env:PG_HOST_PORT='5544'" -ForegroundColor DarkGray
+          Write-Info ("Hint: If Redis port {0} is occupied, choose another free port and re-run:" -f $redisPort)
+          Write-Host "    `$Env:REDIS_HOST_PORT='6380'" -ForegroundColor DarkGray
+          Write-Host "    pwsh -File scripts\\verify_all.ps1 -UpServices" -ForegroundColor DarkGray
+          Write-Info "Inspect service status with: docker compose -f infra\\docker-compose.yml ps"
+          Write-Info "Check recent logs with: docker compose -f infra\\docker-compose.yml logs --no-color --tail=80"
+          $results.services = 'FAIL'
+        } else {
+          # Verify both services are actually running
+          $running = (& docker compose -f $compose ps --services --filter "status=running") -split "`r?`n" | Where-Object { $_ -ne '' }
+          $expected = @('postgres','redis')
+          $missing = @()
+          foreach ($svc in $expected) { if ($running -notcontains $svc) { $missing += $svc } }
+          if ($missing.Count -gt 0) {
+            Write-Warn ("Some services are not running: {0}" -f ($missing -join ', '))
+            Write-Info "Hint: If port 5433 is occupied, set PG_HOST_PORT to another port, e.g.: `$Env:PG_HOST_PORT='5544' then re-run with -UpServices"
+            Write-Info "You can inspect status with: docker compose -f infra\\docker-compose.yml ps"
+            $results.services = 'FAIL'
+          } else {
+            Write-Ok 'Docker services are up'
+            $results.services = 'PASS'
+          }
+        }
+      }
     } catch {
       Write-Warn "Failed to start Docker services: $($_.Exception.Message)"
       $results.services = 'FAIL'
@@ -139,12 +213,59 @@ if (-not $SkipPostgresTests) {
 
 # 5) Probe health endpoints if a server is up (optional, non-blocking)
 Write-Header 'Health endpoint probes (optional)'
-$probes = @(
+
+# Optionally start backend for probes
+if ($StartBackend) {
+  try {
+    $serve = Join-Path $Root 'scripts\serve_https.ps1'
+    if (Test-Path -Path $serve) {
+      Write-Info 'Starting backend (serve_https.ps1) briefly to enable probes ...'
+      # Launch in a new pwsh/powershell window minimized so it does not block this script
+      $shellExe = 'powershell'
+      try { if (Get-Command pwsh -ErrorAction Stop) { $shellExe = 'pwsh' } } catch { $shellExe = 'powershell' }
+      Start-Process -FilePath $shellExe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File', $serve) -WindowStyle Minimized | Out-Null
+      Start-Sleep -Seconds 5
+    } else {
+      Write-Warn 'serve_https.ps1 not found; cannot auto-start backend.'
+    }
+  } catch {
+    Write-Warn ("Failed to auto-start backend: {0}" -f $_.Exception.Message)
+  }
+}
+
+# Try to discover backend origin selected by scripts/serve_https.ps1
+$runtimeDir = Join-Path $Root 'backend\.runtime'
+$originFile = Join-Path $runtimeDir 'dev_origin.txt'
+$portFile   = Join-Path $runtimeDir 'https_port.txt'
+$discoveredOrigin = $null
+if (Test-Path -Path $originFile) {
+  try {
+    $line = (Get-Content -Path $originFile -ErrorAction Stop | Select-Object -First 1)
+    if ($line) { $discoveredOrigin = $line.Trim() }
+  } catch { }
+} elseif (Test-Path -Path $portFile) {
+  try {
+    $p = [int]((Get-Content -Path $portFile -ErrorAction Stop | Select-Object -First 1))
+    if ($p) { $discoveredOrigin = ("https://127.0.0.1:{0}" -f $p) }
+  } catch { }
+}
+
+$probes = @()
+if ($discoveredOrigin) {
+  Write-Info ("Discovered backend origin: {0}" -f $discoveredOrigin)
+  $probes += @(
+    @{ Uri = ("{0}/livez" -f $discoveredOrigin); Https = ($discoveredOrigin -like 'https*') },
+    @{ Uri = ("{0}/healthz" -f $discoveredOrigin); Https = ($discoveredOrigin -like 'https*') }
+  )
+}
+# Always include common defaults as fallback
+$probes += @(
   @{ Uri = 'https://127.0.0.1:8443/livez'; Https = $true },
   @{ Uri = 'https://127.0.0.1:8443/healthz'; Https = $true },
   @{ Uri = 'http://127.0.0.1:8000/livez'; Https = $false },
   @{ Uri = 'http://127.0.0.1:8000/healthz'; Https = $false }
 )
+
 $okCount = 0
 foreach ($p in $probes) {
   try {
@@ -158,6 +279,13 @@ foreach ($p in $probes) {
   } catch {
     Write-Info ("no response from {0}" -f $p.Uri)
   }
+}
+if ($okCount -eq 0) {
+  Write-Warn 'No health endpoints responded. Most likely the backend dev server is not running.'
+  Write-Info 'Tip: Start the HTTPS backend + Vite via:'
+  Write-Host '    pwsh -File scripts\dev_all.ps1' -ForegroundColor DarkGray
+  Write-Info 'Or start backend only (HTTPS dev server):'
+  Write-Host '    pwsh -File scripts\serve_https.ps1' -ForegroundColor DarkGray
 }
 $results.health_probes = if ($okCount -gt 0) { 'PASS' } else { 'SKIP' }
 

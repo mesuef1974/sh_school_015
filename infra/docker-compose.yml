@@ -1,16 +1,15 @@
-version: '3.9'
+name: sh_school_015
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: pg-sh-school
     restart: unless-stopped
     environment:
       POSTGRES_DB: sh_school
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "${PG_HOST_PORT:-5433}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d sh_school"]
       interval: 5s
@@ -22,10 +21,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: redis-sh
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -36,3 +34,4 @@ services:
 volumes:
   pg_data:
     name: sh_school_pg_data
+    external: true

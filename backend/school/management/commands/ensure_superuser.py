@@ -34,7 +34,10 @@ class Command(BaseCommand):
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            if email and password:
+            # Create the user even if email is missing; use a placeholder if needed.
+            if password:
+                if not email:
+                    email = f"{username}@example.local"
                 user = User.objects.create_user(username=username, email=email, password=password)
                 user.is_staff = True
                 user.is_superuser = True
@@ -44,7 +47,7 @@ class Command(BaseCommand):
             else:
                 self.stdout.write(
                     self.style.WARNING(
-                        f"User '{username}' not found and insufficient data to create (need both email and password)."
+                        f"User '{username}' not found and no password provided to create. Set DJANGO_SUPERUSER_PASSWORD or pass --password."
                     )
                 )
                 return
