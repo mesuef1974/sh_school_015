@@ -8,6 +8,31 @@
 - Node.js (إن أردت تشغيل الواجهة الأمامية)
 - Docker Desktop (اختياري لتشغيل PostgreSQL وRedis محليًا)
 
+## تثبيت المكتبات المطلوبة (أمر واحد)
+- لتثبيت مكتبات الباكيند (Python) والفرونتند (Node) دفعة واحدة:
+
+```powershell
+pwsh -File scripts\ops_run.ps1 -Task install-deps
+```
+
+- لتضمين أدوات التطوير والاختبارات أيضًا (ruff/pytest وغيرها إن وُجدت في requirements-dev.txt):
+
+```powershell
+pwsh -File scripts\ops_run.ps1 -Task install-deps
+# أو داخل سكربت المثبّت مباشرة:
+# pwsh -File scripts\install_deps.ps1 -Dev
+```
+
+ملاحظات سريعة:
+- إن لم يكن Python موجودًا على PATH سيُظهر السكربت رسالة خطأ واضحة.
+- إن لم يكن Node.js/NPM مثبتًا، سيتجاوز قسم الفرونتند ويعرض تحذيرًا دون إيقاف العملية.
+- حزمة @axe-core/vue الخاصة بفحص الوصولية اختيارية في التطوير؛ لا تُثبَّت تلقائيًا لتجنّب مشاكل بعض الشبكات مع سجل npm. إن رغبت بها:
+
+```powershell
+cd frontend
+npm i -D @axe-core/vue
+```
+
 ## تشغيل فوري (مقترح)
 - أسهل طريقة الآن: انقر نقرًا مزدوجًا على الملف التالي من مستكشف الملفات لفتح مُشغّل بقائمة:
   - scripts/start_here.cmd
@@ -38,23 +63,66 @@ pwsh -File scripts\ops_run.ps1 -Task dev-all
   - `backend/.runtime/https_port.txt`
 - Vite سيقرأ المنشأ المختار تلقائيًا عبر متغيري البيئة `VITE_BACKEND_ORIGIN` و`VITE_BACKEND_PORT`.
 
+### تسجيل الحضور سريعًا (E2E مختصر)
+- بعد تشغيل dev-all:
+  1) سجّل الدخول كمستخدم إداري (أو معلّم مرتبط) عبر صفحة /login.
+  2) من القائمة العلوية اختر "تسجيل الغياب".
+  3) اختر الصف والتاريخ (واختر الحصة إن ظهر أكثر من حصة في اليوم نفسه).
+  4) غيّر حالات الطلاب بسرعة (حاضر/غائب/متأخر/إذن خروج)، ويمكن إضافة ملاحظة.
+  5) اضغط "حفظ".
+     - في حال عدم توفر الشبكة، تُجدول العملية تلقائيًا في صف الأوفلاين وستُرفع عند عودة الاتصال.
+  6) اختياري: اضغط "إرسال للمراجعة" لوضع السجلات تحت المراجعة من المشرف الجناحي.
+- الواجهة تستخدم:
+  - API: POST `/api/v1/attendance/bulk_save/` للحفظ.
+  - API: GET `/api/v1/attendance/students/` و`/records/` للتحميل.
+  - صف أوفلاين: `frontend/src/shared/offline/queue.ts` (التفعيل تلقائي).
+
 ## فحوص شبيهة بـ CI (تحقق سريع)
 - يُجري: Django check+migrate → اختبارات SQLite → (اختياري) اختبارات PostgreSQL → فحوص الصحة إن كان الخادم يعمل.
+- جديد: تشغيل اللنترز اختياريًا (لا يكسر العملية عند عدم توفر الأدوات) للفرونت والباك.
 
 ```
 pwsh -File scripts\ops_run.ps1 -Task verify
 ```
 خيارات مفيدة:
 - تشغيل الباكيند مؤقتًا قبل فحوص الصحة:
-  
+
   ```
   pwsh -File scripts\ops_run.ps1 -Task verify -StartBackend
   ```
 - تخطي اختبارات PostgreSQL والاكتفاء بـ SQLite:
-  
+
   ```
   pwsh -File scripts\ops_run.ps1 -Task verify -SkipPostgresTests
   ```
+
+## اللنترز والتنسيق (Linters/Formatters)
+- الواجهة الأمامية (Frontend): ESLint + Prettier تم إعدادهما.
+  - تثبيت الأدوات (ضمن خطوة install-deps عادة):
+    ```powershell
+    cd frontend
+    npm install
+    ```
+  - أوامر:
+    ```powershell
+    npm run lint       # فحص القواعد
+    npm run lint:fix   # إصلاح تلقائي آمن
+    npm run format     # تنسيق Prettier
+    ```
+- الباكيند (Backend): Ruff + Black + isort مفعّلة عبر pyproject.toml.
+  - تثبيت أدوات التطوير:
+    ```powershell
+    pwsh -File scripts\install_deps.ps1 -Dev
+    # أو:
+    python -m pip install -r requirements-dev.txt
+    ```
+  - أوامر يدوية (اختياري):
+    ```powershell
+    python -m ruff check backend
+    python -m black --check backend
+    python -m isort --check-only backend
+    ```
+- ملاحظة: مسار verify سيحاول تشغيل هذه الفحوص ويعرض PASS/WARN/SKIP دون إيقاف العملية إذا لم تكن الأدوات مثبتة بعد.
 
 ## تشغيل خدمات Docker (PostgreSQL + Redis)
 - السكربت يختار منفذًا بديلًا تلقائيًا إذا كان الافتراضي محجوزًا.
@@ -63,13 +131,13 @@ pwsh -File scripts\ops_run.ps1 -Task verify
 pwsh -File scripts\ops_run.ps1 -Task up-services
 ```
 - ضبط المنافذ يدويًا إذا لزم:
-  
+
   ```powershell
   $Env:PG_HOST_PORT='5544'; $Env:REDIS_HOST_PORT='6380'
   pwsh -File scripts\ops_run.ps1 -Task up-services
   ```
 - إيقاف الخدمات:
-  
+
   ```
   pwsh -File scripts\ops_run.ps1 -Task stop-services
   ```
@@ -90,6 +158,25 @@ pwsh -File scripts\ops_run.ps1 -Task up-services
   - `POST /api/v1/auth/logout/`
 - تم إعداد عميل HTTP مع اعتراضات: تحديث رمز الدخول تلقائيًا، إعادة الطلب 401 مرة واحدة، ومحاولات backoff للأخطاء العابرة.
 
+## اللغات والاتجاه (i18n/RTL)
+- اللغة الافتراضية: العربية (ar)، مع الإنجليزية (en) كخيار احتياطي.
+- يتم اختيار اللغة عند التشغيل حسب الترتيب: `localStorage.locale` ثم لغة المتصفح، وإلا فالقيمة من `VITE_DEFAULT_LOCALE`.
+- يقوم النظام بضبط سمتي `dir` و`lang` على عنصر `html` تلقائيًا (RTL للعربية، LTR للإنجليزية).
+- يوجد مُبدِّل لغات صغير في شريط الترويسة (ع/EN) للتبديل الفوري بين العربية والإنجليزية مع حفظ الاختيار.
+- عند تبديل اللغة، يتم تحديث PrimeVue locale تلقائيًا (أيام/أشهر/رسائل مكونات PrimeVue) دون إعادة التحميل.
+- للتبديل يدويًا أثناء التطوير يمكنك من وحدة التحكم (Console):
+
+```js
+import { setLocale } from '/src/app/i18n'
+setLocale('en') // أو 'ar'
+```
+
+- لتغيير الافتراضي، حدِّث ملف `frontend/.env`:
+```
+VITE_DEFAULT_LOCALE=ar
+VITE_FALLBACK_LOCALE=en
+```
+
 ## كيف تعمل السكربتات داخليًا؟
 - `scripts/serve_https.ps1`:
   - يتأكد من وجود شهادات TLS التطويرية، يختار منفذ HTTPS متاحًا (8443..8450)، ويكتب الأصل المختار في `backend/.runtime/dev_origin.txt`.
@@ -104,7 +191,7 @@ pwsh -File scripts\ops_run.ps1 -Task up-services
 ## مشاكل المنافذ الشائعة وحلّها
 - Postgres 5433 أو Redis 6379 قد تكون محجوزة على جهازك.
 - الحل: السكربت يحاول اختيار منافذ حرة تلقائيًا. أو اضبطها يدويًا:
-  
+
   ```powershell
   $Env:PG_HOST_PORT='5544'
   $Env:REDIS_HOST_PORT='6380'
@@ -114,7 +201,7 @@ pwsh -File scripts\ops_run.ps1 -Task up-services
 ## تسجيل الدخول إلى لوحة الإدارة
 - السكربت يضمن وجود superuser وفق `.env` إن وُجِد، أو ينشئ مستخدمًا افتراضيًا بالاسم `mesuef` (مع ضبط الأعلام فقط إن لم تُضبط كلمة مرور).
 - عنوان الإدارة أثناء التطوير:
-  
+
   ```
   https://127.0.0.1:<المنفذ>/admin/
   ```
@@ -145,3 +232,29 @@ pwsh -File scripts\ops_run.ps1 -Task stop-services
 # المساعدة
 pwsh -File scripts\ops_run.ps1 -Task help
 ```
+
+## الوصولية أثناء التطوير (axe)
+- فحص الوصولية عبر @axe-core/vue متاح اختياريًا في بيئة التطوير فقط. لا يُضمَّن في بناء الإنتاج.
+- بشكل افتراضي لا نقوم بتثبيت الحزمة لتجنّب مشاكل بعض الشبكات مع سجل npm؛ لتفعيله يدويًا:
+  ```powershell
+  cd frontend
+  npm i -D @axe-core/vue
+  # ثم فعّل العلم التالي داخل frontend/.env
+  # (انسخه من .env.example إن لم يوجد)
+  # VITE_ENABLE_AXE=true
+  ```
+- عند تفعيل العلم وتوفر الحزمة، وأثناء التصفّح في dev (vite)، ستظهر تحذيرات/أخطاء الوصولية في Console المتصفح مع تفاصيل ومواقع العناصر المخالفة.
+- خطوات الاستخدام:
+  1) شغِّل التطوير: `pwsh -File scripts\ops_run.ps1 -Task dev-all`
+  2) افتح أدوات المطوّر (F12) → Console
+  3) انتقل بين الصفحات (الرئيسية، تسجيل الدخول، صفحة جدول/جدول بيانات). ستظهر تقارير axe عند وجود مخالفات.
+- المستهدف: معالجة المخالفات الحرجة (خطيرة) بحيث لا يظهر أي تحذير axe من النوع الحاد في الصفحات الأساسية.
+
+### تحسينات واجهة للوصولية
+- أضفنا رابط "تجاوز إلى المحتوى" يظهر عند الضغط على Tab أول مرة، للانتقال مباشرة إلى `<main>`.
+- تمت إضافة أنماط `:focus-visible` واضحة للأزرار والروابط والعناصر التفاعلية لتسهيل التنقل بلوحة المفاتيح.
+- نحرص على وجود aria-label للعناصر الأيقونية بدون نص (مثل زر العودة للرئيسية في الترويسة).
+
+### ملاحظات RTL
+- تم ضبط `dir` و`lang` على عنصر html تلقائيًا وفق اللغة.
+- سنقوم بتدقيق تدريجي لاستبدال خصائص CSS الاتجاهية (left/right، margin-left/right) بخصائص منطقية (inline-start/inline-end) حيثما أمكن دون تأثيرات جانبية.

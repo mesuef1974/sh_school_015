@@ -722,7 +722,7 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 
 .status-select { border-width: 1px; }
 .quick-actions .btn { width: 34px; height: 34px; display: grid; place-items: center; }
-.grid-toolbar .search-icon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); opacity: .5; }
+.grid-toolbar .search-icon { position: absolute; inset-inline-start: 10px; top: 50%; transform: translateY(-50%); opacity: .5; }
 
 /* Toolbar for filters and actions: wrap on small screens, single line on large without horizontal scroll */
 /* Attendance Form Styles */

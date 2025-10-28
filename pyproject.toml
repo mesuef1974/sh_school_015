@@ -35,6 +35,18 @@ select = ["E", "F", "I"]
 # - E713: prefer `not in` (legacy validators kept for backward compatibility)
 ignore = ["I001", "E501", "E402", "E713"]
 
+[tool.black]
+line-length = 120
+skip-string-normalization = true
+# Use a literal string to avoid escaping backslashes in the regex
+exclude = '(\.venv|\.venv_fix|venv|env|\.tox|site-packages|build|dist|backend\.venv)(?:$|\\)'
+
+[tool.isort]
+profile = "black"
+line_length = 120
+skip_gitignore = true
+skip = [".venv", ".venv_fix", "venv", "env", ".tox", "site-packages", "build", "dist", "backend/.venv"]
+
 [tool.mypy]
 python_version = "3.11"
 ignore_missing_imports = true

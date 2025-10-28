@@ -352,7 +352,7 @@
 .prefs-body input{ accent-color: var(--maron-primary, #7b1e1e); }
 
 /* Progress bar in current period */
-.progress-wrap{ position:absolute; left:8px; right:8px; bottom:6px; height:6px; background:#eafff0; border-radius:999px; overflow:hidden; box-shadow: inset 0 0 0 1px #22c55e22; }
+.progress-wrap{ position:absolute; inset-inline-start:8px; inset-inline-end:8px; bottom:6px; height:6px; background:#eafff0; border-radius:999px; overflow:hidden; box-shadow: inset 0 0 0 1px #22c55e22; }
 .progress-bar{ height:100%; background: linear-gradient(90deg,#16a34a,#22c55e); transition: width .6s ease; }
 
 /* Dense mode adjustments */
@@ -825,7 +825,7 @@ onMounted(load);
   content: '';
   position: absolute;
   top: 8px;
-  left: 8px;
+  inset-inline-start: 8px;
   width: 12px;
   height: 12px;
   background: #28a745;
@@ -838,7 +838,7 @@ onMounted(load);
 .countdown-badge {
   position: absolute;
   top: 6px;
-  left: 26px; /* next to the dot */
+  inset-inline-start: 26px; /* next to the dot (logical for RTL/LTR) */
   padding: 2px 6px;
   font-size: 0.72rem;
   font-weight: 700;
@@ -852,7 +852,7 @@ onMounted(load);
   z-index: 3;
 }
 @media (max-width: 576px) {
-  .countdown-badge { font-size: 0.66rem; padding: 1px 5px; left: 24px; top: 6px; }
+  .countdown-badge { font-size: 0.66rem; padding: 1px 5px; inset-inline-start: 24px; top: 6px; }
 }
 
 @keyframes pulse {

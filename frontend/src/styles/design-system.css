@@ -381,3 +381,35 @@ section.full-bleed > * { width: min(var(--page-w), 100%) !important; margin-inli
 
 /* ===== Compact card variant ===== */
 .ds-card.ds-card--compact { padding: var(--space-3); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); }
+
+
+/* ===== Accessibility helpers ===== */
+.skip-link {
+  position: absolute;
+  inset-inline-start: 8px;
+  top: -40px;
+  z-index: var(--z-fixed);
+  background: #fff;
+  color: #000;
+  padding: 8px 12px;
+  border-radius: 6px;
+  box-shadow: var(--shadow-sm);
+  transition: top var(--transition-fast);
+}
+.skip-link:focus, .skip-link:focus-visible {
+  top: 8px;
+  outline: 3px solid #2b8a3e; /* high contrast */
+  outline-offset: 2px;
+}
+
+/* Visible focus for interactive controls */
+:where(a, button, [role="button"], input, select, textarea, .btn):focus-visible {
+  outline: 2px solid var(--maron-accent, #c49a6c);
+  outline-offset: 2px;
+}
+
+/* Prefer logical properties to support RTL/LTR */
+.ms-auto { margin-inline-start: auto; }
+.me-auto { margin-inline-end: auto; }
+.ps-2 { padding-inline-start: .5rem; }
+.pe-2 { padding-inline-end: .5rem; }

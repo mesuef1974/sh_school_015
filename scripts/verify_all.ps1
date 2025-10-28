@@ -211,6 +211,60 @@ if (-not $SkipPostgresTests) {
   }
 }
 
+# Linters/Formatters (optional, non-blocking)
+Write-Header 'Linters (optional, non-blocking)'
+
+# Frontend lint (ESLint) if npm and config are available
+try {
+  $feDir = Join-Path $Root 'frontend'
+  if (Test-Path -Path $feDir -and (Test-Path -Path (Join-Path $feDir 'package.json'))) {
+    Push-Location $feDir
+    try { $npm = Get-Command npm -ErrorAction Stop } catch { $npm = $null }
+    if ($npm) {
+      $lintExit = 0
+      try { npm run -s lint; $lintExit = $LASTEXITCODE } catch { $lintExit = 1 }
+      if ($lintExit -eq 0) { Write-Ok 'Frontend lint (eslint) passed'; $results.fe_lint = 'PASS' }
+      else { Write-Warn 'Frontend lint (eslint) reported issues'; $results.fe_lint = 'WARN' }
+    } else {
+      Write-Warn 'npm not available; skipping frontend lint'
+      $results.fe_lint = 'SKIP'
+    }
+  } else {
+    $results.fe_lint = 'SKIP'
+  }
+} catch {
+  Write-Warn ("Frontend lint step failed: {0}" -f $_.Exception.Message)
+  $results.fe_lint = 'WARN'
+} finally {
+  try { Pop-Location } catch {}
+}
+
+# Backend lint/format checks (Ruff/Black/isort) if installed
+try {
+  $ruffOk = $false; try { & $PythonExe -m ruff --version | Out-Null; $ruffOk = $true } catch {}
+  $blackOk = $false; try { & $PythonExe -m black --version | Out-Null; $blackOk = $true } catch {}
+  $isortOk = $false; try { & $PythonExe -m isort --version | Out-Null; $isortOk = $true } catch {}
+  if (-not ($ruffOk -or $blackOk -or $isortOk)) {
+    Write-Warn 'Python linters (ruff/black/isort) not installed; skipping backend lint'
+    $results.be_lint = 'SKIP'
+  } else {
+    $allPass = $true
+    if ($ruffOk) {
+      try { & $PythonExe -m ruff check backend -q; if ($LASTEXITCODE -ne 0) { $allPass = $false; Write-Warn 'Ruff found issues' } else { Write-Ok 'Ruff passed' } } catch { $allPass = $false; Write-Warn 'Ruff check failed' }
+    }
+    if ($blackOk) {
+      try { & $PythonExe -m black --check backend; if ($LASTEXITCODE -ne 0) { $allPass = $false; Write-Warn 'Black found formatting issues' } else { Write-Ok 'Black formatting OK' } } catch { $allPass = $false; Write-Warn 'Black check failed' }
+    }
+    if ($isortOk) {
+      try { & $PythonExe -m isort --check-only backend; if ($LASTEXITCODE -ne 0) { $allPass = $false; Write-Warn 'isort found import order issues' } else { Write-Ok 'isort import order OK' } } catch { $allPass = $false; Write-Warn 'isort check failed' }
+    }
+    $results.be_lint = if ($allPass) { 'PASS' } else { 'WARN' }
+  }
+} catch {
+  Write-Warn ("Backend lint step failed: {0}" -f $_.Exception.Message)
+  $results.be_lint = 'WARN'
+}
+
 # 5) Probe health endpoints if a server is up (optional, non-blocking)
 Write-Header 'Health endpoint probes (optional)'
 

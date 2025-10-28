@@ -23,11 +23,7 @@ class Command(BaseCommand):
         password = options.get("password") or os.getenv("DJANGO_SUPERUSER_PASSWORD")
 
         if not username:
-            self.stdout.write(
-                self.style.WARNING(
-                    "Username is required (via --username or DJANGO_SUPERUSER_USERNAME)."
-                )
-            )
+            self.stdout.write(self.style.WARNING("Username is required (via --username or DJANGO_SUPERUSER_USERNAME)."))
             return
 
         User = get_user_model()

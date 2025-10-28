@@ -8,8 +8,22 @@ import { createI18n } from 'vue-i18n'
 
 export type SupportedLocale = 'ar' | 'en'
 
-const defaultLocale = (import.meta.env.VITE_DEFAULT_LOCALE as SupportedLocale) || 'ar'
+const STORAGE_KEY = 'locale'
+const envDefault = (import.meta.env.VITE_DEFAULT_LOCALE as SupportedLocale) || 'ar'
 const fallbackLocale = (import.meta.env.VITE_FALLBACK_LOCALE as SupportedLocale) || 'en'
+
+function detectInitialLocale(): SupportedLocale {
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem(STORAGE_KEY) as SupportedLocale | null
+    if (stored === 'ar' || stored === 'en') return stored
+    const nav = navigator.language || (navigator as any).userLanguage || ''
+    if (nav.toLowerCase().startsWith('ar')) return 'ar'
+    if (nav.toLowerCase().startsWith('en')) return 'en'
+  }
+  return envDefault
+}
+
+const initialLocale: SupportedLocale = detectInitialLocale()
 
 const messages = {
   ar: {
@@ -39,7 +53,7 @@ const messages = {
 export const i18n = createI18n({
   legacy: false,
   globalInjection: true,
-  locale: defaultLocale,
+  locale: initialLocale,
   fallbackLocale,
   messages,
 })
@@ -51,7 +65,16 @@ export function setDocumentDirByLocale(locale: SupportedLocale) {
   document.documentElement.lang = locale
 }
 
-// Initialize dir based on default
+export function setLocale(locale: SupportedLocale) {
+  if (locale !== 'ar' && locale !== 'en') return
+  // Update vue-i18n current locale (composition API uses Ref)
+  // @ts-ignore
+  i18n.global.locale.value = locale
+  try { localStorage.setItem(STORAGE_KEY, locale) } catch {}
+  if (typeof document !== 'undefined') setDocumentDirByLocale(locale)
+}
+
+// Initialize dir based on initial locale
 if (typeof document !== 'undefined') {
-  setDocumentDirByLocale(defaultLocale)
+  setDocumentDirByLocale(initialLocale)
 }

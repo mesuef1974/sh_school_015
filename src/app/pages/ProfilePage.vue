@@ -475,7 +475,7 @@ onMounted(() => {
 .tooltip-text {
   position: absolute;
   bottom: 100%;
-  left: 50%;
+  inset-inline-start: 50%;
   transform: translateX(-50%);
   background: #2c3e50;
   color: white;

@@ -13,6 +13,7 @@
   pwsh -File scripts/ops_run.ps1 -Task start-backend    # Start HTTPS backend (Uvicorn TLS) in a new window
   pwsh -File scripts/ops_run.ps1 -Task dev-all          # Start backend then Vite dev server (proxy)
   pwsh -File scripts/ops_run.ps1 -Task stop-services    # Stop Docker services
+  pwsh -File scripts/ops_run.ps1 -Task install-deps     # Install required libraries (Python + Frontend)
 
   # Customize ports if defaults are busy
   $Env:PG_HOST_PORT='5544'; $Env:REDIS_HOST_PORT='6380'
@@ -25,7 +26,7 @@
 #>
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('verify','up-services','start-backend','dev-all','stop-services','help')]
+  [ValidateSet('verify','up-services','start-backend','dev-all','stop-services','install-deps','help')]
   [string]$Task,
   [switch]$StartBackend,
   [switch]$SkipPostgresTests
@@ -112,6 +113,12 @@ switch ($Task) {
     Write-Ok 'Docker services stopped'
     exit 0
   }
+  'install-deps' {
+    $inst = Join-Path $Root 'scripts\install_deps.ps1'
+    if (-not (Test-Path -Path $inst)) { Write-Err 'scripts/install_deps.ps1 not found'; exit 1 }
+    & pwsh -NoProfile -File $inst
+    exit $LASTEXITCODE
+  }
   'help' {
     Write-Host "Usage:" -ForegroundColor Cyan
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task verify [-StartBackend] [-SkipPostgresTests]" -ForegroundColor Gray
@@ -119,7 +126,8 @@ switch ($Task) {
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task start-backend" -ForegroundColor Gray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task dev-all" -ForegroundColor Gray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task stop-services" -ForegroundColor Gray
-    Write-Host "" 
+    Write-Host "  pwsh -File scripts/ops_run.ps1 -Task install-deps [-Dev]" -ForegroundColor Gray
+    Write-Host ""
     Write-Host "Port conflicts? Choose free ports then re-run up-services:" -ForegroundColor Yellow
     Write-Host "  `$Env:PG_HOST_PORT='5544'; `$Env:REDIS_HOST_PORT='6380'" -ForegroundColor DarkGray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task up-services" -ForegroundColor DarkGray

@@ -1,7 +1,10 @@
 <template>
   <div class="page-container">
+    <a class="skip-link" href="#main-content">تجاوز إلى المحتوى</a>
+    <!-- Announce route changes for screen readers -->
+    <RouteAnnouncer />
     <header class="navbar-maronia">
-      <nav class="container d-flex align-items-center gap-3 py-2">
+      <nav class="container d-flex align-items-center gap-3 py-2" role="navigation" aria-label="التنقل الرئيسي">
         <div class="brand-images d-flex align-items-center">
           <img src="https://127.0.0.1:8443/static/img/logo02.png?v=20251027-01" alt="شعار" style="height:44px; width:auto; display:block;" />
         </div>
@@ -9,6 +12,33 @@
         <RouterLink v-if="!isHome" :to="{ name: 'home' }" class="btn btn-glass-home" aria-label="العودة إلى الرئيسية">
           <Icon icon="fa6-solid:house" />
         </RouterLink>
+
+        <!-- Language switcher: minimal UI (ar/en) -->
+        <div class="lang-switch btn-group me-2" role="group" aria-label="Language switcher">
+          <button
+            type="button"
+            class="btn btn-sm"
+            :class="{ 'btn-maroon': currentLocale === 'ar', 'btn-light': currentLocale !== 'ar' }"
+            @click="switchLocale('ar')"
+            :aria-pressed="currentLocale === 'ar'"
+            :aria-current="currentLocale === 'ar' ? 'true' : undefined"
+            aria-label="التبديل إلى العربية"
+          >
+            ع
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm"
+            :class="{ 'btn-maroon': currentLocale === 'en', 'btn-light': currentLocale !== 'en' }"
+            @click="switchLocale('en')"
+            :aria-pressed="currentLocale === 'en'"
+            :aria-current="currentLocale === 'en' ? 'true' : undefined"
+            aria-label="Switch to English"
+          >
+            EN
+          </button>
+        </div>
+
         <div class="dropdown" v-if="auth.profile">
           <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown" type="button">
             <i class="bi bi-person-circle"></i>
@@ -29,7 +59,7 @@
         <RouterLink v-else to="/login">دخول</RouterLink>
       </nav>
     </header>
-    <main class="page-main container" :class="{ 'wide-wing': isWing, 'is-login': isLogin, 'py-3': !isLogin }">
+    <main id="main-content" class="page-main container" :class="{ 'wide-wing': isWing, 'is-login': isLogin, 'py-3': !isLogin }" role="main" tabindex="-1">
       <div class="d-flex justify-content-between align-items-center mb-2" dir="rtl" v-if="!isHome && !isLogin">
         <div class="flex-fill"></div>
         <BreadcrumbRtl />
@@ -50,6 +80,8 @@ import { useAuthStore } from './stores/auth';
 import { logout } from '../shared/api/client';
 import { useRouter, useRoute } from 'vue-router';
 import BreadcrumbRtl from '../components/BreadcrumbRtl.vue';
+import RouteAnnouncer from '../components/RouteAnnouncer.vue';
+import { i18n, setLocale } from './i18n';
 
 const router = useRouter();
 const route = useRoute();
@@ -67,6 +99,12 @@ const isLogin = computed(() => route.name === 'login');
 const hideSchoolName = computed(() => route.path?.startsWith('/supervisor'));
 const isWing = computed(() => route.path?.startsWith('/wing'));
 
+// Current locale and switcher binding
+// @ts-ignore - vue-i18n exposes a Ref for locale
+const currentLocale = computed(() => i18n.global.locale.value as 'ar' | 'en');
+function switchLocale(loc: 'ar' | 'en') {
+  setLocale(loc);
+}
 
 async function onLogout() {
   await logout();
