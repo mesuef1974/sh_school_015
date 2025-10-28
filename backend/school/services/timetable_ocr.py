@@ -60,9 +60,7 @@ def try_extract_csv_from_pdf(pdf_path: str) -> Tuple[str, str]:
                             if not row or not any(c for c in row):
                                 continue
                             # Join cells for analysis; users can adjust later.
-                            row_text = [
-                                (_normalize_text(c) if isinstance(c, str) else "") for c in row
-                            ]
+                            row_text = [(_normalize_text(c) if isinstance(c, str) else "") for c in row]
                             joined = " | ".join(row_text)
                             # We do not know exact columns; append as comment for user visibility.
                             # The admin can quickly edit into canonical 5 columns.
@@ -106,7 +104,8 @@ def try_extract_csv_from_image(img_path: str) -> Tuple[str, str]:
 
     try:
         import re
-        from PIL import Image, ImageOps, ImageFilter
+
+        from PIL import Image, ImageFilter, ImageOps
 
         def arabic_score(s: str) -> int:
             # Count Arabic letters as a quick quality proxy

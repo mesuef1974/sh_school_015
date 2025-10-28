@@ -33,6 +33,7 @@
           type="text"
           class="breadcrumb__input"
           :placeholder="placeholder"
+          :aria-label="placeholder"
           @input="onQuery"
           @keydown.enter.prevent="openHighlightedOrExact"
           @keydown.esc="hideResults"
@@ -208,13 +209,13 @@ const collapsedCount = computed(() => collapsedItems.value.length)
 .breadcrumb__current { color: #fff; font-weight: 600; }
 .breadcrumb__sep { margin: 0 3px; opacity: .6; }
 .breadcrumb__more { background: transparent; border: 1px solid rgba(255,255,255,.25); color: #e6f4f1; border-radius: 6px; padding: 2px 5px; cursor: pointer; }
-.breadcrumb__dropdown { position: absolute; top: 21px; right: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; min-width: 150px; padding: 6px; z-index: 10; }
+.breadcrumb__dropdown { position: absolute; top: 21px; inset-inline-end: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; min-width: 150px; padding: 6px; z-index: 10; }
 .breadcrumb__dropdown a { color: #e6f4f1; display: block; padding: 5px 6px; border-radius: 6px; text-decoration: none; }
 .breadcrumb__dropdown a:hover { background: rgba(255,255,255,.07); }
 
 .breadcrumb__search { position: relative; min-width: 195px; }
 .breadcrumb__input { width: 100%; direction: rtl; background: #0c2f3c; color: #e6f4f1; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; padding: 4px 8px; }
-.breadcrumb__results { position: absolute; top: 27px; right: 0; left: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; max-height: 195px; overflow: auto; z-index: 20; }
+.breadcrumb__results { position: absolute; top: 27px; inset-inline: 0; background: #113e50; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; max-height: 195px; overflow: auto; z-index: 20; }
 .breadcrumb__option { padding: 6px 8px; cursor: pointer; color: #e6f4f1; display: flex; justify-content: space-between; gap: 6px; }
 .breadcrumb__option:hover, .breadcrumb__option.is-active { background: rgba(255,255,255,.08); }
 .breadcrumb__option-path { opacity: .75; }

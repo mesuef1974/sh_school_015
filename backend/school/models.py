@@ -1,7 +1,8 @@
-from django.db import models
+from datetime import time as _time
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from datetime import time as _time
+from django.db import models
 
 
 class Class(models.Model):

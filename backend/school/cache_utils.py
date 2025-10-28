@@ -3,13 +3,15 @@ Caching utilities and decorators for school application
 Provides smart caching for frequently accessed data
 """
 
-from functools import wraps
-from typing import Optional, Callable
-from django.core.cache import caches, cache as default_cache
-from django.db.models import Model, QuerySet
-from django.db.models.signals import post_save, post_delete
 import hashlib
 import json
+from functools import wraps
+from typing import Callable, Optional
+
+from django.core.cache import cache as default_cache
+from django.core.cache import caches
+from django.db.models import Model, QuerySet
+from django.db.models.signals import post_delete, post_save
 
 
 def make_cache_key(prefix: str, *args, **kwargs) -> str:
@@ -200,15 +202,7 @@ class CacheInvalidator:
     @staticmethod
     def setup():
         """Register all cache invalidation handlers"""
-        from .models import (
-            Class,
-            Student,
-            Term,
-            AcademicYear,
-            AttendanceRecord,
-            AttendanceDaily,
-            ExitEvent,
-        )
+        from .models import AcademicYear, AttendanceDaily, AttendanceRecord, Class, ExitEvent, Student, Term
 
         # Invalidate class cache when Class, Wing, or Student count changes
         invalidate_cache_for_model(Class, ["class", "student"])

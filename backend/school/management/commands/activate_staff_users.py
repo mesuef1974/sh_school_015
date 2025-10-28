@@ -9,7 +9,6 @@ from django.db import transaction
 
 from ...models import Staff
 
-
 EXCLUDED_ROLES: set[str] = {"developer", "school_principal"}
 
 
@@ -93,6 +92,4 @@ class Command(BaseCommand):
 
         if dry_run:
             # Ensure no writes persist
-            raise transaction.TransactionManagementError(
-                "Dry-run requested: transaction rolled back after reporting."
-            )
+            raise transaction.TransactionManagementError("Dry-run requested: transaction rolled back after reporting.")

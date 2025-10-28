@@ -11,12 +11,13 @@ if not os.environ.get('DJANGO_SETTINGS_MODULE'):
             sys.path.insert(0, _BACKEND_DIR)
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
         import django as _django  # type: ignore
+
         _django.setup()
     except Exception:
         pass
 
-from django.core.management.base import BaseCommand
 from django.contrib.auth.models import Group
+from django.core.management.base import BaseCommand
 from django.db import transaction
 
 # Reuse canonical roles from sync_rbac if available
@@ -24,22 +25,52 @@ try:
     from .sync_rbac import ROLE_GROUPS  # type: ignore
 except Exception:
     ROLE_GROUPS = [
-        'teacher','wing_supervisor','subject_coordinator','principal',
-        'academic_deputy','admin_deputy','student_affairs','finance','it','admin'
+        'teacher',
+        'wing_supervisor',
+        'subject_coordinator',
+        'principal',
+        'academic_deputy',
+        'admin_deputy',
+        'student_affairs',
+        'finance',
+        'it',
+        'admin',
     ]
 
 # Legacy aliases we commonly see in deployments (case/spacing variants)
 LEGACY_ALIASES: Dict[str, str] = {
-    'admin': 'admin', 'Admin': 'admin', 'Super Admin': 'admin', 'super admin': 'admin',
-    'principal': 'principal', 'Principal': 'principal', 'Vice Principal': 'principal', 'vice_principal': 'principal',
-    'academic_deputy': 'academic_deputy', 'academic deputy': 'academic_deputy', 'Academic Deputy': 'academic_deputy',
-    'admin_deputy': 'admin_deputy', 'Admin Deputy': 'admin_deputy', 'Administrative Deputy': 'admin_deputy',
-    'student_affairs': 'student_affairs', 'Student Affairs': 'student_affairs',
-    'finance': 'finance', 'Finance': 'finance',
-    'it': 'it', 'IT': 'it', 'IT Support': 'it', 'It Support': 'it',
-    'teacher': 'teacher', 'Teacher': 'teacher', 'Subject Teacher': 'teacher', 'Homeroom Teacher': 'teacher',
-    'wing_supervisor': 'wing_supervisor', 'Wing Supervisor': 'wing_supervisor', 'supervisor': 'wing_supervisor',
-    'subject_coordinator': 'subject_coordinator', 'Subject Coordinator': 'subject_coordinator', 'coordinator': 'subject_coordinator',
+    'admin': 'admin',
+    'Admin': 'admin',
+    'Super Admin': 'admin',
+    'super admin': 'admin',
+    'principal': 'principal',
+    'Principal': 'principal',
+    'Vice Principal': 'principal',
+    'vice_principal': 'principal',
+    'academic_deputy': 'academic_deputy',
+    'academic deputy': 'academic_deputy',
+    'Academic Deputy': 'academic_deputy',
+    'admin_deputy': 'admin_deputy',
+    'Admin Deputy': 'admin_deputy',
+    'Administrative Deputy': 'admin_deputy',
+    'student_affairs': 'student_affairs',
+    'Student Affairs': 'student_affairs',
+    'finance': 'finance',
+    'Finance': 'finance',
+    'it': 'it',
+    'IT': 'it',
+    'IT Support': 'it',
+    'It Support': 'it',
+    'teacher': 'teacher',
+    'Teacher': 'teacher',
+    'Subject Teacher': 'teacher',
+    'Homeroom Teacher': 'teacher',
+    'wing_supervisor': 'wing_supervisor',
+    'Wing Supervisor': 'wing_supervisor',
+    'supervisor': 'wing_supervisor',
+    'subject_coordinator': 'subject_coordinator',
+    'Subject Coordinator': 'subject_coordinator',
+    'coordinator': 'subject_coordinator',
 }
 
 
@@ -60,7 +91,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true', help='Show actions without applying changes')
-        parser.add_argument('--force', action='store_true', help='Proceed even if a non-canonical group would be deleted')
+        parser.add_argument(
+            '--force', action='store_true', help='Proceed even if a non-canonical group would be deleted'
+        )
 
     @transaction.atomic
     def handle(self, *args, **opts):
@@ -142,7 +175,11 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f'Merged memberships: +{merged_memberships} users'))
         self.stdout.write(self.style.SUCCESS(f'Merged permissions: +{merged_perms} perms'))
         if deleted_groups:
-            self.stdout.write(self.style.WARNING('Deleted duplicate groups: ' + ', '.join(f'#{gid}:{name}' for gid, name in deleted_groups)))
+            self.stdout.write(
+                self.style.WARNING(
+                    'Deleted duplicate groups: ' + ', '.join(f'#{gid}:{name}' for gid, name in deleted_groups)
+                )
+            )
         else:
             self.stdout.write(self.style.HTTP_INFO('No groups deleted'))
         if skipped:
@@ -156,10 +193,15 @@ class Command(BaseCommand):
 if __name__ == '__main__':
     # Standalone direct execution support
     import argparse
+
     from django.core import management
 
-    parser = argparse.ArgumentParser(description='Cleanup duplicate Django auth groups by merging into canonical RBAC groups.')
+    parser = argparse.ArgumentParser(
+        description='Cleanup duplicate Django auth groups by merging into canonical RBAC groups.'
+    )
     parser.add_argument('--dry-run', action='store_true', help='Show actions without applying changes')
     parser.add_argument('--force', action='store_true', help='Proceed even if a non-canonical group would be deleted')
     args = parser.parse_args()
-    management.call_command('cleanup_groups', dry_run=bool(getattr(args, 'dry_run', False)), force=bool(getattr(args, 'force', False)))
+    management.call_command(
+        'cleanup_groups', dry_run=bool(getattr(args, 'dry_run', False)), force=bool(getattr(args, 'force', False))
+    )

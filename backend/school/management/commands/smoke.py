@@ -20,9 +20,7 @@ class Command(BaseCommand):
         if resp_livez.status_code == 204:
             self.stdout.write(self.style.SUCCESS("/livez: 204 (ok)"))
         else:
-            self.stderr.write(
-                self.style.ERROR(f"/livez: expected 204, got {resp_livez.status_code}")
-            )
+            self.stderr.write(self.style.ERROR(f"/livez: expected 204, got {resp_livez.status_code}"))
             ok = False
 
         # Check /healthz
@@ -34,9 +32,7 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("/healthz: 500 (DB not reachable)"))
         else:
             self.stderr.write(
-                self.style.ERROR(
-                    f"/healthz: unexpected status {resp_health.status_code} body={resp_health.content!r}"
-                )
+                self.style.ERROR(f"/healthz: unexpected status {resp_health.status_code} body={resp_health.content!r}")
             )
             ok = False
 

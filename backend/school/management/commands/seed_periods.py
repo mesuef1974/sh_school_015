@@ -1,8 +1,9 @@
+from datetime import time
+
 from django.core.management import BaseCommand
 from django.db import transaction
-from datetime import time
-from ...models import CalendarTemplate, CalendarSlot, TimetableEntry
 
+from ...models import CalendarSlot, CalendarTemplate, TimetableEntry
 
 TEMPLATES = [
     (
@@ -177,9 +178,7 @@ class Command(BaseCommand):
                     # pick ground first for legacy 'الجدول الرسمي'
                     sw_src = sw_ground or sw_upper
                     thu_src = (
-                        thu_ground
-                        or thu_secondary
-                        or CalendarTemplate.objects.filter(name__startswith="Thu").first()
+                        thu_ground or thu_secondary or CalendarTemplate.objects.filter(name__startswith="Thu").first()
                     )
                     if sw_src and thu_src:
                         compose_official("الجدول الرسمي", sw_src, thu_src)
@@ -194,7 +193,5 @@ class Command(BaseCommand):
                 # Do not fail seeding if official template composition fails
                 pass
         self.stdout.write(
-            self.style.SUCCESS(
-                f"Seeded templates={created_templates}, slots={created_slots} (idempotent)"
-            )
+            self.style.SUCCESS(f"Seeded templates={created_templates}, slots={created_slots} (idempotent)")
         )

@@ -100,15 +100,15 @@
     <DsCard v-else ref="timetableRef" :noPadding="true" class="p-0 overflow-hidden timetable-card outlined-card">
       <!-- Actions toolbar -->
       <div class="timetable-toolbar">
-        <button class="tt-btn" @click="toggle()" :title="isFullscreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'">
+        <button class="tt-btn" @click="toggle()" :title="isFullscreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'" :aria-label="isFullscreen ? 'الخروج من ملء الشاشة' : 'ملء الشاشة'">
           <Icon :icon="isFullscreen ? 'solar:minimize-square-bold-duotone' : 'solar:maximize-square-bold-duotone'" width="18" />
           <span class="d-none d-sm-inline">{{ isFullscreen ? 'إغلاق ملء الشاشة' : 'ملء الشاشة' }}</span>
         </button>
-        <button class="tt-btn" @click="handlePrint" title="طباعة الجدول">
+        <button class="tt-btn" @click="handlePrint" title="طباعة الجدول" aria-label="طباعة الجدول">
           <Icon icon="solar:printer-minimalistic-bold-duotone" width="18" />
           <span class="d-none d-sm-inline">طباعة</span>
         </button>
-        <button class="tt-btn" @click="showPrefs = !showPrefs" title="إعدادات العرض">
+        <button class="tt-btn" @click="showPrefs = !showPrefs" title="إعدادات العرض" aria-label="إعدادات العرض">
           <Icon icon="solar:settings-bold-duotone" width="18" />
           <span class="d-none d-sm-inline">إعدادات</span>
         </button>
@@ -130,7 +130,7 @@
             <Icon icon="solar:settings-bold-duotone" width="20" />
             <span>إعدادات الجدول</span>
           </div>
-          <button class="tt-btn" @click="showPrefs = false" title="إغلاق">
+          <button class="tt-btn" @click="showPrefs = false" title="إغلاق" aria-label="إغلاق إعدادات الجدول">
             <Icon icon="solar:close-circle-bold-duotone" width="18" />
           </button>
         </div>
@@ -775,7 +775,7 @@ onMounted(load);
   color: #495057;
   border-bottom: 1px solid #dee2e6;
   position: sticky;
-  right: 0;
+  inset-inline-end: 0;
   z-index: 5;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
 }

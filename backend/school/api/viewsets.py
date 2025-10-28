@@ -1,20 +1,13 @@
-from rest_framework.viewsets import ModelViewSet
 from rest_framework.permissions import IsAuthenticated
-from school.models import (
-    Class,
-    Student,
-    Staff,
-    Subject,
-    TeachingAssignment,
-    ClassSubject,
-)
+from rest_framework.viewsets import ModelViewSet
+from school.models import Class, ClassSubject, Staff, Student, Subject, TeachingAssignment
 from school.serializers import (
     ClassSerializer,
-    StudentSerializer,
+    ClassSubjectSerializer,
     StaffSerializer,
+    StudentSerializer,
     SubjectSerializer,
     TeachingAssignmentSerializer,
-    ClassSubjectSerializer,
 )
 
 

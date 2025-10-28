@@ -11,9 +11,7 @@ def backfill_counts(apps, schema_editor):
     # Aggregate counts per class_fk
     from django.db.models import Count
 
-    counts = (
-        Student.objects.values("class_fk").annotate(c=Count("id")).filter(class_fk__isnull=False)
-    )
+    counts = Student.objects.values("class_fk").annotate(c=Count("id")).filter(class_fk__isnull=False)
     # Apply in batches
     for row in counts:
         Class.objects.filter(id=row["class_fk"]).update(students_count=row["c"])

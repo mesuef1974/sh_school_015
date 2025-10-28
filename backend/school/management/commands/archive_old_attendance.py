@@ -3,9 +3,10 @@ Management command to archive old attendance records
 Usage: python manage.py archive_old_attendance --days=365
 """
 
+from datetime import date, timedelta
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from datetime import date, timedelta
 from school.models import AttendanceRecord
 from school.models_enhanced import AttendanceRecordArchive
 
@@ -39,9 +40,7 @@ class Command(BaseCommand):
 
         cutoff_date = date.today() - timedelta(days=days)
 
-        self.stdout.write(
-            self.style.WARNING(f"Archiving attendance records older than {cutoff_date}")
-        )
+        self.stdout.write(self.style.WARNING(f"Archiving attendance records older than {cutoff_date}"))
 
         # Count records to be archived
         old_records = AttendanceRecord.objects.filter(date__lt=cutoff_date)
@@ -119,8 +118,4 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.ERROR(f"Error archiving batch: {e}"))
 
         self.stdout.write("\n")
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Archive complete! Archived: {archived_count}, Failed: {failed_count}"
-            )
-        )
+        self.stdout.write(self.style.SUCCESS(f"Archive complete! Archived: {archived_count}, Failed: {failed_count}"))

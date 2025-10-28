@@ -5,20 +5,15 @@ Usage: python manage.py check_data_quality [--fix] [--verbose]
 
 from django.core.management.base import BaseCommand
 from django.db.models import Count, Q
-from school.models import Student, Staff, Class, AttendanceRecord, ExitEvent
-from school.validators import (
-    validate_saudi_national_id,
-    validate_phone_number,
-)
+from school.models import AttendanceRecord, Class, ExitEvent, Staff, Student
+from school.validators import validate_phone_number, validate_saudi_national_id
 
 
 class Command(BaseCommand):
     help = "Check data quality and report issues"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--fix", action="store_true", help="Attempt to fix issues automatically"
-        )
+        parser.add_argument("--fix", action="store_true", help="Attempt to fix issues automatically")
         parser.add_argument("--verbose", action="store_true", help="Show detailed output")
 
     def handle(self, *args, **options):
@@ -29,9 +24,7 @@ class Command(BaseCommand):
         self.stdout.write("=" * 70)
 
         if self.fix_mode:
-            self.stdout.write(
-                self.style.WARNING("🔧 Fix mode enabled - issues will be corrected\n")
-            )
+            self.stdout.write(self.style.WARNING("🔧 Fix mode enabled - issues will be corrected\n"))
 
         # Run all checks
         self.check_student_data()
@@ -56,9 +49,7 @@ class Command(BaseCommand):
         issues = []
 
         # Missing national IDs
-        missing_national = Student.objects.filter(
-            Q(national_no__isnull=True) | Q(national_no=""), active=True
-        ).count()
+        missing_national = Student.objects.filter(Q(national_no__isnull=True) | Q(national_no=""), active=True).count()
         if missing_national > 0:
             issues.append(f"  ⚠ {missing_national} students missing national ID")
 
@@ -70,16 +61,12 @@ class Command(BaseCommand):
             except Exception:
                 invalid_national += 1
                 if self.verbose:
-                    self.stdout.write(
-                        f'    - {student.sid}: Invalid national ID "{student.national_no}"'
-                    )
+                    self.stdout.write(f'    - {student.sid}: Invalid national ID "{student.national_no}"')
         if invalid_national > 0:
             issues.append(f"  ⚠ {invalid_national} students with invalid national ID format")
 
         # Missing parent contact
-        missing_parent = Student.objects.filter(
-            Q(parent_phone="") | Q(parent_phone__isnull=True), active=True
-        ).count()
+        missing_parent = Student.objects.filter(Q(parent_phone="") | Q(parent_phone__isnull=True), active=True).count()
         if missing_parent > 0:
             issues.append(f"  ⚠ {missing_parent} students missing parent phone")
 
@@ -99,9 +86,7 @@ class Command(BaseCommand):
             issues.append(f"  ⚠ {no_class} active students not assigned to any class")
 
         # Duplicate names
-        duplicates = (
-            Student.objects.values("full_name").annotate(count=Count("id")).filter(count__gt=1)
-        )
+        duplicates = Student.objects.values("full_name").annotate(count=Count("id")).filter(count__gt=1)
         if duplicates.count() > 0:
             issues.append(f"  ⚠ {duplicates.count()} duplicate student names found")
 
@@ -176,9 +161,7 @@ class Command(BaseCommand):
         for cls in Class.objects.all():
             actual = cls.students.filter(active=True).count()
             if cls.students_count != actual:
-                issues.append(
-                    f"  ⚠ Class {cls.name}: count mismatch (DB: {cls.students_count}, Actual: {actual})"
-                )
+                issues.append(f"  ⚠ Class {cls.name}: count mismatch (DB: {cls.students_count}, Actual: {actual})")
                 if self.fix_mode:
                     cls.students_count = actual
                     cls.save(update_fields=["students_count"])
@@ -206,9 +189,7 @@ class Command(BaseCommand):
         issues = []
 
         # Records with late_minutes but status not 'late'
-        inconsistent = (
-            AttendanceRecord.objects.filter(late_minutes__gt=0).exclude(status="late").count()
-        )
+        inconsistent = AttendanceRecord.objects.filter(late_minutes__gt=0).exclude(status="late").count()
         if inconsistent > 0:
             issues.append(f'  ⚠ {inconsistent} records with late_minutes > 0 but status ≠ "late"')
 
@@ -218,9 +199,7 @@ class Command(BaseCommand):
             issues.append(f'  ⚠ {inconsistent2} records with status="late" but late_minutes=0')
 
         # Exit permission without exit times
-        exit_no_times = AttendanceRecord.objects.filter(
-            status="excused", exit_left_at__isnull=True
-        ).count()
+        exit_no_times = AttendanceRecord.objects.filter(status="excused", exit_left_at__isnull=True).count()
         if exit_no_times > 0:
             issues.append(f"  ⚠ {exit_no_times} exit permissions without exit_left_at timestamp")
 
@@ -247,15 +226,14 @@ class Command(BaseCommand):
             issues.append(f"  ⚠ {long_exits} exit events with duration > 2 hours")
 
         # Very old unclosed exits
-        from django.utils import timezone
         from datetime import timedelta
+
+        from django.utils import timezone
 
         cutoff = timezone.now() - timedelta(days=7)
         old_open = ExitEvent.objects.filter(returned_at__isnull=True, started_at__lt=cutoff).count()
         if old_open > 0:
-            issues.append(
-                f"  ⚠ {old_open} exit events open for more than 7 days (likely data error)"
-            )
+            issues.append(f"  ⚠ {old_open} exit events open for more than 7 days (likely data error)")
 
         # Exit events without student
         no_student = ExitEvent.objects.filter(student__isnull=True).count()

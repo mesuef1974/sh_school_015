@@ -6,7 +6,7 @@ from rest_framework.permissions import BasePermission
 
 # Domain models (optional imports; avoid hard dependency at import time)
 try:
-    from school.models import Staff, TeachingAssignment, Class  # type: ignore
+    from school.models import Class, Staff, TeachingAssignment  # type: ignore
 except Exception:  # pragma: no cover - during early migrations
     Staff = None  # type: ignore
     TeachingAssignment = None  # type: ignore
@@ -34,6 +34,7 @@ def user_in_any_role(user, roles: Iterable[str]) -> bool:
         pass
     try:
         from apps.common.roles import normalize_roles  # type: ignore
+
         user_roles = normalize_roles(raw_roles)
     except Exception:
         user_roles = raw_roles
@@ -73,6 +74,7 @@ def user_can_access_class(user, class_id: int) -> bool:
         pass
     try:
         from apps.common.roles import normalize_roles  # type: ignore
+
         roles = normalize_roles(raw_roles)
     except Exception:
         roles = raw_roles
@@ -83,9 +85,7 @@ def user_can_access_class(user, class_id: int) -> bool:
     # Allow any mapped Staff with a direct TeachingAssignment for the class (no hard dependency on 'teacher' group)
     if staff is not None and TeachingAssignment is not None:
         try:
-            if TeachingAssignment.objects.filter(
-                teacher_id=staff.id, classroom_id=class_id
-            ).exists():
+            if TeachingAssignment.objects.filter(teacher_id=staff.id, classroom_id=class_id).exists():
                 return True
         except Exception:
             return False

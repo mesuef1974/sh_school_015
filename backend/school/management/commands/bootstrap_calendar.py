@@ -1,9 +1,9 @@
-from django.core.management.base import BaseCommand
-from django.db import transaction
 from datetime import time
 
-from ...models import CalendarTemplate, CalendarSlot
+from django.core.management.base import BaseCommand
+from django.db import transaction
 
+from ...models import CalendarSlot, CalendarTemplate
 
 DEFAULT_NAME = "Default (Sun-Thu)"
 DEFAULT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu"]
@@ -75,9 +75,7 @@ class Command(BaseCommand):
 
         if overwrite:
             deleted, _ = CalendarSlot.objects.filter(template=tmpl).delete()
-            msg = ("Removed {n} existing slots for template '{name}'.").format(
-                n=deleted, name=tmpl.name
-            )
+            msg = ("Removed {n} existing slots for template '{name}'.").format(n=deleted, name=tmpl.name)
             self.stdout.write(self.style.WARNING(msg))
 
         # Create slots only if none exist (or after overwrite)
@@ -103,9 +101,9 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(msg))
         else:
             count = tmpl.slots.count()
-            note = (
-                "Template '{name}' already has {count} slots. Use --overwrite to regenerate."
-            ).format(name=tmpl.name, count=count)
+            note = ("Template '{name}' already has {count} slots. Use --overwrite to regenerate.").format(
+                name=tmpl.name, count=count
+            )
             self.stdout.write(self.style.NOTICE(note))
 
         self.stdout.write(self.style.SUCCESS("Bootstrap complete."))

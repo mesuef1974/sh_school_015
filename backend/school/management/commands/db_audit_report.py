@@ -1,12 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import connection
-from ...models import (
-    Term,
-    TimetableEntry,
-    AttendanceRecord,
-    TeachingAssignment,
-    Student,
-)
+
+from ...models import AttendanceRecord, Student, TeachingAssignment, Term, TimetableEntry
 
 
 class Command(BaseCommand):
@@ -108,9 +103,7 @@ class Command(BaseCommand):
                 "Add CHECK constraint for period_number between 1 and 7.",
             )
 
-        if has_index_with_columns(
-            tten_tbl, ["term_id", "teacher_id", "day_of_week", "period_number"]
-        ):
+        if has_index_with_columns(tten_tbl, ["term_id", "teacher_id", "day_of_week", "period_number"]):
             add_pass("TimetableEntry index (term,teacher,day,period)", "Present")
         else:
             add_sug(
@@ -118,9 +111,7 @@ class Command(BaseCommand):
                 "Add composite index to speed lookups.",
             )
 
-        if has_index_with_columns(
-            tten_tbl, ["term_id", "classroom_id", "day_of_week", "period_number"]
-        ):
+        if has_index_with_columns(tten_tbl, ["term_id", "classroom_id", "day_of_week", "period_number"]):
             add_pass("TimetableEntry index (term,class,day,period)", "Present")
         else:
             add_sug(
@@ -172,12 +163,8 @@ class Command(BaseCommand):
         ok = len(passes)
         warn = len(suggestions)
 
-        self.stdout.write(
-            self.style.NOTICE(f"DB: {db_name} | Engine: {vendor} | Version: {db_ver or '-'}")
-        )
-        self.stdout.write(
-            self.style.HTTP_INFO(f"Checks: {total} | Pass: {ok} | Suggestions: {warn}")
-        )
+        self.stdout.write(self.style.NOTICE(f"DB: {db_name} | Engine: {vendor} | Version: {db_ver or '-'}"))
+        self.stdout.write(self.style.HTTP_INFO(f"Checks: {total} | Pass: {ok} | Suggestions: {warn}"))
         self.stdout.write("")
         if passes:
             self.stdout.write(self.style.SUCCESS("Pass:"))

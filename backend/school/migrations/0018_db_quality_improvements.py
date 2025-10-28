@@ -1,4 +1,4 @@
-from django.db import migrations, models, connection
+from django.db import connection, migrations, models
 from django.db.models import Q
 from django.db.models.functions import Lower
 

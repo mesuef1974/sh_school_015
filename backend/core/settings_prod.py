@@ -1,5 +1,6 @@
-from .settings_base import *  # noqa
 import os
+
+from .settings_base import *  # noqa
 
 # Production overrides
 DEBUG = False
@@ -10,15 +11,11 @@ DEBUG = False
 #   DJANGO_CSRF_TRUSTED_ORIGINS="https://example.com,https://admin.example.com"
 ALLOWED_HOSTS = [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
-CSRF_TRUSTED_ORIGINS = [
-    o.strip() for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()
-]
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o.strip()]
 
 # CORS: whitelist origins from env (empty by default)
 #   DJANGO_CORS_ALLOWED_ORIGINS="https://app.example.com,https://admin.example.com"
-CORS_ALLOWED_ORIGINS = [
-    o.strip() for o in os.getenv("DJANGO_CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()
-]
+CORS_ALLOWED_ORIGINS = [o.strip() for o in os.getenv("DJANGO_CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 # Security hardening
 SECURE_SSL_REDIRECT = True

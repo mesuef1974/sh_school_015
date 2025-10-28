@@ -51,9 +51,7 @@ class Command(BaseCommand):
                     self.stdout.write(self.style.SUCCESS("Connected to SQLite successfully."))
                     self.stdout.write(f"  SQLite version: {ver}")
                 else:
-                    self.stdout.write(
-                        self.style.SUCCESS(f"Connected successfully (vendor={vendor}).")
-                    )
+                    self.stdout.write(self.style.SUCCESS(f"Connected successfully (vendor={vendor})."))
         except Exception as exc:  # pragma: no cover - environment dependent
             self.stdout.write("")
             self.stderr.write(self.style.ERROR("Failed to connect to the database."))

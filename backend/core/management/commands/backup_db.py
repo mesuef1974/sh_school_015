@@ -7,7 +7,6 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-
 """
 Deprecated duplicate of the backup_db command.
 This module is kept for historical reference only. The active command
@@ -65,10 +64,7 @@ class CommandDeprecated(BaseCommand):
         # Ensure container exists
         if not self._container_exists(container):
             raise CommandError(
-                (
-                    f"Container '{container}' not found. "
-                    "Start it via scripts/serve.ps1 or scripts/db_up.ps1 first."
-                )
+                (f"Container '{container}' not found. " "Start it via scripts/serve.ps1 or scripts/db_up.ps1 first.")
             )
         # Ensure running
         if not self._container_running(container):
@@ -76,9 +72,7 @@ class CommandDeprecated(BaseCommand):
             self._run(["docker", "start", container])
 
         self.stdout.write(
-            self.style.HTTP_INFO(
-                f"Creating database backup of '{pg_db}' from container '{container}' ..."
-            )
+            self.style.HTTP_INFO(f"Creating database backup of '{pg_db}' from container '{container}' ...")
         )
 
         # Build inner command
@@ -111,19 +105,13 @@ class CommandDeprecated(BaseCommand):
         if use_gzip:
             self.stdout.write(
                 self.style.HTTP_INFO(
-                    (
-                        f"Restore (gz): gunzip -c '{host_out}' | psql -h 127.0.0.1 -U {pg_user} "
-                        f"-d {pg_db}"
-                    )
+                    (f"Restore (gz): gunzip -c '{host_out}' | psql -h 127.0.0.1 -U {pg_user} " f"-d {pg_db}")
                 )
             )
         else:
             self.stdout.write(
                 self.style.HTTP_INFO(
-                    (
-                        f"Restore (plain SQL): psql -h 127.0.0.1 -U {pg_user} -d {pg_db} "
-                        f"-f '{host_out}'"
-                    )
+                    (f"Restore (plain SQL): psql -h 127.0.0.1 -U {pg_user} -d {pg_db} " f"-f '{host_out}'")
                 )
             )
 

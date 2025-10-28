@@ -1,5 +1,6 @@
 from django.urls import path
-from .views import me, change_password, logout
+
+from .views import change_password, logout, me
 
 app_name = "school_api"
 

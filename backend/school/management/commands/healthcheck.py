@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Tuple
 
+from django.apps import apps
 from django.core.checks import run_checks
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
-from django.apps import apps
 
 
 class Command(BaseCommand):

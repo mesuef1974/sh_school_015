@@ -1,11 +1,10 @@
 import csv
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Iterable
-
-from django.core.management.base import BaseCommand, CommandError
+from typing import Iterable, Optional
 
 from core.models import Class, Staff, Student
+from django.core.management.base import BaseCommand, CommandError
 
 try:
     from openpyxl import load_workbook
@@ -73,10 +72,7 @@ def read_xlsx_first_sheet(path: Path) -> Iterable[dict]:
         # Pad/truncate to headers length
         values = list(r) if r is not None else []
         values += [None] * (len(headers) - len(values))
-        row = {
-            headers[i]: ("" if values[i] is None else str(values[i]).strip())
-            for i in range(len(headers))
-        }
+        row = {headers[i]: ("" if values[i] is None else str(values[i]).strip()) for i in range(len(headers))}
         # Skip empty lines
         if any(v for v in row.values()):
             yield row
@@ -98,10 +94,7 @@ def iter_xlsx_sheets(path: Path) -> Iterable[tuple[str, dict]]:
         for r in rows:
             values = list(r) if r is not None else []
             values += [None] * (len(headers) - len(values))
-            row = {
-                headers[i]: ("" if values[i] is None else str(values[i]).strip())
-                for i in range(len(headers))
-            }
+            row = {headers[i]: ("" if values[i] is None else str(values[i]).strip()) for i in range(len(headers))}
             if any(v for v in row.values()):
                 yield ws.title.strip(), row
 
@@ -141,9 +134,7 @@ class Command(BaseCommand):
         create_classes = bool(options.get("create_classes"))
 
         if not staff_path and not students_path:
-            raise CommandError(
-                "Provide at least one of --staff or --students file paths (.csv or .xlsx)."
-            )
+            raise CommandError("Provide at least one of --staff or --students file paths (.csv or .xlsx).")
 
         total_created = 0
         total_updated = 0
@@ -161,13 +152,9 @@ class Command(BaseCommand):
         if students_path:
             sp = Path(students_path)
             if sp.suffix.lower() == ".xlsx":
-                created, updated, note_list = self._import_students_xlsx(
-                    sp, dry_run, create_classes
-                )
+                created, updated, note_list = self._import_students_xlsx(sp, dry_run, create_classes)
             else:
-                created, updated, note_list = self._import_students(
-                    sp, delimiter, dry_run, create_classes
-                )
+                created, updated, note_list = self._import_students(sp, delimiter, dry_run, create_classes)
             total_created += created
             total_updated += updated
             notes.extend(note_list)
@@ -205,9 +192,7 @@ class Command(BaseCommand):
             }
             obj = None
             if not dry_run:
-                obj, is_created = Staff.objects.update_or_create(
-                    staff_code=staff_code, defaults=defaults
-                )
+                obj, is_created = Staff.objects.update_or_create(staff_code=staff_code, defaults=defaults)
             else:
                 is_created = not Staff.objects.filter(staff_code=staff_code).exists()
             if is_created:
@@ -229,9 +214,7 @@ class Command(BaseCommand):
             student_code = row.get("student_code") or row.get("code")
             name = row.get("name") or row.get("full_name")
             dob_raw = row.get("date_of_birth") or row.get("dob") or row.get("birthdate")
-            class_name = (
-                row.get("class") or row.get("class_name") or row.get("clazz") or row.get("section")
-            )
+            class_name = row.get("class") or row.get("class_name") or row.get("clazz") or row.get("section")
 
             if not student_code or not name:
                 continue
@@ -256,10 +239,7 @@ class Command(BaseCommand):
                         # Will appear created in reality; add a note
                         notes.append(f"Would create Class(name='{class_name}', grade_level=0)")
                     else:
-                        notes.append(
-                            f"Class '{class_name}' not found; student "
-                            f"'{student_code}' has no class."
-                        )
+                        notes.append(f"Class '{class_name}' not found; student " f"'{student_code}' has no class.")
 
             defaults = {
                 "name": name,
@@ -268,9 +248,7 @@ class Command(BaseCommand):
             }
 
             if not dry_run:
-                _, is_created = Student.objects.update_or_create(
-                    student_code=student_code, defaults=defaults
-                )
+                _, is_created = Student.objects.update_or_create(student_code=student_code, defaults=defaults)
             else:
                 is_created = not Student.objects.filter(student_code=student_code).exists()
 
@@ -302,9 +280,7 @@ class Command(BaseCommand):
                 "phone": phone,
             }
             if not dry_run:
-                _, is_created = Staff.objects.update_or_create(
-                    staff_code=staff_code, defaults=defaults
-                )
+                _, is_created = Staff.objects.update_or_create(staff_code=staff_code, defaults=defaults)
             else:
                 is_created = not Staff.objects.filter(staff_code=staff_code).exists()
             if is_created:
@@ -313,9 +289,7 @@ class Command(BaseCommand):
                 updated += 1
         return created, updated
 
-    def _import_students_xlsx(
-        self, path: Path, dry_run: bool, create_classes: bool
-    ) -> tuple[int, int, list[str]]:
+    def _import_students_xlsx(self, path: Path, dry_run: bool, create_classes: bool) -> tuple[int, int, list[str]]:
         if not path.exists():
             raise CommandError(f"Students Excel not found: {path}")
         created = 0
@@ -326,9 +300,7 @@ class Command(BaseCommand):
             student_code = row.get("student_code") or row.get("code")
             name = row.get("name") or row.get("full_name")
             dob_raw = row.get("date_of_birth") or row.get("dob") or row.get("birthdate")
-            class_name = (
-                row.get("class") or row.get("class_name") or row.get("clazz") or row.get("section")
-            )
+            class_name = row.get("class") or row.get("class_name") or row.get("clazz") or row.get("section")
             # If class not provided in columns, fallback to the worksheet title
             if not class_name:
                 class_name = sheet_name
@@ -355,10 +327,7 @@ class Command(BaseCommand):
                         clazz = None
                         notes.append(f"Would create Class(name='{class_name}', grade_level=0)")
                     else:
-                        notes.append(
-                            f"Class '{class_name}' not found; student "
-                            f"'{student_code}' has no class."
-                        )
+                        notes.append(f"Class '{class_name}' not found; student " f"'{student_code}' has no class.")
 
             defaults = {
                 "name": name,
@@ -367,9 +336,7 @@ class Command(BaseCommand):
             }
 
             if not dry_run:
-                _, is_created = Student.objects.update_or_create(
-                    student_code=student_code, defaults=defaults
-                )
+                _, is_created = Student.objects.update_or_create(student_code=student_code, defaults=defaults)
             else:
                 is_created = not Student.objects.filter(student_code=student_code).exists()
 

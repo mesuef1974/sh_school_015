@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
-from school.models import Class, TeachingAssignment, Subject, Staff, ClassSubject
+from school.models import Class, ClassSubject, Staff, Subject, TeachingAssignment
 
 
 class Command(BaseCommand):
@@ -41,9 +41,7 @@ class Command(BaseCommand):
             return Subject.objects.filter(name_ar__icontains=q).first()
 
         def ensure_note(class_name: str, subj_contains: str, teacher_contains: str, note_text: str):
-            qs = TeachingAssignment.objects.select_related(
-                "classroom", "subject", "teacher"
-            ).filter(
+            qs = TeachingAssignment.objects.select_related("classroom", "subject", "teacher").filter(
                 classroom__name=class_name,
                 subject__name_ar__icontains=subj_contains,
             )
@@ -78,10 +76,7 @@ class Command(BaseCommand):
 
         for c in Class.objects.all().order_by("name"):
             assigned = (
-                TeachingAssignment.objects.filter(classroom=c).aggregate(
-                    total=Sum("no_classes_weekly")
-                )["total"]
-                or 0
+                TeachingAssignment.objects.filter(classroom=c).aggregate(total=Sum("no_classes_weekly"))["total"] or 0
             )
             school_total_assigned += int(assigned)
 
@@ -123,9 +118,9 @@ class Command(BaseCommand):
                         if target <= 0:
                             continue
                         cur = (
-                            TeachingAssignment.objects.filter(
-                                classroom=c, subject=cs.subject
-                            ).aggregate(total=Sum("no_classes_weekly"))["total"]
+                            TeachingAssignment.objects.filter(classroom=c, subject=cs.subject).aggregate(
+                                total=Sum("no_classes_weekly")
+                            )["total"]
                             or 0
                         )
                         deficit = max(0, int(target) - int(cur))
@@ -136,15 +131,9 @@ class Command(BaseCommand):
                     suggestions = suggestions[:3]
                     if suggestions:
                         sug_txt = ", ".join([f"{name} (+{d})" for d, name in suggestions])
-                        self.stdout.write(
-                            self.style.WARNING(f"  => نقص {missing} حصص. مقترح الإكمال: {sug_txt}")
-                        )
+                        self.stdout.write(self.style.WARNING(f"  => نقص {missing} حصص. مقترح الإكمال: {sug_txt}"))
                     else:
-                        self.stdout.write(
-                            self.style.WARNING(
-                                f"  => نقص {missing} حصص. (أضف مواد مناسبة من مواد الصف)"
-                            )
-                        )
+                        self.stdout.write(self.style.WARNING(f"  => نقص {missing} حصص. (أضف مواد مناسبة من مواد الصف)"))
                 except Exception:
                     # لا نكسر التنفيذ إن فشلت الاقتراحات
                     self.stdout.write(self.style.WARNING(f"  => نقص {missing} حصص."))
@@ -153,9 +142,7 @@ class Command(BaseCommand):
         warnings_count += ensure_note(
             class_name="11-4",
             subj_contains="كيمياء",
-            teacher_contains=(
-                "أحمد" if Staff.objects.filter(full_name__icontains="أحمد").exists() else ""
-            ),
+            teacher_contains=("أحمد" if Staff.objects.filter(full_name__icontains="أحمد").exists() else ""),
             note_text="ملاحظة: حصتان مشتركتان مع المعلم يوسف يعقوب بنفس التوقيت",
         )
         # 12-1 و 11-1 تكنولوجيا/فنون بصرية (تقسيم مجموعات)
@@ -163,21 +150,13 @@ class Command(BaseCommand):
             warnings_count += ensure_note(
                 class_name=cls_name,
                 subj_contains="تكنولوجيا",
-                teacher_contains=(
-                    "محمد إسماعيل"
-                    if Staff.objects.filter(full_name__icontains="محمد").exists()
-                    else ""
-                ),
+                teacher_contains=("محمد إسماعيل" if Staff.objects.filter(full_name__icontains="محمد").exists() else ""),
                 note_text="ملاحظة: بعض الطلاب تكنولوجيا والآخرون فنون بصرية (تقسيم مجموعات)",
             )
             warnings_count += ensure_note(
                 class_name=cls_name,
                 subj_contains="فنون",
-                teacher_contains=(
-                    "يوسف يعقوب"
-                    if Staff.objects.filter(full_name__icontains="يوسف").exists()
-                    else ""
-                ),
+                teacher_contains=("يوسف يعقوب" if Staff.objects.filter(full_name__icontains="يوسف").exists() else ""),
                 note_text="ملاحظة: بعض الطلاب تكنولوجيا والآخرون فنون بصرية (تقسيم مجموعات)",
             )
 

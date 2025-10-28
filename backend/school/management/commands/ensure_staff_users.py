@@ -130,6 +130,4 @@ class Command(BaseCommand):
 
         if dry_run:
             # Rollback any accidental writes in dry-run
-            raise transaction.TransactionManagementError(
-                "Dry-run requested: transaction rolled back after reporting."
-            )
+            raise transaction.TransactionManagementError("Dry-run requested: transaction rolled back after reporting.")

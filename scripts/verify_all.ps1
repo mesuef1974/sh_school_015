@@ -221,20 +221,36 @@ try {
     Push-Location $feDir
     try { $npm = Get-Command npm -ErrorAction Stop } catch { $npm = $null }
     if ($npm) {
+      # ESLint (call local bin via Node to avoid PowerShell arg parsing)
       $lintExit = 0
-      try { npm run -s lint; $lintExit = $LASTEXITCODE } catch { $lintExit = 1 }
+      try {
+        & node "node_modules/eslint/bin/eslint.js" .
+        $lintExit = $LASTEXITCODE
+      } catch { $lintExit = 1 }
       if ($lintExit -eq 0) { Write-Ok 'Frontend lint (eslint) passed'; $results.fe_lint = 'PASS' }
       else { Write-Warn 'Frontend lint (eslint) reported issues'; $results.fe_lint = 'WARN' }
+      
+      # Prettier (check only, non-blocking) via Node
+      $fmtExit = 0
+      try {
+        & node "node_modules/prettier/bin/prettier.cjs" --check "src/**/*.{ts,tsx,js,vue,css,scss,md}"
+        $fmtExit = $LASTEXITCODE
+      } catch { $fmtExit = 1 }
+      if ($fmtExit -eq 0) { Write-Ok 'Frontend format (prettier --check) OK'; $results.fe_format = 'PASS' }
+      else { Write-Warn 'Frontend format (prettier) suggests changes'; $results.fe_format = 'WARN' }
     } else {
-      Write-Warn 'npm not available; skipping frontend lint'
+      Write-Warn 'npm not available; skipping frontend lint/format'
       $results.fe_lint = 'SKIP'
+      $results.fe_format = 'SKIP'
     }
   } else {
     $results.fe_lint = 'SKIP'
+    $results.fe_format = 'SKIP'
   }
 } catch {
-  Write-Warn ("Frontend lint step failed: {0}" -f $_.Exception.Message)
-  $results.fe_lint = 'WARN'
+  Write-Warn "Frontend lint/format step encountered an error; treating as WARN (non-blocking)."
+  $results.fe_lint = if (-not $results.fe_lint) { 'WARN' } else { $results.fe_lint }
+  $results.fe_format = if (-not $results.fe_format) { 'WARN' } else { $results.fe_format }
 } finally {
   try { Pop-Location } catch {}
 }

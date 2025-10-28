@@ -113,7 +113,7 @@ def _build_mermaid() -> Tuple[str, Dict[str, int], int]:
                 has_fk = True  # still a relation category
                 dst = _safe_entity_name(f.related_model._meta.db_table or f.related_model._meta.model_name)
                 label = f.name
-                # One to One: ||--|| 
+                # One to One: ||--||
                 edges.append(f"    {src} ||--|| {dst} : {label}")
                 total_relations += 1
 
@@ -121,7 +121,7 @@ def _build_mermaid() -> Tuple[str, Dict[str, int], int]:
                 has_m2m = True
                 dst = _safe_entity_name(f.related_model._meta.db_table or f.related_model._meta.model_name)
                 label = f.name
-                # Many to Many: }o--o{ 
+                # Many to Many: }o--o{
                 edges.append(f"    {src} }}o--o{{ {dst} : {label}")
                 total_relations += 1
 

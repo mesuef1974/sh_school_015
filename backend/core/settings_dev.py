@@ -1,5 +1,5 @@
-from .settings_base import *  # noqa: F401,F403
 from . import settings_base as base
+from .settings_base import *  # noqa: F401,F403
 
 # Development overrides
 DEBUG = True
@@ -48,16 +48,9 @@ LOGGING = {
         "ignore_winerr_10054": {
             "()": "django.utils.log.CallbackFilter",
             "callback": lambda record: not (
-                (
-                    getattr(record, "exc_info", None)
-                    and record.exc_info[1]
-                    and "10054" in str(record.exc_info[1])
-                )
+                (getattr(record, "exc_info", None) and record.exc_info[1] and "10054" in str(record.exc_info[1]))
                 or ("10054" in record.getMessage() if hasattr(record, "getMessage") else False)
-                or (
-                    "An existing connection was forcibly closed by the remote host"
-                    in record.getMessage()
-                )
+                or ("An existing connection was forcibly closed by the remote host" in record.getMessage())
             ),
         }
     },

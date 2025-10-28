@@ -1,5 +1,6 @@
 from django.core.management import BaseCommand
 from openpyxl import load_workbook
+
 from ...models import Staff
 
 
@@ -102,8 +103,7 @@ class Command(BaseCommand):
                 # Fallback to row 1 if nothing matched
                 try:
                     header_cells = [
-                        c if c is not None else ""
-                        for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+                        c if c is not None else "" for c in next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
                     ]
                     header_row_idx = 1
                 except StopIteration:
@@ -239,20 +239,13 @@ class Command(BaseCommand):
                     jt_norm = job_title_val.lower()
                     if "teach" in jt_norm or "معلم" in jt_norm or "معلّم" in jt_norm:
                         role_val = "teacher"
-                    elif (
-                        "admin" in jt_norm
-                        or "مشرف" in jt_norm
-                        or "رئيس" in jt_norm
-                        or "مدير" in jt_norm
-                    ):
+                    elif "admin" in jt_norm or "مشرف" in jt_norm or "رئيس" in jt_norm or "مدير" in jt_norm:
                         role_val = "admin"
                     else:
                         role_val = "staff"
 
                 national_no_cell = val_at(idx_national_no)
-                national_no_val = (
-                    str(national_no_cell).strip() if national_no_cell not in (None, "") else ""
-                )
+                national_no_val = str(national_no_cell).strip() if national_no_cell not in (None, "") else ""
                 job_no_cell = val_at(idx_job_no)
                 job_no_val = str(job_no_cell).strip() if job_no_cell not in (None, "") else ""
                 email_cell = val_at(idx_email)
@@ -271,9 +264,7 @@ class Command(BaseCommand):
                     **lookup,
                     defaults={
                         "full_name": full_name,
-                        "role": (
-                            role_val if role_val in {"teacher", "admin", "staff"} else "staff"
-                        ),
+                        "role": (role_val if role_val in {"teacher", "admin", "staff"} else "staff"),
                         "national_no": national_no_val,
                         "job_title": job_title_val,
                         "job_no": job_no_val,
@@ -284,7 +275,5 @@ class Command(BaseCommand):
                 total += 1
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"Imported/updated: {total} staff rows across {sheets_processed} sheet(s)"
-            )
+            self.style.SUCCESS(f"Imported/updated: {total} staff rows across {sheets_processed} sheet(s)")
         )

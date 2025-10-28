@@ -1,19 +1,12 @@
+from datetime import date, time
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from datetime import date, time
 
 # Resilient import: support running as a Django management command and as a standalone script
 try:
     # Preferred absolute import (works when Django is set up, or when backend is on sys.path)
-    from school.models import (
-        AcademicYear,
-        Term,
-        AttendancePolicy,
-        PeriodTemplate,
-        TemplateSlot,
-        Wing,
-        SchoolHoliday,
-    )
+    from school.models import AcademicYear, AttendancePolicy, PeriodTemplate, SchoolHoliday, TemplateSlot, Term, Wing
 except Exception:
     # Fallback: configure Django environment for direct execution
     import os
@@ -33,15 +26,7 @@ except Exception:
     django.setup()
 
     # Retry absolute import after environment setup
-    from school.models import (
-        AcademicYear,
-        Term,
-        AttendancePolicy,
-        PeriodTemplate,
-        TemplateSlot,
-        Wing,
-        SchoolHoliday,
-    )
+    from school.models import AcademicYear, AttendancePolicy, PeriodTemplate, SchoolHoliday, TemplateSlot, Term, Wing
 
 
 class Command(BaseCommand):
@@ -242,12 +227,8 @@ class Command(BaseCommand):
         ]
         created_or_updated = 0
         for title, start_d, end_d in holidays:
-            obj, _ = SchoolHoliday.objects.update_or_create(
-                title=title, defaults={"start": start_d, "end": end_d}
-            )
+            obj, _ = SchoolHoliday.objects.update_or_create(title=title, defaults={"start": start_d, "end": end_d})
             created_or_updated += 1
-        self.stdout.write(
-            self.style.SUCCESS(f"School holidays ensured ({created_or_updated} entries)")
-        )
+        self.stdout.write(self.style.SUCCESS(f"School holidays ensured ({created_or_updated} entries)"))
 
         self.stdout.write(self.style.SUCCESS("Initialization completed successfully."))

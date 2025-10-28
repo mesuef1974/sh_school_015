@@ -1,68 +1,53 @@
+import io
+import os
+import re
+from datetime import date as _date
+from datetime import time as _time
+
 from django import forms
-from django.contrib.auth.decorators import login_required, user_passes_test
-from django.shortcuts import render, redirect
-from django.urls import reverse
+from django.conf import settings
 from django.contrib import messages
-from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import (
-    Q,
-    Case,
-    When,
-    Value,
-    IntegerField,
-    Min,
-    Subquery,
-    OuterRef,
-    Sum,
-    F,
-    Count,
-)
-from django.db.models.deletion import ProtectedError
-from django.db import IntegrityError, connection, transaction
+from django.contrib.auth import logout
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
-from django.http import (
-    Http404,
-    StreamingHttpResponse,
-    JsonResponse,
-    HttpResponse,
-    HttpResponseNotModified,
-)
+from django.db import IntegrityError, connection, transaction
+from django.db.models import Case, Count, F, IntegerField, Min, OuterRef, Q, Subquery, Sum, Value, When
+from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
+from django.http import Http404, HttpResponse, HttpResponseNotModified, JsonResponse, StreamingHttpResponse
+from django.shortcuts import redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET, require_POST
+from openpyxl import load_workbook
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.viewsets import ModelViewSet
+
 from .models import (
+    AttendanceRecord,
     Class,
-    Student,
+    ClassSubject,
     Staff,
+    Student,
     Subject,
     TeachingAssignment,
-    ClassSubject,
-    TimetableEntry,
-    AttendanceRecord,
     Term,
+    TimetableEntry,
+    Wing,
 )
 from .serializers import (
     ClassSerializer,
-    StudentSerializer,
+    ClassSubjectSerializer,
     StaffSerializer,
+    StudentSerializer,
     SubjectSerializer,
     TeachingAssignmentSerializer,
-    ClassSubjectSerializer,
 )
-import re
-from openpyxl import load_workbook
-from datetime import date as _date, time as _time
-from django.views.decorators.http import require_POST, require_GET
-from django.contrib.auth import logout
-from django.views.decorators.cache import never_cache
-from django.utils import timezone
 from .services.imports import import_teacher_loads
-from .models import Wing
-from django.conf import settings
-import os
-import io
-from .services.timetable_import import import_timetable_csv
-from .services.timetable_ocr import try_extract_csv_from_pdf, try_extract_csv_from_image
 from .services.ocr_table_parser import parse_ocr_raw_to_csv
+from .services.timetable_import import import_timetable_csv
+from .services.timetable_ocr import try_extract_csv_from_image, try_extract_csv_from_pdf
 
 try:
     from backend.common.day_utils import iso_to_school_dow
@@ -219,8 +204,8 @@ def _job_title_category_order_expr(field_lookup: str):
 @login_required
 def teacher_loads_dashboard(request):
     from django.conf import settings
+    from django.db.models import Count, F, Q, Sum
     from django.utils import timezone
-    from django.db.models import Sum, Count, F, Q
 
     # Handle manual add
     if request.method == "POST" and request.POST.get("action") == "add":
@@ -241,6 +226,7 @@ def teacher_loads_dashboard(request):
         up_form = ExcelUploadForm(request.POST, request.FILES)
         if up_form.is_valid():
             from django_rq import get_queue
+
             from .tasks.jobs_rq import enqueue_import_teacher_loads
 
             dry_run_flag = (request.POST.get("dry_run") or request.GET.get("dry_run") or "").strip() in (
@@ -1003,7 +989,8 @@ def teacher_class_matrix(request):
         )
 
     # Coverage gaps across ClassSubject pairs: count pairs with no assignment
-    from django.db.models import Count, Q as _Q
+    from django.db.models import Count
+    from django.db.models import Q as _Q
 
     cs = ClassSubject.objects.values("classroom_id", "subject_id").annotate(
         assignments_count=Count(
@@ -3066,7 +3053,10 @@ def data_icons_catalog(request):
 
     # Strengthen teacher count using authoritative sources: Staff.role/group + TeachingAssignment + TimetableEntry(current term)
     try:
-        from .models import Staff as _Staff, TeachingAssignment as _TA, TimetableEntry as _TE, Term as _Term  # type: ignore
+        from .models import Staff as _Staff  # type: ignore
+        from .models import TeachingAssignment as _TA
+        from .models import Term as _Term
+        from .models import TimetableEntry as _TE
 
         teacher_ids: set[int] = set()
         # Staff.role = 'teacher'
@@ -3134,7 +3124,7 @@ def data_relations(request):
     """
     try:
         from django.apps import apps
-        from django.db.models import ForeignKey, OneToOneField, ManyToManyField
+        from django.db.models import ForeignKey, ManyToManyField, OneToOneField
     except Exception:
         return render(
             request,
@@ -3645,8 +3635,8 @@ def export_table_csv(request, table):
 def export_assignments_xlsx(request):
     """Export all teaching assignments to Excel with Arabic-friendly headers and professional styling (A3 fit, RTL, header/footer, wrap)."""
     from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
-    from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 
     wb = Workbook()
     ws = wb.active
@@ -3811,7 +3801,7 @@ def export_assignments_xlsx(request):
 def export_matrix_xlsx(request):
     """Export teacher-class matrix to Excel with Arabic support, A3 fit, colors, RTL, banner header/footer, wrapped cells, and blank empty cells."""
     from openpyxl import Workbook
-    from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
     # Reuse ordering logic from teacher_class_matrix
     classes = list(Class.objects.all().order_by("grade", "section", "id"))
@@ -4036,7 +4026,7 @@ def export_assignments_pdf(request):
     Preferred: WeasyPrint (high-fidelity). Fallback: ReportLab with Arabic shaping.
     """
     try:
-        from weasyprint import HTML, CSS  # type: ignore
+        from weasyprint import CSS, HTML  # type: ignore
 
         # Prepare data similar to dashboard table, include category for coloring
         qs = (
@@ -4086,12 +4076,13 @@ def export_assignments_pdf(request):
         try:
             from io import BytesIO
             from pathlib import Path
-            from reportlab.pdfgen import canvas  # type: ignore
+
+            import arabic_reshaper  # type: ignore
+            from bidi.algorithm import get_display  # type: ignore
             from reportlab.lib.pagesizes import A4, landscape  # type: ignore
             from reportlab.pdfbase import pdfmetrics  # type: ignore
             from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
-            import arabic_reshaper  # type: ignore
-            from bidi.algorithm import get_display  # type: ignore
+            from reportlab.pdfgen import canvas  # type: ignore
         except Exception:
             return HttpResponse(
                 "لا يمكن إنشاء PDF حالياً لعدم توفر WeasyPrint ولا مكتبات ReportLab/Arabic. رجاءً استخدم Excel.",
@@ -4205,7 +4196,7 @@ def export_matrix_pdf(request):
     Preferred: WeasyPrint; fallback to ReportLab with Arabic shaping if WeasyPrint isn't available.
     """
     try:
-        from weasyprint import HTML, CSS  # type: ignore
+        from weasyprint import CSS, HTML  # type: ignore
 
         classes = list(Class.objects.all().order_by("grade", "section", "id"))
         cat_expr_for_staff = _subject_category_order_expr("assignments__subject__name_ar")
@@ -4354,12 +4345,13 @@ def export_matrix_pdf(request):
         try:
             from io import BytesIO
             from pathlib import Path
-            from reportlab.pdfgen import canvas  # type: ignore
+
+            import arabic_reshaper  # type: ignore
+            from bidi.algorithm import get_display  # type: ignore
             from reportlab.lib.pagesizes import A3, A4, landscape  # type: ignore
             from reportlab.pdfbase import pdfmetrics  # type: ignore
             from reportlab.pdfbase.ttfonts import TTFont  # type: ignore
-            import arabic_reshaper  # type: ignore
-            from bidi.algorithm import get_display  # type: ignore
+            from reportlab.pdfgen import canvas  # type: ignore
         except Exception:
             return HttpResponse(
                 "لا يمكن إنشاء PDF حالياً لعدم توفر WeasyPrint ولا مكتبات ReportLab/Arabic. رجاءً استخدم Excel.",
@@ -4803,8 +4795,9 @@ def get_editable_periods_for_teacher(staff: Staff, class_id: int, dt: _date):
     - editable_set: subset of allowed that is currently within [start, start+lock_minutes]
     - close_at_map: period -> close datetime (timezone-aware)
     """
-    from django.utils import timezone
     from datetime import datetime, timedelta
+
+    from django.utils import timezone
 
     # Teacher's periods for this class today
     term = get_active_term(dt)
@@ -5343,9 +5336,10 @@ def data_db_audit(request):
     return render(request, "data/audit.html", context)
 
 
+import json
+
 # === UI Tiles persistence (file-based, minimal backend) ===
 from django.views.decorators.http import require_http_methods
-import json
 
 _UI_RUNTIME_DIR = (
     os.path.join(settings.BASE_DIR, "backend", ".runtime")

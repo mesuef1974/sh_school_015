@@ -1,32 +1,34 @@
-from django.contrib import admin, messages
-from django.urls import path
-from django.shortcuts import render, redirect
+import re
+
 from django import forms
-from django.utils.html import format_html
-from django.contrib.auth.models import User
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
+from django.contrib.auth.models import User
+from django.shortcuts import redirect, render
+from django.urls import path
+from django.utils.html import format_html
+from openpyxl import load_workbook
+
 from .models import (
-    Class,
-    Student,
-    Staff,
-    Subject,
-    TeachingAssignment,
-    ClassSubject,
-    Wing,
     AcademicYear,
-    Term,
-    PeriodTemplate,
-    TemplateSlot,
-    TimetableEntry,
+    AssessmentPackage,
+    AttendanceDaily,
     AttendancePolicy,
     AttendanceRecord,
-    AttendanceDaily,
-    AssessmentPackage,
-    SchoolHoliday,
+    Class,
+    ClassSubject,
     ExitEvent,
+    PeriodTemplate,
+    SchoolHoliday,
+    Staff,
+    Student,
+    Subject,
+    TeachingAssignment,
+    TemplateSlot,
+    Term,
+    TimetableEntry,
+    Wing,
 )
-from openpyxl import load_workbook
-import re
 
 # Arabic day names mapping (Sun=1..Sat=7)
 DAY_NAMES_AR = {
@@ -345,8 +347,9 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
         return custom + urls
 
     def export_summary(self, request, queryset):
-        from django.http import HttpResponse
         import csv
+
+        from django.http import HttpResponse
 
         response = HttpResponse(content_type="text/csv; charset=utf-8")
         response["Content-Disposition"] = 'attachment; filename="teacher_loads_summary.csv"'
@@ -452,8 +455,7 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
             for r in range(1, 11):
                 try:
                     vals = [
-                        c if c is not None else ""
-                        for c in next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
+                        c if c is not None else "" for c in next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
                     ]
                 except StopIteration:
                     break
@@ -513,11 +515,7 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                 if not current_teacher:
                     continue
 
-                gv = (
-                    row[col_map["grade"]]
-                    if col_map["grade"] is not None and col_map["grade"] < len(row)
-                    else None
-                )
+                gv = row[col_map["grade"]] if col_map["grade"] is not None and col_map["grade"] < len(row) else None
                 sv = (
                     row[col_map["section"]]
                     if col_map["section"] is not None and col_map["section"] < len(row)
@@ -528,11 +526,7 @@ class TeachingAssignmentAdmin(admin.ModelAdmin):
                     if col_map["subject"] is not None and col_map["subject"] < len(row)
                     else None
                 )
-                wv = (
-                    row[col_map["weekly"]]
-                    if col_map["weekly"] is not None and col_map["weekly"] < len(row)
-                    else None
-                )
+                wv = row[col_map["weekly"]] if col_map["weekly"] is not None and col_map["weekly"] < len(row) else None
 
                 # Normalize
                 t_key = self._normalize_ar_text(current_teacher).replace(" ", "").lower()

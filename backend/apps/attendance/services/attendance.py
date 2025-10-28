@@ -1,12 +1,14 @@
 # ruff: noqa: I001, E501
 from __future__ import annotations
-from datetime import date as _date, time as _time
-from typing import Iterable, List, Dict, Any, Optional
+
+from datetime import date as _date
+from datetime import time as _time
+from typing import Any, Dict, Iterable, List, Optional
 
 from django.db import transaction
 from django.utils import timezone
-
 from school.models import AttendanceRecord, Staff, TimetableEntry  # type: ignore
+
 from ..models import AttendanceStatus
 from ..selectors import _current_term  # reuse existing helper
 
@@ -106,7 +108,7 @@ def bulk_save_attendance(
     # Also, when timetable context cannot be resolved, fall back to period 1 and no subject/teacher binding.
     if term is None:
         try:
-            from school.models import Term, AcademicYear  # type: ignore
+            from school.models import AcademicYear, Term  # type: ignore
 
             # Ensure an academic year that contains the given date
             y_start = _date(dt.year, 1, 1)
@@ -358,8 +360,9 @@ def bulk_save_attendance(
         try:
             if str(status) == "late":
                 from datetime import datetime as _dt
-                from django.utils.timezone import make_aware, get_current_timezone
-                from school.models import AttendanceLateEvent, Student, Class, Subject  # type: ignore
+
+                from django.utils.timezone import get_current_timezone, make_aware
+                from school.models import AttendanceLateEvent, Class, Student, Subject  # type: ignore
 
                 # Compute late seconds based on server time vs period start
                 tz = get_current_timezone()

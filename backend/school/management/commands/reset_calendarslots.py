@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from typing import List
 
-from django.core.management.base import BaseCommand, CommandError
 from django.core.management import call_command
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from ...models import CalendarTemplate, CalendarSlot, TimetableEntry
-
+from ...models import CalendarSlot, CalendarTemplate, TimetableEntry
 
 SEED_SOURCE_TEMPLATE_NAMES: List[str] = [
     "Sun-Wed Upper",

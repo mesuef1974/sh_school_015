@@ -7,9 +7,9 @@ For more information on this file, see
 https://docs.djangoproject.com/en/5.2/howto/deployment/asgi/
 """
 
+import asyncio
 import os
 import sys
-import asyncio
 
 # On Windows, prefer SelectorEventLoop to avoid noisy Proactor transport errors
 # like WinError 10054 during client disconnects when running under Uvicorn.
@@ -20,9 +20,9 @@ if sys.platform.startswith("win"):
         # If policy is not available or fails, continue with defaults
         pass
 
-from django.core.asgi import get_asgi_application
 from django.conf import settings
 from django.contrib.staticfiles.handlers import ASGIStaticFilesHandler
+from django.core.asgi import get_asgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
 

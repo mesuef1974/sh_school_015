@@ -1,8 +1,9 @@
 import re
-from typing import Dict, Any
-from openpyxl import load_workbook
+from typing import Any, Dict
+
 from django.db import transaction
-from school.models import Class, Staff, Subject, TeachingAssignment, ClassSubject
+from openpyxl import load_workbook
+from school.models import Class, ClassSubject, Staff, Subject, TeachingAssignment
 
 
 def normalize_ar_text(s: str) -> str:
@@ -81,8 +82,7 @@ def import_teacher_loads(file_obj, *, dry_run: bool = False) -> Dict[str, Any]:
             for r in range(1, 11):
                 try:
                     vals = [
-                        c if c is not None else ""
-                        for c in next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
+                        c if c is not None else "" for c in next(ws.iter_rows(min_row=r, max_row=r, values_only=True))
                     ]
                 except StopIteration:
                     break
@@ -141,11 +141,7 @@ def import_teacher_loads(file_obj, *, dry_run: bool = False) -> Dict[str, Any]:
                     summary["skipped_no_teacher"] += 1
                     continue
 
-                gv = (
-                    row[col_map["grade"]]
-                    if col_map["grade"] is not None and col_map["grade"] < len(row)
-                    else None
-                )
+                gv = row[col_map["grade"]] if col_map["grade"] is not None and col_map["grade"] < len(row) else None
                 sv = (
                     row[col_map["section"]]
                     if col_map["section"] is not None and col_map["section"] < len(row)
@@ -156,11 +152,7 @@ def import_teacher_loads(file_obj, *, dry_run: bool = False) -> Dict[str, Any]:
                     if col_map["subject"] is not None and col_map["subject"] < len(row)
                     else None
                 )
-                wv = (
-                    row[col_map["weekly"]]
-                    if col_map["weekly"] is not None and col_map["weekly"] < len(row)
-                    else None
-                )
+                wv = row[col_map["weekly"]] if col_map["weekly"] is not None and col_map["weekly"] < len(row) else None
 
                 t_key = normalize_ar_text(current_teacher).replace(" ", "").lower()
                 teacher = teacher_index.get(t_key)
@@ -205,9 +197,7 @@ def import_teacher_loads(file_obj, *, dry_run: bool = False) -> Dict[str, Any]:
                     summary["skipped_no_subject"] += 1
                     continue
 
-                _, cs_created = ClassSubject.objects.get_or_create(
-                    classroom=classroom, subject=subj_obj
-                )
+                _, cs_created = ClassSubject.objects.get_or_create(classroom=classroom, subject=subj_obj)
                 if cs_created:
                     summary["classsubjects_created"] += 1
 

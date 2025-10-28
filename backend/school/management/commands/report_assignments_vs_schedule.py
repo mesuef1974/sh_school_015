@@ -1,15 +1,10 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Count
-
-from school.models import (
-    TeachingAssignment,
-    TimetableEntry,
-    Term,
-)
+from school.models import TeachingAssignment, Term, TimetableEntry
 
 
 @dataclass
@@ -110,9 +105,7 @@ class Command(BaseCommand):
             rows = [r for r in rows if r.delta != 0]
 
         # Print report
-        self.stdout.write(
-            self.style.NOTICE("\nتقرير مقارنة التكليفات مع الجدول — الفصل الحالي: %s\n" % term.name)
-        )
+        self.stdout.write(self.style.NOTICE("\nتقرير مقارنة التكليفات مع الجدول — الفصل الحالي: %s\n" % term.name))
         self.stdout.write("-" * 90)
         self.stdout.write(f"عدد التكليفات المفحوصة: {assignments.count()}\n")
 
@@ -150,14 +143,10 @@ class Command(BaseCommand):
         total_exp = sum(per_teacher_expected.values())
         total_sch = sum(per_teacher_scheduled.values())
         self.stdout.write("\nالإجمالي:")
-        self.stdout.write(
-            f"expected={total_exp} scheduled={total_sch} delta={total_sch - total_exp:+d}"
-        )
+        self.stdout.write(f"expected={total_exp} scheduled={total_sch} delta={total_sch - total_exp:+d}")
 
         # Guidance
         self.stdout.write("\nملاحظات:\n")
         self.stdout.write("- delta>0 يعني حصص مجدولة أكثر من التكليف (زيادة).\n")
         self.stdout.write("- delta<0 يعني حصص مجدولة أقل من التكليف (عجز).\n")
-        self.stdout.write(
-            "- استعمل --only-mismatches لعرض الفروقات فقط، و--teacher لتصفية معلم بالاسم.\n"
-        )
+        self.stdout.write("- استعمل --only-mismatches لعرض الفروقات فقط، و--teacher لتصفية معلم بالاسم.\n")

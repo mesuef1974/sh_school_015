@@ -1,13 +1,12 @@
-import os
 import csv
 import io
+import os
 import re
-from typing import Tuple, List, Dict
+from typing import Dict, List, Tuple
 
 from django.conf import settings
 
-from ..models import Staff, Class, Subject, TeachingAssignment
-
+from ..models import Class, Staff, Subject, TeachingAssignment
 
 _AR_NUM = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
 
@@ -94,9 +93,7 @@ def _subject_name(subj: Subject) -> str:
     return subj.name_ar
 
 
-def _resolve_teacher(
-    name_raw: str, teacher_map: Dict[str, str], staff_by_key: Dict[str, Staff]
-) -> Staff:
+def _resolve_teacher(name_raw: str, teacher_map: Dict[str, str], staff_by_key: Dict[str, Staff]) -> Staff:
     # Try several variants to cope with mirrored OCR for Arabic text
     candidates = []
     base = name_raw or ""
@@ -223,9 +220,7 @@ def parse_ocr_raw_to_csv(text: str) -> Tuple[str, List[str]]:
                     break
         teacher = _resolve_teacher(teacher_name_raw, tmap, staff_by_key)
         if not teacher:
-            warnings.append(
-                f"تخطّي صف بسبب عدم التعرف على اسم المعلم: '{teacher_name_raw or 'غير معروف'}'"
-            )
+            warnings.append(f"تخطّي صف بسبب عدم التعرف على اسم المعلم: '{teacher_name_raw or 'غير معروف'}'")
             continue
 
         # Normalize tokens length to 35 (5×7)
@@ -259,17 +254,11 @@ def parse_ocr_raw_to_csv(text: str) -> Tuple[str, List[str]]:
             elif asg_qs.count() > 1:
                 # if multiple, try to pick the one most common for this teacher overall (fallback: first)
                 subject = asg_qs.first().subject
-                warnings.append(
-                    f"تعيينات متعددة للمادة (اختيار أول): المعلم {teacher.full_name} الصف {classroom.name}"
-                )
+                warnings.append(f"تعيينات متعددة للمادة (اختيار أول): المعلم {teacher.full_name} الصف {classroom.name}")
             else:
-                warnings.append(
-                    f"لا توجد تعيين مادة للمعلم {teacher.full_name} في الصف {classroom.name} — تخطّي الخلية"
-                )
+                warnings.append(f"لا توجد تعيين مادة للمعلم {teacher.full_name} في الصف {classroom.name} — تخطّي الخلية")
                 continue
-            writer.writerow(
-                [teacher.full_name, classroom.name, _subject_name(subject), day, period]
-            )
+            writer.writerow([teacher.full_name, classroom.name, _subject_name(subject), day, period])
             total_mapped += 1
 
     if total_mapped == 0:

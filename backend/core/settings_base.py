@@ -4,9 +4,10 @@ Common settings shared by all environments. Do not run this file directly;
 use settings_dev.py or settings_prod.py which import from here.
 """
 
-from pathlib import Path
 import os
 from datetime import timedelta
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -23,11 +24,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-change-me")
 DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
 
 # In dev allow all; in prod read comma-separated list (may be overridden per env)
-ALLOWED_HOSTS = (
-    ["*"]
-    if DEBUG
-    else [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
-)
+ALLOWED_HOSTS = ["*"] if DEBUG else [h.strip() for h in os.getenv("DJANGO_ALLOWED_HOSTS", "").split(",") if h.strip()]
 
 # Application definition
 INSTALLED_APPS = [
@@ -171,9 +168,7 @@ SIMPLE_JWT = {
 # Refresh cookie settings (used by school.auth views)
 SIMPLE_JWT_REFRESH_COOKIE_NAME = os.getenv("SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token")
 SIMPLE_JWT_REFRESH_COOKIE_SAMESITE = os.getenv("SIMPLE_JWT_REFRESH_COOKIE_SAMESITE", "Lax")
-SIMPLE_JWT_REFRESH_COOKIE_SECURE = (
-    os.getenv("SIMPLE_JWT_REFRESH_COOKIE_SECURE", "True").lower() == "true"
-)
+SIMPLE_JWT_REFRESH_COOKIE_SECURE = os.getenv("SIMPLE_JWT_REFRESH_COOKIE_SECURE", "True").lower() == "true"
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

@@ -1,11 +1,11 @@
 import csv
 import io
 import re
-from typing import Dict, Any
+from typing import Any, Dict
 
 from django.db import transaction
 
-from ..models import Class, Staff, Subject, TimetableEntry, Term
+from ..models import Class, Staff, Subject, Term, TimetableEntry
 
 
 def _normalize_ar(s: str) -> str:
@@ -176,16 +176,11 @@ def import_timetable_csv(file_obj, *, dry_run: bool = False) -> Dict[str, Any]:
                 continue
 
             # Replace conflicts: same teacher or same class at that slot
-            q_teacher = TimetableEntry.objects.filter(
-                term=term, day_of_week=day, period_number=period, teacher=teacher
-            )
+            q_teacher = TimetableEntry.objects.filter(term=term, day_of_week=day, period_number=period, teacher=teacher)
             q_class = TimetableEntry.objects.filter(
                 term=term, day_of_week=day, period_number=period, classroom=classroom
             )
-            rep_count = (
-                q_teacher.count()
-                + q_class.exclude(id__in=q_teacher.values_list("id", flat=True)).count()
-            )
+            rep_count = q_teacher.count() + q_class.exclude(id__in=q_teacher.values_list("id", flat=True)).count()
             if rep_count:
                 replaced += rep_count
             q_teacher.delete()

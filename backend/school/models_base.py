@@ -20,13 +20,9 @@ class BaseModel(models.Model):
     Provides: timestamps, soft delete, and common functionality
     """
 
-    created_at = models.DateTimeField(
-        auto_now_add=True, db_index=True, verbose_name="تاريخ الإنشاء"
-    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name="تاريخ الإنشاء")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="تاريخ آخر تحديث")
-    deleted_at = models.DateTimeField(
-        null=True, blank=True, db_index=True, verbose_name="تاريخ الحذف"
-    )
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name="تاريخ الحذف")
 
     # Default manager shows only non-deleted
     objects = SoftDeleteManager()
@@ -87,9 +83,7 @@ class AuditLog(models.Model):
         related_name="audit_logs",
         verbose_name="المستخدم",
     )
-    action = models.CharField(
-        max_length=20, choices=ACTION_CHOICES, db_index=True, verbose_name="الإجراء"
-    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES, db_index=True, verbose_name="الإجراء")
     model_name = models.CharField(max_length=100, db_index=True, verbose_name="اسم النموذج")
     object_id = models.PositiveIntegerField(null=True, blank=True, verbose_name="معرف الكائن")
     object_repr = models.CharField(max_length=200, blank=True, verbose_name="تمثيل الكائن")

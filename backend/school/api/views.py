@@ -5,13 +5,14 @@ from typing import List
 from django.contrib.auth import password_validation
 from django.contrib.auth.models import Permission
 from django.http import JsonResponse
+from django.views.decorators.cache import never_cache
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.views.decorators.cache import never_cache
+
 from ..models import Staff, TeachingAssignment, Wing
 
 
@@ -20,13 +21,14 @@ from ..models import Staff, TeachingAssignment, Wing
 @never_cache
 def me(request: Request):
     from apps.common.roles import normalize_roles, pick_primary_route  # type: ignore
+
     user = request.user
     # Roles from Django groups
     roles_set = set(user.groups.values_list("name", flat=True))  # type: ignore
     # Also include Staff.role if linked (some deployments store role code here)
     staff_obj = None
     try:
-        staff_obj = Staff.objects.filter(user=user).only("id","role").first()
+        staff_obj = Staff.objects.filter(user=user).only("id", "role").first()
         if staff_obj and staff_obj.role:
             roles_set.add(staff_obj.role)
     except Exception:
@@ -56,13 +58,9 @@ def me(request: Request):
         has_teaching_assignments = False
 
     # Permissions as "app_label.codename"
-    perms: List[str] = [
-        f"{p.content_type.app_label}.{p.codename}" for p in Permission.objects.filter(user=user)
-    ]
+    perms: List[str] = [f"{p.content_type.app_label}.{p.codename}" for p in Permission.objects.filter(user=user)]
     # Also include group-granted permissions
-    group_perms_qs = Permission.objects.filter(group__user=user).values_list(
-        "content_type__app_label", "codename"
-    )
+    group_perms_qs = Permission.objects.filter(group__user=user).values_list("content_type__app_label", "codename")
     perms += [f"{app}.{code}" for app, code in group_perms_qs]
     # Deduplicate
     perms = sorted(set(perms))
@@ -70,8 +68,7 @@ def me(request: Request):
     # Capabilities derived from roles for frontend UI gating (non-authoritative; server enforces separately)
     role_set = set(roles_norm)
     can_manage_timetable = bool(
-        user.is_superuser
-        or role_set.intersection({"principal", "academic_deputy", "timetable_manager"})
+        user.is_superuser or role_set.intersection({"principal", "academic_deputy", "timetable_manager"})
     )
     caps = {
         "can_manage_timetable": can_manage_timetable,
@@ -86,6 +83,7 @@ def me(request: Request):
     try:
         if staff_obj:
             from ..models import AttendanceRecord  # type: ignore
+
             qs = AttendanceRecord.objects.filter(teacher_id=staff_obj.id)
             total_entries = qs.count()
             first_date = qs.order_by("date").values_list("date", flat=True).first()
@@ -184,7 +182,9 @@ def logout(request: Request) -> Response:
         resp = Response({"detail": "لا يوجد رمز تحديث لإلغائه"}, status=status.HTTP_200_OK)
         try:
             from django.conf import settings as _settings
+
             from ..auth import REFRESH_COOKIE_SAMESITE, REFRESH_COOKIE_SECURE
+
             resp.delete_cookie(
                 key=getattr(_settings, "SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token"),
                 samesite=REFRESH_COOKIE_SAMESITE,
@@ -202,7 +202,9 @@ def logout(request: Request) -> Response:
         resp = Response({"detail": "تمت محاولة تسجيل الخروج"}, status=status.HTTP_200_OK)
         try:
             from django.conf import settings as _settings
+
             from ..auth import REFRESH_COOKIE_SAMESITE, REFRESH_COOKIE_SECURE
+
             resp.delete_cookie(
                 key=getattr(_settings, "SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token"),
                 samesite=REFRESH_COOKIE_SAMESITE,
@@ -215,7 +217,9 @@ def logout(request: Request) -> Response:
     resp = Response({"detail": "تم تسجيل الخروج بنجاح"}, status=status.HTTP_200_OK)
     try:
         from django.conf import settings as _settings
+
         from ..auth import REFRESH_COOKIE_SAMESITE, REFRESH_COOKIE_SECURE
+
         resp.delete_cookie(
             key=getattr(_settings, "SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token"),
             samesite=REFRESH_COOKIE_SAMESITE,

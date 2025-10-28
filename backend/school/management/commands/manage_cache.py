@@ -6,9 +6,9 @@ Usage:
   python manage.py manage_cache --stats
 """
 
-from django.core.management.base import BaseCommand
 from django.core.cache import caches
-from school.cache_utils import warm_cache, clear_all_caches
+from django.core.management.base import BaseCommand
+from school.cache_utils import clear_all_caches, warm_cache
 
 
 class Command(BaseCommand):
@@ -53,9 +53,7 @@ class Command(BaseCommand):
             self.show_cache_stats()
 
         else:
-            self.stdout.write(
-                self.style.ERROR("Please specify an action: --clear, --warm, or --stats")
-            )
+            self.stdout.write(self.style.ERROR("Please specify an action: --clear, --warm, or --stats"))
 
     def show_cache_stats(self):
         """Display cache statistics"""
@@ -71,12 +69,8 @@ class Command(BaseCommand):
                 client = cache_backend._cache.get_client()
                 info = client.info("stats")
 
-                self.stdout.write(
-                    f'  Total connections: {info.get("total_connections_received", "N/A")}'
-                )
-                self.stdout.write(
-                    f'  Total commands: {info.get("total_commands_processed", "N/A")}'
-                )
+                self.stdout.write(f'  Total connections: {info.get("total_connections_received", "N/A")}')
+                self.stdout.write(f'  Total commands: {info.get("total_commands_processed", "N/A")}')
                 self.stdout.write(f'  Keyspace hits: {info.get("keyspace_hits", "N/A")}')
                 self.stdout.write(f'  Keyspace misses: {info.get("keyspace_misses", "N/A")}')
 

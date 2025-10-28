@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from django.core.management.base import BaseCommand, CommandError
-
 from school.models import Term
 from school.services.timetable_builder import TimetableBuilder
 
@@ -19,7 +18,5 @@ class Command(BaseCommand):
         result = builder.persist(entries)
 
         self.stdout.write(
-            self.style.SUCCESS(
-                f"Generated {result.created} timetable entries (replaced {result.replaced_existing})."
-            )
+            self.style.SUCCESS(f"Generated {result.created} timetable entries (replaced {result.replaced_existing}).")
         )

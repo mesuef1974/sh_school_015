@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 
@@ -18,11 +19,7 @@ class Command(BaseCommand):
         password = os.getenv("DJANGO_SUPERUSER_PASSWORD")
 
         if not username:
-            self.stdout.write(
-                self.style.WARNING(
-                    "DJANGO_SUPERUSER_USERNAME is required; skipping ensure_superuser."
-                )
-            )
+            self.stdout.write(self.style.WARNING("DJANGO_SUPERUSER_USERNAME is required; skipping ensure_superuser."))
             return
 
         User = get_user_model()

@@ -15,18 +15,19 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-from django.urls import path, include, re_path
+from pathlib import Path
+
 from django.conf import settings
+from django.db import connection
+from django.http import HttpResponse
+from django.urls import include, path, re_path
 from django.views.generic import RedirectView
 from django.views.static import serve as static_serve
-from django.http import HttpResponse
-from django.db import connection
-from school.auth import CustomTokenObtainPairView, CustomTokenRefreshView
-from school.api.views import logout as api_logout
-from pathlib import Path
 
 # Use restricted admin site that allows only superusers or Staff with role 'admin'
 from school.admin_site import restricted_admin_site
+from school.api.views import logout as api_logout
+from school.auth import CustomTokenObtainPairView, CustomTokenRefreshView
 
 # Paths outside backend/ we might want to expose during development (DEBUG)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -116,9 +117,7 @@ if settings.DEBUG:
         # Serve the generated docs landing at /docs/
         path(
             "docs/",
-            lambda request: static_serve(
-                request, path="index.html", document_root=str(PROJECT_ROOT_DIR)
-            ),
+            lambda request: static_serve(request, path="index.html", document_root=str(PROJECT_ROOT_DIR)),
             name="docs_index",
         ),
         # Allow accessing files under DOC/ via /DOC/*
@@ -136,9 +135,7 @@ if settings.DEBUG:
         # Serve the OpenAPI YAML from backend/ in development
         path(
             "backend/schema.yaml",
-            lambda request: static_serve(
-                request, path="schema.yaml", document_root=str(BACKEND_DIR)
-            ),
+            lambda request: static_serve(request, path="schema.yaml", document_root=str(BACKEND_DIR)),
             name="dev_openapi_yaml",
         ),
         # API and auth endpoints remain available
@@ -157,9 +154,7 @@ if settings.DEBUG:
     try:
         import fontawesomefree as _fa  # type: ignore
 
-        FA_WEBFONTS_DIR = (
-            Path(_fa.__file__).resolve().parent / "static" / "fontawesomefree" / "webfonts"
-        )
+        FA_WEBFONTS_DIR = Path(_fa.__file__).resolve().parent / "static" / "fontawesomefree" / "webfonts"
     except Exception:
         FA_WEBFONTS_DIR = None
     if "FA_WEBFONTS_DIR" in locals() and FA_WEBFONTS_DIR and FA_WEBFONTS_DIR.exists():

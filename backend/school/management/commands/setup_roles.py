@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand
 
 # We keep imports lazy and resilient: not all models may exist in this project yet.
 try:
-    from ...models import AttendanceRecord, AttendanceDaily
+    from ...models import AttendanceDaily, AttendanceRecord
 except Exception:  # pragma: no cover - be tolerant if models are moved/renamed
     AttendanceRecord = None  # type: ignore
     AttendanceDaily = None  # type: ignore

@@ -1,6 +1,6 @@
 # Recreate TimetableEntry model after prior drop
-from django.db import migrations, models
 import django.db.models.deletion
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
@@ -44,15 +44,11 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "subject",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT, to="school.subject"
-                    ),
+                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to="school.subject"),
                 ),
                 (
                     "teacher",
-                    models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT, to="school.staff"
-                    ),
+                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to="school.staff"),
                 ),
             ],
             options={

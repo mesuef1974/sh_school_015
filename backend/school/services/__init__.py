@@ -1,1 +1,1 @@
-from .timetable_builder import TimetableBuilder, BuildResult  # noqa: F401
+from .timetable_builder import BuildResult, TimetableBuilder  # noqa: F401

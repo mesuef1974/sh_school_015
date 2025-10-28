@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from school.models import Student, ExitEvent  # type: ignore
+from school.models import ExitEvent, Student  # type: ignore
 
 
 class StudentBriefSerializer(serializers.ModelSerializer):

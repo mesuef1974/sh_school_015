@@ -12,20 +12,22 @@ if not os.environ.get('DJANGO_SETTINGS_MODULE'):
         # Project settings module lives under core.settings
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
         import django as _django  # type: ignore
+
         _django.setup()
     except Exception:
         # If setup fails here, manage.py execution path will handle it.
         pass
 
-from django.core.management.base import BaseCommand
+from typing import Dict, List, Set, Tuple
+
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
+from django.core.management.base import BaseCommand
 from django.db import transaction
-from typing import Dict, List, Set, Tuple
 
 # Domain models used to derive roles from existing data
 try:
-    from school.models import Staff, Wing, TeachingAssignment, TimetableEntry, Term
+    from school.models import Staff, TeachingAssignment, Term, TimetableEntry, Wing
 except Exception:  # pragma: no cover - allow import in partial environments
     Staff = None  # type: ignore
     Wing = None  # type: ignore
@@ -149,7 +151,7 @@ class Command(BaseCommand):
             groups[name] = g
             if created:
                 created_groups.append(name)
-        
+
         # 2) Ensure Permission objects exist for all semantic perms
         ct = _get_staff_content_type()
         ensured_perms: List[str] = []
@@ -157,7 +159,9 @@ class Command(BaseCommand):
         for role, perms in RBAC_MAP.items():
             for p in perms:
                 codename, pname = _normalize_perm(p)
-                perm, created = Permission.objects.get_or_create(codename=codename, content_type=ct, defaults={'name': pname})
+                perm, created = Permission.objects.get_or_create(
+                    codename=codename, content_type=ct, defaults={'name': pname}
+                )
                 if created:
                     ensured_perms.append(p)
                 perm_objects[p] = perm
@@ -193,13 +197,22 @@ class Command(BaseCommand):
                         teacher_user_ids.add(st.user_id)
                 # From TeachingAssignment (any assignment qualifies user as teacher)
                 if TeachingAssignment is not None:
-                    ids = TeachingAssignment.objects.exclude(teacher__user_id=None).values_list('teacher__user_id', flat=True).distinct()
+                    ids = (
+                        TeachingAssignment.objects.exclude(teacher__user_id=None)
+                        .values_list('teacher__user_id', flat=True)
+                        .distinct()
+                    )
                     teacher_user_ids.update(int(i) for i in ids if i)
                 # From TimetableEntry in current term
                 if Term is not None and TimetableEntry is not None:
                     term = Term.objects.filter(is_current=True).first()
                     if term:
-                        ids = TimetableEntry.objects.filter(term=term).exclude(teacher__user_id=None).values_list('teacher__user_id', flat=True).distinct()
+                        ids = (
+                            TimetableEntry.objects.filter(term=term)
+                            .exclude(teacher__user_id=None)
+                            .values_list('teacher__user_id', flat=True)
+                            .distinct()
+                        )
                         teacher_user_ids.update(int(i) for i in ids if i)
             except Exception:
                 pass
@@ -274,17 +287,26 @@ class Command(BaseCommand):
         self.stdout.write(self.style.HTTP_INFO(f"Created groups: {created_groups or 'none'}"))
         self.stdout.write(self.style.HTTP_INFO(f"Ensured semantic permissions: {len(ensured_perms)} new"))
         if changed_assignments:
-            self.stdout.write(self.style.SUCCESS("Group permission assignments updated: " + ", ".join(changed_assignments)))
+            self.stdout.write(
+                self.style.SUCCESS("Group permission assignments updated: " + ", ".join(changed_assignments))
+            )
         else:
             self.stdout.write(self.style.HTTP_INFO("Group permission assignments already up-to-date"))
         if not skip_users:
-            self.stdout.write(self.style.SUCCESS(f"User memberships: +{added_memberships} added, -{removed_wing_supervisor} wing_supervisor removed"))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"User memberships: +{added_memberships} added, -{removed_wing_supervisor} wing_supervisor removed"
+                )
+            )
         if dry:
             self.stdout.write(self.style.WARNING('Dry-run mode: no changes were committed.'))
+
+
 # Standalone runner support: allow executing this file directly with Python
 if __name__ == '__main__':
     # Ensure Django is bootstrapped (handled above). Now invoke the command via Django's management framework.
     import argparse
+
     from django.core import management
 
     parser = argparse.ArgumentParser(description='Synchronize RBAC (standalone runner)')

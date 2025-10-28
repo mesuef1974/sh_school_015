@@ -3,15 +3,15 @@ Enhanced models with improved performance, validation, and features
 This file contains the enhanced versions of core models
 """
 
-from django.db import models
+import re
+from datetime import date as _date
+
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
-from datetime import date as _date
-import re
+from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
+from django.db import models
 
 from .models_base import BaseModel
-
 
 # ============ Enhanced Core Models ============
 
@@ -57,9 +57,7 @@ class ClassEnhanced(BaseModel):
         verbose_name="المستوى الأكاديمي",
     )
     is_active = models.BooleanField(default=True, db_index=True, verbose_name="نشط")
-    students_count = models.PositiveIntegerField(
-        default=0, db_index=True, verbose_name="عدد الطلاب"
-    )
+    students_count = models.PositiveIntegerField(default=0, db_index=True, verbose_name="عدد الطلاب")
 
     # Academic year
     academic_year = models.ForeignKey(
@@ -71,9 +69,7 @@ class ClassEnhanced(BaseModel):
     )
 
     # Subjects (Many-to-Many through ClassSubject)
-    subjects = models.ManyToManyField(
-        "Subject", through="ClassSubject", related_name="enhanced_classes", blank=True
-    )
+    subjects = models.ManyToManyField("Subject", through="ClassSubject", related_name="enhanced_classes", blank=True)
 
     class Meta:
         verbose_name = "صف (محسّن)"
@@ -94,9 +90,7 @@ class ClassEnhanced(BaseModel):
         super().clean()
         # Validate capacity
         if self.capacity and self.students_count > self.capacity:
-            raise ValidationError(
-                f"عدد الطلاب ({self.students_count}) يتجاوز السعة القصوى ({self.capacity})"
-            )
+            raise ValidationError(f"عدد الطلاب ({self.students_count}) يتجاوز السعة القصوى ({self.capacity})")
 
 
 class StudentEnhanced(BaseModel):
@@ -128,9 +122,7 @@ class StudentEnhanced(BaseModel):
     needs = models.BooleanField(default=False, db_index=True, verbose_name="احتياجات خاصة")
     dob = models.DateField(null=True, blank=True, verbose_name="تاريخ الميلاد")
     age = models.PositiveSmallIntegerField(null=True, blank=True, verbose_name="العمر")
-    nationality = models.CharField(
-        max_length=100, blank=True, db_index=True, verbose_name="الجنسية"
-    )
+    nationality = models.CharField(max_length=100, blank=True, db_index=True, verbose_name="الجنسية")
     gender = models.CharField(
         max_length=10,
         choices=[("male", "ذكر"), ("female", "أنثى")],
@@ -175,9 +167,7 @@ class StudentEnhanced(BaseModel):
     # Parent/Guardian info
     parent_name = models.CharField(max_length=200, blank=True, verbose_name="اسم ولي الأمر")
     parent_relation = models.CharField(max_length=50, blank=True, verbose_name="صلة القرابة")
-    parent_national_no = models.CharField(
-        max_length=30, blank=True, verbose_name="رقم هوية ولي الأمر"
-    )
+    parent_national_no = models.CharField(max_length=30, blank=True, verbose_name="رقم هوية ولي الأمر")
     parent_phone = models.CharField(
         max_length=20,
         blank=True,
@@ -195,9 +185,7 @@ class StudentEnhanced(BaseModel):
 
     # Status
     active = models.BooleanField(default=True, db_index=True, verbose_name="نشط")
-    photo = models.ImageField(
-        upload_to="students/photos/", null=True, blank=True, verbose_name="الصورة"
-    )
+    photo = models.ImageField(upload_to="students/photos/", null=True, blank=True, verbose_name="الصورة")
 
     class Meta:
         verbose_name = "طالب (محسّن)"
@@ -239,11 +227,7 @@ class StudentEnhanced(BaseModel):
         # Calculate age from DOB
         if self.dob:
             today = _date.today()
-            years = (
-                today.year
-                - self.dob.year
-                - ((today.month, today.day) < (self.dob.month, self.dob.day))
-            )
+            years = today.year - self.dob.year - ((today.month, today.day) < (self.dob.month, self.dob.day))
             self.age = max(0, years)
 
         # Auto-deactivate if withdrawn

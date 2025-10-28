@@ -3,10 +3,11 @@ Management command to cleanup and normalize data
 Usage: python manage.py cleanup_data
 """
 
+import re
+
 from django.core.management.base import BaseCommand
 from django.db.models import Count, Q
-from school.models import Student, Staff, Class
-import re
+from school.models import Class, Staff, Student
 
 
 class Command(BaseCommand):
@@ -98,9 +99,7 @@ class Command(BaseCommand):
         """Find and report duplicate student names"""
         self.stdout.write("\nChecking for duplicate names...")
 
-        duplicates = (
-            Student.objects.values("full_name").annotate(count=Count("id")).filter(count__gt=1)
-        )
+        duplicates = Student.objects.values("full_name").annotate(count=Count("id")).filter(count__gt=1)
 
         if duplicates.count() == 0:
             self.stdout.write(self.style.SUCCESS("  ✓ No duplicate names found"))
@@ -108,11 +107,7 @@ class Command(BaseCommand):
 
         for dup in duplicates:
             students = Student.objects.filter(full_name=dup["full_name"])
-            self.stdout.write(
-                self.style.WARNING(
-                    f'  ⚠ Found {dup["count"]} students with name: {dup["full_name"]}'
-                )
-            )
+            self.stdout.write(self.style.WARNING(f'  ⚠ Found {dup["count"]} students with name: {dup["full_name"]}'))
             for s in students:
                 self.stdout.write(f"    - ID: {s.sid}, Class: {s.class_fk}")
 
@@ -142,9 +137,7 @@ class Command(BaseCommand):
         orphaned_students = Student.objects.filter(class_fk__isnull=True, active=True).count()
 
         if orphaned_students > 0:
-            self.stdout.write(
-                self.style.WARNING(f"  ⚠ Found {orphaned_students} active students without a class")
-            )
+            self.stdout.write(self.style.WARNING(f"  ⚠ Found {orphaned_students} active students without a class"))
         else:
             self.stdout.write(self.style.SUCCESS("  ✓ No orphaned student records"))
 

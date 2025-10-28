@@ -10,6 +10,4 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **options):
-        raise CommandError(
-            "This command has been removed. Timetable and calendar features are no longer available."
-        )
+        raise CommandError("This command has been removed. Timetable and calendar features are no longer available.")

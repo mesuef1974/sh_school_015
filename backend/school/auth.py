@@ -1,9 +1,9 @@
 from datetime import timedelta
+
 from django.conf import settings
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
 
 REFRESH_COOKIE_NAME = getattr(settings, "SIMPLE_JWT_REFRESH_COOKIE_NAME", "refresh_token")
 REFRESH_COOKIE_SAMESITE = getattr(settings, "SIMPLE_JWT_REFRESH_COOKIE_SAMESITE", "Lax")

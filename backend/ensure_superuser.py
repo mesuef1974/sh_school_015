@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sys
+
 from django.core.management import execute_from_command_line
 
 

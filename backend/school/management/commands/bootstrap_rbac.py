@@ -1,7 +1,7 @@
-from django.core.management import BaseCommand
 from django.contrib.auth.models import Group, Permission
 from django.contrib.contenttypes.models import ContentType
-from school.models import Class, Student, Staff
+from django.core.management import BaseCommand
+from school.models import Class, Staff, Student
 
 
 class Command(BaseCommand):
@@ -28,8 +28,6 @@ class Command(BaseCommand):
                     else:
                         codes = ["view"]
                     for c in codes:
-                        p = Permission.objects.get(
-                            codename=f"{c}_{m._meta.model_name}", content_type=ct
-                        )
+                        p = Permission.objects.get(codename=f"{c}_{m._meta.model_name}", content_type=ct)
                         g.permissions.add(p)
         self.stdout.write(self.style.SUCCESS("RBAC groups initialized"))

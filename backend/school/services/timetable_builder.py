@@ -1,16 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, List, Tuple, Set
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, List, Set, Tuple
 
 from django.db import transaction
+from school.models import TeachingAssignment, Term, TimetableEntry
 
-from school.models import (
-    TimetableEntry,
-    TeachingAssignment,
-    Term,
-)
 from .rules_loader import load_rules
 
 
@@ -47,9 +43,7 @@ class TimetableBuilder:
 
     def build_entries(self) -> List[TimetableEntry]:
         # Load assignments
-        assignments = list(
-            TeachingAssignment.objects.select_related("teacher", "classroom", "subject")
-        )
+        assignments = list(TeachingAssignment.objects.select_related("teacher", "classroom", "subject"))
         # Sort by descending weekly load to place hardest first
         assignments.sort(key=lambda a: int(a.no_classes_weekly), reverse=True)
 
@@ -68,11 +62,7 @@ class TimetableBuilder:
         day_cursors: Dict[Tuple[int, int, int], int] = {}
 
         # Rules: subject multiple-per-day threshold from YAML (default=5)
-        subject_rules = (
-            self.rules.get("constraints", {}).get("subject", {})
-            if isinstance(self.rules, dict)
-            else {}
-        )
+        subject_rules = self.rules.get("constraints", {}).get("subject", {}) if isinstance(self.rules, dict) else {}
         try:
             multi_threshold = int(subject_rules.get("allow_multiple_per_day_if_more_than", 5))
         except Exception:
@@ -193,11 +183,7 @@ class TimetableBuilder:
                 class_subject_on_day.add((a.classroom_id, a.subject_id, day))
 
                 # If we used the teacher-level exception (and not the threshold relaxation), consume it now
-                if (
-                    existing_same_day
-                    and allow_same_day_via_teacher
-                    and not allow_same_day_via_threshold
-                ):
+                if existing_same_day and allow_same_day_via_teacher and not allow_same_day_via_threshold:
                     teacher_double_remaining[(a.teacher_id, a.classroom_id, a.subject_id)] -= 1
 
                 entries.append(
@@ -446,9 +432,7 @@ class TimetableBuilder:
                                         # Now free (day,p) is available; place a
                                         class_busy.add((a.classroom_id, day, p))
                                         teacher_busy.add((a.teacher_id, day, p))
-                                        class_subject_on_day.add(
-                                            (a.classroom_id, a.subject_id, day)
-                                        )
+                                        class_subject_on_day.add((a.classroom_id, a.subject_id, day))
                                         placed_by_csd[(a.classroom_id, a.subject_id, day)].append(p)
                                         new_e = TimetableEntry(
                                             classroom_id=a.classroom_id,
@@ -460,9 +444,7 @@ class TimetableBuilder:
                                         )
                                         entries.append(new_e)
                                         slots_map[(day, p)].append(new_e)
-                                        placed_count[
-                                            (a.classroom_id, a.subject_id, a.teacher_id)
-                                        ] += 1
+                                        placed_count[(a.classroom_id, a.subject_id, a.teacher_id)] += 1
                                         swap_attempts += 1
                                         done = True
                                         moved = True

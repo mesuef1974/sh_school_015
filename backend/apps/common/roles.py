@@ -37,8 +37,12 @@ NORMALIZE_MAP: dict[str, str] = {
 
 # Role priority for choosing primary dashboard
 PRIORITY_ORDER: list[str] = [
-    'principal', 'academic_deputy', 'timetable_manager',
-    'subject_coordinator', 'wing_supervisor', 'teacher'
+    'principal',
+    'academic_deputy',
+    'timetable_manager',
+    'subject_coordinator',
+    'wing_supervisor',
+    'teacher',
 ]
 
 # Route mapping per role
@@ -55,7 +59,7 @@ ROUTE_BY_ROLE: dict[str, str] = {
 
 def normalize_roles(raw_roles: Iterable[str] | None) -> Set[str]:
     out: Set[str] = set()
-    for r in (raw_roles or []):
+    for r in raw_roles or []:
         k = str(r or '').strip().lower()
         if not k:
             continue

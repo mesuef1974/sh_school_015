@@ -1,19 +1,20 @@
 # ruff: noqa: I001, E501
-from datetime import date as _date, timedelta
-
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.request import Request
-from django.http import HttpResponse
 import csv
 import logging
-from django.utils import timezone
+from datetime import date as _date
+from datetime import timedelta
 
-from .serializers import StudentBriefSerializer, ExitEventSerializer
+from django.http import HttpResponse
+from django.utils import timezone
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.request import Request
+from rest_framework.response import Response
+
 from . import selectors
-from .services.attendance import bulk_save_attendance
 from .selectors import _CLASS_FK_ID  # reuse detected class FK field
+from .serializers import ExitEventSerializer, StudentBriefSerializer
+from .services.attendance import bulk_save_attendance
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +272,7 @@ class AttendanceViewSetBase(viewsets.ViewSet):
             # Generate an Excel workbook to guarantee correct Arabic rendering
             try:
                 from io import BytesIO
+
                 from openpyxl import Workbook  # type: ignore
 
                 wb = Workbook()
@@ -575,8 +577,8 @@ class AttendanceViewSetBase(viewsets.ViewSet):
         if not self._user_has_access_to_class(request.user, class_id):
             return Response({"detail": "not allowed for this class"}, status=403)
         try:
-            from school.models import AttendanceRecord, Term  # type: ignore
             from django.utils import timezone
+            from school.models import AttendanceRecord, Term  # type: ignore
 
             # resolve term best-effort similar to services
             term = Term.objects.filter(start_date__lte=dt, end_date__gte=dt).order_by("-start_date").first()
@@ -807,6 +809,7 @@ class AttendanceViewSet(viewsets.ViewSet):
             # Generate an Excel workbook to guarantee correct Arabic rendering
             try:
                 from io import BytesIO
+
                 from openpyxl import Workbook  # type: ignore
 
                 wb = Workbook()
@@ -1559,7 +1562,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         if err:
             return err
         try:
-            from school.models import Class, AttendanceRecord, TimetableEntry, Term  # type: ignore
+            from school.models import AttendanceRecord, Class, Term, TimetableEntry  # type: ignore
 
             try:
                 from backend.common.day_utils import iso_to_school_dow
@@ -1619,7 +1622,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         Includes a lightweight meta object to explain empty states (diagnostics only).
         """
         try:
-            from school.models import Class, TimetableEntry, Term  # type: ignore
+            from school.models import Class, Term, TimetableEntry  # type: ignore
 
             try:
                 from backend.common.day_utils import iso_to_school_dow
@@ -1868,8 +1871,8 @@ class ExitEventViewSet(viewsets.ModelViewSet):
         return qs
 
     def create(self, request: Request, *args, **kwargs):
-        from school.models import ExitEvent  # type: ignore
         from django.utils import timezone
+        from school.models import ExitEvent  # type: ignore
 
         # Ensure date is present; default to today if omitted
         data = request.data.copy()

@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional
-import re
-from datetime import datetime, date
-
-from django.core.management.base import BaseCommand, CommandParser, CommandError
-from django.db import transaction, connection
-from django.core.management.color import no_style
 import os
+import re
+from datetime import date, datetime
+from typing import Optional
 
 import pandas as pd
-
-from school.models import Student, Class
+from django.core.management.base import BaseCommand, CommandError, CommandParser
+from django.core.management.color import no_style
+from django.db import connection, transaction
+from school.models import Class, Student
 
 
 def _to_bool_needs(val: object) -> bool:
@@ -77,10 +75,7 @@ def _digits_prefix(s: str) -> Optional[int]:
 
 
 class Command(BaseCommand):
-    help = (
-        "Import/update students from an Excel file (idempotent by national_no). "
-        "Supports multi-sheet workbooks."
-    )
+    help = "Import/update students from an Excel file (idempotent by national_no). " "Supports multi-sheet workbooks."
 
     def _build_nationality_map(self, xlsx_path: Optional[str]) -> dict[str, str]:
         mapping: dict[str, str] = {}
@@ -88,9 +83,7 @@ class Command(BaseCommand):
             return mapping
         try:
             if not os.path.exists(xlsx_path):
-                self.stdout.write(
-                    self.style.WARNING(f"Nationality file not found (ignored): {xlsx_path}")
-                )
+                self.stdout.write(self.style.WARNING(f"Nationality file not found (ignored): {xlsx_path}"))
                 return mapping
             # Read all sheets to be safe
             book = pd.read_excel(xlsx_path, sheet_name=None, engine="openpyxl")
@@ -143,10 +136,7 @@ class Command(BaseCommand):
             "--nationality-xlsx",
             dest="nationality_xlsx",
             default=None,
-            help=(
-                "Optional path to students_03.xlsx to take Nationality values from "
-                "(matched by national_no)"
-            ),
+            help=("Optional path to students_03.xlsx to take Nationality values from " "(matched by national_no)"),
         )
         parser.add_argument(
             "--wipe",
@@ -191,8 +181,7 @@ class Command(BaseCommand):
             type=int,
             default=None,
             help=(
-                "Optional: expected total number of students after import "
-                "(will print a warning if it doesn't match)"
+                "Optional: expected total number of students after import " "(will print a warning if it doesn't match)"
             ),
         )
 
@@ -261,9 +250,7 @@ class Command(BaseCommand):
         missing = [c for c in col_map if c not in df.columns]
         if missing:
             self.stdout.write(
-                self.style.WARNING(
-                    f"Missing columns in Excel (will be treated as empty): {', '.join(missing)}"
-                )
+                self.style.WARNING(f"Missing columns in Excel (will be treated as empty): {', '.join(missing)}")
             )
             for c in missing:
                 df[c] = None
@@ -302,9 +289,7 @@ class Command(BaseCommand):
                 phone_no = _norm_text(row.get("stu_phone_no"))
                 email = _norm_text(row.get("stu_email"))
                 # Prefer explicit parent_national_no; fallback to legacy parent_phone if not present
-                parent_national_no = _norm_text(row.get("parent_national_no")) or _norm_text(
-                    row.get("parent_phone")
-                )
+                parent_national_no = _norm_text(row.get("parent_national_no")) or _norm_text(row.get("parent_phone"))
                 # Normalize guardian phones: split into individual numbers,
                 # then map to primary/extra as requested
                 raw_parent_phone = _norm_text(row.get("parent_phone"))
@@ -528,15 +513,13 @@ class Command(BaseCommand):
                             cursor.execute(sql)
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Deleted {deleted} existing Student rows before import. "
-                            "(Reset PK sequence)"
+                            f"Deleted {deleted} existing Student rows before import. " "(Reset PK sequence)"
                         )
                     )
                 except Exception as e:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Deleted {deleted} existing Student rows before import. "
-                            f"(Sequence reset skipped: {e})"
+                            f"Deleted {deleted} existing Student rows before import. " f"(Sequence reset skipped: {e})"
                         )
                     )
 
@@ -574,14 +557,10 @@ class Command(BaseCommand):
                     total_db = Student.objects.count()
                     if total_db != int(expect):
                         self.stdout.write(
-                            self.style.WARNING(
-                                f"[check] Current total students={total_db} != expected {expect}"
-                            )
+                            self.style.WARNING(f"[check] Current total students={total_db} != expected {expect}")
                         )
                     else:
-                        self.stdout.write(
-                            self.style.SUCCESS(f"[check] Total students match expected: {expect}")
-                        )
+                        self.stdout.write(self.style.SUCCESS(f"[check] Total students match expected: {expect}"))
         else:
             df = pd.read_excel(path, sheet_name=sheet, engine="openpyxl")
             a, u, s, e = self._process_df(
@@ -613,11 +592,7 @@ class Command(BaseCommand):
                     total_db = Student.objects.count()
                     if total_db != int(expect):
                         self.stdout.write(
-                            self.style.WARNING(
-                                f"[check] Current total students={total_db} != expected {expect}"
-                            )
+                            self.style.WARNING(f"[check] Current total students={total_db} != expected {expect}")
                         )
                     else:
-                        self.stdout.write(
-                            self.style.SUCCESS(f"[check] Total students match expected: {expect}")
-                        )
+                        self.stdout.write(self.style.SUCCESS(f"[check] Total students match expected: {expect}"))

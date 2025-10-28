@@ -1,10 +1,9 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .api import AttendanceViewSetV2 as AttendanceViewSet
-from .api import ExitEventViewSet
-from .api import WingSupervisorViewSet
 from .api import AttendanceViewSetBase
+from .api import AttendanceViewSetV2 as AttendanceViewSet
+from .api import ExitEventViewSet, WingSupervisorViewSet
 
 router = DefaultRouter()
 router.register(r"attendance", AttendanceViewSet, basename="attendance")

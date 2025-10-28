@@ -290,25 +290,25 @@
 
 .ds-alert-success {
     background-color: var(--color-success-light);
-    border-right: 4px solid var(--color-success);
+    border-inline-end: 4px solid var(--color-success);
     color: #065f46;
 }
 
 .ds-alert-warning {
     background-color: var(--color-warning-light);
-    border-right: 4px solid var(--color-warning);
+    border-inline-end: 4px solid var(--color-warning);
     color: #92400e;
 }
 
 .ds-alert-danger {
     background-color: var(--color-danger-light);
-    border-right: 4px solid var(--color-danger);
+    border-inline-end: 4px solid var(--color-danger);
     color: #991b1b;
 }
 
 .ds-alert-info {
     background-color: var(--color-info-light);
-    border-right: 4px solid var(--color-info);
+    border-inline-end: 4px solid var(--color-info);
     color: #1e40af;
 }
 

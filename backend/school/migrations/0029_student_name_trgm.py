@@ -1,4 +1,4 @@
-from django.db import migrations, connection
+from django.db import connection, migrations
 
 
 def _ensure_pg_trgm(apps, schema_editor):

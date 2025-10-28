@@ -3,9 +3,10 @@ Custom validators for the school application
 Provides validation for Arabic names, phone numbers, national IDs, etc.
 """
 
+import re
+
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
-import re
 
 
 class ArabicNameValidator:

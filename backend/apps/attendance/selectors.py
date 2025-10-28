@@ -1,9 +1,8 @@
 from datetime import date as _date
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from django.db.models import QuerySet, Count, Q
-
-from school.models import Student, Class, AttendanceRecord, TimetableEntry, Term, ExitEvent  # type: ignore
+from django.db.models import Count, Q, QuerySet
+from school.models import AttendanceRecord, Class, ExitEvent, Student, Term, TimetableEntry  # type: ignore
 
 try:
     from backend.common.day_utils import iso_to_school_dow
