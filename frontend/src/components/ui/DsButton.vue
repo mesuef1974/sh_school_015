@@ -49,7 +49,7 @@ const isIconOnly = computed(() => {
   const s = slots.default?.();
   if (!s || s.length === 0) return true;
   return s.every((v) => {
-    const c = (v.children as any);
+    const c = v.children as any;
     return typeof c === "string" ? c.trim().length === 0 : false;
   });
 });

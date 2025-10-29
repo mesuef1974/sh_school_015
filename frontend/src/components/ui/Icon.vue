@@ -1,9 +1,5 @@
 <template>
-  <span
-    :class="['ds-icon', sizeClass, { block }]"
-    :style="styleVars"
-    v-bind="rootAria"
-  >
+  <span :class="['ds-icon', sizeClass, { block }]" :style="styleVars" v-bind="rootAria">
     <component v-if="isIconify" :is="IconifyIcon" :icon="icon" />
     <span v-else v-html="svgHtml" :aria-hidden="!label"></span>
   </span>

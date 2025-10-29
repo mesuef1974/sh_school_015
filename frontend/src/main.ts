@@ -279,12 +279,20 @@ if (import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_AXE).toLowerCase()
           try {
             const results = await axe.run(document.body, { resultTypes: ["violations"] });
             const violations = results?.violations || [];
-            const serious = violations.filter((v: any) => ["serious", "critical"].includes(v.impact));
+            const serious = violations.filter((v: any) =>
+              ["serious", "critical"].includes(v.impact)
+            );
             if (violations.length) {
-              console.groupCollapsed("[axe] violations:", violations.length, "serious/critical:", serious.length);
+              console.groupCollapsed(
+                "[axe] violations:",
+                violations.length,
+                "serious/critical:",
+                serious.length
+              );
               for (const v of violations) console.warn(v);
               console.groupEnd();
-              const strict = String(import.meta.env.VITE_AXE_STRICT || "false").toLowerCase() === "true";
+              const strict =
+                String(import.meta.env.VITE_AXE_STRICT || "false").toLowerCase() === "true";
               if (strict && serious.length) {
                 throw new Error("[axe] serious/critical violations present (VITE_AXE_STRICT=true)");
               }

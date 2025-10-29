@@ -294,7 +294,7 @@ pwsh -File scripts\ops_run.ps1 -Task help
   npm i -D @axe-core/vue
   # ثم فعّل العلم التالي داخل frontend/.env
   # VITE_ENABLE_AXE=true
-  
+
   # شغّل بيئة التطوير
   pwsh -File scripts\ops_run.ps1 -Task dev-all
   ```
