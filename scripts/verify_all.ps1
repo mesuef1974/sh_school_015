@@ -231,48 +231,34 @@ try {
       try { $npm = Get-Command npm -ErrorAction Stop } catch { $npm = $null }
       try { $npx = Get-Command npx -ErrorAction Stop } catch { $npx = $null }
 
-      if ($npm -or $npx) {
-        # --- ESLint ---
+      if ($npm) {
+        # Use package scripts to avoid path/arg issues on Windows
+        # --- ESLint via npm script ---
         $lintExit = 0
-        $eslintLocal = Join-Path $feDir 'node_modules/eslint/bin/eslint.js'
-        if (Test-Path -Path $eslintLocal) {
-          try {
-            & node $eslintLocal .
-            $lintExit = $LASTEXITCODE
-          } catch { $lintExit = 1 }
-        } elseif ($npx) {
-          try {
-            # Fallback to NPX; avoid PS arg parsing pitfalls by passing simple args
-            & $npx.Path --yes eslint .
-            $lintExit = $LASTEXITCODE
-          } catch { $lintExit = 1 }
-        } else {
-          $lintExit = -1
-        }
-        if ($lintExit -eq 0) { Write-Ok 'Frontend lint (eslint) passed'; $results.fe_lint = 'PASS' }
-        elseif ($lintExit -eq -1) { Write-Warn 'ESLint skipped (no local bin and npx not available)'; $results.fe_lint = 'SKIP' }
-        else { Write-Warn 'Frontend lint (eslint) reported issues'; $results.fe_lint = 'WARN' }
+        try {
+          npm run -s lint
+          $lintExit = $LASTEXITCODE
+        } catch { $lintExit = 1 }
+        if ($lintExit -eq 0) { Write-Ok 'Frontend lint (npm run lint) passed'; $results.fe_lint = 'PASS' }
+        else { Write-Warn 'Frontend lint (npm run lint) reported issues'; $results.fe_lint = 'WARN' }
 
-        # --- Prettier (check only, non-blocking) ---
+        # --- Prettier check via npm script ---
         $fmtExit = 0
-        $prettierLocal = Join-Path $feDir 'node_modules/prettier/bin/prettier.cjs'
-        $prettierGlob = 'src/**/*.{ts,tsx,js,vue,css,scss,md}'
-        if (Test-Path -Path $prettierLocal) {
-          try {
-            & node $prettierLocal --check $prettierGlob
-            $fmtExit = $LASTEXITCODE
-          } catch { $fmtExit = 1 }
-        } elseif ($npx) {
-          try {
-            & $npx.Path --yes prettier --check $prettierGlob
-            $fmtExit = $LASTEXITCODE
-          } catch { $fmtExit = 1 }
-        } else {
-          $fmtExit = -1
-        }
+        try {
+          npm run -s format:check
+          $fmtExit = $LASTEXITCODE
+        } catch { $fmtExit = 1 }
         if ($fmtExit -eq 0) { Write-Ok 'Frontend format (prettier --check) OK'; $results.fe_format = 'PASS' }
-        elseif ($fmtExit -eq -1) { Write-Warn 'Prettier check skipped (no local bin and npx not available)'; $results.fe_format = 'SKIP' }
         else { Write-Warn 'Frontend format (prettier) suggests changes'; $results.fe_format = 'WARN' }
+      } elseif ($npx) {
+        # Fallback to NPX direct tools when npm script is unavailable
+        $lintExit = 0
+        try { & $npx.Path --yes eslint .; $lintExit = $LASTEXITCODE } catch { $lintExit = 1 }
+        if ($lintExit -eq 0) { Write-Ok 'Frontend lint (eslint) passed'; $results.fe_lint = 'PASS' } else { Write-Warn 'Frontend lint (eslint) reported issues'; $results.fe_lint = 'WARN' }
+        $fmtExit = 0
+        $prettierGlob = 'src/**/*.{ts,tsx,js,vue,css,scss,md}'
+        try { & $npx.Path --yes prettier --check $prettierGlob; $fmtExit = $LASTEXITCODE } catch { $fmtExit = 1 }
+        if ($fmtExit -eq 0) { Write-Ok 'Frontend format (prettier --check) OK'; $results.fe_format = 'PASS' } else { Write-Warn 'Frontend format (prettier) suggests changes'; $results.fe_format = 'WARN' }
       } else {
         Write-Warn 'npm/npx not available; skipping frontend lint/format'
         $results.fe_lint = 'SKIP'
@@ -284,9 +270,31 @@ try {
     $results.fe_format = 'SKIP'
   }
 } catch {
-  Write-Warn 'Frontend lint/format step encountered an error; treating as WARN (non-blocking).'
-  if (-not ($results.ContainsKey('fe_lint'))) { $results['fe_lint'] = 'WARN' }
-  if (-not ($results.ContainsKey('fe_format'))) { $results['fe_format'] = 'WARN' }
+  try {
+    $feDir = Join-Path $Root 'frontend'
+    if (Test-Path -Path $feDir) {
+      Push-Location $feDir
+      try { $npm = Get-Command npm -ErrorAction Stop } catch { $npm = $null }
+      if ($npm) {
+        if (-not ($results.ContainsKey('fe_lint'))) {
+          try { npm run -s lint; if ($LASTEXITCODE -eq 0) { $results.fe_lint = 'PASS' } else { $results.fe_lint = 'WARN' } } catch { if (-not ($results.ContainsKey('fe_lint'))) { $results.fe_lint = 'SKIP' } }
+        }
+        if (-not ($results.ContainsKey('fe_format'))) {
+          try { npm run -s format:check; if ($LASTEXITCODE -eq 0) { $results.fe_format = 'PASS' } else { $results.fe_format = 'WARN' } } catch { if (-not ($results.ContainsKey('fe_format'))) { $results.fe_format = 'SKIP' } }
+        }
+        if (($results.fe_lint -eq 'PASS') -and ($results.fe_format -eq 'PASS')) {
+          Write-Ok 'Frontend lint/format passed via fallback'
+        } else {
+          Write-Warn 'Frontend lint/format did not fully pass via fallback'
+        }
+      } else {
+        if (-not ($results.ContainsKey('fe_lint'))) { $results.fe_lint = 'SKIP' }
+        if (-not ($results.ContainsKey('fe_format'))) { $results.fe_format = 'SKIP' }
+      }
+    }
+  } finally {
+    try { Pop-Location } catch {}
+  }
 } finally {
   try { Pop-Location } catch {}
 }
@@ -317,7 +325,64 @@ try {
   $results.be_lint = 'WARN'
 }
 
-# 5) Probe health endpoints if a server is up (optional, non-blocking)
+# 5) Dependency security scans (optional, non-blocking)
+Write-Header 'Dependency security scans (optional)'
+
+# Python (pip-audit) — if available
+try {
+  $pipAuditOk = $false; try { & $PythonExe -m pip_audit --version | Out-Null; $pipAuditOk = $true } catch {}
+  if ($pipAuditOk) {
+    $paExit = 0
+    try {
+      & $PythonExe -m pip_audit -r requirements.txt -q
+      $paExit = $LASTEXITCODE
+    } catch { $paExit = 1 }
+    if ($paExit -eq 0) { Write-Ok 'pip-audit (requirements.txt) passed' ; $results.security_py = 'PASS' }
+    else { Write-Warn 'pip-audit found issues (review locally or in CI)'; $results.security_py = 'WARN' }
+  } else {
+    Write-Host '[INFO] pip-audit not installed; skipping Python dependency scan' -ForegroundColor Cyan
+    $results.security_py = 'SKIP'
+  }
+} catch {
+  Write-Warn ('pip-audit step failed: {0}' -f $_.Exception.Message)
+  $results.security_py = 'WARN'
+}
+
+# Frontend (npm audit) — if npm and deps are available
+try {
+  $feDir = Join-Path $Root 'frontend'
+  if (Test-Path -Path $feDir -and (Test-Path -Path (Join-Path $feDir 'package.json'))) {
+    Push-Location $feDir
+    $nodeModules = Join-Path $feDir 'node_modules'
+    if (-not (Test-Path -Path $nodeModules)) {
+      Write-Warn 'Frontend deps not installed; skipping npm audit (run: cd frontend; npm ci)'
+      $results.security_fe = 'SKIP'
+    } else {
+      try { $npm = Get-Command npm -ErrorAction Stop } catch { $npm = $null }
+      if ($npm) {
+        $auditExit = 0
+        try {
+          cmd /c npm audit --omit=dev --audit-level=high
+          $auditExit = $LASTEXITCODE
+        } catch { $auditExit = 1 }
+        if ($auditExit -eq 0) { Write-Ok 'npm audit (prod, high+) OK'; $results.security_fe = 'PASS' }
+        else { Write-Warn 'npm audit reported issues'; $results.security_fe = 'WARN' }
+      } else {
+        Write-Warn 'npm not available; skipping npm audit'
+        $results.security_fe = 'SKIP'
+      }
+    }
+  } else {
+    $results.security_fe = 'SKIP'
+  }
+} catch {
+  Write-Warn ('npm audit step failed: {0}' -f $_.Exception.Message)
+  $results.security_fe = 'WARN'
+} finally {
+  try { Pop-Location } catch {}
+}
+
+# 6) Probe health endpoints if a server is up (optional, non-blocking)
 Write-Header 'Health endpoint probes (optional)'
 
 # Optionally start backend for probes

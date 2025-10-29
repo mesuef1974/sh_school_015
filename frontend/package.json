@@ -7,10 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "npx --yes eslint --% .",
-    "lint:fix": "npx --yes eslint --% . --fix",
-    "format": "npx --yes prettier --write \"src/**/*.{ts,tsx,js,vue,css,scss,md}\"",
-    "format:check": "npx --yes prettier --check \"src/**/*.{ts,tsx,js,vue,css,scss,md}\""
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,vue,css,scss,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,vue,css,scss,md}\""
   },
   "dependencies": {
     "@iconify/vue": "^4.1.2",
@@ -39,15 +39,15 @@
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
-    "@vitejs/plugin-vue": "^5.1.4",
-    "typescript": "^5.6.2",
-    "vite": "^6.4.1",
-    "eslint": "^9.13.0",
-    "eslint-plugin-vue": "^9.29.0",
     "@typescript-eslint/eslint-plugin": "^8.9.0",
     "@typescript-eslint/parser": "^8.9.0",
-    "prettier": "^3.3.3",
+    "@vitejs/plugin-vue": "^5.1.4",
+    "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.2.1"
+    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-vue": "^9.29.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.2",
+    "vite": "^6.4.1"
   }
 }

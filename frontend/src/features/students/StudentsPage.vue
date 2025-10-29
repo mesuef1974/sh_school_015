@@ -7,7 +7,11 @@
       :animate="false"
     >
       <div class="d-flex align-items-center gap-3">
-        <Icon icon="solar:users-group-rounded-bold-duotone" class="text-4xl" style="color: var(--color-success)" />
+        <Icon
+          icon="solar:users-group-rounded-bold-duotone"
+          class="text-4xl"
+          style="color: var(--color-success)"
+        />
         <div>
           <div class="text-xl font-bold">إدارة شؤون الطلبة</div>
           <div class="text-muted text-sm">روابط شؤون الطلبة</div>
@@ -35,6 +39,6 @@
 </template>
 
 <script setup lang="ts">
-import IconTile from '../../widgets/IconTile.vue';
-import DsCard from '../../components/ui/DsCard.vue';
+import IconTile from "../../widgets/IconTile.vue";
+import DsCard from "../../components/ui/DsCard.vue";
 </script>

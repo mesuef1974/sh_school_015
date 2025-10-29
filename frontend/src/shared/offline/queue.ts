@@ -8,7 +8,7 @@ export type AttendanceBulkItem = {
   records: { student_id: number; status: string; note?: string | null }[];
 };
 
-const KEY = 'attendance_offline_queue_v1';
+const KEY = "attendance_offline_queue_v1";
 
 function readQueue(): AttendanceBulkItem[] {
   try {
@@ -39,7 +39,9 @@ export function enqueueAttendance(item: AttendanceBulkItem) {
   writeQueue(q);
 }
 
-export async function flushAttendanceQueue(postFn: (p: AttendanceBulkItem) => Promise<any>): Promise<{ flushed: number; failed: number }> {
+export async function flushAttendanceQueue(
+  postFn: (p: AttendanceBulkItem) => Promise<any>
+): Promise<{ flushed: number; failed: number }> {
   const q = readQueue();
   if (q.length === 0) return { flushed: 0, failed: 0 };
   let flushed = 0;
@@ -69,7 +71,7 @@ export function initOfflineQueue(postFn?: (p: AttendanceBulkItem) => Promise<any
     const { class_id, date, records } = item;
     return postBulkSave({ class_id, date, records });
   };
-  window.addEventListener('online', () => {
+  window.addEventListener("online", () => {
     flushAttendanceQueue(runner).catch(() => {});
   });
 }

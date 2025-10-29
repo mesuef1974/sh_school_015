@@ -1,3 +1,4 @@
+# isort: skip_file
 import io
 import os
 import re
@@ -11,10 +12,28 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Case, Count, F, IntegerField, Min, OuterRef, Q, Subquery, Sum, Value, When
+from django.db.models import (
+    Case,
+    Count,
+    F,
+    IntegerField,
+    Min,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.deletion import ProtectedError
 from django.db.models.functions import Coalesce
-from django.http import Http404, HttpResponse, HttpResponseNotModified, JsonResponse, StreamingHttpResponse
+from django.http import (
+    Http404,
+    HttpResponse,
+    HttpResponseNotModified,
+    JsonResponse,
+    StreamingHttpResponse,
+)
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone

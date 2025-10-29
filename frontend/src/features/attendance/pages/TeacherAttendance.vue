@@ -25,7 +25,9 @@
             </label>
             <select v-model.number="classId" required class="form-select">
               <option :value="null" disabled>اختر الصف</option>
-              <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name || ('صف #' + c.id) }}</option>
+              <option v-for="c in classes" :key="c.id" :value="c.id">
+                {{ c.name || "صف #" + c.id }}
+              </option>
             </select>
           </div>
 
@@ -45,12 +47,18 @@
             <select v-model.number="periodNo" class="form-select" @change="onPickPeriod">
               <option :value="null">— لا شيء —</option>
               <option v-for="p in todayPeriods" :key="p.period_number" :value="p.period_number">
-                حصة {{ p.period_number }} — {{ p.subject_name || 'مادة' }} — {{ p.classroom_name || ('صف #' + p.classroom_id) }}
+                حصة {{ p.period_number }} — {{ p.subject_name || "مادة" }} —
+                {{ p.classroom_name || "صف #" + p.classroom_id }}
               </option>
             </select>
           </div>
 
-          <DsButton type="submit" variant="primary" icon="solar:refresh-bold-duotone" class="btn-load">
+          <DsButton
+            type="submit"
+            variant="primary"
+            icon="solar:refresh-bold-duotone"
+            class="btn-load"
+          >
             تحميل
           </DsButton>
 
@@ -58,19 +66,45 @@
           <span class="ms-auto d-none d-sm-inline"></span>
 
           <!-- Action Buttons: Single-line cluster -->
-          <DsButton type="button" variant="success" icon="solar:check-circle-bold-duotone" :disabled="!students.length" @click="setAll('present')">
+          <DsButton
+            type="button"
+            variant="success"
+            icon="solar:check-circle-bold-duotone"
+            :disabled="!students.length"
+            @click="setAll('present')"
+          >
             <span class="btn-text">تعيين الجميع حاضر</span>
             <span class="btn-text-short">حاضر</span>
           </DsButton>
-          <DsButton type="button" variant="danger" icon="solar:close-circle-bold-duotone" :disabled="!students.length" @click="setAll('absent')">
+          <DsButton
+            type="button"
+            variant="danger"
+            icon="solar:close-circle-bold-duotone"
+            :disabled="!students.length"
+            @click="setAll('absent')"
+          >
             <span class="btn-text">تعيين الجميع غائب</span>
             <span class="btn-text-short">غائب</span>
           </DsButton>
-          <DsButton type="button" variant="primary" icon="solar:diskette-bold-duotone" :disabled="saving || !students.length" :loading="saving" @click="save">
+          <DsButton
+            type="button"
+            variant="primary"
+            icon="solar:diskette-bold-duotone"
+            :disabled="saving || !students.length"
+            :loading="saving"
+            @click="save"
+          >
             <span class="btn-text">حفظ الحضور</span>
             <span class="btn-text-short">حفظ</span>
           </DsButton>
-          <DsButton type="button" variant="warning" icon="solar:shield-check-bold-duotone" :disabled="!students.length || submitting" :loading="submitting" @click="submitForReview">
+          <DsButton
+            type="button"
+            variant="warning"
+            icon="solar:shield-check-bold-duotone"
+            :disabled="!students.length || submitting"
+            :loading="submitting"
+            @click="submitForReview"
+          >
             <span class="btn-text">إرسال للمراجعة</span>
             <span class="btn-text-short">إرسال</span>
           </DsButton>
@@ -84,7 +118,12 @@
       <div class="auto-card p-3">
         <div class="grid-toolbar d-flex flex-wrap gap-2 align-items-center mb-3">
           <div class="position-relative">
-            <input v-model="searchQuery" type="search" class="form-control" placeholder="ابحث بالاسم" />
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="form-control"
+              placeholder="ابحث بالاسم"
+            />
             <Icon icon="solar:magnifier-bold-duotone" class="search-icon" />
           </div>
           <select v-model="statusFilter" class="form-select w-auto">
@@ -104,20 +143,38 @@
             v-for="(s, idx) in filteredStudents"
             :key="s.id"
             class="student-card"
-            :class="['status-' + (recordMap[s.id]?.status || 'none'), { inactive: s.active === false }]"
+            :class="[
+              'status-' + (recordMap[s.id]?.status || 'none'),
+              { inactive: s.active === false },
+            ]"
           >
             <header class="d-flex align-items-center gap-2">
               <div class="avatar" :title="'#' + (idx + 1)">{{ String(idx + 1) }}</div>
               <div class="flex-grow-1 min-w-0">
                 <div class="name-row d-flex align-items-center gap-2 text-truncate">
-                  <div class="student-name text-truncate" :title="s.full_name">{{ s.full_name }} <span v-if="s.active === false" class="badge bg-secondary ms-1">غير فعال</span></div>
+                  <div class="student-name text-truncate" :title="s.full_name">
+                    {{ s.full_name }}
+                    <span v-if="s.active === false" class="badge bg-secondary ms-1">غير فعال</span>
+                  </div>
                 </div>
               </div>
               <div class="quick-actions d-none d-md-flex">
-                <button type="button" class="btn btn-sm btn-light" :disabled="s.active === false" @click="s.active === false ? null : (recordMap[s.id].status='present')" :aria-label="'تعيين حاضر ل' + s.full_name">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-light"
+                  :disabled="s.active === false"
+                  @click="s.active === false ? null : (recordMap[s.id].status = 'present')"
+                  :aria-label="'تعيين حاضر ل' + s.full_name"
+                >
                   <Icon icon="solar:check-circle-bold-duotone" />
                 </button>
-                <button type="button" class="btn btn-sm btn-light text-danger" :disabled="s.active === false" @click="s.active === false ? null : (recordMap[s.id].status='absent')" :aria-label="'تعيين غائب ل' + s.full_name">
+                <button
+                  type="button"
+                  class="btn btn-sm btn-light text-danger"
+                  :disabled="s.active === false"
+                  @click="s.active === false ? null : (recordMap[s.id].status = 'absent')"
+                  :aria-label="'تعيين غائب ل' + s.full_name"
+                >
                   <Icon icon="solar:close-circle-bold-duotone" />
                 </button>
               </div>
@@ -125,7 +182,14 @@
 
             <div class="mt-2">
               <div class="controls-row d-flex align-items-center gap-2 no-wrap">
-                <select v-model="recordMap[s.id].status" class="form-select status-select" :class="statusClassChip(recordMap[s.id].status)" @change="onStatusChange(s)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إجراء أي إجراء عليه' : ''">
+                <select
+                  v-model="recordMap[s.id].status"
+                  class="form-select status-select"
+                  :class="statusClassChip(recordMap[s.id].status)"
+                  @change="onStatusChange(s)"
+                  :disabled="s.active === false"
+                  :title="s.active === false ? 'الطالب غير فعال — لا يمكن إجراء أي إجراء عليه' : ''"
+                >
                   <option value=""></option>
                   <option value="present">حاضر</option>
                   <option value="absent">غائب</option>
@@ -134,48 +198,131 @@
                   <option value="runaway">هروب</option>
                   <option value="left_early">انصراف مبكر</option>
                 </select>
-                <input v-if="recordMap[s.id].status !== 'excused'" type="text" v-model="recordMap[s.id].note" class="form-control flex-grow-1 min-w-0" placeholder="ملاحظة (اختياري)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إضافة ملاحظات' : ''" />
+                <input
+                  v-if="recordMap[s.id].status !== 'excused'"
+                  type="text"
+                  v-model="recordMap[s.id].note"
+                  class="form-control flex-grow-1 min-w-0"
+                  placeholder="ملاحظة (اختياري)"
+                  :disabled="s.active === false"
+                  :title="s.active === false ? 'الطالب غير فعال — لا يمكن إضافة ملاحظات' : ''"
+                />
               </div>
             </div>
 
             <div v-if="recordMap[s.id].status === 'excused'" class="mt-2">
               <div class="exit-reasons d-flex flex-wrap gap-2">
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'admin', disabled: s.active === false}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="admin" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" :disabled="s.active === false" />
+                <label
+                  class="btn btn-outline-secondary btn-sm m-0"
+                  :class="{
+                    active: recordMap[s.id].exit_reasons === 'admin',
+                    disabled: s.active === false,
+                  }"
+                >
+                  <input
+                    type="radio"
+                    class="visually-hidden"
+                    :name="'exit-' + s.id"
+                    value="admin"
+                    v-model="recordMap[s.id].exit_reasons"
+                    @change="onExitReasonChange(s)"
+                    :disabled="s.active === false"
+                  />
                   إدارة
                 </label>
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'wing', disabled: s.active === false}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="wing" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
+                <label
+                  class="btn btn-outline-secondary btn-sm m-0"
+                  :class="{
+                    active: recordMap[s.id].exit_reasons === 'wing',
+                    disabled: s.active === false,
+                  }"
+                >
+                  <input
+                    type="radio"
+                    class="visually-hidden"
+                    :name="'exit-' + s.id"
+                    value="wing"
+                    v-model="recordMap[s.id].exit_reasons"
+                    @change="onExitReasonChange(s)"
+                  />
                   مشرف الجناح
                 </label>
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'nurse', disabled: s.active === false}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="nurse" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
+                <label
+                  class="btn btn-outline-secondary btn-sm m-0"
+                  :class="{
+                    active: recordMap[s.id].exit_reasons === 'nurse',
+                    disabled: s.active === false,
+                  }"
+                >
+                  <input
+                    type="radio"
+                    class="visually-hidden"
+                    :name="'exit-' + s.id"
+                    value="nurse"
+                    v-model="recordMap[s.id].exit_reasons"
+                    @change="onExitReasonChange(s)"
+                  />
                   الممرض
                 </label>
-                <label class="btn btn-outline-secondary btn-sm m-0" :class="{active: recordMap[s.id].exit_reasons === 'restroom', disabled: s.active === false}">
-                  <input type="radio" class="visually-hidden" :name="'exit-'+s.id" value="restroom" v-model="recordMap[s.id].exit_reasons" @change="onExitReasonChange(s)" />
+                <label
+                  class="btn btn-outline-secondary btn-sm m-0"
+                  :class="{
+                    active: recordMap[s.id].exit_reasons === 'restroom',
+                    disabled: s.active === false,
+                  }"
+                >
+                  <input
+                    type="radio"
+                    class="visually-hidden"
+                    :name="'exit-' + s.id"
+                    value="restroom"
+                    v-model="recordMap[s.id].exit_reasons"
+                    @change="onExitReasonChange(s)"
+                  />
                   دورة المياه
                 </label>
               </div>
               <div class="mt-2">
-                <input type="text" v-model="recordMap[s.id].note" class="form-control" placeholder="ملاحظة إذن الخروج (إلى أين؟)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إضافة ملاحظات' : ''" />
+                <input
+                  type="text"
+                  v-model="recordMap[s.id].note"
+                  class="form-control"
+                  placeholder="ملاحظة إذن الخروج (إلى أين؟)"
+                  :disabled="s.active === false"
+                  :title="s.active === false ? 'الطالب غير فعال — لا يمكن إضافة ملاحظات' : ''"
+                />
               </div>
               <div class="d-flex align-items-center gap-2 mt-2 w-100 exit-controls">
                 <template v-if="!exitState[s.id]?.running">
-                  <DsButton size="sm" variant="info" icon="solar:play-bold-duotone" @click="startExit(s)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن بدء إذن خروج' : ''">بدء الخروج</DsButton>
+                  <DsButton
+                    size="sm"
+                    variant="info"
+                    icon="solar:play-bold-duotone"
+                    @click="startExit(s)"
+                    :disabled="s.active === false"
+                    :title="s.active === false ? 'الطالب غير فعال — لا يمكن بدء إذن خروج' : ''"
+                    >بدء الخروج</DsButton
+                  >
                   <span class="text-muted small">لن يبدأ الحساب إلا بعد الضغط على بدء</span>
                 </template>
                 <template v-else>
                   <DsBadge variant="info" icon="solar:clock-circle-bold-duotone">
                     خارج الفصل: <strong>{{ formatElapsed(exitState[s.id].started_at) }}</strong>
                   </DsBadge>
-                  <DsButton size="sm" variant="success" icon="solar:check-circle-bold-duotone" :loading="exitState[s.id].busy" @click="returnNow(s)" :disabled="s.active === false" :title="s.active === false ? 'الطالب غير فعال — لا يمكن إنهاء إذن الخروج' : ''">
+                  <DsButton
+                    size="sm"
+                    variant="success"
+                    icon="solar:check-circle-bold-duotone"
+                    :loading="exitState[s.id].busy"
+                    @click="returnNow(s)"
+                    :disabled="s.active === false"
+                    :title="s.active === false ? 'الطالب غير فعال — لا يمكن إنهاء إذن الخروج' : ''"
+                  >
                     عودة الآن
                   </DsButton>
                 </template>
               </div>
             </div>
-
           </article>
         </div>
       </div>
@@ -187,12 +334,22 @@
 </template>
 
 <script setup lang="ts">
-import { postSubmit as postAttendanceSubmit } from '../../../api/attendance';
-import { onMounted, onBeforeUnmount, reactive, ref, computed } from 'vue';
-import { getAttendanceStudents, getAttendanceRecords, postAttendanceBulkSave, getTeacherClasses, getTeacherTimetableToday, getAttendanceSummary, getOpenExitEvents, postExitEvent, patchExitReturn } from '../../../shared/api/client';
-import { useToast } from 'vue-toastification';
-import DsButton from '../../../components/ui/DsButton.vue';
-import DsBadge from '../../../components/ui/DsBadge.vue';
+import { postSubmit as postAttendanceSubmit } from "../../../api/attendance";
+import { onMounted, onBeforeUnmount, reactive, ref, computed } from "vue";
+import {
+  getAttendanceStudents,
+  getAttendanceRecords,
+  postAttendanceBulkSave,
+  getTeacherClasses,
+  getTeacherTimetableToday,
+  getAttendanceSummary,
+  getOpenExitEvents,
+  postExitEvent,
+  patchExitReturn,
+} from "../../../shared/api/client";
+import { useToast } from "vue-toastification";
+import DsButton from "../../../components/ui/DsButton.vue";
+import DsBadge from "../../../components/ui/DsBadge.vue";
 
 const toast = useToast();
 const today = new Date().toISOString().slice(0, 10);
@@ -200,45 +357,91 @@ const classId = ref<number | null>(null);
 const dateStr = ref<string>(today);
 const loading = ref(false);
 const saving = ref(false);
-const saveMsg = ref('');
+const saveMsg = ref("");
 const submitting = ref(false);
 
 // Class/day summary KPIs
 const classSummary = ref<{ kpis?: any } | null>(null);
-const classKpis = computed(() => classSummary.value?.kpis || { present_pct: null, present: 0, total: 0, absent: 0, late: 0, excused: 0 });
+const classKpis = computed(
+  () =>
+    classSummary.value?.kpis || {
+      present_pct: null,
+      present: 0,
+      total: 0,
+      absent: 0,
+      late: 0,
+      excused: 0,
+    }
+);
 
 // Today periods for the teacher
-const todayPeriods = ref<{ period_number:number; classroom_id:number; classroom_name?:string; subject_id:number; subject_name?:string }[]>([]);
+const todayPeriods = ref<
+  {
+    period_number: number;
+    classroom_id: number;
+    classroom_name?: string;
+    subject_id: number;
+    subject_name?: string;
+  }[]
+>([]);
 const periodNo = ref<number | null>(null);
 
-interface StudentBrief { id: number; full_name?: string; active?: boolean; }
-interface Rec { student_id: number; status: '' | 'present' | 'absent' | 'late' | 'excused' | 'runaway' | 'left_early'; note?: string | null; exit_reasons?: string }
+interface StudentBrief {
+  id: number;
+  full_name?: string;
+  active?: boolean;
+}
+interface Rec {
+  student_id: number;
+  status: "" | "present" | "absent" | "late" | "excused" | "runaway" | "left_early";
+  note?: string | null;
+  exit_reasons?: string;
+}
 
 const classes = ref<{ id: number; name?: string }[]>([]);
 const students = ref<StudentBrief[]>([]);
-const inactiveIds = computed(() => new Set(students.value.filter(s => s.active === false).map(s => s.id)));
+const inactiveIds = computed(
+  () => new Set(students.value.filter((s) => s.active === false).map((s) => s.id))
+);
 const recordMap = reactive<Record<number, Rec>>({});
 
 const totalStudents = computed(() => students.value.length);
-const presentCount = computed(() => Object.values(recordMap).filter(r => r.status === 'present').length);
-const absentCount = computed(() => Object.values(recordMap).filter(r => r.status === 'absent').length);
-const lateCount = computed(() => Object.values(recordMap).filter(r => r.status === 'late').length);
-const runawayCount = computed(() => Object.values(recordMap).filter(r => r.status === 'runaway').length);
-const excusedCount = computed(() => Object.values(recordMap).filter(r => r.status === 'excused').length);
+const presentCount = computed(
+  () => Object.values(recordMap).filter((r) => r.status === "present").length
+);
+const absentCount = computed(
+  () => Object.values(recordMap).filter((r) => r.status === "absent").length
+);
+const lateCount = computed(
+  () => Object.values(recordMap).filter((r) => r.status === "late").length
+);
+const runawayCount = computed(
+  () => Object.values(recordMap).filter((r) => r.status === "runaway").length
+);
+const excusedCount = computed(
+  () => Object.values(recordMap).filter((r) => r.status === "excused").length
+);
 
 // بحث وفلترة
-const searchQuery = ref('');
-const statusFilter = ref(''); // '', present, absent, late, excused, runaway, left_early
+const searchQuery = ref("");
+const statusFilter = ref(""); // '', present, absent, late, excused, runaway, left_early
 
 function statusLabel(value?: string) {
   switch (value) {
-    case 'present': return 'حاضر';
-    case 'absent': return 'غائب';
-    case 'late': return 'متأخر';
-    case 'excused': return 'إذن خروج';
-    case 'runaway': return 'هروب';
-    case 'left_early': return 'انصراف مبكر';
-    default: return '—';
+    case "present":
+      return "حاضر";
+    case "absent":
+      return "غائب";
+    case "late":
+      return "متأخر";
+    case "excused":
+      return "إذن خروج";
+    case "runaway":
+      return "هروب";
+    case "left_early":
+      return "انصراف مبكر";
+    default:
+      return "—";
   }
 }
 
@@ -247,21 +450,23 @@ const filteredStudents = computed(() => {
   const f = statusFilter.value;
   return students.value.filter((s: any) => {
     const matchesText = !q || (s.full_name && String(s.full_name).includes(q));
-    const st = recordMap[s.id]?.status || '';
+    const st = recordMap[s.id]?.status || "";
     const matchesStatus = !f || st === f;
     return matchesText && matchesStatus;
   });
 });
 
 function statusClassChip(s: string) {
-  return {
-    present: 'present',
-    absent: 'absent',
-    late: 'late',
-    excused: 'excused',
-    runaway: 'runaway',
-    left_early: 'left_early'
-  }[s] || '';
+  return (
+    {
+      present: "present",
+      absent: "absent",
+      late: "late",
+      excused: "excused",
+      runaway: "runaway",
+      left_early: "left_early",
+    }[s] || ""
+  );
 }
 
 // Split students into two nearly equal columns
@@ -272,26 +477,26 @@ const studentsRight = computed(() => students.value.slice(leftCount.value));
 function statusClass(s: string) {
   // Align colors with history page badges (background colors)
   return {
-    'text-bg-success': s === 'present',
-    'text-bg-danger': s === 'absent' || s === 'runaway',
-    'text-bg-warning': s === 'late',
-    'text-bg-secondary': s === 'excused',
-    'text-bg-info': s === 'left_early'
+    "text-bg-success": s === "present",
+    "text-bg-danger": s === "absent" || s === "runaway",
+    "text-bg-warning": s === "late",
+    "text-bg-secondary": s === "excused",
+    "text-bg-info": s === "left_early",
   } as any;
 }
 
 // Text-only color for student name (no background)
 function nameClass(s: string) {
   return {
-    'text-success': s === 'present',
-    'text-danger': s === 'absent' || s === 'runaway',
-    'text-warning': s === 'late',
-    'text-secondary': s === 'excused',
-    'text-info': s === 'left_early'
+    "text-success": s === "present",
+    "text-danger": s === "absent" || s === "runaway",
+    "text-warning": s === "late",
+    "text-secondary": s === "excused",
+    "text-info": s === "left_early",
   } as any;
 }
 
-function setAll(st: ''|'present'|'absent'|'late'|'excused'|'runaway'|'left_early') {
+function setAll(st: "" | "present" | "absent" | "late" | "excused" | "runaway" | "left_early") {
   for (const s of students.value) {
     if (s.active === false) continue; // skip inactive students
     if (recordMap[s.id]) recordMap[s.id].status = st;
@@ -299,35 +504,40 @@ function setAll(st: ''|'present'|'absent'|'late'|'excused'|'runaway'|'left_early
 }
 
 // ----- Exit timer state -----
-const exitState = reactive<Record<number, { running: boolean; started_at: string | null; event_id: number | null; busy?: boolean }>>({});
+const exitState = reactive<
+  Record<
+    number,
+    { running: boolean; started_at: string | null; event_id: number | null; busy?: boolean }
+  >
+>({});
 let tickTimer: number | undefined;
 const currentTime = ref(Date.now()); // Reactive current time for live timer updates
 
 function ensureExitReason(s: any) {
-  if (!recordMap[s.id].exit_reasons) recordMap[s.id].exit_reasons = 'admin';
+  if (!recordMap[s.id].exit_reasons) recordMap[s.id].exit_reasons = "admin";
 }
 
 function autoNoteForExit(reason?: string) {
-  const r = (reason || '').toLowerCase();
+  const r = (reason || "").toLowerCase();
   const map: Record<string, string> = {
-    admin: 'إذن خروج إلى الإدارة',
-    wing: 'إذن خروج إلى مشرف الجناح',
-    nurse: 'إذن خروج إلى الممرض',
-    restroom: 'إذن خروج إلى دورة المياه'
+    admin: "إذن خروج إلى الإدارة",
+    wing: "إذن خروج إلى مشرف الجناح",
+    nurse: "إذن خروج إلى الممرض",
+    restroom: "إذن خروج إلى دورة المياه",
   };
-  return map[r] || (r ? `إذن خروج (${r})` : 'إذن خروج');
+  return map[r] || (r ? `إذن خروج (${r})` : "إذن خروج");
 }
 
 function isAutoNote(note?: string) {
-  const n = (note || '').trim();
+  const n = (note || "").trim();
   if (!n) return true;
   // Treat any note that begins with "إذن خروج" (including legacy formats like "إذن خروج — إدارة") as auto-generated
-  return n.startsWith('إذن خروج');
+  return n.startsWith("إذن خروج");
 }
 
 function onExitReasonChange(s: any) {
   if (s.active === false) return;
-  const current = (recordMap[s.id].note || '').trim();
+  const current = (recordMap[s.id].note || "").trim();
   const reason = recordMap[s.id].exit_reasons as string;
   const auto = autoNoteForExit(reason);
   if (!current || isAutoNote(current)) {
@@ -338,27 +548,33 @@ function onExitReasonChange(s: any) {
 function onStatusChange(s: any) {
   if (s.active === false) {
     // Revert any change and notify
-    recordMap[s.id].status = '' as any;
-    try { toast.warning('الطالب غير فعال — لا يمكن إجراء أي إجراء عليه', { autoClose: 2500 }); } catch {}
+    recordMap[s.id].status = "" as any;
+    try {
+      toast.warning("الطالب غير فعال — لا يمكن إجراء أي إجراء عليه", { autoClose: 2500 });
+    } catch {}
     return;
   }
   const st = recordMap[s.id].status as string;
-  if (st === 'excused') {
+  if (st === "excused") {
     // عند اختيار إذن خروج: ثبّت ملاحظة إذن الخروج تلقائيًا
     ensureExitReason(s);
-    const current = (recordMap[s.id].note || '').trim();
+    const current = (recordMap[s.id].note || "").trim();
     const auto = autoNoteForExit(recordMap[s.id].exit_reasons as any);
     if (!current || isAutoNote(current)) {
       recordMap[s.id].note = auto;
     }
-  } else if (st === 'late') {
+  } else if (st === "late") {
     // عند اختيار "متأخر": ثبّت وقت العودة في الملاحظات مرة واحدة
     try {
       const now = new Date();
-      const hh = now.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const hh = now.toLocaleTimeString("ar-SA-u-nu-latn", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
       const tag = ` — وقت عودة: ${hh}`;
-      const base = (recordMap[s.id].note || '').toString().trim();
-      if (base.includes('وقت عودة')) {
+      const base = (recordMap[s.id].note || "").toString().trim();
+      if (base.includes("وقت عودة")) {
         // لا تكرّر الوسم
         return;
       }
@@ -372,9 +588,9 @@ function onStatusChange(s: any) {
     } catch {}
   } else {
     // لباقي الحالات: إن كانت الملاحظة مولّدة تلقائيًا لإذن الخروج فافرغها
-    const current = (recordMap[s.id].note || '').trim();
+    const current = (recordMap[s.id].note || "").trim();
     if (isAutoNote(current)) {
-      recordMap[s.id].note = '';
+      recordMap[s.id].note = "";
     }
   }
 }
@@ -384,10 +600,15 @@ async function loadOpenExits() {
   try {
     const data = await getOpenExitEvents({ class_id: classId.value, date: dateStr.value });
     for (const e of data) {
-      exitState[e.student_id] = { running: true, started_at: e.started_at as any, event_id: e.id } as any;
+      exitState[e.student_id] = {
+        running: true,
+        started_at: e.started_at as any,
+        event_id: e.id,
+      } as any;
       if (recordMap[e.student_id]) {
-        recordMap[e.student_id].status = 'excused';
-        if (!recordMap[e.student_id].exit_reasons) recordMap[e.student_id].exit_reasons = e.reason as any;
+        recordMap[e.student_id].status = "excused";
+        if (!recordMap[e.student_id].exit_reasons)
+          recordMap[e.student_id].exit_reasons = e.reason as any;
       }
     }
   } catch {}
@@ -395,11 +616,13 @@ async function loadOpenExits() {
 
 async function startExit(s: any) {
   if (s.active === false) {
-    try { toast.error('الطالب غير فعال — لا يمكن بدء إذن خروج'); } catch {}
+    try {
+      toast.error("الطالب غير فعال — لا يمكن بدء إذن خروج");
+    } catch {}
     return;
   }
   try {
-    let note = (recordMap[s.id].note || '').trim();
+    let note = (recordMap[s.id].note || "").trim();
     ensureExitReason(s);
     if (!note) {
       note = autoNoteForExit(recordMap[s.id].exit_reasons as any);
@@ -412,21 +635,30 @@ async function startExit(s: any) {
       date: dateStr.value,
       period_number: periodNo.value ?? undefined,
       reason: recordMap[s.id].exit_reasons as any,
-      note
+      note,
     };
     const res = await postExitEvent(payload as any);
-    exitState[s.id] = { running: true, started_at: res.started_at, event_id: res.id, busy: false } as any;
-    recordMap[s.id].status = 'excused';
+    exitState[s.id] = {
+      running: true,
+      started_at: res.started_at,
+      event_id: res.id,
+      busy: false,
+    } as any;
+    recordMap[s.id].status = "excused";
   } catch (e: any) {
     exitState[s.id] = { running: false, started_at: null, event_id: null } as any;
-    const msg = e?.response?.data?.detail || 'تعذر بدء جلسة الخروج';
-    try { toast.error(msg); } catch {}
+    const msg = e?.response?.data?.detail || "تعذر بدء جلسة الخروج";
+    try {
+      toast.error(msg);
+    } catch {}
   }
 }
 
 async function returnNow(s: any) {
   if (s.active === false) {
-    try { toast.error('الطالب غير فعال — لا يمكن إنهاء إذن الخروج'); } catch {}
+    try {
+      toast.error("الطالب غير فعال — لا يمكن إنهاء إذن الخروج");
+    } catch {}
     return;
   }
   const st = exitState[s.id];
@@ -437,27 +669,33 @@ async function returnNow(s: any) {
     // Append return time to the note after the exit text
     try {
       const now = new Date();
-      const hh = now.toLocaleTimeString('ar-SA-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: false });
-      const base = (recordMap[s.id].note || 'إذن خروج').toString().trim();
+      const hh = now.toLocaleTimeString("ar-SA-u-nu-latn", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      const base = (recordMap[s.id].note || "إذن خروج").toString().trim();
       // Avoid duplicating tag
       const tag = ` — وقت عودة: ${hh}`;
-      if (!base.includes('وقت عودة')) {
+      if (!base.includes("وقت عودة")) {
         recordMap[s.id].note = base + tag;
       }
     } catch {}
     // Option: set present automatically
-    recordMap[s.id].status = 'present';
+    recordMap[s.id].status = "present";
     st.running = false;
   } catch (e: any) {
-    const msg = e?.response?.data?.detail || 'تعذر إغلاق جلسة الخروج';
-    try { toast.error(msg); } catch {}
+    const msg = e?.response?.data?.detail || "تعذر إغلاق جلسة الخروج";
+    try {
+      toast.error(msg);
+    } catch {}
   } finally {
     st.busy = false;
   }
 }
 
 function formatElapsed(startIso?: string | null) {
-  if (!startIso) return '—';
+  if (!startIso) return "—";
   const start = new Date(startIso).getTime();
   const now = currentTime.value; // Use reactive current time
   const seconds = Math.max(0, Math.floor((now - start) / 1000));
@@ -465,66 +703,88 @@ function formatElapsed(startIso?: string | null) {
 }
 
 function formatSeconds(total: number) {
-  const h = Math.floor(total / 3600).toString().padStart(2, '0');
-  const m = Math.floor((total % 3600) / 60).toString().padStart(2, '0');
-  const s = Math.floor(total % 60).toString().padStart(2, '0');
+  const h = Math.floor(total / 3600)
+    .toString()
+    .padStart(2, "0");
+  const m = Math.floor((total % 3600) / 60)
+    .toString()
+    .padStart(2, "0");
+  const s = Math.floor(total % 60)
+    .toString()
+    .padStart(2, "0");
   return `${h}:${m}:${s}`;
 }
 
-const collator = new Intl.Collator('ar');
+const collator = new Intl.Collator("ar");
 
 async function loadData() {
   await loadClassSummary();
   if (periodNo.value) {
     // If period picked, ensure class matches the selected period
-    const p = todayPeriods.value.find(pp => pp.period_number === periodNo.value);
+    const p = todayPeriods.value.find((pp) => pp.period_number === periodNo.value);
     if (p) {
       classId.value = p.classroom_id;
     }
   }
   if (!classId.value) return;
   loading.value = true;
-  saveMsg.value = '';
+  saveMsg.value = "";
   try {
     const [sres, rres] = await Promise.all([
       getAttendanceStudents({ class_id: classId.value, date: dateStr.value }),
-      getAttendanceRecords({ class_id: classId.value, date: dateStr.value, period_number: periodNo.value ?? null })
+      getAttendanceRecords({
+        class_id: classId.value,
+        date: dateStr.value,
+        period_number: periodNo.value ?? null,
+      }),
     ]);
     // Arabic ascending sort by full_name
     students.value = [...sres.students].sort((a: any, b: any) => {
-      return collator.compare(a.full_name || '', b.full_name || '');
+      return collator.compare(a.full_name || "", b.full_name || "");
     });
     // reset map
     for (const k of Object.keys(recordMap)) delete (recordMap as any)[k];
     for (const st of students.value) {
-      (recordMap as any)[st.id] = { student_id: st.id, status: '', note: '', exit_reasons: '' };
+      (recordMap as any)[st.id] = { student_id: st.id, status: "", note: "", exit_reasons: "" };
     }
     for (const r of rres.records) {
       const eraw: any = (r as any).exit_reasons;
-      const ereason = Array.isArray(eraw)
-        ? (eraw[0] || '')
-        : (typeof eraw === 'string' ? eraw : '');
+      const ereason = Array.isArray(eraw) ? eraw[0] || "" : typeof eraw === "string" ? eraw : "";
       const prev = (recordMap as any)[r.student_id];
       if (!prev) {
-        (recordMap as any)[r.student_id] = { student_id: r.student_id, status: r.status, note: r.note ?? '', exit_reasons: ereason };
+        (recordMap as any)[r.student_id] = {
+          student_id: r.student_id,
+          status: r.status,
+          note: r.note ?? "",
+          exit_reasons: ereason,
+        };
       } else {
         // Prefer showing 'إذن خروج' if any period for the day has it; else keep existing non-empty status
-        const priority = (s: string) => (s === 'excused' ? 3 : s === 'late' || s === 'absent' ? 2 : s ? 1 : 0);
+        const priority = (s: string) =>
+          s === "excused" ? 3 : s === "late" || s === "absent" ? 2 : s ? 1 : 0;
         const pickExisting = priority(prev.status) >= priority(r.status);
         if (pickExisting) {
           // Keep previous, but if previous was excused and current carries a reason, merge reason if missing
-          if (prev.status === 'excused' && !prev.exit_reasons && ereason) prev.exit_reasons = ereason;
+          if (prev.status === "excused" && !prev.exit_reasons && ereason)
+            prev.exit_reasons = ereason;
         } else {
-          (recordMap as any)[r.student_id] = { student_id: r.student_id, status: r.status, note: r.note ?? '', exit_reasons: ereason };
+          (recordMap as any)[r.student_id] = {
+            student_id: r.student_id,
+            status: r.status,
+            note: r.note ?? "",
+            exit_reasons: ereason,
+          };
         }
       }
     }
     // Load any open exit sessions and reflect their timers
     await loadOpenExits();
   } catch (e: any) {
-    const msg = e?.response?.data?.detail || 'حدث خطأ أثناء التحميل';
+    const msg = e?.response?.data?.detail || "حدث خطأ أثناء التحميل";
     saveMsg.value = msg;
-    try { toast.error(msg, { autoClose: 3500 }); } catch {}
+    try {
+      toast.error(msg, { autoClose: 3500 });
+    } catch {}
   } finally {
     loading.value = false;
   }
@@ -535,43 +795,59 @@ async function save() {
   // If there are multiple possible periods today for this class/date, require selecting one to avoid backend ambiguity
   const manyPeriods = Array.isArray(todayPeriods.value) && todayPeriods.value.length > 1;
   if (manyPeriods && !periodNo.value) {
-    const msg = 'يرجى اختيار الحصة قبل الحفظ لتجنب التعارض.';
+    const msg = "يرجى اختيار الحصة قبل الحفظ لتجنب التعارض.";
     saveMsg.value = msg;
-    try { toast.warning(msg, { autoClose: 3500 }); } catch {}
+    try {
+      toast.warning(msg, { autoClose: 3500 });
+    } catch {}
     return;
   }
   saving.value = true;
-  saveMsg.value = '';
+  saveMsg.value = "";
   try {
     const inact = inactiveIds.value;
-    const base = Object.values(recordMap).filter(r => !!r.status && !inact.has(r.student_id));
+    const base = Object.values(recordMap).filter((r) => !!r.status && !inact.has(r.student_id));
     // Validation: require one reason when status is 'excused'
-    const missing = base.filter(r => r.status === 'excused' && (!r.exit_reasons || String(r.exit_reasons).trim() === ''));
+    const missing = base.filter(
+      (r) => r.status === "excused" && (!r.exit_reasons || String(r.exit_reasons).trim() === "")
+    );
     if (missing.length) {
       const msg = 'يجب اختيار سبب واحد لإذن الخروج لكل طالب تم تعيين حالته "إذن خروج"';
       saveMsg.value = msg;
-      try { toast.error(msg, { autoClose: 3500 }); } catch {}
+      try {
+        toast.error(msg, { autoClose: 3500 });
+      } catch {}
       return;
     }
-    const records = base.map(r => ({
+    const records = base.map((r) => ({
       student_id: r.student_id,
       status: r.status,
-      note: r.status === 'excused' ? null : (r.note ?? ''),
-      exit_reasons: r.status === 'excused' ? (r.exit_reasons as any) : undefined,
+      note: r.status === "excused" ? null : (r.note ?? ""),
+      exit_reasons: r.status === "excused" ? (r.exit_reasons as any) : undefined,
     }));
-    const res = await postAttendanceBulkSave({ class_id: classId.value, date: dateStr.value, period_number: periodNo.value ?? undefined as any, records });
+    const res = await postAttendanceBulkSave({
+      class_id: classId.value,
+      date: dateStr.value,
+      period_number: periodNo.value ?? (undefined as any),
+      records,
+    });
     const queued = (res as any)?.queued;
-    const msg = queued ? `تمت جدولة الحفظ (${records.length}) — سيتم المزامنة عند توفر الاتصال` : `تم الحفظ (${res.saved})`;
+    const msg = queued
+      ? `تمت جدولة الحفظ (${records.length}) — سيتم المزامنة عند توفر الاتصال`
+      : `تم الحفظ (${res.saved})`;
     saveMsg.value = msg;
     try {
-      if (queued) toast.info(msg, { autoClose: 3500 }); else toast.success(msg, { autoClose: 2500 });
+      if (queued) toast.info(msg, { autoClose: 3500 });
+      else toast.success(msg, { autoClose: 2500 });
     } catch {}
     // Reload to reflect persisted records (and computed counters)
     await loadData();
   } catch (e: any) {
-    const msg = e?.response?.data?.detail || 'تعذر الحفظ';
+    const msg = e?.response?.data?.detail || "تعذر الحفظ";
     saveMsg.value = msg;
-    try { toast.error(msg, { autoClose: 3500 }); } catch {}
+    try {
+      toast.error(msg, { autoClose: 3500 });
+    } catch {}
   } finally {
     saving.value = false;
   }
@@ -602,17 +878,22 @@ async function loadTodayPeriods() {
 
 async function loadClassSummary() {
   try {
-    if (!classId.value) { classSummary.value = null; return; }
+    if (!classId.value) {
+      classSummary.value = null;
+      return;
+    }
     const res = await getAttendanceSummary({ class_id: classId.value, date: dateStr.value });
     classSummary.value = res;
   } catch {
-    classSummary.value = { kpis: { present_pct: null, present: 0, total: 0, absent: 0, late: 0, excused: 0 } } as any;
+    classSummary.value = {
+      kpis: { present_pct: null, present: 0, total: 0, absent: 0, late: 0, excused: 0 },
+    } as any;
   }
 }
 
 async function onPickPeriod() {
   if (!periodNo.value) return;
-  const p = todayPeriods.value.find(pp => pp.period_number === periodNo.value);
+  const p = todayPeriods.value.find((pp) => pp.period_number === periodNo.value);
   if (p) {
     classId.value = p.classroom_id;
     await loadClassSummary();
@@ -638,91 +919,252 @@ async function submitForReview() {
   // If multiple periods exist, require explicit period selection for precision
   const manyPeriods = Array.isArray(todayPeriods.value) && todayPeriods.value.length > 1;
   if (manyPeriods && !periodNo.value) {
-    const msg = 'يرجى اختيار الحصة قبل الإرسال للمراجعة.';
+    const msg = "يرجى اختيار الحصة قبل الإرسال للمراجعة.";
     saveMsg.value = msg;
-    try { toast.warning(msg, { autoClose: 3500 }); } catch {}
+    try {
+      toast.warning(msg, { autoClose: 3500 });
+    } catch {}
     return;
   }
   submitting.value = true;
   try {
-    const res = await postAttendanceSubmit({ class_id: classId.value, date: dateStr.value, period_number: periodNo.value ?? undefined as any });
+    const res = await postAttendanceSubmit({
+      class_id: classId.value,
+      date: dateStr.value,
+      period_number: periodNo.value ?? (undefined as any),
+    });
     const msg = `تم إرسال ${res.submitted} سجلًا للمراجعة`;
-    try { toast.success(msg, { autoClose: 2500 }); } catch {}
+    try {
+      toast.success(msg, { autoClose: 2500 });
+    } catch {}
     await loadData();
   } catch (e: any) {
-    const msg = e?.response?.data?.detail || e?.message || 'تعذر الإرسال للمراجعة';
-    try { toast.error(msg, { autoClose: 3500 }); } catch {}
+    const msg = e?.response?.data?.detail || e?.message || "تعذر الإرسال للمراجعة";
+    try {
+      toast.error(msg, { autoClose: 3500 });
+    } catch {}
   } finally {
     submitting.value = false;
   }
 }
 
-onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
+onBeforeUnmount(() => {
+  if (tickTimer) clearInterval(tickTimer);
+});
 </script>
 
 <style scoped>
 .glass-header {
-  background: rgba(255,255,255,0.7);
+  background: rgba(255, 255, 255, 0.7);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
-  border:1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 16px;
 }
-.header-icon { font-size: 26px; color: #8a1538; }
+.header-icon {
+  font-size: 26px;
+  color: #8a1538;
+}
 
 /* Maroon outline cards to match design */
 /* Vertically center all cards when there's free space in the viewport */
-.auto-card { border: 2px solid var(--maron-primary, #8a1538); border-radius: 12px; }
+.auto-card {
+  border: 2px solid var(--maron-primary, #8a1538);
+  border-radius: 12px;
+}
 
 /* Center cards horizontally and reduce width by 5% (scoped to this page) */
 
 .glass-form {
-  background: rgba(255,255,255,0.65);
+  background: rgba(255, 255, 255, 0.65);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
-  border:1px solid rgba(0,0,0,0.06);
+  border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 16px;
 }
 
-.chip { background: #f4f6f8; padding: 3px 8px; border-radius: 999px; }
-.chip.muted { background: #f7f7fa; color: #666; }
-.msg { color: #0a7; }
+.chip {
+  background: #f4f6f8;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.chip.muted {
+  background: #f7f7fa;
+  color: #666;
+}
+.msg {
+  color: #0a7;
+}
 
 /* شبكة شرائح مرتبة تلقائيًا لتفادي التراكم */
-.chips-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; align-items: center; }
+.chips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  align-items: center;
+}
 
-.table-card { border: 0; border-radius: 0; overflow: hidden; }
-.table-card thead th { position: sticky; top: 0; background: #fafbfc; z-index: 1; }
-.table-card tbody tr:hover { background: #fcfcff; }
-.table-card select.form-select { min-width: 150px; }
+.table-card {
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+}
+.table-card thead th {
+  position: sticky;
+  top: 0;
+  background: #fafbfc;
+  z-index: 1;
+}
+.table-card tbody tr:hover {
+  background: #fcfcff;
+}
+.table-card select.form-select {
+  min-width: 150px;
+}
 /* Student name uses text color only (no background chip) */
-.student-name { font-weight: 600; }
-.table-responsive { overflow-x: auto; }
-.table-toolbar { background: rgba(255,255,255,0.65); }
-.sticky-actions { position: sticky; bottom: 0; background: rgba(255,255,255,0.85); }
+.student-name {
+  font-weight: 600;
+}
+.table-responsive {
+  overflow-x: auto;
+}
+.table-toolbar {
+  background: rgba(255, 255, 255, 0.65);
+}
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.85);
+}
 
 /* --- Card grid attendance --- */
-.student-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 1200px) { .student-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-@media (max-width: 992px) { .student-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 768px) { .student-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 480px) { .student-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); } }
-.student-card { background: #fff; border: 2px solid var(--maron-primary, #8a1538); border-radius: 12px; padding: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); transition: transform .15s ease, box-shadow .15s ease; }
-.student-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,0.06); }
-.avatar { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; color: var(--maron-primary, #6f0d0d); background: linear-gradient(135deg, #fff 0%, var(--maron-bg, #faf8f7) 100%); border: 1px solid rgba(0,0,0,.08); font-variant-numeric: tabular-nums; }
-.status-chip { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f2f4f7; color: #555; border: 1px solid rgba(0,0,0,.06); }
+.student-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 1200px) {
+  .student-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 992px) {
+  .student-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 768px) {
+  .student-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .student-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+.student-card {
+  background: #fff;
+  border: 2px solid var(--maron-primary, #8a1538);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.student-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: var(--maron-primary, #6f0d0d);
+  background: linear-gradient(135deg, #fff 0%, var(--maron-bg, #faf8f7) 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  font-variant-numeric: tabular-nums;
+}
+.status-chip {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #555;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
 
 /* Status colors */
-.status-select.present, .status-present .status-select, .status-present .status-chip, .present { background: #eafaf0; color: #137333; border-color: #b7e1cd; }
-.status-select.absent, .status-absent .status-select, .status-absent .status-chip, .absent { background: #fde8e8; color: #b42318; border-color: #f5c2c2; }
-.status-select.late, .status-late .status-select, .status-late .status-chip, .late { background: #fff4e5; color: #b26b00; border-color: #ffd8a8; }
-.status-select.excused, .status-excused .status-select, .status-excused .status-chip, .excused { background: #e7f5ff; color: #0b63a8; border-color: #a5d8ff; }
-.status-select.runaway, .status-runaway .status-select, .status-runaway .status-chip, .runaway { background: #fdecec; color: #b00020; border-color: #f5b5b5; }
-.status-select.left_early, .status-left_early .status-select, .status-left_early .status-chip, .left_early { background: #f3f0ff; color: #5e35b1; border-color: #d0c2ff; }
+.status-select.present,
+.status-present .status-select,
+.status-present .status-chip,
+.present {
+  background: #eafaf0;
+  color: #137333;
+  border-color: #b7e1cd;
+}
+.status-select.absent,
+.status-absent .status-select,
+.status-absent .status-chip,
+.absent {
+  background: #fde8e8;
+  color: #b42318;
+  border-color: #f5c2c2;
+}
+.status-select.late,
+.status-late .status-select,
+.status-late .status-chip,
+.late {
+  background: #fff4e5;
+  color: #b26b00;
+  border-color: #ffd8a8;
+}
+.status-select.excused,
+.status-excused .status-select,
+.status-excused .status-chip,
+.excused {
+  background: #e7f5ff;
+  color: #0b63a8;
+  border-color: #a5d8ff;
+}
+.status-select.runaway,
+.status-runaway .status-select,
+.status-runaway .status-chip,
+.runaway {
+  background: #fdecec;
+  color: #b00020;
+  border-color: #f5b5b5;
+}
+.status-select.left_early,
+.status-left_early .status-select,
+.status-left_early .status-chip,
+.left_early {
+  background: #f3f0ff;
+  color: #5e35b1;
+  border-color: #d0c2ff;
+}
 
-.status-select { border-width: 1px; }
-.quick-actions .btn { width: 34px; height: 34px; display: grid; place-items: center; }
-.grid-toolbar .search-icon { position: absolute; inset-inline-start: 10px; top: 50%; transform: translateY(-50%); opacity: .5; }
+.status-select {
+  border-width: 1px;
+}
+.quick-actions .btn {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+}
+.grid-toolbar .search-icon {
+  position: absolute;
+  inset-inline-start: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0.5;
+}
 
 /* Toolbar for filters and actions: wrap on small screens, single line on large without horizontal scroll */
 /* Attendance Form Styles */
@@ -866,11 +1308,24 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
 }
 
 /* Two-column students grid (full-bleed) */
-.students-two-col { display: grid; grid-template-columns: 1fr; gap: 16px; width: var(--page-w); margin-inline: auto; padding-inline: 0 12px; box-sizing: border-box; }
-@media (min-width: 992px) { /* lg breakpoint */
-  .students-two-col { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+.students-two-col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  width: var(--page-w);
+  margin-inline: auto;
+  padding-inline: 0 12px;
+  box-sizing: border-box;
 }
-.students-two-col > .auto-card { width: 100%; }
+@media (min-width: 992px) {
+  /* lg breakpoint */
+  .students-two-col {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+.students-two-col > .auto-card {
+  width: 100%;
+}
 
 .loader-line {
   height: 3px;
@@ -878,19 +1333,37 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
   animation: load 1.1s linear infinite;
   border-radius: 2px;
 }
-@keyframes load { from { background-position: 0 0; } to { background-position: 200% 0; } }
+@keyframes load {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
 
 /* Single-line enhancements */
-.name-row { white-space: nowrap; }
-.status-chip.no-wrap { white-space: nowrap; flex: 0 0 auto; }
-.student-card header { flex-wrap: nowrap; }
+.name-row {
+  white-space: nowrap;
+}
+.status-chip.no-wrap {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.student-card header {
+  flex-wrap: nowrap;
+}
 .controls-row {
   display: flex;
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap; /* Allow wrapping to prevent overflow */
 }
-.controls-row .form-select { flex: 0 0 auto; min-width: 160px; max-width: 100%; }
+.controls-row .form-select {
+  flex: 0 0 auto;
+  min-width: 160px;
+  max-width: 100%;
+}
 .controls-row .form-control {
   flex: 1 1 auto;
   min-width: 120px;
@@ -899,27 +1372,54 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
   overflow-wrap: break-word;
   box-sizing: border-box; /* Ensure padding doesn't cause overflow */
 }
-.exit-reasons { flex-wrap: nowrap !important; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
-.exit-reasons > * { white-space: nowrap; }
-.exit-controls { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.quick-actions { flex: 0 0 auto; }
+.exit-reasons {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.exit-reasons > * {
+  white-space: nowrap;
+}
+.exit-controls {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.quick-actions {
+  flex: 0 0 auto;
+}
 </style>
 
 <style scoped>
 /* السماح بالتمرير على مستوى الصفحة بدلاً من الجدول */
-.page-grid { grid-template-rows: auto auto auto auto; }
+.page-grid {
+  grid-template-rows: auto auto auto auto;
+}
 /* إزالة القيود التي تمنع تمدد المكونات وظهور تمرير الصفحة */
-.page-grid > * { margin: 0 !important; }
+.page-grid > * {
+  margin: 0 !important;
+}
 /* الحفاظ على عرض المكونات بالكامل */
-.page-grid .auto-card { width: 100%; }
-.page-grid .glass-form, .page-grid .glass-header { width: 100%; }
+.page-grid .auto-card {
+  width: 100%;
+}
+.page-grid .glass-form,
+.page-grid .glass-header {
+  width: 100%;
+}
 /* عدم تحويل بطاقة الجدول إلى flex لتجنب تمرير داخلي */
-.page-grid .auto-card.p-0 { }
+.page-grid .auto-card.p-0 {
+}
 
 /* Align the 95% width container to the right edge (RTL) */
 /* Larger screens: slightly increase grid density */
 @media (min-width: 1400px) {
-  .student-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+  .student-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 14px;
+  }
 }
 </style>
 
@@ -934,13 +1434,25 @@ onBeforeUnmount(() => { if (tickTimer) clearInterval(tickTimer); });
   white-space: nowrap;
   -webkit-overflow-scrolling: touch;
 }
-.form-toolbar > * { flex: 0 0 auto; }
-.form-toolbar .form-field { min-width: 150px; }
-.form-toolbar .form-field.form-field-wide { min-width: 240px; }
-.form-toolbar .btn-load { height: 38px; }
+.form-toolbar > * {
+  flex: 0 0 auto;
+}
+.form-toolbar .form-field {
+  min-width: 150px;
+}
+.form-toolbar .form-field.form-field-wide {
+  min-width: 240px;
+}
+.form-toolbar .btn-load {
+  height: 38px;
+}
 @media (min-width: 768px) {
-  .form-toolbar .form-field { min-width: 170px; }
-  .form-toolbar .form-field.form-field-wide { min-width: 300px; }
+  .form-toolbar .form-field {
+    min-width: 170px;
+  }
+  .form-toolbar .form-field.form-field-wide {
+    min-width: 300px;
+  }
 }
 </style>
 

@@ -7,7 +7,11 @@
       :animate="false"
     >
       <div class="d-flex align-items-center gap-3">
-        <Icon icon="solar:crown-bold-duotone" class="text-4xl" style="color: var(--maron-primary)" />
+        <Icon
+          icon="solar:crown-bold-duotone"
+          class="text-4xl"
+          style="color: var(--maron-primary)"
+        />
         <div>
           <div class="text-xl font-bold">لوحة مدير المدرسة</div>
           <div class="text-muted text-sm">مؤشرات عامة للحضور والانضباط، وروابط للتقارير</div>
@@ -25,7 +29,11 @@
           :interactive="true"
         >
           <div class="text-center">
-            <Icon icon="solar:chart-2-bold-duotone" class="text-4xl mb-3" style="color: var(--color-success)" />
+            <Icon
+              icon="solar:chart-2-bold-duotone"
+              class="text-4xl mb-3"
+              style="color: var(--color-success)"
+            />
             <div class="fw-bold mb-2">نسبة الحضور اليوم</div>
             <div class="display-6 fw-bold" style="color: var(--color-success)">--%</div>
             <DsBadge variant="info" class="mt-2">قريباً</DsBadge>
@@ -42,7 +50,11 @@
           :interactive="true"
         >
           <div class="text-center">
-            <Icon icon="solar:user-cross-bold-duotone" class="text-4xl mb-3" style="color: var(--color-danger)" />
+            <Icon
+              icon="solar:user-cross-bold-duotone"
+              class="text-4xl mb-3"
+              style="color: var(--color-danger)"
+            />
             <div class="fw-bold mb-2">عدد الغياب</div>
             <div class="display-6 fw-bold" style="color: var(--color-danger)">--</div>
             <DsBadge variant="info" class="mt-2">قريباً</DsBadge>
@@ -59,7 +71,11 @@
           :interactive="true"
         >
           <div class="text-center">
-            <Icon icon="solar:cup-star-bold-duotone" class="text-4xl mb-3" style="color: var(--maron-accent)" />
+            <Icon
+              icon="solar:cup-star-bold-duotone"
+              class="text-4xl mb-3"
+              style="color: var(--maron-accent)"
+            />
             <div class="fw-bold mb-2">أعلى الصفوف التزامًا</div>
             <ul class="list-unstyled small text-muted mb-0 mt-3">
               <li>سيضاف لاحقًا</li>
@@ -100,8 +116,8 @@
 </template>
 
 <script setup lang="ts">
-import { backendUrl } from '../../../shared/config';
-import DsButton from '../../../components/ui/DsButton.vue';
-import DsCard from '../../../components/ui/DsCard.vue';
-import DsBadge from '../../../components/ui/DsBadge.vue';
+import { backendUrl } from "../../../shared/config";
+import DsButton from "../../../components/ui/DsButton.vue";
+import DsCard from "../../../components/ui/DsCard.vue";
+import DsBadge from "../../../components/ui/DsBadge.vue";
 </script>

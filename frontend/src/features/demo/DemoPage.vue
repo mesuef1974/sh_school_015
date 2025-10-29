@@ -92,24 +92,26 @@
         <Form @submit="onSubmit" v-slot="{ errors }">
           <div class="mb-3">
             <label class="form-label">الاسم</label>
-            <Field
-              name="name"
-              rules="required|min:3"
-              v-slot="{ field, errors }"
-            >
-              <input v-bind="field" type="text" class="form-control" :class="{ 'is-invalid': errors.length }" />
+            <Field name="name" rules="required|min:3" v-slot="{ field, errors }">
+              <input
+                v-bind="field"
+                type="text"
+                class="form-control"
+                :class="{ 'is-invalid': errors.length }"
+              />
               <div class="invalid-feedback">{{ errors[0] }}</div>
             </Field>
           </div>
 
           <div class="mb-3">
             <label class="form-label">البريد الإلكتروني</label>
-            <Field
-              name="email"
-              rules="required|email"
-              v-slot="{ field, errors }"
-            >
-              <input v-bind="field" type="email" class="form-control" :class="{ 'is-invalid': errors.length }" />
+            <Field name="email" rules="required|email" v-slot="{ field, errors }">
+              <input
+                v-bind="field"
+                type="email"
+                class="form-control"
+                :class="{ 'is-invalid': errors.length }"
+              />
               <div class="invalid-feedback">{{ errors[0] }}</div>
             </Field>
           </div>
@@ -122,53 +124,53 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { toast } from 'vue-sonner';
-import Button from 'primevue/button';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
-import Tag from 'primevue/tag';
-import { Form, Field, defineRule, configure } from 'vee-validate';
-import { required, email, min } from '@vee-validate/rules';
+import { ref } from "vue";
+import { toast } from "vue-sonner";
+import Button from "primevue/button";
+import DataTable from "primevue/datatable";
+import Column from "primevue/column";
+import Tag from "primevue/tag";
+import { Form, Field, defineRule, configure } from "vee-validate";
+import { required, email, min } from "@vee-validate/rules";
 
 // Configure VeeValidate rules
-defineRule('required', required);
-defineRule('email', email);
-defineRule('min', min);
+defineRule("required", required);
+defineRule("email", email);
+defineRule("min", min);
 
 configure({
   generateMessage: (context) => {
     const messages: Record<string, string> = {
-      required: 'هذا الحقل مطلوب',
-      email: 'يجب إدخال بريد إلكتروني صحيح',
-      min: `يجب أن يكون الحد الأدنى ${context.rule?.params?.[0]} أحرف`
+      required: "هذا الحقل مطلوب",
+      email: "يجب إدخال بريد إلكتروني صحيح",
+      min: `يجب أن يكون الحد الأدنى ${context.rule?.params?.[0]} أحرف`,
     };
-    return messages[context.rule?.name as string] || 'حقل غير صحيح';
-  }
+    return messages[context.rule?.name as string] || "حقل غير صحيح";
+  },
 });
 
 // Toast notifications
-const showSuccess = () => toast.success('تمت العملية بنجاح!');
-const showError = () => toast.error('حدث خطأ ما!');
-const showWarning = () => toast.warning('تحذير: انتبه من فضلك');
-const showInfo = () => toast.info('معلومة: هذا إشعار معلوماتي');
+const showSuccess = () => toast.success("تمت العملية بنجاح!");
+const showError = () => toast.error("حدث خطأ ما!");
+const showWarning = () => toast.warning("تحذير: انتبه من فضلك");
+const showInfo = () => toast.info("معلومة: هذا إشعار معلوماتي");
 
 // Sample data for DataTable
 const students = ref([
-  { id: 1, name: 'أحمد محمد', grade: 'العاشر', section: 'أ', status: 'حاضر' },
-  { id: 2, name: 'فاطمة علي', grade: 'التاسع', section: 'ب', status: 'غائب' },
-  { id: 3, name: 'محمد خالد', grade: 'الحادي عشر', section: 'أ', status: 'حاضر' },
-  { id: 4, name: 'سارة أحمد', grade: 'العاشر', section: 'ج', status: 'حاضر' },
-  { id: 5, name: 'عمر حسن', grade: 'الثاني عشر', section: 'ب', status: 'غائب' },
-  { id: 6, name: 'ليلى يوسف', grade: 'التاسع', section: 'أ', status: 'حاضر' },
-  { id: 7, name: 'كريم صالح', grade: 'العاشر', section: 'ب', status: 'حاضر' },
-  { id: 8, name: 'نور الدين', grade: 'الحادي عشر', section: 'ج', status: 'غائب' },
+  { id: 1, name: "أحمد محمد", grade: "العاشر", section: "أ", status: "حاضر" },
+  { id: 2, name: "فاطمة علي", grade: "التاسع", section: "ب", status: "غائب" },
+  { id: 3, name: "محمد خالد", grade: "الحادي عشر", section: "أ", status: "حاضر" },
+  { id: 4, name: "سارة أحمد", grade: "العاشر", section: "ج", status: "حاضر" },
+  { id: 5, name: "عمر حسن", grade: "الثاني عشر", section: "ب", status: "غائب" },
+  { id: 6, name: "ليلى يوسف", grade: "التاسع", section: "أ", status: "حاضر" },
+  { id: 7, name: "كريم صالح", grade: "العاشر", section: "ب", status: "حاضر" },
+  { id: 8, name: "نور الدين", grade: "الحادي عشر", section: "ج", status: "غائب" },
 ]);
 
 // Form submit handler
 const onSubmit = (values: any) => {
   toast.success(`تم إرسال النموذج: ${values.name}`);
-  console.log('Form values:', values);
+  console.log("Form values:", values);
 };
 </script>
 
@@ -178,7 +180,8 @@ const onSubmit = (values: any) => {
   margin: 0 auto;
 }
 
-h2, h3 {
+h2,
+h3 {
   color: var(--maron-primary);
 }
 </style>

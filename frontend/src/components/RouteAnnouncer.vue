@@ -1,37 +1,39 @@
 <template>
   <!-- Accessible route change announcer for screen readers (dev/prod safe) -->
-  <div
-    aria-live="polite"
-    aria-atomic="true"
-    role="status"
-    class="sr-only"
-  >
+  <div aria-live="polite" aria-atomic="true" role="status" class="sr-only">
     {{ message }}
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, watch } from "vue";
+import { useRoute } from "vue-router";
 
-const route = useRoute()
-const message = ref('')
+const route = useRoute();
+const message = ref("");
 
 function computeAnnouncement(): string {
   // Prefer document.title (already i18n-bound), fallback to route name/path
-  const title = typeof document !== 'undefined' ? document.title : ''
-  if (title && title.trim().length > 0) return title
-  return (route.meta?.ariaLabel as string) || (route.meta?.title as string) || (route.name as string) || route.path
+  const title = typeof document !== "undefined" ? document.title : "";
+  if (title && title.trim().length > 0) return title;
+  return (
+    (route.meta?.ariaLabel as string) ||
+    (route.meta?.title as string) ||
+    (route.name as string) ||
+    route.path
+  );
 }
 
 watch(
   () => route.fullPath,
   () => {
     // Defer a tick to allow document.title watchers to update first
-    queueMicrotask(() => { message.value = computeAnnouncement() })
+    queueMicrotask(() => {
+      message.value = computeAnnouncement();
+    });
   },
   { immediate: true }
-)
+);
 </script>
 
 <style scoped>

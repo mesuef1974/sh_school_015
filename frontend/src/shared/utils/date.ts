@@ -11,9 +11,9 @@ export type DateInput = string | number | Date | null | undefined;
  * - Falls back to Date parsing if possible; otherwise returns the original string
  */
 export function formatDateDMY(input: DateInput): string {
-  if (input == null) return '';
+  if (input == null) return "";
   const raw = String(input).trim();
-  if (!raw) return '';
+  if (!raw) return "";
   // 1) Already in DD:MM:YYYY
   if (/^\d{2}:\d{2}:\d{4}$/.test(raw)) return raw;
   // 2) ISO YYYY-MM-DD
@@ -26,24 +26,28 @@ export function formatDateDMY(input: DateInput): string {
   m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
   if (m) {
     let [_, a, b, y] = m;
-    let d = a, mo = b;
+    let d = a,
+      mo = b;
     if (parseInt(a, 10) <= 12 && parseInt(b, 10) > 12) {
       // US style MM/DD
-      d = b; mo = a;
+      d = b;
+      mo = a;
     } else if (parseInt(a, 10) > 12 && parseInt(b, 10) <= 12) {
       // EU style DD/MM
-      d = a; mo = b;
+      d = a;
+      mo = b;
     } else {
       // ambiguous (both <= 12): default to MM/DD
-      d = b; mo = a;
+      d = b;
+      mo = a;
     }
-    return `${d.padStart(2,'0')}:${mo.padStart(2,'0')}:${y}`;
+    return `${d.padStart(2, "0")}:${mo.padStart(2, "0")}:${y}`;
   }
   // 4) Fallback: try JS Date
   const dt = new Date(raw);
   if (!isNaN(dt.getTime())) {
-    const dd = String(dt.getDate()).padStart(2, '0');
-    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, "0");
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
     const yyyy = dt.getFullYear();
     return `${dd}:${mm}:${yyyy}`;
   }

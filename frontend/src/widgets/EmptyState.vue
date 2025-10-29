@@ -9,5 +9,7 @@
 const props = defineProps<{ title: string; subtitle?: string }>();
 </script>
 <style scoped>
-.empty-state { background: #fff; }
+.empty-state {
+  background: #fff;
+}
 </style>

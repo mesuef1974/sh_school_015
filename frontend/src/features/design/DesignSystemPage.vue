@@ -3,17 +3,15 @@
     <Toaster position="top-center" richColors />
 
     <!-- Hero Section -->
-    <DsCard
-      title="نظام التصميم - مدرسة الشحانية"
-      :animate="true"
-      class="hero-card mb-4"
-    >
+    <DsCard title="نظام التصميم - مدرسة الشحانية" :animate="true" class="hero-card mb-4">
       <template #header>
         <div class="d-flex align-items-center gap-3">
           <Icon icon="mdi:palette" class="text-4xl" style="color: var(--maron-primary)" />
           <div>
             <h1 class="mb-1" style="color: var(--maron-primary)">نظام التصميم المتكامل</h1>
-            <p class="text-muted mb-0">تطبيق أفضل المعايير العالمية في تصميم منصات الإدارة المدرسية</p>
+            <p class="text-muted mb-0">
+              تطبيق أفضل المعايير العالمية في تصميم منصات الإدارة المدرسية
+            </p>
           </div>
         </div>
       </template>
@@ -21,7 +19,11 @@
       <div class="row g-4">
         <div class="col-md-3 col-6">
           <div class="stat-box text-center p-3">
-            <Icon icon="mdi:check-circle" class="text-4xl mb-2" style="color: var(--color-success)" />
+            <Icon
+              icon="mdi:check-circle"
+              class="text-4xl mb-2"
+              style="color: var(--color-success)"
+            />
             <div class="text-2xl font-bold">WCAG 2.1</div>
             <div class="text-sm text-muted">معايير الوصول</div>
           </div>
@@ -35,7 +37,11 @@
         </div>
         <div class="col-md-3 col-6">
           <div class="stat-box text-center p-3">
-            <Icon icon="mdi:speedometer" class="text-4xl mb-2" style="color: var(--color-warning)" />
+            <Icon
+              icon="mdi:speedometer"
+              class="text-4xl mb-2"
+              style="color: var(--color-warning)"
+            />
             <div class="text-2xl font-bold">Fast</div>
             <div class="text-sm text-muted">أداء عالي</div>
           </div>
@@ -135,27 +141,19 @@
       <div class="d-grid gap-3">
         <div class="ds-alert ds-alert-success">
           <Icon icon="mdi:check-circle" class="text-xl" />
-          <div>
-            <strong>نجاح!</strong> تم حفظ البيانات بنجاح.
-          </div>
+          <div><strong>نجاح!</strong> تم حفظ البيانات بنجاح.</div>
         </div>
         <div class="ds-alert ds-alert-warning">
           <Icon icon="mdi:alert" class="text-xl" />
-          <div>
-            <strong>تحذير!</strong> يرجى مراجعة البيانات المدخلة.
-          </div>
+          <div><strong>تحذير!</strong> يرجى مراجعة البيانات المدخلة.</div>
         </div>
         <div class="ds-alert ds-alert-danger">
           <Icon icon="mdi:alert-circle" class="text-xl" />
-          <div>
-            <strong>خطأ!</strong> حدث خطأ أثناء معالجة الطلب.
-          </div>
+          <div><strong>خطأ!</strong> حدث خطأ أثناء معالجة الطلب.</div>
         </div>
         <div class="ds-alert ds-alert-info">
           <Icon icon="mdi:information" class="text-xl" />
-          <div>
-            <strong>معلومة:</strong> يمكنك تحديث البيانات في أي وقت.
-          </div>
+          <div><strong>معلومة:</strong> يمكنك تحديث البيانات في أي وقت.</div>
         </div>
       </div>
     </DsCard>
@@ -214,31 +212,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { toast } from 'vue-sonner';
-import DsButton from '../../components/ui/DsButton.vue';
-import DsCard from '../../components/ui/DsCard.vue';
-import DsBadge from '../../components/ui/DsBadge.vue';
-import DataTable from 'primevue/datatable';
-import Column from 'primevue/column';
+import { ref } from "vue";
+import { toast } from "vue-sonner";
+import DsButton from "../../components/ui/DsButton.vue";
+import DsCard from "../../components/ui/DsCard.vue";
+import DsBadge from "../../components/ui/DsBadge.vue";
+import DataTable from "primevue/datatable";
+import Column from "primevue/column";
 
 // Sample data
 const students = ref([
-  { id: 1, name: 'أحمد محمد علي', grade: 'العاشر', section: 'أ', status: 'حاضر' },
-  { id: 2, name: 'فاطمة حسن', grade: 'التاسع', section: 'ب', status: 'غائب' },
-  { id: 3, name: 'محمد خالد', grade: 'الحادي عشر', section: 'أ', status: 'حاضر' },
-  { id: 4, name: 'سارة أحمد', grade: 'العاشر', section: 'ج', status: 'حاضر' },
-  { id: 5, name: 'عمر حسن', grade: 'الثاني عشر', section: 'ب', status: 'غائب' },
-  { id: 6, name: 'ليلى يوسف', grade: 'التاسع', section: 'أ', status: 'حاضر' },
-  { id: 7, name: 'كريم صالح', grade: 'العاشر', section: 'ب', status: 'حاضر' },
-  { id: 8, name: 'نور محمود', grade: 'الحادي عشر', section: 'ج', status: 'غائب' },
+  { id: 1, name: "أحمد محمد علي", grade: "العاشر", section: "أ", status: "حاضر" },
+  { id: 2, name: "فاطمة حسن", grade: "التاسع", section: "ب", status: "غائب" },
+  { id: 3, name: "محمد خالد", grade: "الحادي عشر", section: "أ", status: "حاضر" },
+  { id: 4, name: "سارة أحمد", grade: "العاشر", section: "ج", status: "حاضر" },
+  { id: 5, name: "عمر حسن", grade: "الثاني عشر", section: "ب", status: "غائب" },
+  { id: 6, name: "ليلى يوسف", grade: "التاسع", section: "أ", status: "حاضر" },
+  { id: 7, name: "كريم صالح", grade: "العاشر", section: "ب", status: "حاضر" },
+  { id: 8, name: "نور محمود", grade: "الحادي عشر", section: "ج", status: "غائب" },
 ]);
 
 // Toast notifications
-const showSuccess = () => toast.success('تمت العملية بنجاح!', { description: 'تم حفظ البيانات بنجاح' });
-const showError = () => toast.error('حدث خطأ!', { description: 'لم نتمكن من معالجة الطلب' });
-const showWarning = () => toast.warning('تحذير!', { description: 'يرجى مراجعة البيانات المدخلة' });
-const showInfo = () => toast.info('معلومة', { description: 'يمكنك تحديث البيانات في أي وقت' });
+const showSuccess = () =>
+  toast.success("تمت العملية بنجاح!", { description: "تم حفظ البيانات بنجاح" });
+const showError = () => toast.error("حدث خطأ!", { description: "لم نتمكن من معالجة الطلب" });
+const showWarning = () => toast.warning("تحذير!", { description: "يرجى مراجعة البيانات المدخلة" });
+const showInfo = () => toast.info("معلومة", { description: "يمكنك تحديث البيانات في أي وقت" });
 </script>
 
 <style scoped>

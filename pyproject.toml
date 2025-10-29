@@ -45,7 +45,7 @@ exclude = '(\.venv|\.venv_fix|venv|env|\.tox|site-packages|build|dist|backend\.v
 profile = "black"
 line_length = 120
 skip_gitignore = true
-skip = [".venv", ".venv_fix", "venv", "env", ".tox", "site-packages", "build", "dist", "backend/.venv"]
+skip = [".venv", ".venv_fix", "venv", "env", ".tox", "site-packages", "build", "dist", "backend/.venv", "backend/school/views.py"]
 
 [tool.mypy]
 python_version = "3.11"

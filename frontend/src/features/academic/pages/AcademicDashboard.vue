@@ -13,8 +13,10 @@
     </div>
   </section>
 </template>
-<script setup lang="ts">
-</script>
+<script setup lang="ts"></script>
 <style scoped>
-.card { box-shadow: 0 6px 24px rgba(0,0,0,.06); border-radius: .75rem; }
+.card {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  border-radius: 0.75rem;
+}
 </style>

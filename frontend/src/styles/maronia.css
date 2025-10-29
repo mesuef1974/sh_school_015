@@ -1,288 +1,515 @@
 :root {
-    --maron-primary: rgb(141, 0, 0);
-    --maron-primary-700: #6b1717;
-    --maron-primary-900: #4a0f0f;
-    --maron-accent: #c49a6c;
-    --maron-bg: #faf8f7;
-    --radius: 12px;
-    --shadow-soft: 0 6px 24px rgba(0, 0, 0, .06);
-    --shadow-hover: 0 10px 28px rgba(0, 0, 0, .08);
-    /* Global navbar scale to increase header height by percentage */
-    --navbar-scale: 1.2;
-    /* Additional fixed height increase for navbar */
-    --navbar-height-increase: 20px;
+  --maron-primary: rgb(141, 0, 0);
+  --maron-primary-700: #6b1717;
+  --maron-primary-900: #4a0f0f;
+  --maron-accent: #c49a6c;
+  --maron-bg: #faf8f7;
+  --radius: 12px;
+  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 10px 28px rgba(0, 0, 0, 0.08);
+  /* Global navbar scale to increase header height by percentage */
+  --navbar-scale: 1.2;
+  /* Additional fixed height increase for navbar */
+  --navbar-height-increase: 20px;
 }
 
 @font-face {
-    font-family: 'Noto Kufi Arabic';
-    font-style: normal;
-    font-weight: 100 900;
-    src: url('/assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf') format('truetype');
-    font-display: swap;
+  font-family: "Noto Kufi Arabic";
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("/assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf")
+    format("truetype");
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Amiri';
-    font-style: normal;
-    font-weight: 400;
-    src: url('/assets/fonts/Amiri/Amiri-Regular.ttf') format('truetype');
-    font-display: swap;
+  font-family: "Amiri";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/assets/fonts/Amiri/Amiri-Regular.ttf") format("truetype");
+  font-display: swap;
 }
 
-html, body, #app {
-    height: 100%;
+html,
+body,
+#app {
+  height: 100%;
 }
 
 body {
-    font-family: 'Noto Kufi Arabic', system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-    background: var(--maron-bg);
-    background-image: url('/assets/img/portal_bg.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-    background-blend-mode: soft-light;
-    background-color: rgba(255, 255, 255, 0.5);
-    color: #222;
+  font-family:
+    "Noto Kufi Arabic",
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans",
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
+  background: var(--maron-bg);
+  background-image: url("/assets/img/portal_bg.png");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-blend-mode: soft-light;
+  background-color: rgba(255, 255, 255, 0.5);
+  color: #222;
 }
 
 /* Navbar */
 .navbar-maronia {
-    position: relative;
-    background: linear-gradient(90deg, #d23e3a, #690909 45%, #a94141 100%);
-    color: #fff;
-    box-shadow: var(--shadow-soft), inset 0 -6px 18px rgba(0,0,0,0.12);
+  position: relative;
+  background: linear-gradient(90deg, #d23e3a, #690909 45%, #a94141 100%);
+  color: #fff;
+  box-shadow:
+    var(--shadow-soft),
+    inset 0 -6px 18px rgba(0, 0, 0, 0.12);
 }
 /* Subtle vignette to mimic reference header depth */
 .navbar-maronia::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(80% 140% at 50% -30%, rgba(255,255,255,0.10), rgba(255,255,255,0) 60%),
-                linear-gradient(0deg, rgba(0,0,0,0.12), rgba(0,0,0,0.05) 40%, rgba(0,0,0,0) 70%);
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(80% 140% at 50% -30%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.05) 40%, rgba(0, 0, 0, 0) 70%);
 }
 
 .navbar-maronia a {
-    color: #fff;
-    text-decoration: none;
+  color: #fff;
+  text-decoration: none;
 }
 
 .navbar-maronia a.router-link-active {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
 /* Buttons */
 .btn-maron {
-    background-color: var(--maron-primary);
-    color: #fff;
-    border: 1px solid var(--maron-primary);
+  background-color: var(--maron-primary);
+  color: #fff;
+  border: 1px solid var(--maron-primary);
 }
 
 .btn-maron:hover {
-    background-color: var(--maron-primary-700);
-    border-color: var(--maron-primary-700);
+  background-color: var(--maron-primary-700);
+  border-color: var(--maron-primary-700);
 }
 
 .btn-maron-outline {
-    background: transparent;
-    color: var(--maron-primary);
-    border: 1px solid var(--maron-primary);
+  background: transparent;
+  color: var(--maron-primary);
+  border: 1px solid var(--maron-primary);
 }
 
-.btn-maron-outline:hover { background: rgba(123,30,30,.08); }
+.btn-maron-outline:hover {
+  background: rgba(123, 30, 30, 0.08);
+}
 
 /* Layout */
-.page-container { min-height: 100%; display: flex; flex-direction: column; }
-.page-main { flex: 1 0 auto; }
-.page-footer { flex-shrink: 0; background: var(--maron-primary); color: #fff; border-top: 1px solid rgba(0, 0, 0, .06); }
+.page-container {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.page-main {
+  flex: 1 0 auto;
+}
+.page-footer {
+  flex-shrink: 0;
+  background: var(--maron-primary);
+  color: #fff;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
 
 /* Cards & Surfaces */
-.table-card { box-shadow: var(--shadow-soft); background: #fff; border-radius: .75rem; overflow: hidden; }
-.auto-card { box-shadow: var(--shadow-soft); border-radius: var(--radius); background: #fff; }
-.auto-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
-.glass-card { backdrop-filter: blur(8px); background: rgba(255, 255, 255, .6); border-radius: var(--radius); box-shadow: var(--shadow-soft); }
-.soft-shadow { box-shadow: var(--shadow-soft); }
+.table-card {
+  box-shadow: var(--shadow-soft);
+  background: #fff;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+.auto-card {
+  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.auto-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+.glass-card {
+  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+.soft-shadow {
+  box-shadow: var(--shadow-soft);
+}
 
-.table thead th { position: sticky; top: 0; z-index: 2; background: #f7f2f1; }
-.table-hover tbody tr:hover { background-color: rgba(203, 153, 126, 0.08); }
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f7f2f1;
+}
+.table-hover tbody tr:hover {
+  background-color: rgba(203, 153, 126, 0.08);
+}
 
 /* Brand */
-.brand-images { gap: .5rem; }
-.brand-images img { height: 44px; filter: drop-shadow(0 1px 0 rgba(0,0,0,.12)); }
-.brand-divider { width: 1px; height: 36px; background: rgba(255, 255, 255, .35); margin: 0 .5rem; border-radius: 1px; }
+.brand-images {
+  gap: 0.5rem;
+}
+.brand-images img {
+  height: 44px;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.12));
+}
+.brand-divider {
+  width: 1px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.35);
+  margin: 0 0.5rem;
+  border-radius: 1px;
+}
 /* Dropdown in navbar: ensure readable on white menu */
-.navbar-maronia .dropdown-menu { background: #fff; }
-.navbar-maronia .dropdown-menu .dropdown-item { color: var(--maron-primary); }
+.navbar-maronia .dropdown-menu {
+  background: #fff;
+}
+.navbar-maronia .dropdown-menu .dropdown-item {
+  color: var(--maron-primary);
+}
 .navbar-maronia .dropdown-menu .dropdown-item:hover,
-.navbar-maronia .dropdown-menu .dropdown-item:focus { background: rgba(123,30,30,.08); color: var(--maron-primary-900); }
+.navbar-maronia .dropdown-menu .dropdown-item:focus {
+  background: rgba(123, 30, 30, 0.08);
+  color: var(--maron-primary-900);
+}
 
 /* Helpers */
-.gap-2x { gap: 1rem !important; }
-.gap-3x { gap: 1.5rem !important; }
-.rounded-12 { border-radius: var(--radius) !important; }
-.text-accent { color: var(--maron-accent) !important; }
-.page-header { border-inline-start: 4px solid var(--maron-accent); padding-inline-start: .75rem; background: linear-gradient(90deg, rgba(196,154,108,.08), rgba(123,30,30,.04)); border-radius: .5rem; }
-.chip { display:inline-flex; align-items:center; padding:.25rem .5rem; border-radius:999px; background: rgba(123,30,30,.08); color: var(--maron-primary); font-size:.85rem; }
-.loader-line { height: 4px; width: 100%; background: linear-gradient(90deg, var(--maron-accent), var(--maron-primary)); background-size: 200% 100%; animation: loadmove 1.2s linear infinite; border-radius: 2px; }
-@keyframes loadmove { 0% { background-position: 0% 0 } 100% { background-position: 200% 0 } }
+.gap-2x {
+  gap: 1rem !important;
+}
+.gap-3x {
+  gap: 1.5rem !important;
+}
+.rounded-12 {
+  border-radius: var(--radius) !important;
+}
+.text-accent {
+  color: var(--maron-accent) !important;
+}
+.page-header {
+  border-inline-start: 4px solid var(--maron-accent);
+  padding-inline-start: 0.75rem;
+  background: linear-gradient(90deg, rgba(196, 154, 108, 0.08), rgba(123, 30, 30, 0.04));
+  border-radius: 0.5rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(123, 30, 30, 0.08);
+  color: var(--maron-primary);
+  font-size: 0.85rem;
+}
+.loader-line {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--maron-accent), var(--maron-primary));
+  background-size: 200% 100%;
+  animation: loadmove 1.2s linear infinite;
+  border-radius: 2px;
+}
+@keyframes loadmove {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
 
 /* Navbar height scaling (padding) */
 .navbar-maronia .py-2,
 .navbar-maronia .container.py-2 {
-    padding-top: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
-    padding-bottom: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
+  padding-top: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
+  padding-bottom: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
 }
 
 /* Responsive cap to avoid overly tall header on small screens */
 @media (max-width: 576px) {
-    :root { --navbar-scale: 1.1; }
-    /* Slightly reduce base logo height on very small screens to keep balance */
-    .brand-images img { height: 38px; }
+  :root {
+    --navbar-scale: 1.1;
+  }
+  /* Slightly reduce base logo height on very small screens to keep balance */
+  .brand-images img {
+    height: 38px;
+  }
 }
 ::root {
-    --maron-primary: rgb(141, 0, 0);
-    --maron-primary-700: #6b1717;
-    --maron-primary-900: #4a0f0f;
-    --maron-accent: #c49a6c;
-    --maron-bg: #faf8f7;
-    --radius: 12px;
-    --shadow-soft: 0 6px 24px rgba(0, 0, 0, .06);
-    --shadow-hover: 0 10px 28px rgba(0, 0, 0, .08);
-    /* Global navbar scale to increase header height by percentage */
-    --navbar-scale: 1.2;
-    /* Additional fixed height increase for navbar */
-    --navbar-height-increase: 20px;
+  --maron-primary: rgb(141, 0, 0);
+  --maron-primary-700: #6b1717;
+  --maron-primary-900: #4a0f0f;
+  --maron-accent: #c49a6c;
+  --maron-bg: #faf8f7;
+  --radius: 12px;
+  --shadow-soft: 0 6px 24px rgba(0, 0, 0, 0.06);
+  --shadow-hover: 0 10px 28px rgba(0, 0, 0, 0.08);
+  /* Global navbar scale to increase header height by percentage */
+  --navbar-scale: 1.2;
+  /* Additional fixed height increase for navbar */
+  --navbar-height-increase: 20px;
 }
 
 @font-face {
-    font-family: 'Noto Kufi Arabic';
-    font-style: normal;
-    font-weight: 100 900;
-    src: url('/assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf') format('truetype');
-    font-display: swap;
+  font-family: "Noto Kufi Arabic";
+  font-style: normal;
+  font-weight: 100 900;
+  src: url("/assets/fonts/ArbFonts.com/ArbFONTS-NotoKufiArabic-VariableFont_wght.ttf")
+    format("truetype");
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'Amiri';
-    font-style: normal;
-    font-weight: 400;
-    src: url('/assets/fonts/Amiri/Amiri-Regular.ttf') format('truetype');
-    font-display: swap;
+  font-family: "Amiri";
+  font-style: normal;
+  font-weight: 400;
+  src: url("/assets/fonts/Amiri/Amiri-Regular.ttf") format("truetype");
+  font-display: swap;
 }
 
-html, body, #app {
-    height: 100%;
+html,
+body,
+#app {
+  height: 100%;
 }
 
 body {
-    font-family: 'Noto Kufi Arabic', system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
-    background: var(--maron-bg);
-    background-image: url('/assets/img/portal_bg.png');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
-    background-blend-mode: soft-light;
-    background-color: rgba(255, 255, 255, 0.5);
-    color: #222;
+  font-family:
+    "Noto Kufi Arabic",
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans",
+    "Apple Color Emoji",
+    "Segoe UI Emoji";
+  background: var(--maron-bg);
+  background-image: url("/assets/img/portal_bg.png");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-blend-mode: soft-light;
+  background-color: rgba(255, 255, 255, 0.5);
+  color: #222;
 }
 
 /* Navbar */
 .navbar-maronia {
-    position: relative;
-    background: linear-gradient(90deg, #d23e3a, #690909 45%, #a94141 100%);
-    color: #fff;
-    box-shadow: var(--shadow-soft), inset 0 -6px 18px rgba(0,0,0,0.12);
+  position: relative;
+  background: linear-gradient(90deg, #d23e3a, #690909 45%, #a94141 100%);
+  color: #fff;
+  box-shadow:
+    var(--shadow-soft),
+    inset 0 -6px 18px rgba(0, 0, 0, 0.12);
 }
 /* Subtle vignette to mimic reference header depth */
 .navbar-maronia::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(80% 140% at 50% -30%, rgba(255,255,255,0.10), rgba(255,255,255,0) 60%),
-                linear-gradient(0deg, rgba(0,0,0,0.12), rgba(0,0,0,0.05) 40%, rgba(0,0,0,0) 70%);
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(80% 140% at 50% -30%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 60%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.05) 40%, rgba(0, 0, 0, 0) 70%);
 }
 
 .navbar-maronia a {
-    color: #fff;
-    text-decoration: none;
+  color: #fff;
+  text-decoration: none;
 }
 
 .navbar-maronia a.router-link-active {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
 /* Buttons */
 .btn-maron {
-    background-color: var(--maron-primary);
-    color: #fff;
-    border: 1px solid var(--maron-primary);
+  background-color: var(--maron-primary);
+  color: #fff;
+  border: 1px solid var(--maron-primary);
 }
 
 .btn-maron:hover {
-    background-color: var(--maron-primary-700);
-    border-color: var(--maron-primary-700);
+  background-color: var(--maron-primary-700);
+  border-color: var(--maron-primary-700);
 }
 
 .btn-maron-outline {
-    background: transparent;
-    color: var(--maron-primary);
-    border: 1px solid var(--maron-primary);
+  background: transparent;
+  color: var(--maron-primary);
+  border: 1px solid var(--maron-primary);
 }
 
-.btn-maron-outline:hover { background: rgba(123,30,30,.08); }
+.btn-maron-outline:hover {
+  background: rgba(123, 30, 30, 0.08);
+}
 
 /* Layout */
-.page-container { min-height: 100%; display: flex; flex-direction: column; }
-.page-main { flex: 1 0 auto; }
-.page-footer { flex-shrink: 0; background: var(--maron-primary); color: #fff; border-top: 1px solid rgba(0, 0, 0, .06); }
+.page-container {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.page-main {
+  flex: 1 0 auto;
+}
+.page-footer {
+  flex-shrink: 0;
+  background: var(--maron-primary);
+  color: #fff;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
 
 /* Cards & Surfaces */
-.table-card { box-shadow: var(--shadow-soft); background: #fff; border-radius: .75rem; overflow: hidden; }
-.auto-card { box-shadow: var(--shadow-soft); border-radius: var(--radius); background: #fff; }
-.auto-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-1px); }
-.glass-card { backdrop-filter: blur(8px); background: rgba(255, 255, 255, .6); border-radius: var(--radius); box-shadow: var(--shadow-soft); }
-.soft-shadow { box-shadow: var(--shadow-soft); }
+.table-card {
+  box-shadow: var(--shadow-soft);
+  background: #fff;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+.auto-card {
+  box-shadow: var(--shadow-soft);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.auto-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-1px);
+}
+.glass-card {
+  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+.soft-shadow {
+  box-shadow: var(--shadow-soft);
+}
 
-.table thead th { position: sticky; top: 0; z-index: 2; background: #f7f2f1; }
-.table-hover tbody tr:hover { background-color: rgba(203, 153, 126, 0.08); }
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f7f2f1;
+}
+.table-hover tbody tr:hover {
+  background-color: rgba(203, 153, 126, 0.08);
+}
 
 /* Brand */
-.brand-images { gap: .5rem; }
-.brand-images img { height: 44px; filter: drop-shadow(0 1px 0 rgba(0,0,0,.12)); }
-.brand-divider { width: 1px; height: 36px; background: rgba(255, 255, 255, .35); margin: 0 .5rem; border-radius: 1px; }
+.brand-images {
+  gap: 0.5rem;
+}
+.brand-images img {
+  height: 44px;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.12));
+}
+.brand-divider {
+  width: 1px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.35);
+  margin: 0 0.5rem;
+  border-radius: 1px;
+}
 /* Dropdown in navbar: ensure readable on white menu */
-.navbar-maronia .dropdown-menu { background: #fff; }
-.navbar-maronia .dropdown-menu .dropdown-item { color: var(--maron-primary); }
+.navbar-maronia .dropdown-menu {
+  background: #fff;
+}
+.navbar-maronia .dropdown-menu .dropdown-item {
+  color: var(--maron-primary);
+}
 .navbar-maronia .dropdown-menu .dropdown-item:hover,
-.navbar-maronia .dropdown-menu .dropdown-item:focus { background: rgba(123,30,30,.08); color: var(--maron-primary-900); }
+.navbar-maronia .dropdown-menu .dropdown-item:focus {
+  background: rgba(123, 30, 30, 0.08);
+  color: var(--maron-primary-900);
+}
 
 /* Helpers */
-.gap-2x { gap: 1rem !important; }
-.gap-3x { gap: 1.5rem !important; }
-.rounded-12 { border-radius: var(--radius) !important; }
-.text-accent { color: var(--maron-accent) !important; }
-.page-header { border-inline-start: 4px solid var(--maron-accent); padding-inline-start: .75rem; background: linear-gradient(90deg, rgba(196,154,108,.08), rgba(123,30,30,.04)); border-radius: .5rem; }
-.chip { display:inline-flex; align-items:center; padding:.25rem .5rem; border-radius:999px; background: rgba(123,30,30,.08); color: var(--maron-primary); font-size:.85rem; }
-.loader-line { height: 4px; width: 100%; background: linear-gradient(90deg, var(--maron-accent), var(--maron-primary)); background-size: 200% 100%; animation: loadmove 1.2s linear infinite; border-radius: 2px; }
-@keyframes loadmove { 0% { background-position: 0% 0 } 100% { background-position: 200% 0 } }
+.gap-2x {
+  gap: 1rem !important;
+}
+.gap-3x {
+  gap: 1.5rem !important;
+}
+.rounded-12 {
+  border-radius: var(--radius) !important;
+}
+.text-accent {
+  color: var(--maron-accent) !important;
+}
+.page-header {
+  border-inline-start: 4px solid var(--maron-accent);
+  padding-inline-start: 0.75rem;
+  background: linear-gradient(90deg, rgba(196, 154, 108, 0.08), rgba(123, 30, 30, 0.04));
+  border-radius: 0.5rem;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(123, 30, 30, 0.08);
+  color: var(--maron-primary);
+  font-size: 0.85rem;
+}
+.loader-line {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--maron-accent), var(--maron-primary));
+  background-size: 200% 100%;
+  animation: loadmove 1.2s linear infinite;
+  border-radius: 2px;
+}
+@keyframes loadmove {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
 
 /* Navbar height scaling (padding) */
 .navbar-maronia .py-2,
 .navbar-maronia .container.py-2 {
-    padding-top: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
-    padding-bottom: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
+  padding-top: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
+  padding-bottom: calc(0.5rem * var(--navbar-scale) + var(--navbar-height-increase) / 2) !important;
 }
 
 /* Responsive cap to avoid overly tall header on small screens */
 @media (max-width: 576px) {
-    :root { --navbar-scale: 1.1; }
-    /* Slightly reduce base logo height on very small screens to keep balance */
-    .brand-images img { height: 38px; }
+  :root {
+    --navbar-scale: 1.1;
+  }
+  /* Slightly reduce base logo height on very small screens to keep balance */
+  .brand-images img {
+    height: 38px;
+  }
 }
 
 /* Global maroon outline for all cards across SPA */
-.card, .auto-card, .table-card, .ds-card {
+.card,
+.auto-card,
+.table-card,
+.ds-card {
   border: 2px solid var(--maron-primary) !important;
   border-radius: 12px !important;
   background: #fff;
@@ -304,27 +531,61 @@ body {
 .navbar-maronia .brand-logo-gold,
 .navbar-maronia .brand-name-gold {
   display: inline-block;
-  background-image: conic-gradient(
-    from 0deg,
-    #8B7500 0%, #B8860B 12%, #D4AF37 28%, #FFD700 44%, #E6C200 60%, #B8860B 78%, #8B7500 90%, #D4AF37 100%
-  ), linear-gradient(45deg, rgba(255,255,255,.12), rgba(255,255,255,.02));
+  background-image:
+    conic-gradient(
+      from 0deg,
+      #8b7500 0%,
+      #b8860b 12%,
+      #d4af37 28%,
+      #ffd700 44%,
+      #e6c200 60%,
+      #b8860b 78%,
+      #8b7500 90%,
+      #d4af37 100%
+    ),
+    linear-gradient(45deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
   background-blend-mode: overlay, normal;
-  background-size: 120% 120%, 200% 200%;
-  background-position: center, 200% 0;
-  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
-  -webkit-mask-position: center; mask-position: center;
-  -webkit-mask-size: contain; mask-size: contain;
+  background-size:
+    120% 120%,
+    200% 200%;
+  background-position:
+    center,
+    200% 0;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
 }
 /* Subtle glossy sweep across gold (very slow, professional) */
 @keyframes headerGoldShine {
-  0% { background-position: center, 200% 0; }
-  50% { background-position: center, 0 200%; }
-  100% { background-position: center, -200% 0; }
+  0% {
+    background-position:
+      center,
+      200% 0;
+  }
+  50% {
+    background-position:
+      center,
+      0 200%;
+  }
+  100% {
+    background-position:
+      center,
+      -200% 0;
+  }
 }
 
-.navbar-maronia .brand-logo-gold { width: 44px; height: 44px; }
+.navbar-maronia .brand-logo-gold {
+  width: 44px;
+  height: 44px;
+}
 /* School name width can be adjusted if needed */
-.navbar-maronia .brand-name-gold { height: 28px; width: 320px; }
+.navbar-maronia .brand-name-gold {
+  height: 28px;
+  width: 320px;
+}
 /* Activate a very subtle animation only on capable browsers */
 @media (prefers-reduced-motion: no-preference) {
   .navbar-maronia .brand-logo-gold,
@@ -334,32 +595,56 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .navbar-maronia .brand-logo-gold,
-  .navbar-maronia .brand-name-gold { animation-duration: 20s; }
+  .navbar-maronia .brand-name-gold {
+    animation-duration: 20s;
+  }
 }
 
 /* === Header adjustments per request (static gold logo, bigger school name, closer spacing) === */
 /* Disable any animations on the golden brand in the header */
 .navbar-maronia .brand-logo-gold,
-.navbar-maronia .brand-name-gold { animation: none !important; }
+.navbar-maronia .brand-name-gold {
+  animation: none !important;
+}
 @media (prefers-reduced-motion: no-preference) {
   .navbar-maronia .brand-logo-gold,
-  .navbar-maronia .brand-name-gold { animation: none !important; }
+  .navbar-maronia .brand-name-gold {
+    animation: none !important;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .navbar-maronia .brand-logo-gold,
-  .navbar-maronia .brand-name-gold { animation: none !important; }
+  .navbar-maronia .brand-name-gold {
+    animation: none !important;
+  }
 }
 /* Increase school name by ~20% and bring it closer to the logo */
-.navbar-maronia .brand-name-gold { height: calc(28px * 1.2); width: calc(320px * 1.2); }
-.navbar-maronia .brand-images { gap: 0; }
-.navbar-maronia .brand-divider { display: none !important; margin: 0; width: 0; }
+.navbar-maronia .brand-name-gold {
+  height: calc(28px * 1.2);
+  width: calc(320px * 1.2);
+}
+.navbar-maronia .brand-images {
+  gap: 0;
+}
+.navbar-maronia .brand-divider {
+  display: none !important;
+  margin: 0;
+  width: 0;
+}
 
 /* Static metallic gold text helper (no animation) */
 .text-gold-metal {
-  color: #D4AF37; /* fallback for browsers without background-clip */
+  color: #d4af37; /* fallback for browsers without background-clip */
   background-image: conic-gradient(
     from 0deg,
-    #8B7500 0%, #B8860B 14%, #D4AF37 28%, #FFD700 44%, #E6C200 62%, #B8860B 78%, #8B7500 92%, #D4AF37 100%
+    #8b7500 0%,
+    #b8860b 14%,
+    #d4af37 28%,
+    #ffd700 44%,
+    #e6c200 62%,
+    #b8860b 78%,
+    #8b7500 92%,
+    #d4af37 100%
   );
   background-size: 120% 120%;
   background-position: center;
@@ -371,8 +656,12 @@ body {
 /* --- Global portal background image (cache-busted) appended to ensure all frontend pages use the latest image --- */
 /* Update version string when replacing D:/sh_school_015/assets/img/portal_bg.png */
 body {
-  background-image: url('/assets/img/portal_bg.png?v=20251027-01');
+  background-image: url("/assets/img/portal_bg.png?v=20251027-01");
 }
 
 /* Utility: constrain content to 95% of its container (centered) */
-.in-card-95 { width: 95%; max-width: 100%; margin-inline: auto; }
+.in-card-95 {
+  width: 95%;
+  max-width: 100%;
+  margin-inline: auto;
+}

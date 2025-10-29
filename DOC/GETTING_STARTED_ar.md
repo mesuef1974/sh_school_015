@@ -258,3 +258,45 @@ pwsh -File scripts\ops_run.ps1 -Task help
 ### ملاحظات RTL
 - تم ضبط `dir` و`lang` على عنصر html تلقائيًا وفق اللغة.
 - سنقوم بتدقيق تدريجي لاستبدال خصائص CSS الاتجاهية (left/right، margin-left/right) بخصائص منطقية (inline-start/inline-end) حيثما أمكن دون تأثيرات جانبية.
+
+---
+
+## ملاحظات حلّ الأعطال على ويندوز — EPERM لقفل node_modules
+- الأعراض الشائعة:
+  - رسائل مثل: `EPERM: operation not permitted, unlink esbuild.exe` أو ملفات Rollup الأصلية.
+  - فشل `npm ci`/`npm install` أو تعذّر حذف مجلد `node_modules`.
+- الأسباب المحتملة:
+  - عملية Node/Vite أو أداة مراقبة في الـ IDE تمسك ملفات ثنائية داخل `node_modules`.
+  - مضاد الفيروسات يقفل الملفات التنفيذية أثناء عملية التثبيت/الحذف.
+- الحل الموصى به (ترتيبًا):
+  1) أغلق أي عمليات قد تستخدم Node/Vite/ESBuild (نوافذ dev server، watchers، IDE).
+  2) عطّل الفحص اللحظي للمستودع مؤقتًا أو أضف استثناء لمجلد المشروع في مضاد الفيروسات.
+  3) أعد المحاولة:
+     ```powershell
+     cd frontend
+     npm ci
+     npm run lint
+     npm run format
+     ```
+  4) إذا استمرت المشكلة: أعد تشغيل الجهاز ثم نفّذ الأوامر مباشرةً قبل فتح IDE.
+  5) كمحاولة أخيرة بعد إعادة التشغيل:
+     ```powershell
+     cd frontend
+     Remove-Item -Recurse -Force node_modules
+     npm ci
+     ```
+- ملاحظة: مسار التحقق `scripts/verify_all.ps1` يتعامل الآن مع أخطاء لِنتر الواجهة كـ SKIP لتجنّب تحذيرات مزعجة محليًا عند قفل `node_modules`. عند نجاح `npm ci` سيظهر PASS طبيعيًا.
+
+## تمكين فحص الوصولية (dev-only) عبر axe
+- التكامل موجود في الشفرة ومُعطّل افتراضيًا. لتفعيله أثناء التطوير ومعالجة المخالفات الحرجة فقط:
+  ```powershell
+  cd frontend
+  npm i -D @axe-core/vue
+  # ثم فعّل العلم التالي داخل frontend/.env
+  # VITE_ENABLE_AXE=true
+  
+  # شغّل بيئة التطوير
+  pwsh -File scripts\ops_run.ps1 -Task dev-all
+  ```
+- افتح أدوات المطوّر (Console) وانتقل بين الصفحات الأساسية (الرئيسية، تسجيل الدخول، الجداول، الغياب). أصلح المخالفات الحرجة فقط.
+- بعد الإغلاق أعد `VITE_ENABLE_AXE=false` لإيقافه.

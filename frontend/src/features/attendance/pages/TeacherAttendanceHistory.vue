@@ -1,7 +1,12 @@
 <template>
   <section>
     <!-- Compact Toolbar: Title + Filters + Search in one card -->
-    <DsCard class="mb-3 toolbar-card" v-motion :initial="{ opacity: 0, y: -12 }" :enter="{ opacity: 1, y: 0 }">
+    <DsCard
+      class="mb-3 toolbar-card"
+      v-motion
+      :initial="{ opacity: 0, y: -12 }"
+      :enter="{ opacity: 1, y: 0 }"
+    >
       <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
         <div class="d-flex align-items-center gap-2">
           <Icon icon="solar:history-bold-duotone" class="text-3xl text-primary" />
@@ -12,7 +17,12 @@
         </div>
         <div class="ms-auto d-flex align-items-center gap-2 search-inline" v-if="rows.length > 0">
           <Icon icon="solar:magnifer-bold-duotone" class="text-lg" />
-          <input v-model="searchQuery" type="text" class="form-control form-control-sm" placeholder="بحث في أسماء الطلبة..." />
+          <input
+            v-model="searchQuery"
+            type="text"
+            class="form-control form-control-sm"
+            placeholder="بحث في أسماء الطلبة..."
+          />
           <div class="text-muted small d-none d-md-block">
             {{ filteredRows.length }} / {{ rows.length }}
           </div>
@@ -27,7 +37,9 @@
           </label>
           <select v-model.number="classId" required class="form-select form-select-sm">
             <option :value="null" disabled>اختر الصف</option>
-            <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name || ('صف #' + c.id) }}</option>
+            <option v-for="c in classes" :key="c.id" :value="c.id">
+              {{ c.name || "صف #" + c.id }}
+            </option>
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
@@ -61,10 +73,23 @@
         </div>
         <div class="col-6 col-md-3 col-lg-2 order-lg-last ms-auto">
           <div class="d-flex gap-2 justify-content-start justify-content-lg-end">
-            <DsButton type="submit" size="sm" variant="primary" icon="solar:magnifer-bold-duotone" :loading="loading">
+            <DsButton
+              type="submit"
+              size="sm"
+              variant="primary"
+              icon="solar:magnifer-bold-duotone"
+              :loading="loading"
+            >
               بحث
             </DsButton>
-            <DsButton type="button" size="sm" variant="success" icon="solar:export-bold-duotone" :disabled="filteredRows.length === 0" @click="exportData">
+            <DsButton
+              type="button"
+              size="sm"
+              variant="success"
+              icon="solar:export-bold-duotone"
+              :disabled="filteredRows.length === 0"
+              @click="exportData"
+            >
               تصدير
             </DsButton>
           </div>
@@ -74,23 +99,43 @@
 
     <!-- Loading State -->
     <DsCard v-if="loading" class="text-center py-5">
-      <Icon icon="solar:refresh-bold-duotone" class="text-5xl mb-3 animate-spin" style="color: var(--maron-primary)" />
+      <Icon
+        icon="solar:refresh-bold-duotone"
+        class="text-5xl mb-3 animate-spin"
+        style="color: var(--maron-primary)"
+      />
       <div class="text-muted">جاري تحميل البيانات...</div>
     </DsCard>
 
     <!-- Empty State -->
     <DsCard v-else-if="rows.length === 0" class="text-center py-5">
-      <Icon icon="solar:inbox-line-bold-duotone" class="text-6xl mb-3" style="opacity: 0.3; color: var(--color-info)" />
+      <Icon
+        icon="solar:inbox-line-bold-duotone"
+        class="text-6xl mb-3"
+        style="opacity: 0.3; color: var(--color-info)"
+      />
       <div class="h5 mb-2">لا توجد سجلات</div>
       <div class="text-muted small">لا توجد سجلات غياب في النطاق الزمني المحدد</div>
     </DsCard>
 
     <!-- No Results State -->
     <DsCard v-else-if="filteredRows.length === 0" class="text-center py-5">
-      <Icon icon="solar:magnifer-zoom-out-bold-duotone" class="text-6xl mb-3" style="opacity: 0.3; color: var(--color-warning)" />
+      <Icon
+        icon="solar:magnifer-zoom-out-bold-duotone"
+        class="text-6xl mb-3"
+        style="opacity: 0.3; color: var(--color-warning)"
+      />
       <div class="h5 mb-2">لا توجد نتائج</div>
       <div class="text-muted small">لا توجد سجلات تطابق معايير البحث والفلترة</div>
-      <DsButton variant="outline" size="sm" class="mt-3" @click="searchQuery = ''; statusFilter = ''">
+      <DsButton
+        variant="outline"
+        size="sm"
+        class="mt-3"
+        @click="
+          searchQuery = '';
+          statusFilter = '';
+        "
+      >
         <Icon icon="solar:refresh-bold-duotone" class="me-1" />
         إعادة تعيين الفلاتر
       </DsButton>
@@ -193,7 +238,11 @@
               </td>
               <td class="modern-td">
                 <div v-if="row.subject_name" class="subject-cell">
-                  <Icon :icon="subjectIcon(row.subject_name)" width="16" style="color: var(--maron-primary)" />
+                  <Icon
+                    :icon="subjectIcon(row.subject_name)"
+                    width="16"
+                    style="color: var(--maron-primary)"
+                  />
                   <span class="subject-name-text">{{ row.subject_name }}</span>
                 </div>
                 <span v-else class="text-muted">—</span>
@@ -210,7 +259,7 @@
               </td>
               <td class="modern-td">
                 <div class="note-text" :title="row.note || ''">
-                  {{ row.note || '—' }}
+                  {{ row.note || "—" }}
                 </div>
               </td>
             </tr>
@@ -236,7 +285,8 @@
               السابق
             </DsButton>
             <div class="pagination-info">
-              صفحة <strong>{{ page }}</strong> من <strong>{{ Math.max(1, Math.ceil(total / pageSize)) }}</strong>
+              صفحة <strong>{{ page }}</strong> من
+              <strong>{{ Math.max(1, Math.ceil(total / pageSize)) }}</strong>
             </div>
             <DsButton
               size="sm"
@@ -255,18 +305,22 @@
 </template>
 
 <script setup lang="ts">
-import { subjectIcon } from '../../../shared/icons/subjectIcons';
-import { ref, onMounted, computed } from 'vue';
-import { getAttendanceHistory, getTeacherClasses, getAttendanceStudents } from '../../../shared/api/client';
-import { formatDateDMY } from '../../../shared/utils/date';
-import DsButton from '../../../components/ui/DsButton.vue';
-import DsBadge from '../../../components/ui/DsBadge.vue';
-import DsCard from '../../../components/ui/DsCard.vue';
+import { subjectIcon } from "../../../shared/icons/subjectIcons";
+import { ref, onMounted, computed } from "vue";
+import {
+  getAttendanceHistory,
+  getTeacherClasses,
+  getAttendanceStudents,
+} from "../../../shared/api/client";
+import { formatDateDMY } from "../../../shared/utils/date";
+import DsButton from "../../../components/ui/DsButton.vue";
+import DsBadge from "../../../components/ui/DsBadge.vue";
+import DsCard from "../../../components/ui/DsCard.vue";
 
 const today = new Date();
-const iso = (d: Date) => d.toISOString().slice(0,10);
+const iso = (d: Date) => d.toISOString().slice(0, 10);
 const defaultTo = iso(today);
-const defaultFrom = iso(new Date(today.getTime() - 6*24*60*60*1000));
+const defaultFrom = iso(new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000));
 
 const classId = ref<number | null>(null);
 const classes = ref<{ id: number; name?: string }[]>([]);
@@ -297,8 +351,8 @@ function isInactive(row: Row): boolean {
 }
 
 // Filter states
-const searchQuery = ref('');
-const statusFilter = ref('');
+const searchQuery = ref("");
+const statusFilter = ref("");
 
 // Filtered rows based on search and status
 const filteredRows = computed(() => {
@@ -306,13 +360,13 @@ const filteredRows = computed(() => {
 
   // Filter by status
   if (statusFilter.value) {
-    result = result.filter(r => r.status === statusFilter.value);
+    result = result.filter((r) => r.status === statusFilter.value);
   }
 
   // Filter by search query
   if (searchQuery.value.trim()) {
     const query = searchQuery.value.trim().toLowerCase();
-    result = result.filter(r => r.student_name.toLowerCase().includes(query));
+    result = result.filter((r) => r.student_name.toLowerCase().includes(query));
   }
 
   return result;
@@ -323,44 +377,57 @@ const filteredLeftCount = computed(() => Math.ceil(filteredRows.value.length / 2
 const filteredRowsLeft = computed(() => filteredRows.value.slice(0, filteredLeftCount.value));
 const filteredRowsRight = computed(() => filteredRows.value.slice(filteredLeftCount.value));
 
-
 function statusLabel(s: string) {
   switch (s) {
-    case 'present': return 'حاضر';
-    case 'absent': return 'غائب';
-    case 'late': return 'متأخر';
-    case 'excused': return 'إذن خروج';
-    case 'runaway': return 'هروب';
-    case 'left_early': return 'انصراف مبكر';
-    default: return s;
+    case "present":
+      return "حاضر";
+    case "absent":
+      return "غائب";
+    case "late":
+      return "متأخر";
+    case "excused":
+      return "إذن خروج";
+    case "runaway":
+      return "هروب";
+    case "left_early":
+      return "انصراف مبكر";
+    default:
+      return s;
   }
 }
 function statusClass(s: string) {
   return {
-    'text-bg-success': s === 'present',
-    'text-bg-danger': s === 'absent' || s === 'runaway',
-    'text-bg-warning': s === 'late',
-    'text-bg-secondary': s === 'excused',
-    'text-bg-info': s === 'left_early'
+    "text-bg-success": s === "present",
+    "text-bg-danger": s === "absent" || s === "runaway",
+    "text-bg-warning": s === "late",
+    "text-bg-secondary": s === "excused",
+    "text-bg-info": s === "left_early",
   };
 }
 
-function badgeVariant(s: string): 'success' | 'danger' | 'warning' | 'info' {
-  if (s === 'present') return 'success';
-  if (s === 'absent' || s === 'runaway') return 'danger';
-  if (s === 'late') return 'warning';
-  return 'info';
+function badgeVariant(s: string): "success" | "danger" | "warning" | "info" {
+  if (s === "present") return "success";
+  if (s === "absent" || s === "runaway") return "danger";
+  if (s === "late") return "warning";
+  return "info";
 }
 
 function statusIcon(s: string): string {
   switch (s) {
-    case 'present': return 'solar:check-circle-bold-duotone';
-    case 'absent': return 'solar:close-circle-bold-duotone';
-    case 'late': return 'solar:clock-circle-bold-duotone';
-    case 'excused': return 'solar:shield-check-bold-duotone';
-    case 'runaway': return 'solar:running-bold-duotone';
-    case 'left_early': return 'solar:exit-bold-duotone';
-    default: return 'solar:question-circle-bold-duotone';
+    case "present":
+      return "solar:check-circle-bold-duotone";
+    case "absent":
+      return "solar:close-circle-bold-duotone";
+    case "late":
+      return "solar:clock-circle-bold-duotone";
+    case "excused":
+      return "solar:shield-check-bold-duotone";
+    case "runaway":
+      return "solar:running-bold-duotone";
+    case "left_early":
+      return "solar:exit-bold-duotone";
+    default:
+      return "solar:question-circle-bold-duotone";
   }
 }
 
@@ -369,7 +436,7 @@ async function loadStudents() {
   try {
     const sres = await getAttendanceStudents({ class_id: classId.value, date: toStr.value });
     const map: Record<number, boolean> = {};
-    for (const s of (sres.students || [])) {
+    for (const s of sres.students || []) {
       map[s.id] = s.active !== false;
     }
     activeMap.value = map;
@@ -383,16 +450,22 @@ async function loadHistory() {
   loading.value = true;
   try {
     await loadStudents();
-    const res = await getAttendanceHistory({ class_id: classId.value, from: fromStr.value, to: toStr.value, page: page.value, page_size: pageSize.value });
+    const res = await getAttendanceHistory({
+      class_id: classId.value,
+      from: fromStr.value,
+      to: toStr.value,
+      page: page.value,
+      page_size: pageSize.value,
+    });
     total.value = res.count || 0;
-    rows.value = (res.results || []).map(r => ({
+    rows.value = (res.results || []).map((r) => ({
       date: r.date,
       student_id: r.student_id,
       student_name: r.student_name || `#${r.student_id}`,
       status: r.status,
       note: r.note,
       period_number: r.period_number,
-      subject_name: r.subject_name
+      subject_name: r.subject_name,
     }));
   } finally {
     loading.value = false;
@@ -402,9 +475,9 @@ async function loadHistory() {
 const formatDate = (dateStr: string): string => formatDateDMY(dateStr);
 
 // Arabic day names (Sun..Sat)
-const DAY_NAMES_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+const DAY_NAMES_AR = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 function dayNameAr(dateStr: string): string {
-  if (!dateStr) return '—';
+  if (!dateStr) return "—";
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr));
   let d: Date;
   if (m) {
@@ -415,20 +488,30 @@ function dayNameAr(dateStr: string): string {
   } else {
     d = new Date(dateStr);
   }
-  if (isNaN(d.getTime())) return '—';
+  if (isNaN(d.getTime())) return "—";
   const dow = d.getDay(); // 0=Sun..6=Sat
-  return DAY_NAMES_AR[dow] || '—';
+  return DAY_NAMES_AR[dow] || "—";
 }
 
-function nextPage() { if (page.value * pageSize.value < total.value) { page.value += 1; loadHistory(); } }
-function prevPage() { if (page.value > 1) { page.value -= 1; loadHistory(); } }
+function nextPage() {
+  if (page.value * pageSize.value < total.value) {
+    page.value += 1;
+    loadHistory();
+  }
+}
+function prevPage() {
+  if (page.value > 1) {
+    page.value -= 1;
+    loadHistory();
+  }
+}
 
 function exportData() {
   if (filteredRows.value.length === 0) return;
 
   // Create CSV content
-  const headers = ['#', 'التاريخ', 'اليوم', 'الطالب', 'الحصة', 'المادة', 'الحالة', 'ملاحظة'];
-  const csvRows = [headers.join(',')];
+  const headers = ["#", "التاريخ", "اليوم", "الطالب", "الحصة", "المادة", "الحالة", "ملاحظة"];
+  const csvRows = [headers.join(",")];
 
   filteredRows.value.forEach((row, i) => {
     const csvRow = [
@@ -436,25 +519,28 @@ function exportData() {
       formatDate(row.date),
       dayNameAr(row.date),
       row.student_name,
-      row.period_number || '',
-      row.subject_name || '',
+      row.period_number || "",
+      row.subject_name || "",
       statusLabel(row.status),
-      row.note || ''
-    ].map(field => `"${field}"`).join(',');
+      row.note || "",
+    ]
+      .map((field) => `"${field}"`)
+      .join(",");
     csvRows.push(csvRow);
   });
 
-  const csvContent = '\uFEFF' + csvRows.join('\n'); // BOM for Excel UTF-8 support
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
+  const csvContent = "\uFEFF" + csvRows.join("\n"); // BOM for Excel UTF-8 support
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
   const url = URL.createObjectURL(blob);
 
-  const className = classes.value.find(c => c.id === classId.value)?.name || `صف_${classId.value}`;
+  const className =
+    classes.value.find((c) => c.id === classId.value)?.name || `صف_${classId.value}`;
   const filename = `سجل_الغياب_${className}_${fromStr.value}_${toStr.value}.csv`;
 
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -474,12 +560,23 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-
 /* Toolbar compact styles */
-.toolbar-card :is(.form-label){ margin-bottom: 0.25rem; }
-.toolbar-card .form-control, .toolbar-card .form-select { min-height: 36px; }
-.search-inline { min-width: 260px; }
-@media (max-width: 768px){ .search-inline { width: 100%; order: 3; } }
+.toolbar-card :is(.form-label) {
+  margin-bottom: 0.25rem;
+}
+.toolbar-card .form-control,
+.toolbar-card .form-select {
+  min-height: 36px;
+}
+.search-inline {
+  min-width: 260px;
+}
+@media (max-width: 768px) {
+  .search-inline {
+    width: 100%;
+    order: 3;
+  }
+}
 
 /* Modern Professional Table Styles */
 .modern-table-wrapper {
@@ -627,8 +724,12 @@ onMounted(async () => {
 
 /* Loading spinner animation */
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .animate-spin {

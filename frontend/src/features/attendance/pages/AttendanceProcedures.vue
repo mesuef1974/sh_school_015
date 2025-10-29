@@ -1,7 +1,7 @@
 <template>
   <section class="d-grid gap-3">
     <header class="auto-card p-3 d-flex align-items-center gap-3">
-      <Icon icon="fa6-solid:clipboard-list" style="font-size:28px;color:#6a1b9a" />
+      <Icon icon="fa6-solid:clipboard-list" style="font-size: 28px; color: #6a1b9a" />
       <div>
         <div class="fw-bold">إجراءات الغياب</div>
         <div class="text-muted small">صفحة مبدئية لتجميع سياسات وتنبيهات ومتابعات الغياب</div>
@@ -20,8 +20,7 @@
   </section>
 </template>
 
-<script setup lang="ts">
-</script>
+<script setup lang="ts"></script>
 
 <style scoped>
 /* Page-local tweaks can be added here if needed */

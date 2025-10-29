@@ -8,19 +8,31 @@
         </RouterLink>
       </li>
       <li class="nav-item" v-if="canSeeTeacher">
-        <RouterLink class="nav-link" :class="activeClass('/attendance/teacher')" to="/attendance/teacher">
+        <RouterLink
+          class="nav-link"
+          :class="activeClass('/attendance/teacher')"
+          to="/attendance/teacher"
+        >
           <i class="bi bi-clipboard-check"></i>
           <span>تسجيل الغياب</span>
         </RouterLink>
       </li>
       <li class="nav-item" v-if="canSeeTeacher">
-        <RouterLink class="nav-link" :class="activeClass('/timetable/teacher')" to="/timetable/teacher">
+        <RouterLink
+          class="nav-link"
+          :class="activeClass('/timetable/teacher')"
+          to="/timetable/teacher"
+        >
           <i class="bi bi-calendar2-week"></i>
           <span>جدولي</span>
         </RouterLink>
       </li>
       <li class="nav-item" v-if="canSeeTeacher">
-        <RouterLink class="nav-link" :class="activeClass('/attendance/teacher/history')" to="/attendance/teacher/history">
+        <RouterLink
+          class="nav-link"
+          :class="activeClass('/attendance/teacher/history')"
+          to="/attendance/teacher/history"
+        >
           <i class="bi bi-clock-history"></i>
           <span>سجل الغياب</span>
         </RouterLink>
@@ -30,28 +42,30 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { useRoute } from 'vue-router';
-import { useAuthStore } from '../../../app/stores/auth';
+import { computed } from "vue";
+import { useRoute } from "vue-router";
+import { useAuthStore } from "../../../app/stores/auth";
 
 const route = useRoute();
 const auth = useAuthStore();
-const canSeeTeacher = computed(() => (auth.profile?.roles || []).includes('teacher') || !!auth.profile?.is_superuser);
+const canSeeTeacher = computed(
+  () => (auth.profile?.roles || []).includes("teacher") || !!auth.profile?.is_superuser
+);
 
 function activeClass(prefix: string) {
   // Mark active if current path starts with the target prefix
-  return route.path === prefix || route.path.startsWith(prefix + '/') ? 'active' : '';
+  return route.path === prefix || route.path.startsWith(prefix + "/") ? "active" : "";
 }
 </script>
 
 <style scoped>
 .teacher-menu {
-  margin-bottom: .75rem;
+  margin-bottom: 0.75rem;
 }
 .nav-link {
   display: inline-flex;
   align-items: center;
-  gap: .35rem;
+  gap: 0.35rem;
 }
 .nav-link.active {
   background: var(--maron-primary);

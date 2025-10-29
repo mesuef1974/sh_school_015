@@ -4,154 +4,155 @@
       <div class="login-wrapper">
         <div class="login-wrapper-bg" aria-hidden="true"></div>
         <!-- Left Side - Branding -->
-      <div
-        class="login-brand"
-      >
-        <div class="brand-content">
-          <span class="brand-logo-mask" aria-hidden="true"></span>
-          <h1 class="brand-title text-gold-metal">مدرسة الشحانية</h1>
-          <p class="brand-subtitle text-gold-metal">الإعدادية الثانوية للبنين</p>
-          <div class="brand-divider"></div>
-          <p class="brand-description text-gold-metal">
-            منصة الإدارة المدرسية الذكية
-            <br />
-            إدارة شاملة وتقارير فورية
-          </p>
+        <div class="login-brand">
+          <div class="brand-content">
+            <span class="brand-logo-mask" aria-hidden="true"></span>
+            <h1 class="brand-title text-gold-metal">مدرسة الشحانية</h1>
+            <p class="brand-subtitle text-gold-metal">الإعدادية الثانوية للبنين</p>
+            <div class="brand-divider"></div>
+            <p class="brand-description text-gold-metal">
+              منصة الإدارة المدرسية الذكية
+              <br />
+              إدارة شاملة وتقارير فورية
+            </p>
 
-          <!-- Features -->
-          <div class="features-list">
-            <div class="feature-item">
-              <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
-              <span class="text-gold-metal">إدارة الحضور والغياب</span>
-            </div>
-            <div class="feature-item">
-              <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
-              <span class="text-gold-metal">تقارير تفصيلية فورية</span>
-            </div>
-            <div class="feature-item">
-              <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
-              <span class="text-gold-metal">واجهة سهلة الاستخدام</span>
+            <!-- Features -->
+            <div class="features-list">
+              <div class="feature-item">
+                <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
+                <span class="text-gold-metal">إدارة الحضور والغياب</span>
+              </div>
+              <div class="feature-item">
+                <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
+                <span class="text-gold-metal">تقارير تفصيلية فورية</span>
+              </div>
+              <div class="feature-item">
+                <Icon icon="solar:check-circle-bold-duotone" class="feature-icon" />
+                <span class="text-gold-metal">واجهة سهلة الاستخدام</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Right Side - Login Form -->
-      <div
-        class="login-form-wrapper"
-      >
-        <DsCard
-          class="login-card"
-          :animate="false"
-        >
-          <div class="login-header">
-            <Icon icon="solar:shield-check-bold-duotone" class="login-card-logo" aria-hidden="true" />
-            <h2 class="login-title">تسجيل الدخول</h2>
-            <p class="login-subtitle">أدخل بيانات الدخول للوصول إلى المنصة</p>
-          </div>
-
-          <form @submit.prevent="onSubmit" class="login-form">
-            <!-- Username Field -->
-            <div class="form-group">
-              <label class="form-label">
-                <Icon icon="solar:user-bold-duotone" class="label-icon" />
-                اسم المستخدم
-              </label>
-              <input
-                v-model="username"
-                type="text"
-                class="form-control ds-input"
-                placeholder="أدخل اسم المستخدم"
-                required
-                autocomplete="username"
-                :disabled="loading"
+        <!-- Right Side - Login Form -->
+        <div class="login-form-wrapper">
+          <DsCard class="login-card" :animate="false">
+            <div class="login-header">
+              <Icon
+                icon="solar:shield-check-bold-duotone"
+                class="login-card-logo"
+                aria-hidden="true"
               />
+              <h2 class="login-title">تسجيل الدخول</h2>
+              <p class="login-subtitle">أدخل بيانات الدخول للوصول إلى المنصة</p>
             </div>
 
-            <!-- Password Field -->
-            <div class="form-group">
-              <label class="form-label">
-                <Icon icon="solar:lock-password-bold-duotone" class="label-icon" />
-                كلمة المرور
-              </label>
-              <div class="password-input-wrapper">
+            <form @submit.prevent="onSubmit" class="login-form">
+              <!-- Username Field -->
+              <div class="form-group">
+                <label class="form-label">
+                  <Icon icon="solar:user-bold-duotone" class="label-icon" />
+                  اسم المستخدم
+                </label>
                 <input
-                  v-model="password"
-                  :type="showPassword ? 'text' : 'password'"
+                  v-model="username"
+                  type="text"
                   class="form-control ds-input"
-                  placeholder="أدخل كلمة المرور"
+                  placeholder="أدخل اسم المستخدم"
                   required
-                  autocomplete="current-password"
+                  autocomplete="username"
                   :disabled="loading"
                 />
-                <button
-                  type="button"
-                  class="password-toggle"
-                  @click="showPassword = !showPassword"
-                  :disabled="loading"
-                >
-                  <Icon :icon="showPassword ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'" />
-                </button>
               </div>
+
+              <!-- Password Field -->
+              <div class="form-group">
+                <label class="form-label">
+                  <Icon icon="solar:lock-password-bold-duotone" class="label-icon" />
+                  كلمة المرور
+                </label>
+                <div class="password-input-wrapper">
+                  <input
+                    v-model="password"
+                    :type="showPassword ? 'text' : 'password'"
+                    class="form-control ds-input"
+                    placeholder="أدخل كلمة المرور"
+                    required
+                    autocomplete="current-password"
+                    :disabled="loading"
+                  />
+                  <button
+                    type="button"
+                    class="password-toggle"
+                    @click="showPassword = !showPassword"
+                    :disabled="loading"
+                  >
+                    <Icon
+                      :icon="
+                        showPassword ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'
+                      "
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <!-- Error Alert -->
+              <div v-if="error" class="ds-alert ds-alert-danger" role="alert">
+                <Icon icon="solar:danger-circle-bold-duotone" class="text-xl" />
+                <div>{{ error }}</div>
+              </div>
+
+              <!-- Submit Button -->
+              <DsButton
+                type="submit"
+                variant="primary"
+                size="lg"
+                :loading="loading"
+                :disabled="loading"
+                icon="solar:shield-check-bold-duotone"
+                class="w-100"
+              >
+                {{ loading ? "جاري الدخول..." : "دخول" }}
+              </DsButton>
+            </form>
+
+            <!-- Footer -->
+            <div class="login-footer">
+              <p class="text-muted text-sm text-center mb-0">
+                جميع الحقوق محفوظة © {{ currentYear }}
+              </p>
             </div>
-
-            <!-- Error Alert -->
-            <div v-if="error" class="ds-alert ds-alert-danger" role="alert">
-              <Icon icon="solar:danger-circle-bold-duotone" class="text-xl" />
-              <div>{{ error }}</div>
-            </div>
-
-            <!-- Submit Button -->
-            <DsButton
-              type="submit"
-              variant="primary"
-              size="lg"
-              :loading="loading"
-              :disabled="loading"
-              icon="solar:shield-check-bold-duotone"
-              class="w-100"
-            >
-              {{ loading ? 'جاري الدخول...' : 'دخول' }}
-            </DsButton>
-          </form>
-
-          <!-- Footer -->
-          <div class="login-footer">
-            <p class="text-muted text-sm text-center mb-0">
-              جميع الحقوق محفوظة © {{ currentYear }}
-            </p>
-          </div>
-        </DsCard>
+          </DsCard>
+        </div>
       </div>
     </div>
-  </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { login } from '../../shared/api/client';
-import { useRouter, useRoute } from 'vue-router';
-import { useAuthStore } from '../stores/auth';
-import { toast } from 'vue-sonner';
-import DsButton from '../../components/ui/DsButton.vue';
-import DsCard from '../../components/ui/DsCard.vue';
+import { ref, computed } from "vue";
+import { login } from "../../shared/api/client";
+import { useRouter, useRoute } from "vue-router";
+import { useAuthStore } from "../stores/auth";
+import { toast } from "vue-sonner";
+import DsButton from "../../components/ui/DsButton.vue";
+import DsCard from "../../components/ui/DsCard.vue";
 
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 
-const username = ref('');
-const password = ref('');
+const username = ref("");
+const password = ref("");
 const loading = ref(false);
-const error = ref('');
+const error = ref("");
 const showPassword = ref(false);
-const logoSrc = '/assets/img/logo.png';
+const logoSrc = "/assets/img/logo.png";
 const currentYear = computed(() => new Date().getFullYear());
 
 async function onSubmit() {
   loading.value = true;
-  error.value = '';
+  error.value = "";
 
   try {
     await login(username.value, password.value);
@@ -162,35 +163,45 @@ async function onSubmit() {
       // Ignore profile load errors
     }
 
-    toast.success('مرحباً بك!', {
-      description: 'تم تسجيل الدخول بنجاح'
+    toast.success("مرحباً بك!", {
+      description: "تم تسجيل الدخول بنجاح",
     });
 
-    const next = (route.query.next as string) || '';
-    const primary = auth.profile?.primary_route || '';
+    const next = (route.query.next as string) || "";
+    const primary = auth.profile?.primary_route || "";
     const roles = auth.profile?.roles || [];
-    const isOnlyTeacher = roles.includes('teacher') && !roles.some(r => ['principal','academic_deputy','timetable_manager','subject_coordinator','wing_supervisor'].includes(r));
+    const isOnlyTeacher =
+      roles.includes("teacher") &&
+      !roles.some((r) =>
+        [
+          "principal",
+          "academic_deputy",
+          "timetable_manager",
+          "subject_coordinator",
+          "wing_supervisor",
+        ].includes(r)
+      );
 
     if (next) {
       router.replace(next);
     } else if (isOnlyTeacher) {
       // توجيه المعلم فقط إلى الصفحة الرئيسية بدل صفحة الغياب مباشرةً
-      router.replace('/');
+      router.replace("/");
     } else if (primary) {
       router.replace(primary);
     } else {
       // Fallback to home if no hint provided
-      router.replace('/');
+      router.replace("/");
     }
   } catch (e: any) {
     if (!e?.response) {
-      error.value = 'الخادم غير متاح الآن. تأكد من تشغيل الباك-إند ثم أعد المحاولة.';
+      error.value = "الخادم غير متاح الآن. تأكد من تشغيل الباك-إند ثم أعد المحاولة.";
     } else {
-      error.value = e?.response?.data?.detail || 'بيانات الدخول غير صحيحة';
+      error.value = e?.response?.data?.detail || "بيانات الدخول غير صحيحة";
     }
 
-    toast.error('فشل تسجيل الدخول', {
-      description: error.value
+    toast.error("فشل تسجيل الدخول", {
+      description: error.value,
     });
   } finally {
     loading.value = false;
@@ -223,11 +234,10 @@ async function onSubmit() {
   padding: 0;
 }
 
-
 .login-wrapper {
   /* Tuning knobs */
-  --login-frame-w: 10px;        /* golden border width */
-  --arabesque-tile: 480px;      /* tile size for repeating arabesque (doubled) */
+  --login-frame-w: 10px; /* golden border width */
+  --arabesque-tile: 480px; /* tile size for repeating arabesque (doubled) */
 
   max-width: 1200px;
   width: 100%;
@@ -235,8 +245,8 @@ async function onSubmit() {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--space-8);
-  align-items: center;           /* prevent children from stretching vertically */
-  justify-items: center;         /* keep both columns' contents centered horizontally */
+  align-items: center; /* prevent children from stretching vertically */
+  justify-items: center; /* keep both columns' contents centered horizontally */
   /* Backdrop card behind both the branding and the login panel */
   position: relative;
   border-radius: 0; /* square corners */
@@ -245,20 +255,22 @@ async function onSubmit() {
     /* Ensure interior is solid maroon, only the border shows gold */
     linear-gradient(var(--maron-primary), var(--maron-primary)) padding-box,
     /* Golden frame using gradient border */
-    conic-gradient(from 0deg,
-      #8B7500 0%,
-      #B08D57 12%,
-      #D4AF37 25%,
-      #FFD700 37%,
-      #B08D57 50%,
-      #8B7500 62%,
-      #E6C200 75%,
-      #FFD700 87%,
-      #B08D57 100%
-    ) border-box;
+      conic-gradient(
+        from 0deg,
+        #8b7500 0%,
+        #b08d57 12%,
+        #d4af37 25%,
+        #ffd700 37%,
+        #b08d57 50%,
+        #8b7500 62%,
+        #e6c200 75%,
+        #ffd700 87%,
+        #b08d57 100%
+      )
+      border-box;
   -webkit-backdrop-filter: none; /* remove blur */
-  backdrop-filter: none;         /* remove blur */
-  box-shadow: none;              /* remove shadow */
+  backdrop-filter: none; /* remove blur */
+  box-shadow: none; /* remove shadow */
   padding: var(--space-8);
 }
 
@@ -268,7 +280,7 @@ async function onSubmit() {
   position: absolute;
   inset: var(--login-frame-w);
   border-radius: 0; /* match square corners inside frame */
-  background-image: url('/assets/img/arabesque_gs.svg');
+  background-image: url("/assets/img/arabesque_gs.svg");
   background-repeat: repeat;
   background-position: center; /* center-align tiles */
   background-size: var(--arabesque-tile) var(--arabesque-tile);
@@ -277,11 +289,7 @@ async function onSubmit() {
   z-index: 0; /* below content, above backgrounds */
 }
 
-
-
-
 /* Animated glossy shine over the golden frame */
-
 
 /* Inner maroon fill moved into a dedicated background element to avoid conflicts with ::after */
 .login-wrapper-bg {
@@ -294,7 +302,6 @@ async function onSubmit() {
   background: transparent;
   filter: none;
 }
-
 
 /* Animated glossy shine over the golden frame */
 
@@ -340,7 +347,6 @@ async function onSubmit() {
   padding: var(--space-8);
 }
 
-
 .brand-content {
   max-width: 500px;
 }
@@ -363,12 +369,19 @@ async function onSubmit() {
   /* Base metallic gold fill clipped by logo mask */
   background-image: conic-gradient(
     from 0deg,
-    #8B7500 0%, #B8860B 14%, #D4AF37 28%, #FFD700 44%, #E6C200 62%, #B8860B 78%, #8B7500 92%, #D4AF37 100%
+    #8b7500 0%,
+    #b8860b 14%,
+    #d4af37 28%,
+    #ffd700 44%,
+    #e6c200 62%,
+    #b8860b 78%,
+    #8b7500 92%,
+    #d4af37 100%
   );
   background-size: 140% 140%;
   background-position: center;
-  -webkit-mask-image: url('/assets/img/logo.png');
-  mask-image: url('/assets/img/logo.png');
+  -webkit-mask-image: url("/assets/img/logo.png");
+  mask-image: url("/assets/img/logo.png");
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
@@ -382,11 +395,16 @@ async function onSubmit() {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(110deg, transparent 38%, rgba(255,255,255,.65) 50%, transparent 62%);
+  background: linear-gradient(
+    110deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.65) 50%,
+    transparent 62%
+  );
   background-size: 220% 220%;
   background-position: 200% 0;
-  -webkit-mask-image: url('/assets/img/logo.png');
-  mask-image: url('/assets/img/logo.png');
+  -webkit-mask-image: url("/assets/img/logo.png");
+  mask-image: url("/assets/img/logo.png");
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
@@ -397,11 +415,17 @@ async function onSubmit() {
   pointer-events: none;
 }
 @keyframes goldLogoShine {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .brand-logo-mask::after { animation: none; }
+  .brand-logo-mask::after {
+    animation: none;
+  }
 }
 
 .brand-title {
@@ -643,35 +667,31 @@ async function onSubmit() {
     font-size: var(--font-size-2xl);
   }
 }
-
 </style>
 
 <style scoped>
 /* Desktop ordering: brand on the right, form on the left; keep centered */
 @media (min-width: 992px) {
-  .login-wrapper { grid-template-areas: 'form brand'; }
-  .login-form-wrapper { grid-area: form; }
-  .login-brand { grid-area: brand; text-align: end; }
+  .login-wrapper {
+    grid-template-areas: "form brand";
+  }
+  .login-form-wrapper {
+    grid-area: form;
+  }
+  .login-brand {
+    grid-area: brand;
+    text-align: end;
+  }
 }
 </style>
 
-/* === Entrance animations for login panels (one-time, professional) === */
-@keyframes formEnter {
-  0% { opacity: 0; transform: translateX(-24px) scale(.98); filter: blur(2px); }
-  60% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
-  100% { opacity: 1; transform: none; filter: none; }
-}
-@keyframes brandEnter {
-  0% { opacity: 0; transform: translateX(24px) scale(.98); filter: blur(2px); }
-  60% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
-  100% { opacity: 1; transform: none; filter: none; }
-}
-
-/* Apply only to the container panels, not their inner elements */
-.login-form-wrapper { animation: formEnter 700ms cubic-bezier(.22,.61,.36,1) both; }
-.login-brand { animation: brandEnter 720ms cubic-bezier(.22,.61,.36,1) both 60ms; }
-
-/* Respect Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  .login-form-wrapper, .login-brand { animation: none !important; }
-}
+/* === Entrance animations for login panels (one-time, professional) === */ @keyframes formEnter {
+0% { opacity: 0; transform: translateX(-24px) scale(.98); filter: blur(2px); } 60% { opacity: 1;
+transform: translateX(0) scale(1); filter: blur(0); } 100% { opacity: 1; transform: none; filter:
+none; } } @keyframes brandEnter { 0% { opacity: 0; transform: translateX(24px) scale(.98); filter:
+blur(2px); } 60% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); } 100% { opacity:
+1; transform: none; filter: none; } } /* Apply only to the container panels, not their inner
+elements */ .login-form-wrapper { animation: formEnter 700ms cubic-bezier(.22,.61,.36,1) both; }
+.login-brand { animation: brandEnter 720ms cubic-bezier(.22,.61,.36,1) both 60ms; } /* Respect
+Reduced Motion */ @media (prefers-reduced-motion: reduce) { .login-form-wrapper, .login-brand {
+animation: none !important; } }

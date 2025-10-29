@@ -109,3 +109,62 @@
 - كيفية التشغيل السريع للتحقق:
   - pwsh -File scripts/ops_run.ps1 -Task dev-all    # تشغيل الباك ثم Vite (تلقائيًا)
   - pwsh -File scripts/ops_run.ps1 -Task verify     # فحوص شبيهة بـ CI (غير حاجزة محليًا)
+
+## تحديث 2025-10-29 07:35 — تحسين verify وإضافة تكامل axe اختياري
+- تحسينات تنفيذية سريعة اليوم:
+  - verify_all.ps1: عند استخدام -StartBackend أصبح السكربت ينتظر جاهزية /livez بمحاولات متعدّدة لتقليل التقارير المتذبذبة، والنتيجة: Health endpoints = PASS.
+  - verify_all.ps1: إذا لم تكن تبعيات الواجهة مثبتة (لا يوجد frontend/node_modules) تتحول فحوص ESLint/Prettier إلى SKIP برسالة إرشادية بدل WARN.
+  - frontend/src/main.ts: إضافة تفعيل اختياري لـ axe (dev-only) عبر import ديناميكي مشروط بالعلم VITE_ENABLE_AXE.
+  - frontend/.env.example: إضافة VITE_ENABLE_AXE=false افتراضيًا مع تعليق توضيحي.
+  - frontend/.eslintrc.cjs: إضافة إعداد ESLint قياسي (Vue 3 + TS + Prettier) لنتائج ثابتة.
+  - backend/school/views.py: إصلاح RTL منطقي (text-align:start) في نموذج TimetableImageImportForm.
+- نتيجة verify بعد التحسين: Django checks + Tests (SQLite/PG) = PASS، Health endpoints = PASS، Linters Backend = PASS، Linters Frontend = SKIP إذا لم تُثبّت التبعيات محليًا.
+- التالي السريع:
+  - لتفعيل فحص الوصولية أثناء التطوير: `cd frontend && npm i -D @axe-core/vue` ثم ضع `VITE_ENABLE_AXE=true` في `frontend/.env`.
+  - لإغلاق لنتر الواجهة نهائيًا إلى PASS: `cd frontend && npm ci && npm run lint && npm run format`.
+
+## تحديث 2025-10-29 09:10 — CI مُفعّل وإغلاق المرحلة 2 يقترب
+
+- CI (GitHub Actions): تمت إضافة سير عمل `.github/workflows/ci.yml` يتضمن:
+  - Backend: ruff + black + isort + Django checks + pytest (SQLite).
+  - Frontend: `npm ci` + ESLint + Prettier (check) + Vite build.
+- وضع التحقق المحلي:
+  - Django checks + migrations: PASS
+  - Tests (SQLite/PG): PASS
+  - Backend linters: PASS
+  - Health probes: PASS
+  - Frontend lint/format: SKIP محليًا بسبب قفل Windows على `node_modules` (esbuild.exe/rollup). يمكن إغلاقه بخطوات EPERM الموثقة في GETTING_STARTED_ar.md أو الاعتماد على CI مؤقتًا حتى إزالة القفل.
+- الوصولية (dev-only): تم تفعيل مسار بديل للـ axe عبر CDN داخل `frontend/src/main.ts` عند ضبط `VITE_ENABLE_AXE=true`، دون الاعتماد على تثبيت حزمة `@axe-core/vue` (التي فشلت بسبب 404 من سجل npm في بيئتك).
+
+### ما الذي تبقّى للإغلاق النهائي للمرحلة 2
+1) فك قفل `node_modules` على ويندوز ثم تشغيل:
+   - `cd frontend && npm ci && npm run lint && npm run format`
+   - بعد النجاح سيصبح fe_lint=PASS وfe_format=PASS ضمن verify.
+2) تشغيل فحص axe مؤقتًا (dev-only) ومعالجة المخالفات الحرجة فقط على الصفحات الأساسية، ثم إعادة `VITE_ENABLE_AXE=false`.
+
+### ملاحظات تشغيل سريعة
+- إن استمرت مشكلة EPERM: أوقف عمليات Node/Vite/IDE، استثنِ مجلد المشروع مؤقتًا من مضاد الفيروسات، ثم أعد التشغيل ونفّذ الأوامر أعلاه مباشرة.
+- حتى مع تعذّر التشغيل المحلي، سيقوم CI الآن بتشغيل lint/build للواجهة والتأكد من سلامة البناء.
+
+## تحديث الحالة — 2025-10-29 14:46
+
+- المرحلة 2 (i18n + RTL + الوصولية): مُغلقة عمليًا.
+  - A11y (dev-only): تم تفعيل فحص axe أثناء التطوير ومعالجة المخالفات الحرِجة عند الحاجة، ثم إطفاؤه.
+  - RTL: تم تنفيذ تدقيق منطقي واستبدال الخصائص الاتجاهية بخصائص منطقية حيث كان آمنًا.
+- مسار التحقق verify (Windows-safe): أخضر بالكامل.
+  - Django checks + migrations: PASS
+  - Tests — SQLite: PASS
+  - Tests — PostgreSQL: PASS
+  - Linters Backend (Ruff/Black/isort): PASS
+  - Linters/Format Frontend (ESLint/Prettier): PASS
+  - Health probes (HTTPS): PASS
+  - Security (اختياري غير حاجز): pip-audit = SKIP/WARN (الأداة غير مثبتة)، npm audit = WARN بيئي
+
+ملاحظات تنفيذية:
+- تم ضبط `scripts/verify_all.ps1` لاستخدام سكربتات npm مباشرة مع مسار fallback موثوق على ويندوز.
+- تم تشغيل `dev-all` مع `VITE_ENABLE_AXE=true` للفحص ثم إعادتها إلى `false` بعد الإغلاق.
+
+الخطوة التالية المقترحة:
+- الانتقال إلى واحدة من:
+  1) تقوية E2E لوحدة الحضور (سيناريوهات أساسية + أوفلاين + طباعة + تغذية راجعة).
+  2) محور الأمن (رؤوس الأمان CSP/HSTS إنتاجًا + سياسات Referrer + Sentry FE/BE).

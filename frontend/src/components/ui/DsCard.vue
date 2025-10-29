@@ -22,7 +22,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from "vue";
 
 interface Props {
   title?: string;
@@ -42,11 +42,11 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const cardClasses = computed(() => {
-  const classes = ['ds-card'];
-  if (props.interactive) classes.push('ds-card-interactive');
-  if (props.noPadding) classes.push('ds-card-no-padding');
-  if (props.compact) classes.push('ds-card--compact');
-  return classes.join(' ');
+  const classes = ["ds-card"];
+  if (props.interactive) classes.push("ds-card-interactive");
+  if (props.noPadding) classes.push("ds-card-no-padding");
+  if (props.compact) classes.push("ds-card--compact");
+  return classes.join(" ");
 });
 </script>
 

@@ -28,5 +28,15 @@ jobs:
             --retry-wait-time 2 --retry-count 3
             --exclude '(https?://(127\.0\.0\.1|localhost)(:\d+)?/.*|file://.*)'
             '**/*.md' '**/*.html'
+          debug: false
+          fail: true
+          failIfEmpty: true
+          format: markdown
+          jobSummary: true
+          lycheeVersion: v0.20.1
+          output: lychee/out.md
+          checkbox: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          workingDirectory: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
