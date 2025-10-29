@@ -53,7 +53,7 @@ def me(request: Request):
             # Treat as teacher if actual assignments exist, regardless of group naming
             if TeachingAssignment.objects.filter(teacher=staff).exists():
                 has_teaching_assignments = True
-                roles_norm.add('teacher')
+                roles_norm.add("teacher")
     except Exception:
         has_teaching_assignments = False
 

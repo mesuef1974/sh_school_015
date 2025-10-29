@@ -78,3 +78,34 @@
   - استكمال تدقيق RTL الخفيف المتبقي ثم تفعيل مهام Linters/Formatters (المرحلة B) وربطها بمسار verify.
 
 ملاحظة التحديث: 2025-10-28 11:49 (محلي)
+
+---
+
+## تحديث 2025-10-29 07:25 — إغلاق دفعة RTL/A11y والمهام التالية
+
+- ما تم إنجازه اليوم:
+  - استبدال text-align:right → text-align:end في المواضع التالية:
+    - frontend/src/app/pages/LoginPage.vue (قاعدة سطح المكتب لجزء العلامة التجارية)
+    - frontend/src/features/attendance/pages/TeacherAttendanceHistory.vue (رؤوس الجدول .modern-th)
+    - frontend/src/features/wings/pages/WingTimetable.vue (عمود الفترات اللاصق .tt7-th-period)
+  - مراجعة سريعة للتصميم: TeacherTimetable.vue يستخدم خصائص منطقية مسبقًا (inset-inline-*, text-align:start)، ولا مشاكل متبقية.
+  - التحقق من العلامات الدلالية للوصولية: main[role="main"][tabindex="-1"] موجود في App.vue؛ أزرار الأدوات الأيقونية تحوي aria-label/title.
+  - مسار التحقق verify: سكربتات ESLint/Prettier مضافة في frontend/package.json؛ إعداد Ruff/Black/isort موجود في pyproject.toml؛ scripts/verify_all.ps1 يشغّل اللنترز بشكل غير حاجز.
+
+- ملاحظات RTL باقية (غير حرجة):
+  - وُجدت "left/right" في إعدادات رسوم ECharts داخل StatsPage.vue كسلوك مخططات، وليست خصائص CSS؛ لا تؤثر على RTL.
+
+- المهمة التالية المباشرة (تبدأ الآن):
+  1) إتمام إغلاق المرحلة 2 — i18n + RTL + الوصولية:
+     - تشغيل فحص axe اختياريًا في التطوير عبر المتغير VITE_ENABLE_AXE ومعالجة المخالفات الحرجة فقط على الصفحات: الرئيسية، الدخول، جدولي، تسجيل الغياب، سجل الغياب.
+     - تدقيق RTL خفيف إضافي: التأكد من عدم وجود خصائص left/right أو margin/padding-left/right في CSS؛ استخدام inline-start/inline-end حيثما كان آمنًا.
+     - DoD: لا مخالفات axe حرجة + سلوك صحيح RTL/LTR + تزامن PrimeVue مع اللغة.
+  2) المرحلة B — Linters/Formatters:
+     - تشغيل ESLint/Prettier للواجهة وRuff/Black/isort للخلفية عبر scripts/ops_run.ps1 -Task verify وضبط أي تحذيرات سطحية.
+     - DoD: مسار verify يمرّ على شجرة نظيفة بدون أخطاء.
+  3) التوثيق:
+     - تحديث GETTING_STARTED_ar.md بكيفية تمكين axe وتشغيل verify/lint.
+
+- كيفية التشغيل السريع للتحقق:
+  - pwsh -File scripts/ops_run.ps1 -Task dev-all    # تشغيل الباك ثم Vite (تلقائيًا)
+  - pwsh -File scripts/ops_run.ps1 -Task verify     # فحوص شبيهة بـ CI (غير حاجزة محليًا)

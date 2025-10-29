@@ -219,38 +219,74 @@ try {
   $feDir = Join-Path $Root 'frontend'
   if (Test-Path -Path $feDir -and (Test-Path -Path (Join-Path $feDir 'package.json'))) {
     Push-Location $feDir
-    try { $npm = Get-Command npm -ErrorAction Stop } catch { $npm = $null }
-    if ($npm) {
-      # ESLint (call local bin via Node to avoid PowerShell arg parsing)
-      $lintExit = 0
-      try {
-        & node "node_modules/eslint/bin/eslint.js" .
-        $lintExit = $LASTEXITCODE
-      } catch { $lintExit = 1 }
-      if ($lintExit -eq 0) { Write-Ok 'Frontend lint (eslint) passed'; $results.fe_lint = 'PASS' }
-      else { Write-Warn 'Frontend lint (eslint) reported issues'; $results.fe_lint = 'WARN' }
-      
-      # Prettier (check only, non-blocking) via Node
-      $fmtExit = 0
-      try {
-        & node "node_modules/prettier/bin/prettier.cjs" --check "src/**/*.{ts,tsx,js,vue,css,scss,md}"
-        $fmtExit = $LASTEXITCODE
-      } catch { $fmtExit = 1 }
-      if ($fmtExit -eq 0) { Write-Ok 'Frontend format (prettier --check) OK'; $results.fe_format = 'PASS' }
-      else { Write-Warn 'Frontend format (prettier) suggests changes'; $results.fe_format = 'WARN' }
-    } else {
-      Write-Warn 'npm not available; skipping frontend lint/format'
+
+    # If frontend deps are not installed, skip FE lint/format cleanly
+    $nodeModules = Join-Path $feDir 'node_modules'
+    if (-not (Test-Path -Path $nodeModules)) {
+      Write-Warn 'Frontend deps not installed; skipping FE lint/format (run: cd frontend; npm ci)'
       $results.fe_lint = 'SKIP'
       $results.fe_format = 'SKIP'
+    } else {
+      # Detect npm/npx availability
+      try { $npm = Get-Command npm -ErrorAction Stop } catch { $npm = $null }
+      try { $npx = Get-Command npx -ErrorAction Stop } catch { $npx = $null }
+
+      if ($npm -or $npx) {
+        # --- ESLint ---
+        $lintExit = 0
+        $eslintLocal = Join-Path $feDir 'node_modules/eslint/bin/eslint.js'
+        if (Test-Path -Path $eslintLocal) {
+          try {
+            & node $eslintLocal .
+            $lintExit = $LASTEXITCODE
+          } catch { $lintExit = 1 }
+        } elseif ($npx) {
+          try {
+            # Fallback to NPX; avoid PS arg parsing pitfalls by passing simple args
+            & $npx.Path --yes eslint .
+            $lintExit = $LASTEXITCODE
+          } catch { $lintExit = 1 }
+        } else {
+          $lintExit = -1
+        }
+        if ($lintExit -eq 0) { Write-Ok 'Frontend lint (eslint) passed'; $results.fe_lint = 'PASS' }
+        elseif ($lintExit -eq -1) { Write-Warn 'ESLint skipped (no local bin and npx not available)'; $results.fe_lint = 'SKIP' }
+        else { Write-Warn 'Frontend lint (eslint) reported issues'; $results.fe_lint = 'WARN' }
+
+        # --- Prettier (check only, non-blocking) ---
+        $fmtExit = 0
+        $prettierLocal = Join-Path $feDir 'node_modules/prettier/bin/prettier.cjs'
+        $prettierGlob = 'src/**/*.{ts,tsx,js,vue,css,scss,md}'
+        if (Test-Path -Path $prettierLocal) {
+          try {
+            & node $prettierLocal --check $prettierGlob
+            $fmtExit = $LASTEXITCODE
+          } catch { $fmtExit = 1 }
+        } elseif ($npx) {
+          try {
+            & $npx.Path --yes prettier --check $prettierGlob
+            $fmtExit = $LASTEXITCODE
+          } catch { $fmtExit = 1 }
+        } else {
+          $fmtExit = -1
+        }
+        if ($fmtExit -eq 0) { Write-Ok 'Frontend format (prettier --check) OK'; $results.fe_format = 'PASS' }
+        elseif ($fmtExit -eq -1) { Write-Warn 'Prettier check skipped (no local bin and npx not available)'; $results.fe_format = 'SKIP' }
+        else { Write-Warn 'Frontend format (prettier) suggests changes'; $results.fe_format = 'WARN' }
+      } else {
+        Write-Warn 'npm/npx not available; skipping frontend lint/format'
+        $results.fe_lint = 'SKIP'
+        $results.fe_format = 'SKIP'
+      }
     }
   } else {
     $results.fe_lint = 'SKIP'
     $results.fe_format = 'SKIP'
   }
 } catch {
-  Write-Warn "Frontend lint/format step encountered an error; treating as WARN (non-blocking)."
-  $results.fe_lint = if (-not $results.fe_lint) { 'WARN' } else { $results.fe_lint }
-  $results.fe_format = if (-not $results.fe_format) { 'WARN' } else { $results.fe_format }
+  Write-Warn 'Frontend lint/format step encountered an error; treating as WARN (non-blocking).'
+  if (-not ($results.ContainsKey('fe_lint'))) { $results['fe_lint'] = 'WARN' }
+  if (-not ($results.ContainsKey('fe_format'))) { $results['fe_format'] = 'WARN' }
 } finally {
   try { Pop-Location } catch {}
 }
@@ -323,6 +359,18 @@ if (Test-Path -Path $originFile) {
 $probes = @()
 if ($discoveredOrigin) {
   Write-Info ("Discovered backend origin: {0}" -f $discoveredOrigin)
+  # If we just started the backend for probes, wait briefly until /livez responds to reduce flakiness
+  if ($StartBackend) {
+    $probe = ("{0}/livez" -f $discoveredOrigin)
+    $ready = $false
+    for ($i = 0; $i -lt 20; $i++) {
+      try {
+        $resp = Invoke-WebRequest -Uri $probe -UseBasicParsing -TimeoutSec 3 -SkipCertificateCheck -ErrorAction Stop
+        if ($resp.StatusCode -eq 204 -or $resp.StatusCode -eq 200) { $ready = $true; break }
+      } catch { Start-Sleep -Milliseconds 800 }
+    }
+    if (-not $ready) { Write-Warn 'Backend not ready yet; proceeding with probes anyway.' } else { Write-Ok 'Backend ready for health probes' }
+  }
   $probes += @(
     @{ Uri = ("{0}/livez" -f $discoveredOrigin); Https = ($discoveredOrigin -like 'https*') },
     @{ Uri = ("{0}/healthz" -f $discoveredOrigin); Https = ($discoveredOrigin -like 'https*') }

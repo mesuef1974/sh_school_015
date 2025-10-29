@@ -498,7 +498,7 @@ onMounted(async () => {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border-bottom: 2px solid #dee2e6;
   padding: 1rem;
-  text-align: right;
+  text-align: end;
   font-weight: 600;
   color: #495057;
   position: sticky;

@@ -651,7 +651,7 @@ async function onSubmit() {
 @media (min-width: 992px) {
   .login-wrapper { grid-template-areas: 'form brand'; }
   .login-form-wrapper { grid-area: form; }
-  .login-brand { grid-area: brand; text-align: right; }
+  .login-brand { grid-area: brand; text-align: end; }
 }
 </style>
 

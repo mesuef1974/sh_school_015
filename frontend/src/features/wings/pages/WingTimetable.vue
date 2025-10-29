@@ -555,7 +555,7 @@ function teardownResizeObserver() {
 .tt7-scroller { width: 100%; max-width: 100%; margin-inline: auto; overflow: auto; }
 .tt7-table { width: 100%; border-collapse: separate; border-spacing: 8px 6px; background: #fff; table-layout: fixed; }
 .tt7-th { background: linear-gradient(135deg, #f8f9fa 0%, #edf1f5 100%); color: #333; font-weight: 700; text-align: center; padding: .75rem; border-bottom: 2px solid #e0e6ef; white-space: nowrap; }
-.tt7-th-period { text-align: right; position: sticky; inset-inline-start: 0; background: #fafbfc; border-inline-end: 1px solid #eef2f7; min-width: 180px; z-index: 1; }
+.tt7-th-period { text-align: end; position: sticky; inset-inline-start: 0; background: #fafbfc; border-inline-end: 1px solid #eef2f7; min-width: 180px; z-index: 1; }
 .tt7-td { vertical-align: top; padding: .5rem; border-bottom: 1px solid #f0f2f5; border-inline-start: 1px solid #f6f7f9; height: 120px; }
 .tt7-table tr:hover td { background: #fafbff; }
 .tt7-cell { display: flex; flex-direction: column; gap: 6px; max-height: 100%; overflow: auto; padding: 2px; }

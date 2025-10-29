@@ -2,15 +2,15 @@ import os
 import sys
 
 # Bootstrap Django when executed directly (outside manage.py)
-if not os.environ.get('DJANGO_SETTINGS_MODULE'):
+if not os.environ.get("DJANGO_SETTINGS_MODULE"):
     try:
         _HERE = os.path.abspath(os.path.dirname(__file__))
         # Go up three levels: backend/school/management/commands -> backend
-        _BACKEND_DIR = os.path.normpath(os.path.join(_HERE, '..', '..', '..'))
+        _BACKEND_DIR = os.path.normpath(os.path.join(_HERE, "..", "..", ".."))
         if _BACKEND_DIR not in sys.path:
             sys.path.insert(0, _BACKEND_DIR)
         # Project settings module lives under core.settings
-        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
         import django as _django  # type: ignore
 
         _django.setup()
@@ -41,66 +41,66 @@ except Exception:  # pragma: no cover - allow import in partial environments
 # they can be assigned to Groups and surfaced via /api/me/ if desired.
 RBAC_MAP: Dict[str, Set[str]] = {
     # Teacher
-    'teacher': {
-        'academics.classes.read',
-        'academics.timetable.read',
-        'attendance.session.write',
-        'attendance.history.read',
-        'communications.announcements.write',
-        'academics.assignments',
-        'academics.quizzes',
-        'academics.grades',
-        'academics.lesson_plans',
-        'academics.resources',
-        'communications.messages',
+    "teacher": {
+        "academics.classes.read",
+        "academics.timetable.read",
+        "attendance.session.write",
+        "attendance.history.read",
+        "communications.announcements.write",
+        "academics.assignments",
+        "academics.quizzes",
+        "academics.grades",
+        "academics.lesson_plans",
+        "academics.resources",
+        "communications.messages",
     },
     # Wing supervisor
-    'wing_supervisor': {
-        'attendance.wing.read',
-        'attendance.daily.read',
-        'attendance.missing.read',
-        'attendance.exits.manage',
-        'behavior.incidents.manage',
-        'academics.timetable.read',
-        'reports.wing',
+    "wing_supervisor": {
+        "attendance.wing.read",
+        "attendance.daily.read",
+        "attendance.missing.read",
+        "attendance.exits.manage",
+        "behavior.incidents.manage",
+        "academics.timetable.read",
+        "reports.wing",
     },
     # Subject coordinator
-    'subject_coordinator': {
-        'analytics.subject.read',
-        'academics.question_bank',
-        'academics.rubrics',
+    "subject_coordinator": {
+        "analytics.subject.read",
+        "academics.question_bank",
+        "academics.rubrics",
     },
     # Principal
-    'principal': {
-        'analytics.kpi',
-        'reports.official',
-        'it.users',
+    "principal": {
+        "analytics.kpi",
+        "reports.official",
+        "it.users",
     },
     # Academic deputy
-    'academic_deputy': {
-        'academics.timetable.manage',
-        'academics.assessments.manage',
-        'academics.curricula',
+    "academic_deputy": {
+        "academics.timetable.manage",
+        "academics.assessments.manage",
+        "academics.curricula",
     },
     # Administrative deputy (operations)
-    'admin_deputy': {
-        'admin_ops.hr',
-        'admin_ops.finance',
-        'admin_ops.procurement',
-        'admin_ops.assets',
-        'admin_ops.facilities',
-        'admin_ops.transport',
+    "admin_deputy": {
+        "admin_ops.hr",
+        "admin_ops.finance",
+        "admin_ops.procurement",
+        "admin_ops.assets",
+        "admin_ops.facilities",
+        "admin_ops.transport",
     },
     # Student affairs
-    'student_affairs': {
-        'student_affairs.admissions',
-        'student_affairs.records',
+    "student_affairs": {
+        "student_affairs.admissions",
+        "student_affairs.records",
     },
     # IT, Admin, Finance, and general Staff roles
-    'it': set(),
-    'admin': set(),
-    'finance': set(),
-    'staff': set(),
+    "it": set(),
+    "admin": set(),
+    "finance": set(),
+    "staff": set(),
 }
 
 ROLE_GROUPS: List[str] = list(RBAC_MAP.keys())
@@ -112,7 +112,7 @@ def _normalize_perm(code: str) -> Tuple[str, str]:
     ContentType(school.Staff) with codename using dots replaced by underscores.
     """
     code = code.strip()
-    codename = code.replace('.', '_').replace('-', '_')
+    codename = code.replace(".", "_").replace("-", "_")
     name = f"RBAC: {code}"
     return codename, name
 
@@ -120,10 +120,10 @@ def _normalize_perm(code: str) -> Tuple[str, str]:
 def _get_staff_content_type() -> ContentType:
     # Attach custom semantic perms to Staff model content type (exists in app 'school')
     try:
-        return ContentType.objects.get(app_label='school', model='staff')
+        return ContentType.objects.get(app_label="school", model="staff")
     except ContentType.DoesNotExist:
         # Fallback to auth | user to ensure existence; but in this project Staff exists.
-        return ContentType.objects.get(app_label='auth', model='user')
+        return ContentType.objects.get(app_label="auth", model="user")
 
 
 class Command(BaseCommand):
@@ -133,15 +133,19 @@ class Command(BaseCommand):
     )
 
     def add_arguments(self, parser):
-        parser.add_argument('--dry-run', action='store_true', help='Show what would change without applying it.')
-        parser.add_argument('--no-user-sync', action='store_true', help='Skip user/group membership synchronization.')
+        parser.add_argument("--dry-run", action="store_true", help="Show what would change without applying it.")
+        parser.add_argument(
+            "--no-user-sync",
+            action="store_true",
+            help="Skip user/group membership synchronization.",
+        )
 
     @transaction.atomic
     def handle(self, *args, **opts):
-        dry = bool(opts.get('dry_run'))
-        skip_users = bool(opts.get('no_user_sync'))
+        dry = bool(opts.get("dry_run"))
+        skip_users = bool(opts.get("no_user_sync"))
 
-        self.stdout.write(self.style.MIGRATE_HEADING('RBAC sync starting'))
+        self.stdout.write(self.style.MIGRATE_HEADING("RBAC sync starting"))
 
         # 1) Ensure Groups exist
         groups: Dict[str, Group] = {}
@@ -160,7 +164,7 @@ class Command(BaseCommand):
             for p in perms:
                 codename, pname = _normalize_perm(p)
                 perm, created = Permission.objects.get_or_create(
-                    codename=codename, content_type=ct, defaults={'name': pname}
+                    codename=codename, content_type=ct, defaults={"name": pname}
                 )
                 if created:
                     ensured_perms.append(p)
@@ -171,7 +175,7 @@ class Command(BaseCommand):
         for role, perms in RBAC_MAP.items():
             g = groups[role]
             want_ids = {perm_objects[p].id for p in perms if p in perm_objects}
-            have_ids = set(g.permissions.values_list('id', flat=True))
+            have_ids = set(g.permissions.values_list("id", flat=True))
             to_add = want_ids - have_ids
             to_remove = have_ids - want_ids
             if to_add or to_remove:
@@ -190,16 +194,16 @@ class Command(BaseCommand):
             teacher_user_ids: Set[int] = set()
             try:
                 # From Staff.role
-                for st in Staff.objects.select_related('user').all():
+                for st in Staff.objects.select_related("user").all():
                     if not st.user_id:
                         continue
-                    if (st.role or '').strip().lower() == 'teacher':
+                    if (st.role or "").strip().lower() == "teacher":
                         teacher_user_ids.add(st.user_id)
                 # From TeachingAssignment (any assignment qualifies user as teacher)
                 if TeachingAssignment is not None:
                     ids = (
                         TeachingAssignment.objects.exclude(teacher__user_id=None)
-                        .values_list('teacher__user_id', flat=True)
+                        .values_list("teacher__user_id", flat=True)
                         .distinct()
                     )
                     teacher_user_ids.update(int(i) for i in ids if i)
@@ -210,7 +214,7 @@ class Command(BaseCommand):
                         ids = (
                             TimetableEntry.objects.filter(term=term)
                             .exclude(teacher__user_id=None)
-                            .values_list('teacher__user_id', flat=True)
+                            .values_list("teacher__user_id", flat=True)
                             .distinct()
                         )
                         teacher_user_ids.update(int(i) for i in ids if i)
@@ -218,9 +222,9 @@ class Command(BaseCommand):
                 pass
 
             # Ensure teacher memberships
-            teacher_group = groups.get('teacher')
+            teacher_group = groups.get("teacher")
             if teacher_group:
-                have = set(teacher_group.user_set.values_list('id', flat=True))
+                have = set(teacher_group.user_set.values_list("id", flat=True))
                 to_add = teacher_user_ids - have
                 if to_add and not dry:
                     teacher_group.user_set.add(*to_add)
@@ -230,16 +234,16 @@ class Command(BaseCommand):
             wing_user_ids: Set[int] = set()
             try:
                 if Wing is not None:
-                    for w in Wing.objects.select_related('supervisor__user').all():
-                        u = getattr(getattr(w, 'supervisor', None), 'user', None)
+                    for w in Wing.objects.select_related("supervisor__user").all():
+                        u = getattr(getattr(w, "supervisor", None), "user", None)
                         if u and u.id:
                             wing_user_ids.add(u.id)
             except Exception:
                 pass
 
-            wing_group = groups.get('wing_supervisor')
+            wing_group = groups.get("wing_supervisor")
             if wing_group:
-                have = set(wing_group.user_set.values_list('id', flat=True))
+                have = set(wing_group.user_set.values_list("id", flat=True))
                 to_add = wing_user_ids - have
                 to_remove = have - wing_user_ids
                 if to_add and not dry:
@@ -251,12 +255,12 @@ class Command(BaseCommand):
 
             # Ensure ALL staff-linked users belong to the 'staff' group (baseline membership)
             try:
-                staff_group = groups.get('staff')
+                staff_group = groups.get("staff")
                 if staff_group and Staff is not None:
                     all_staff_user_ids: Set[int] = set(
-                        int(uid) for uid in Staff.objects.exclude(user_id=None).values_list('user_id', flat=True)
+                        int(uid) for uid in Staff.objects.exclude(user_id=None).values_list("user_id", flat=True)
                     )
-                    have_staff = set(staff_group.user_set.values_list('id', flat=True))
+                    have_staff = set(staff_group.user_set.values_list("id", flat=True))
                     staff_to_add = all_staff_user_ids - have_staff
                     if staff_to_add and not dry:
                         staff_group.user_set.add(*staff_to_add)
@@ -267,10 +271,10 @@ class Command(BaseCommand):
             # Generic: map Staff.role to group of same name (case-insensitive)
             role_to_group = {k.lower(): v for k, v in groups.items()}
             try:
-                for st in Staff.objects.select_related('user').all():
+                for st in Staff.objects.select_related("user").all():
                     if not st.user_id:
                         continue
-                    r = (st.role or '').strip().lower()
+                    r = (st.role or "").strip().lower()
                     if not r:
                         continue
                     g = role_to_group.get(r)
@@ -299,24 +303,24 @@ class Command(BaseCommand):
                 )
             )
         if dry:
-            self.stdout.write(self.style.WARNING('Dry-run mode: no changes were committed.'))
+            self.stdout.write(self.style.WARNING("Dry-run mode: no changes were committed."))
 
 
 # Standalone runner support: allow executing this file directly with Python
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Ensure Django is bootstrapped (handled above). Now invoke the command via Django's management framework.
     import argparse
 
     from django.core import management
 
-    parser = argparse.ArgumentParser(description='Synchronize RBAC (standalone runner)')
-    parser.add_argument('--dry-run', action='store_true', help='Show what would change without applying it.')
-    parser.add_argument('--no-user-sync', action='store_true', help='Skip user/group membership synchronization.')
+    parser = argparse.ArgumentParser(description="Synchronize RBAC (standalone runner)")
+    parser.add_argument("--dry-run", action="store_true", help="Show what would change without applying it.")
+    parser.add_argument("--no-user-sync", action="store_true", help="Skip user/group membership synchronization.")
     args = parser.parse_args()
 
     # Map argparse options to command options
     opts = {
-        'dry_run': bool(getattr(args, 'dry_run', False)),
-        'no_user_sync': bool(getattr(args, 'no_user_sync', False)),
+        "dry_run": bool(getattr(args, "dry_run", False)),
+        "no_user_sync": bool(getattr(args, "no_user_sync", False)),
     }
-    management.call_command('sync_rbac', **opts)
+    management.call_command("sync_rbac", **opts)

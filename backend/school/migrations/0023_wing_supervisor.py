@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("school", "0022_periodtemplate_schoolholiday_wing_academicyear_term_and_more"),
     ]

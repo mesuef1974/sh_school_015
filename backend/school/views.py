@@ -1427,7 +1427,7 @@ class TimetableImageImportForm(forms.Form):
             attrs={
                 "rows": 18,
                 "dir": "rtl",
-                "style": "font-family:monospace; direction: rtl; unicode-bidi: plaintext; text-align: right;",
+                "style": "font-family:monospace; direction: rtl; unicode-bidi: plaintext; text-align: start;",
             }
         ),
     )

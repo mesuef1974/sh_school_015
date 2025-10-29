@@ -109,7 +109,7 @@ def try_extract_csv_from_image(img_path: str) -> Tuple[str, str]:
 
         def arabic_score(s: str) -> int:
             # Count Arabic letters as a quick quality proxy
-            return sum(1 for ch in (s or "") if "\u0600" <= ch <= "\u06FF")
+            return sum(1 for ch in (s or "") if "\u0600" <= ch <= "\u06ff")
 
         def ocr_image(img: "Image.Image") -> str:
             # Improve readability: convert to L, increase contrast/clarity a bit
