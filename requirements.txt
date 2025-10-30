@@ -80,4 +80,4 @@ django-icons==24.4
 fontawesomefree==5.15.4
 docxtpl==0.16.8
 python-docx==1.1.2
-Jinja2==3.1.4
+Jinja2==3.1.6
