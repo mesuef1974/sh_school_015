@@ -4,9 +4,10 @@ import piniaPluginPersistedstate from "pinia-plugin-persistedstate";
 import App from "./app/App.vue";
 import { router } from "./app/router";
 import "./styles/design-system.css";
-import { i18n, setDocumentDirByLocale } from "./app/i18n";
+import { i18n } from "./app/i18n";
 import "./styles/maronia.css";
 import "./styles/professional-tables.css";
+import "./styles/attendance-status.css";
 import { VueQueryPlugin, QueryClient, VueQueryPluginOptions } from "@tanstack/vue-query";
 import "vue-toastification/dist/index.css";
 import Toast from "vue-toastification";
@@ -25,6 +26,10 @@ import { MotionPlugin } from "@vueuse/motion";
 import { Toaster } from "vue-sonner";
 
 const app = createApp(App);
+
+// Optional Sentry (frontend) was removed to avoid Vite import resolution errors when @sentry/vue is not installed.
+// To re-enable later: install @sentry/vue and move Sentry init to a separate optional module that is only imported
+// when VITE_SENTRY_DSN is defined and the package is present.
 
 // Pinia with persistedstate plugin
 const pinia = createPinia();
@@ -211,12 +216,8 @@ try {
 // VueUse Motion (for animations)
 app.use(MotionPlugin);
 
-// Vue Query setup (sane defaults for dev)
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { refetchOnWindowFocus: false, retry: 1, staleTime: 60_000 },
-  },
-});
+// Vue Query setup (singleton for global cache control)
+import { queryClient } from "./shared/queryClient";
 app.use(VueQueryPlugin, { queryClient } as VueQueryPluginOptions);
 
 // Toast plugin (Arabic RTL-friendly defaults) - Keep for backward compatibility

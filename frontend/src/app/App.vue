@@ -174,6 +174,8 @@ async function onLogout() {
 /* Wing pages also respect the 98% rule */
 .page-main.wide-wing.container {
   max-width: var(--page-w);
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
 .flex-fill {
   flex: 1 1 auto;

@@ -1,19 +1,14 @@
 <template>
-  <section class="wing-dashboard d-grid gap-3 page-grid">
-    <div class="auto-card p-3 d-flex align-items-center gap-3">
-      <Icon icon="solar:shield-star-bold-duotone" class="header-icon" />
+  <section class="wing-dashboard d-grid gap-3 page-grid page-grid-wide">
+    <div class="d-flex align-items-center gap-2 mb-2 header-bar frame">
+      <Icon :icon="tileMeta.icon" class="header-icon" :style="{ color: tileMeta.color }" />
       <div>
-        <div class="fw-bold">
-          لوحة جناح <span v-if="wingLabel">{{ wingLabel }}</span
-          ><span v-else>—</span> — مشرف الجناح
-          <span v-if="supervisorName">{{ supervisorName }}</span>
-        </div>
-        <div class="text-muted small">نظرة عامة على الحضور والانضباط لصفوف الجناح</div>
+        <div class="fw-bold">{{ tileMeta.title }}</div>
+        <div class="text-muted small" v-if="wingLabelFull">{{ wingLabelFull }}</div>
+        <div class="text-muted small" v-else>ملخص ومؤشرات اليوم لنطاق جناحك</div>
       </div>
       <span class="ms-auto"></span>
-      <DsButton variant="primary" icon="solar:refresh-bold-duotone" @click="loadData"
-        >تحديث</DsButton
-      >
+      <DsButton variant="primary" icon="solar:refresh-bold-duotone" @click="loadData">تحديث</DsButton>
     </div>
 
     <div v-if="loading" class="alert alert-light border d-flex align-items-center gap-2">
@@ -215,9 +210,16 @@ import { onMounted, onBeforeUnmount, ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getWingMe, getWingOverview, getWingMissing, getMe } from "../../../shared/api/client";
 import DsButton from "../../../components/ui/DsButton.vue";
+import { tiles } from "../../../home/icon-tiles.config";
+import { useWingContext } from "../../../shared/composables/useWingContext";
+import { Icon } from "@iconify/vue";
 
 const route = useRoute();
 const router = useRouter();
+
+// Unified header context and tile meta for Wing Dashboard
+const { ensureLoaded, wingLabelFull } = useWingContext();
+const tileMeta = computed(() => tiles.find(t => t.to === '/wing/dashboard') || { title: 'لوحة الجناح', icon: 'solar:layers-minimalistic-bold-duotone', color: '#66aa66' });
 
 const kpis = ref<any>({
   present_pct: 0,

@@ -665,3 +665,79 @@ body {
   max-width: 100%;
   margin-inline: auto;
 }
+
+
+/* Maroon page header bar utility to unify title bars across pages */
+.header-bar.maron {
+  background: linear-gradient(90deg, var(--maron-primary), var(--maron-primary-700) 60%, var(--maron-primary-900));
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+}
+.header-bar.maron .header-icon,
+.header-bar.maron .text-primary,
+.header-bar.maron h1,
+.header-bar.maron h2,
+.header-bar.maron h3,
+.header-bar.maron .fw-bold,
+.header-bar.maron .text-muted { color: #fff !important; }
+.header-bar.maron .text-muted { opacity: 0.85; }
+.header-bar.maron .btn-outline-secondary,
+.header-bar.maron .btn-outline-primary {
+  color: #fff;
+  border-color: rgba(255,255,255,.7);
+}
+.header-bar.maron .btn-outline-secondary:hover,
+.header-bar.maron .btn-outline-primary:hover {
+  background: rgba(255,255,255,.12);
+}
+.header-bar.maron .form-control,
+.header-bar.maron .form-select {
+  background: rgba(255,255,255,.12);
+  border-color: rgba(255,255,255,.35);
+  color: #fff;
+}
+.header-bar.maron .form-control::placeholder { color: rgba(255,255,255,.75); }
+
+/* Bordered page header bar (frame style, no solid fill) */
+.header-bar.frame {
+  background: #fff;
+  color: #222;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-soft);
+  border: 2px solid var(--maron-primary, #8a1538);
+}
+.header-bar.frame .header-icon,
+.header-bar.frame .fw-bold,
+.header-bar.frame h1,
+.header-bar.frame h2,
+.header-bar.frame h3 { color: var(--maron-primary, #8a1538); }
+.header-bar.frame .text-muted { color: #666 !important; opacity: 0.9; }
+.header-bar.frame .btn-outline-secondary,
+.header-bar.frame .btn-outline-primary {
+  color: var(--maron-primary, #8a1538);
+  border-color: var(--maron-primary, #8a1538);
+}
+.header-bar.frame .btn-outline-secondary:hover,
+.header-bar.frame .btn-outline-primary:hover {
+  background: rgba(138, 21, 56, 0.06);
+}
+.header-bar.frame .form-control,
+.header-bar.frame .form-select {
+  background: #fff;
+  border-color: rgba(0,0,0,.2);
+  color: #222;
+}
+
+/* Unified page width utility for Wing pages: 98% of viewport */
+.page-grid-wide { width: 100% !important; max-width: 100% !important; margin: 0 auto; }
+
+/* Unified card title style across the app */
+.card-title-maroon {
+  color: var(--maron-primary-700);
+  font-weight: 700;
+  font-size: 1.1rem;
+  line-height: 1.25;
+}

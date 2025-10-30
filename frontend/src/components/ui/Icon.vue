@@ -1,7 +1,7 @@
 <template>
   <span :class="['ds-icon', sizeClass, { block }]" :style="styleVars" v-bind="rootAria">
-    <component v-if="isIconify" :is="IconifyIcon" :icon="icon" />
-    <span v-else v-html="svgHtml" :aria-hidden="!label"></span>
+    <component v-if="isIconify" :is="IconifyIcon" :icon="icon" aria-hidden="true" />
+    <span v-else v-html="svgHtml" aria-hidden="true"></span>
   </span>
 </template>
 

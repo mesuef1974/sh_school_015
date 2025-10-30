@@ -1,0 +1,111 @@
+name: E2E (Playwright)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  e2e-windows:
+    name: E2E on Windows (Playwright)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install backend deps
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install frontend deps
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npm ci
+
+      - name: Install Playwright Browsers (with deps)
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npx playwright install --with-deps
+
+      - name: Start dev-all (backend + Vite) in background
+        shell: pwsh
+        run: |
+          Start-Process -FilePath pwsh -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','scripts/ops_run.ps1','-Task','dev-all' -WindowStyle Minimized
+          Start-Sleep -Seconds 12
+
+      - name: Wait for Vite to be ready
+        shell: pwsh
+        run: |
+          $base = 'http://127.0.0.1:5173/'
+          $ok = $false
+          for ($i=0; $i -lt 120; $i++) {
+            try {
+              $r = Invoke-WebRequest -Uri $base -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+              if ($r.StatusCode -ge 200 -and $r.StatusCode -lt 500) { $ok = $true; break }
+            } catch { Start-Sleep -Milliseconds 500 }
+          }
+          if (-not $ok) { Write-Error "Vite did not become ready at $base" }
+
+      - name: Run Playwright E2E
+        working-directory: frontend
+        shell: pwsh
+        env:
+          E2E_BASE_URL: http://127.0.0.1:5173
+          E2E_AXE_STRICT: 'false'
+        run: |
+          npm run e2e
+
+      - name: Upload Playwright report (if available)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: frontend/test-results
+
+      - name: Upload Playwright HTML report (if available)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-html-report
+          path: frontend/playwright-report
+
+  # Linux variant (optional for parity) — can be enabled later
+  # e2e-ubuntu:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: '20'
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: '3.11'
+  #     - name: Install deps
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install -r requirements.txt
+  #         cd frontend && npm ci && npx playwright install --with-deps
+  #     - name: Start dev-all
+  #       run: pwsh -File scripts/ops_run.ps1 -Task dev-all &
+  #     - name: Run E2E
+  #       run: |
+  #         cd frontend
+  #         E2E_BASE_URL=http://127.0.0.1:5173 npm run e2e

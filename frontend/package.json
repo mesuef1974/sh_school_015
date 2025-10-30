@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,vue,css,scss,md}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,vue,css,scss,md}\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,vue,css,scss,md}\"",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:debug": "playwright test --debug"
   },
   "dependencies": {
     "@iconify/vue": "^4.1.2",
@@ -38,6 +41,8 @@
     "yup": "^1.7.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
+    "@playwright/test": "^1.56.1",
     "@types/node": "^22.7.5",
     "@typescript-eslint/eslint-plugin": "^8.9.0",
     "@typescript-eslint/parser": "^8.9.0",
@@ -46,6 +51,7 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
     "eslint-plugin-vue": "^9.29.0",
+    "playwright": "^1.56.1",
     "prettier": "^3.3.3",
     "typescript": "^5.6.2",
     "vite": "^6.4.1"

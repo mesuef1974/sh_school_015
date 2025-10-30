@@ -20,6 +20,12 @@ const routes: RouteRecordRaw[] = [
     meta: { titleAr: "نظام التصميم" },
   },
   {
+    path: "/grades",
+    name: "grades-index",
+    component: () => import("../features/grades/pages/GradesIndex.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["teacher"], titleAr: "الدرجات" },
+  },
+  {
     path: "/me",
     name: "profile",
     component: () => import("./pages/ProfilePage.vue"),
@@ -109,9 +115,31 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: "/wing/timetable",
-    name: "wing-timetable",
+    redirect: { name: "wing-timetable-daily" },
+  },
+  {
+    path: "/wing/timetable/daily",
+    name: "wing-timetable-daily",
     component: () => import("../features/wings/pages/WingTimetable.vue"),
-    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "جدول الجناح" },
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "جدول اليوم" },
+  },
+  {
+    path: "/wing/timetable/weekly",
+    name: "wing-timetable-weekly",
+    component: () => import("../features/wings/pages/WingTimetable.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "الجدول الأسبوعي" },
+  },
+  {
+    path: "/wing/absences",
+    name: "wing-absences-alerts",
+    component: () => import("../features/wings/pages/WingAbsencesAlerts.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "غيابات وتنبيهات الجناح" },
+  },
+  {
+    path: "/wing/attendance/daily",
+    name: "wing-attendance-daily",
+    component: () => import("../features/wings/pages/WingAttendanceDaily.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "الغياب اليومي للجناح" },
   },
   {
     path: "/designer/tiles",

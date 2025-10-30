@@ -1,0 +1,82 @@
+/* Unified attendance status colors and badges
+   This stylesheet defines CSS variables and utility classes to consistently color-code
+   attendance statuses (per-period) and daily absence states across all pages.
+   Palette is aligned with TeacherAttendance.vue to ensure visual consistency. */
+
+:root {
+  /* Present */
+  --att-present-bg: #eafaf0;
+  --att-present-fg: #137333;
+  --att-present-border: #b7e1cd;
+  /* Absent (unexcused on a period) */
+  --att-absent-bg: #fde8e8;
+  --att-absent-fg: #b42318;
+  --att-absent-border: #f5c2c2;
+  /* Late */
+  --att-late-bg: #fff4e5;
+  --att-late-fg: #b26b00;
+  --att-late-border: #ffd8a8;
+  /* Excused */
+  --att-excused-bg: #e7f5ff;
+  --att-excused-fg: #0b63a8;
+  --att-excused-border: #a5d8ff;
+  /* Runaway */
+  --att-runaway-bg: #fdecec;
+  --att-runaway-fg: #b00020;
+  --att-runaway-border: #f5b5b5;
+  /* Left early */
+  --att-left-early-bg: #f3f0ff;
+  --att-left-early-fg: #5e35b1;
+  --att-left-early-border: #d0c2ff;
+
+  /* Daily state chips (general day classification) */
+  --day-unexcused-bg: #fde8e8;
+  --day-unexcused-fg: #b42318;
+  --day-unexcused-border: #f5c2c2;
+  --day-excused-bg: #e7f5ff;
+  --day-excused-fg: #0b63a8;
+  --day-excused-border: #a5d8ff;
+  --day-none-bg: #f2f4f7;
+  --day-none-fg: #555;
+  --day-none-border: rgba(0, 0, 0, 0.06);
+}
+
+/* Small rounded chip; use with att-status.* classes */
+.att-chip {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  line-height: 1.4;
+}
+
+/* Per-period statuses */
+.att-status.present { background: var(--att-present-bg); color: var(--att-present-fg); border-color: var(--att-present-border); }
+.att-status.absent { background: var(--att-absent-bg); color: var(--att-absent-fg); border-color: var(--att-absent-border); }
+.att-status.late { background: var(--att-late-bg); color: var(--att-late-fg); border-color: var(--att-late-border); }
+.att-status.excused { background: var(--att-excused-bg); color: var(--att-excused-fg); border-color: var(--att-excused-border); }
+.att-status.runaway { background: var(--att-runaway-bg); color: var(--att-runaway-fg); border-color: var(--att-runaway-border); }
+.att-status.left_early { background: var(--att-left-early-bg); color: var(--att-left-early-fg); border-color: var(--att-left-early-border); }
+.att-status.none { background: var(--day-none-bg); color: var(--day-none-fg); border-color: var(--day-none-border); }
+
+/* Daily general state (excused/unexcused/none) */
+.day-state-chip { composes: att-chip; }
+.day-state.unexcused { background: var(--day-unexcused-bg); color: var(--day-unexcused-fg); border-color: var(--day-unexcused-border); }
+.day-state.excused { background: var(--day-excused-bg); color: var(--day-excused-fg); border-color: var(--day-excused-border); }
+.day-state.none { background: var(--day-none-bg); color: var(--day-none-fg); border-color: var(--day-none-border); }
+
+/* Utility for small monochrome counter chips */
+.counter-chip { background: #f8f9fa; border: 1px solid rgba(0,0,0,.06); color: #444; border-radius: 999px; padding: 2px 8px; font-size: 12px; }
+
+/* --- Compatibility bridge for legacy classes used in some pages (TeacherAttendance.vue) --- */
+/* Ensure legacy .status-chip and .status-<name> visually match unified .att-chip/.att-status */
+.status-chip { composes: att-chip; display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
+.status-present .status-chip, .status-select.present, .status-chip.present { background: var(--att-present-bg); color: var(--att-present-fg); border-color: var(--att-present-border); }
+.status-absent .status-chip, .status-select.absent, .status-chip.absent { background: var(--att-absent-bg); color: var(--att-absent-fg); border-color: var(--att-absent-border); }
+.status-late .status-chip, .status-select.late, .status-chip.late { background: var(--att-late-bg); color: var(--att-late-fg); border-color: var(--att-late-border); }
+.status-excused .status-chip, .status-select.excused, .status-chip.excused { background: var(--att-excused-bg); color: var(--att-excused-fg); border-color: var(--att-excused-border); }
+.status-runaway .status-chip, .status-select.runaway, .status-chip.runaway { background: var(--att-runaway-bg); color: var(--att-runaway-fg); border-color: var(--att-runaway-border); }
+.status-left_early .status-chip, .status-select.left_early, .status-chip.left_early { background: var(--att-left-early-bg); color: var(--att-left-early-fg); border-color: var(--att-left-early-border); }
+/* Neutral/none */
+.status-chip.none, .status-select.none { background: var(--day-none-bg); color: var(--day-none-fg); border-color: var(--day-none-border); }

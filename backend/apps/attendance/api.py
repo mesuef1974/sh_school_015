@@ -1334,6 +1334,9 @@ class WingSupervisorViewSet(viewsets.ViewSet):
     Scopes data to the wings supervised by the current user. Superusers see all wings.
     Also exposes a minimal approvals workflow over teacher-submitted attendance, where
     submission is modeled by the `locked` flag on AttendanceRecord.
+
+    Additionally, exposes a daily aggregated absence status per student (الحالة العامة اليومية)
+    using the same first-two-periods policy used by alerts.
     """
 
     from rest_framework.permissions import IsAuthenticated
@@ -1362,8 +1365,8 @@ class WingSupervisorViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["get"], url_path="me")
     def me(self, request: Request) -> Response:
-        """Diagnostic endpoint: return current user's roles, staff id, and supervised wings.
-        Helps debug cases where the Wing dashboard appears empty due to missing wing assignment.
+        """Return current Wing Supervisor context: roles, staff, supervised wings, and primary wing details.
+        This augments the previous diagnostic payload with `primary_wing` fields used in page headers.
         """
         # roles (Django groups)
         try:
@@ -1371,14 +1374,36 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         except Exception:
             roles = []
         staff, wing_ids = self._get_staff_and_wing_ids(request.user)
-        # Wing names (best-effort)
+        # Wing names and primary wing info (best-effort)
         wing_names: list[str] = []
+        primary_wing = None
         try:
             from school.models import Wing  # type: ignore
 
-            wing_names = list(Wing.objects.filter(id__in=wing_ids).values_list("name", flat=True))
+            wings_qs = Wing.objects.filter(id__in=wing_ids)
+            wing_names = list(wings_qs.values_list("name", flat=True))
+            # Choose the first as primary (sorted by id for stability)
+            primary = wings_qs.order_by("id").first()
+            if primary is not None:
+                # Derive a numeric label: try to extract digits from name, otherwise fallback to id
+                import re
+
+                m = re.search(r"(\d+)", primary.name or "")
+                wing_number = int(m.group(1)) if m else int(getattr(primary, "id", 0) or 0)
+                supervisor_full_name = None
+                try:
+                    supervisor_full_name = getattr(getattr(primary, "supervisor", None), "full_name", None)
+                except Exception:
+                    supervisor_full_name = None
+                primary_wing = {
+                    "id": getattr(primary, "id", None),
+                    "name": getattr(primary, "name", None),
+                    "number": wing_number,
+                    "supervisor_full_name": supervisor_full_name,
+                }
         except Exception:
             wing_names = []
+            primary_wing = None
         return Response(
             {
                 "user": {
@@ -1393,10 +1418,52 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     "full_name": getattr(staff, "full_name", None),
                 },
                 "wings": {"ids": wing_ids, "names": wing_names},
+                "primary_wing": primary_wing,
                 "has_wing_supervisor_role": ("wing_supervisor" in roles)
                 or bool(getattr(request.user, "is_superuser", False)),
             }
         )
+
+    @action(detail=False, methods=["get"], url_path="students")
+    def students(self, request: Request) -> Response:
+        """List students scoped to the supervisor's wing(s) for use in pickers.
+        Optional filter: q (search in full_name or sid startswith), class_id
+        Returns minimal fields: id, sid, full_name, class_id, class_name
+        """
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"items": []})
+        q = (request.query_params.get("q") or "").strip()
+        class_id = request.query_params.get("class_id")
+        try:
+            class_id_int = int(class_id) if class_id else None
+        except Exception:
+            class_id_int = None
+        try:
+            from django.db.models import Q
+            from school.models import Student  # type: ignore
+
+            qs = Student.objects.select_related("class_fk")
+            if wing_ids and not getattr(request.user, "is_superuser", False):
+                qs = qs.filter(class_fk__wing_id__in=wing_ids)
+            if class_id_int:
+                qs = qs.filter(class_fk_id=class_id_int)
+            if q:
+                qs = qs.filter(Q(full_name__icontains=q) | Q(sid__startswith=q))
+            qs = qs.order_by("class_fk_id", "full_name")[:300]
+            items = [
+                {
+                    "id": s.id,
+                    "sid": getattr(s, "sid", None),
+                    "full_name": getattr(s, "full_name", None),
+                    "class_id": getattr(s, "class_fk_id", None),
+                    "class_name": getattr(getattr(s, "class_fk", None), "name", None),
+                }
+                for s in qs
+            ]
+            return Response({"items": items})
+        except Exception as e:
+            return Response({"detail": f"failed: {e}"}, status=500)
 
     @action(detail=False, methods=["get"], url_path="overview")
     def overview(self, request: Request) -> Response:
@@ -1447,6 +1514,160 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             k["present_pct"] = float(round((k["present"] / k["total"]) * 100, 1)) if k["total"] else 0.0
             summary["scope"] = "wings"
         return Response(summary)
+
+    @action(detail=False, methods=["get"], url_path="daily-absences")
+    def daily_absences(self, request: Request) -> Response:
+        """Return general daily absence status per student for the supervisor's wing(s).
+        Uses first-two-periods rule consistent with Absence Alerts policy.
+        Query params: date=YYYY-MM-DD (default today), class_id?:int
+        Response shape:
+        {
+            date: str,
+            counts: { excused: int, unexcused: int, none: int },
+            items: [
+                { student_id, student_name, class_id, class_name, state: 'excused'|'unexcused'|'none',
+                  p1?: str|null, p2?: str|null }
+            ]
+        }
+        """
+        from django.db.models import Q
+        from django.utils import timezone as _tz
+        from school.models import AttendanceRecord, Term, AttendancePolicy, SchoolHoliday  # type: ignore
+
+        dt, err = _parse_date_or_400(request.query_params.get("date"))
+        if err:
+            return err
+        class_id_qs = request.query_params.get("class_id")
+        try:
+            class_id_int = int(class_id_qs) if class_id_qs else None
+        except Exception:
+            class_id_int = None
+
+        # Wing scoping
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"date": dt.isoformat(), "counts": {"excused": 0, "unexcused": 0, "none": 0}, "items": []})
+
+        # Holiday check
+        try:
+            if SchoolHoliday.objects.filter(date=dt).exists():
+                return Response({"date": dt.isoformat(), "counts": {"excused": 0, "unexcused": 0, "none": 0}, "items": []})
+        except Exception:
+            pass
+
+        # Determine policy for the date
+        try:
+            term = Term.objects.filter(start_date__lte=dt, end_date__gte=dt).order_by("-start_date").first()
+            pol = AttendancePolicy.objects.filter(term=term).order_by("-id").first() if term else None
+            first_two = set((pol.first_two_periods_numbers or [1, 2])) if pol else {1, 2}
+            working_days = set(pol.working_days or [1, 2, 3, 4, 5]) if pol else {1, 2, 3, 4, 5}
+        except Exception:
+            first_two = {1, 2}
+            working_days = {1, 2, 3, 4, 5}
+
+        # Fetch first-two-periods records for the date and supervised wings
+        qs = (
+            AttendanceRecord.objects.filter(date=dt, period_number__in=list(first_two))
+            .select_related("student", "classroom")
+            .order_by("classroom_id", "student_id", "period_number")
+        )
+        if class_id_int:
+            qs = qs.filter(classroom_id=class_id_int)
+        if wing_ids and not getattr(request.user, "is_superuser", False):
+            try:
+                qs = qs.filter(classroom__wing_id__in=wing_ids)
+            except Exception:
+                pass
+
+        per_student: dict[int, dict] = {}
+        # Map period numbers to p1/p2 labels deterministically
+        map_slots = {}
+        p_sorted = sorted(first_two)
+        if len(p_sorted) >= 1:
+            map_slots[p_sorted[0]] = "p1"
+        if len(p_sorted) >= 2:
+            map_slots[p_sorted[1]] = "p2"
+
+        for r in qs[:10000]:  # safety cap
+            sid = r.student_id
+            if sid not in per_student:
+                per_student[sid] = {
+                    "student_id": sid,
+                    "student_name": getattr(getattr(r, "student", None), "full_name", None),
+                    "class_id": getattr(r, "classroom_id", None),
+                    "class_name": getattr(getattr(r, "classroom", None), "name", None),
+                    "p1": None,
+                    "p2": None,
+                }
+            key = map_slots.get(getattr(r, "period_number", None))
+            if key:
+                per_student[sid][key] = getattr(r, "status", None)
+
+        # Classify according to policy
+        UNEXCUSED = {"absent", "runaway"}
+        EXCUSED = {"excused"}
+        NEUTRAL = {"present", "late", "left_early"}
+
+        items = []
+        counts = {"excused": 0, "unexcused": 0, "none": 0}
+        for rec in per_student.values():
+            s1 = rec.get("p1")
+            s2 = rec.get("p2")
+            # If working day filter can be applied via any row's day_of_week, but rows already limited to date.
+            state = "none"
+            if s1 is not None and s2 is not None:
+                if s1 in NEUTRAL or s2 in NEUTRAL:
+                    state = "none"
+                elif (s1 in UNEXCUSED) or (s2 in UNEXCUSED):
+                    state = "unexcused"
+                elif (s1 in EXCUSED) and (s2 in EXCUSED):
+                    state = "excused"
+                else:
+                    state = "none"
+            rec_out = {**rec, "state": state}
+            items.append(rec_out)
+            counts[state] = counts.get(state, 0) + 1
+
+        # Sort with priority: unexcused, excused, none; then by class and name
+        prio = {"unexcused": 0, "excused": 1, "none": 2}
+        items.sort(key=lambda x: (prio.get(x.get("state"), 9), x.get("class_name") or "", x.get("student_name") or ""))
+        return Response({"date": dt.isoformat(), "counts": counts, "items": items})
+
+    @action(detail=False, methods=["get"], url_path="daily-absences/export")
+    def daily_absences_export(self, request: Request) -> HttpResponse:
+        """Export the general daily absence classification as CSV (UTF-8 with BOM).
+        Query params: date=YYYY-MM-DD, class_id?:int
+        Columns: student_id, student_name, class_id, class_name, p1, p2, state
+        """
+        # Reuse the logic from daily_absences to build items
+        resp_json = self.daily_absences(request).data  # type: ignore
+        # If daily_absences returned a DRF Response with error status, forward as is
+        if isinstance(resp_json, Response):
+            return resp_json  # type: ignore
+        items = resp_json.get("items", []) if isinstance(resp_json, dict) else []
+        # Build CSV
+        import io
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["student_id", "student_name", "class_id", "class_name", "p1", "p2", "state"])
+        for it in items:
+            writer.writerow([
+                it.get("student_id"),
+                (it.get("student_name") or ""),
+                it.get("class_id"),
+                (it.get("class_name") or ""),
+                (it.get("p1") or ""),
+                (it.get("p2") or ""),
+                (it.get("state") or ""),
+            ])
+        csv_text = output.getvalue()
+        # Prepend BOM for Excel compatibility
+        bom = "\ufeff"
+        content = (bom + csv_text).encode("utf-8")
+        resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
+        dt_str = (resp_json.get("date") if isinstance(resp_json, dict) else timezone.localdate().isoformat())
+        resp["Content-Disposition"] = f"attachment; filename=wing-daily-absences-{dt_str}.csv"
+        return resp
 
     @action(detail=False, methods=["get"], url_path="pending")
     def pending(self, request: Request) -> Response:
@@ -1556,6 +1777,140 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"detail": f"failed: {e}"}, status=500)
 
+    @action(detail=False, methods=["post"], url_path="set-excused")
+    def set_excused(self, request: Request) -> Response:
+        """Mark selected attendance records as 'excused' (إذن خروج) by Wing Supervisor.
+        Payload: { ids: number[], comment?: string }
+        Only records within the supervisor's wing(s) are affected.
+        """
+        payload = request.data or {}
+        ids = payload.get("ids") or []
+        if not isinstance(ids, list) or not ids:
+            return Response({"detail": "ids must be a non-empty list"}, status=400)
+        comment = (payload.get("comment") or "").strip()
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"detail": "no wing scope"}, status=403)
+        try:
+            from django.utils import timezone
+            from school.models import AttendanceRecord  # type: ignore
+
+            now = timezone.now().strftime("%Y-%m-%d %H:%M")
+            reviewer = getattr(staff, "full_name", None) or getattr(request.user, "username", "")
+            updated = 0
+            qs = AttendanceRecord.objects.filter(id__in=ids)
+            if wing_ids and not getattr(request.user, "is_superuser", False):
+                qs = qs.filter(classroom__wing_id__in=wing_ids)
+            for r in qs:
+                r.status = "excused"
+                tag = f"[EXCUSED by {reviewer} @ {now}]"
+                raw_note = (getattr(r, "note", "") or "").strip()
+                new_note = f"{tag} {comment} | {raw_note}".strip().strip("|")[:300]
+                r.note = new_note
+                r.locked = True
+                r.source = "supervisor"
+                try:
+                    r.save(update_fields=["status", "note", "locked", "source", "updated_at"])
+                    updated += 1
+                except Exception:
+                    continue
+            return Response({"updated": updated, "action": "set_excused"})
+        except Exception as e:
+            return Response({"detail": f"failed: {e}"}, status=500)
+
+    @action(detail=False, methods=["get"], url_path="entered")
+    def entered(self, request: Request) -> Response:
+        """Return class-periods that already have supervisor-entered, locked attendance
+        for the current wing(s) on the given date. Mirrors the shape of `missing`.
+        """
+        dt, err = _parse_date_or_400(request.query_params.get("date"))
+        if err:
+            return err
+        try:
+            from school.models import AttendanceRecord, Class, Term, TimetableEntry  # type: ignore
+
+            try:
+                from backend.common.day_utils import iso_to_school_dow
+            except Exception:
+                from common.day_utils import iso_to_school_dow  # type: ignore
+        except Exception:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        term = Term.objects.filter(is_current=True).first()
+        if not term:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        dow = iso_to_school_dow(dt)
+        class_ids = list(Class.objects.filter(wing_id__in=wing_ids).values_list("id", flat=True))
+        if not class_ids:
+            return Response({"date": dt.isoformat(), "items": []})
+
+        tt = (
+            TimetableEntry.objects.filter(classroom_id__in=class_ids, day_of_week=dow, term=term)
+            .select_related("classroom", "subject", "teacher")
+            .order_by("classroom_id", "period_number")
+        )
+        # Determine class-periods already recorded by supervisor (locked)
+        rec = (
+            AttendanceRecord.objects.filter(date=dt, classroom_id__in=class_ids, source="supervisor", locked=True)
+            .values("classroom_id", "period_number")
+            .distinct()
+        )
+        done = {(r["classroom_id"], r["period_number"]) for r in rec}
+
+        items = []
+        for e in tt:
+            key = (e.classroom_id, e.period_number)
+            if key not in done:
+                continue
+            items.append(
+                {
+                    "class_id": e.classroom_id,
+                    "class_name": getattr(e.classroom, "name", None),
+                    "period_number": e.period_number,
+                    "subject_id": e.subject_id,
+                    "subject_name": getattr(e.subject, "name", None),
+                    "teacher_id": e.teacher_id,
+                    "teacher_name": getattr(e.teacher, "full_name", None),
+                }
+            )
+        return Response({"date": dt.isoformat(), "count": len(items), "items": items})
+
+    @action(detail=False, methods=["get"], url_path="entered/export")
+    def entered_export(self, request: Request) -> HttpResponse:
+        """Export entered class-periods (supervisor-entered, locked) as CSV.
+        Columns: class_id, class_name, period_number, subject_id, subject_name, teacher_id, teacher_name
+        """
+        # Build JSON by reusing existing logic
+        data = self.entered(request).data  # type: ignore
+        if isinstance(data, Response):
+            return data  # type: ignore
+        items = data.get("items", []) if isinstance(data, dict) else []
+        import io
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["class_id", "class_name", "period_number", "subject_id", "subject_name", "teacher_id", "teacher_name"])
+        for it in items:
+            writer.writerow([
+                it.get("class_id"),
+                (it.get("class_name") or ""),
+                it.get("period_number"),
+                it.get("subject_id"),
+                (it.get("subject_name") or ""),
+                it.get("teacher_id"),
+                (it.get("teacher_name") or ""),
+            ])
+        csv_text = output.getvalue()
+        content = ("\ufeff" + csv_text).encode("utf-8")
+        resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
+        dt_str = (data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat())
+        resp["Content-Disposition"] = f"attachment; filename=wing-entered-{dt_str}.csv"
+        return resp
+
     @action(detail=False, methods=["get"], url_path="missing")
     def missing(self, request: Request) -> Response:
         dt, err = _parse_date_or_400(request.query_params.get("date"))
@@ -1614,6 +1969,36 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 }
             )
         return Response({"date": dt.isoformat(), "count": len(items), "items": items})
+
+    @action(detail=False, methods=["get"], url_path="missing/export")
+    def missing_export(self, request: Request) -> HttpResponse:
+        """Export missing class-periods (not yet supervisor-entered) as CSV.
+        Columns: class_id, class_name, period_number, subject_id, subject_name, teacher_id, teacher_name
+        """
+        data = self.missing(request).data  # type: ignore
+        if isinstance(data, Response):
+            return data  # type: ignore
+        items = data.get("items", []) if isinstance(data, dict) else []
+        import io
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["class_id", "class_name", "period_number", "subject_id", "subject_name", "teacher_id", "teacher_name"])
+        for it in items:
+            writer.writerow([
+                it.get("class_id"),
+                (it.get("class_name") or ""),
+                it.get("period_number"),
+                it.get("subject_id"),
+                (it.get("subject_name") or ""),
+                it.get("teacher_id"),
+                (it.get("teacher_name") or ""),
+            ])
+        csv_text = output.getvalue()
+        content = ("\ufeff" + csv_text).encode("utf-8")
+        resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
+        dt_str = (data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat())
+        resp["Content-Disposition"] = f"attachment; filename=wing-missing-{dt_str}.csv"
+        return resp
 
     @action(detail=False, methods=["get"], url_path="timetable")
     def wing_timetable(self, request: Request) -> Response:

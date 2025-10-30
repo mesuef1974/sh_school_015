@@ -300,3 +300,63 @@ pwsh -File scripts\ops_run.ps1 -Task help
   ```
 - افتح أدوات المطوّر (Console) وانتقل بين الصفحات الأساسية (الرئيسية، تسجيل الدخول، الجداول، الغياب). أصلح المخالفات الحرجة فقط.
 - بعد الإغلاق أعد `VITE_ENABLE_AXE=false` لإيقافه.
+
+
+---
+
+## اختبارات طرف-لطرف (E2E) لوحدة الحضور — تشغيل محليًا
+
+> هذه الاختبارات اختيارية للتطوير المحلي، وتُشغَّل على بيئة dev عبر Vite. تأكد أن `dev-all` يعمل قبل تشغيلها.
+
+### التثبيت (مرة واحدة)
+```powershell
+cd frontend
+npm i -D playwright @playwright/test @axe-core/playwright
+npx playwright install --with-deps
+```
+
+### سكربتات npm المتاحة
+- من `frontend/package.json`:
+```json
+{
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
+    "e2e:debug": "playwright test --debug"
+  }
+}
+```
+
+### تشغيل الخادم محليًا ثم الاختبارات
+```powershell
+# في نافذة طرفية أولى (من جذر المستودع)
+pwsh -File scripts\ops_run.ps1 -Task dev-all
+
+# في نافذة ثانية
+cd frontend
+npm run e2e
+```
+- لواجهة مصورة أثناء كتابة السيناريوهات: `npm run e2e:ui`.
+
+### الإعدادات المهمة
+- عنوان الخادم: مضبوط افتراضيًا إلى `http://127.0.0.1:5173` في `frontend/playwright.config.ts`.
+  - يمكن تغيير العنوان عبر المتغير `E2E_BASE_URL`.
+- اعتماد dev للاختبارات: استخدم المتغيرين `E2E_USERNAME` و`E2E_PASSWORD` عند الحاجة.
+- فحص الوصولية داخل E2E (axe): الاختبار `a11y.smoke.spec.ts` غير حاجز افتراضيًا؛
+  - لتفعيل الفشل على المخالفات الحرجة فقط: `E2E_AXE_STRICT=true`.
+
+### أين توجد الاختبارات؟
+- `frontend/tests/e2e/`
+  - `auth.helpers.ts`: مساعد تسجيل الدخول.
+  - `attendance.happy.spec.ts`: مسار سعيد لتسجيل الحضور وحفظه بنجاح.
+  - `attendance.offline.spec.ts`: صف الأوفلاين — حفظ دون شبكة ثم تفريغ عند عودتها.
+  - `a11y.smoke.spec.ts`: فحص axe سريع (serious/critical) — غير حاجز افتراضيًا.
+  - `print.sanity.spec.ts`: فحص طباعة أولي (لا ينتج ملفًا).
+
+### ملاحظات
+- إن كان Vite اختار منفذًا مختلفًا، عدّل `E2E_BASE_URL` أو `playwright.config.ts`.
+- selectors داخل الاختبارات عامة، وقد تحتاج لبعض المواءمة لتطابق DOM الحالي في بيئتك.
+- لتشغيل تحقق CI شبيه محليًا (بدون E2E):
+```powershell
+pwsh -File scripts\ops_run.ps1 -Task verify -StartBackend
+```

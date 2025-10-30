@@ -1,26 +1,86 @@
 <template>
-  <section class="d-grid gap-3 page-grid">
+  <section class="d-grid gap-3 page-grid page-grid-wide">
+    <!-- Unified page header outside content cards -->
+    <div class="d-flex align-items-center gap-2 header-bar frame">
+      <Icon :icon="tileMeta.icon" class="header-icon" :style="{ color: tileMeta.color }" />
+      <div>
+        <div class="fw-bold">{{ tileMeta.title }}</div>
+        <div class="text-muted small" v-if="wingLabelFull">{{ wingLabelFull }}</div>
+        <div class="text-muted small" v-else>مراجعة واعتماد/رفض السجلات المرسلة من المعلمين</div>
+      </div>
+      <span class="ms-auto"></span>
+      <DatePickerDMY
+        :id="'wing-approvals-date'"
+        :aria-label="'اختيار التاريخ'"
+        wrapperClass="m-0"
+        inputClass="form-control w-auto"
+        v-model="dateStr"
+        @change="onDateChange"
+      />
+      <select class="form-select w-auto" v-model.number="selectedClassId" @change="load">
+        <option :value="null">كل الصفوف</option>
+        <option v-for="c in classes" :key="c.id" :value="c.id">
+          {{ c.name || "صف #" + c.id }}
+        </option>
+      </select>
+      <DsButton variant="primary" icon="solar:refresh-bold-duotone" @click="load">تحديث</DsButton>
+    </div>
+
     <div class="auto-card p-3">
-      <div class="d-flex align-items-center gap-2 mb-2 header-bar">
-        <Icon icon="solar:shield-check-bold-duotone" class="header-icon" />
-        <div>
-          <div class="fw-bold">طلبات الاعتماد — مشرف الجناح</div>
-          <div class="text-muted small">مراجعة واعتماد/رفض السجلات المرسلة من المعلمين</div>
+      <div class="mb-2 d-flex align-items-center gap-2">
+        <label class="form-label m-0 small text-muted">وضع العرض:</label>
+        <div class="btn-group" role="group" aria-label="Display mode">
+          <button type="button" class="btn btn-sm" :class="mode==='daily' ? 'btn-primary' : 'btn-outline-primary'" @click="mode='daily'; load()">الحالة العامة اليومية</button>
+          <button type="button" class="btn btn-sm" :class="mode==='period' ? 'btn-primary' : 'btn-outline-primary'" @click="mode='period'; load()">حسب الحصة (المعلقة)</button>
         </div>
-        <div class="flex-fill text-center wing-title" v-if="wingLabel">{{ wingLabel }}</div>
-        <span class="ms-auto"></span>
-        <input type="date" class="form-control w-auto" v-model="dateStr" @change="onDateChange" />
-        <select class="form-select w-auto" v-model.number="selectedClassId" @change="load">
-          <option :value="null">كل الصفوف</option>
-          <option v-for="c in classes" :key="c.id" :value="c.id">
-            {{ c.name || "صف #" + c.id }}
-          </option>
-        </select>
-        <DsButton variant="primary" icon="solar:refresh-bold-duotone" @click="load">تحديث</DsButton>
+        <span class="small text-muted ms-2" v-if="mode==='daily'">يعتمد احتساب اليوم على الحصتين الأولى والثانية فقط وفق السياسة.</span>
       </div>
 
       <div v-if="loading" class="loader-line"></div>
       <template v-else>
+        <!-- Daily general status view -->
+        <div v-if="mode==='daily'">
+          <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+            <DsBadge :text="`بدون عذر: ${dailyCounts.unexcused}`" />
+            <DsBadge :text="`بعذر: ${dailyCounts.excused}`" />
+            <DsBadge :text="`غير محسوب: ${dailyCounts.none}`" />
+            <span class="ms-auto"></span>
+            <small class="text-muted">يعتمد التصنيف على الحصتين الأولى والثانية فقط.</small>
+          </div>
+          <div class="table-responsive table-card">
+            <table class="table table-hover align-middle">
+              <thead>
+                <tr>
+                  <th>الطالب</th>
+                  <th>الصف</th>
+                  <th>الحالة العامة</th>
+                  <th>ح1</th>
+                  <th>ح2</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="it in dailyItems" :key="`${it.student_id}-${it.class_id}`">
+                  <td>{{ it.student_name || ('#' + it.student_id) }}</td>
+                  <td>{{ it.class_name || (it.class_id ? ('صف #' + it.class_id) : '—') }}</td>
+                  <td>
+                    <span :class="['att-chip','day-state', it.state || 'none']">{{ stateLabel(it.state) }}</span>
+                  </td>
+                  <td>
+                    <span :class="['att-chip','att-status', (it.p1 || 'none')]">{{ statusLabel(it.p1 || '') }}</span>
+                  </td>
+                  <td>
+                    <span :class="['att-chip','att-status', (it.p2 || 'none')]">{{ statusLabel(it.p2 || '') }}</span>
+                  </td>
+                </tr>
+                <tr v-if="!dailyItems.length">
+                  <td colspan="5" class="text-center text-muted">لا توجد بيانات لليوم المختار</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <!-- Period-based pending approvals view -->
+        <div v-else>
         <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
           <DsBadge :text="`الإجمالي: ${items.length}`" />
           <DsBadge
@@ -117,6 +177,13 @@
             @click="decide('reject')"
             >رفض المحدد</DsButton
           >
+          <DsButton
+            :disabled="!selectedIds.size"
+            variant="warning"
+            icon="solar:document-add-bold-duotone"
+            @click="markExcused()"
+            >اعتبار بعذر</DsButton
+          >
         </div>
         <div class="table-responsive table-card">
           <table class="table table-hover align-middle">
@@ -170,7 +237,7 @@
                 <td v-if="columnVis.class">{{ it.class_name || "صف #" + (it.class_id || "") }}</td>
                 <td v-if="columnVis.period">حصة {{ it.period_number || "-" }}</td>
                 <td v-if="columnVis.status">
-                  <span class="badge text-bg-secondary">{{ statusLabel(it.status) }}</span>
+                  <span :class="['att-chip','att-status', (it.status || 'none')]">{{ statusLabel(it.status) }}</span>
                 </td>
                 <td v-if="columnVis.teacher">{{ it.teacher_name || "—" }}</td>
                 <td v-if="columnVis.note" class="small text-muted">{{ it.note || "—" }}</td>
@@ -183,26 +250,39 @@
             </tbody>
           </table>
         </div>
+        </div>
       </template>
     </div>
   </section>
 </template>
 <script setup lang="ts">
+import { onMounted } from 'vue';
+import { useWingContext } from '../../../shared/composables/useWingContext';
+const { ensureLoaded, wingLabelFull } = useWingContext();
+import { tiles } from '../../../home/icon-tiles.config';
+const tileMeta = computed(() => tiles.find(t => t.to === '/wing/approvals') || { title: 'طلبات الاعتماد', icon: 'solar:shield-check-bold-duotone', color: '#2e7d32' });
+onMounted(() => { ensureLoaded(); });
 import { ref, computed, onMounted } from "vue";
 import { Icon } from "@iconify/vue";
+import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 import DsButton from "../../../components/ui/DsButton.vue";
 import DsBadge from "../../../components/ui/DsBadge.vue";
+import StatusLegend from "../../../components/ui/StatusLegend.vue";
 import {
   getWingPending,
   postWingDecide,
   getTeacherClasses,
   getWingMe,
   getWingTimetable,
+  getWingDailyAbsences,
 } from "../../../shared/api/client";
 import { useToast } from "vue-toastification";
 
 const toast = useToast();
+const mode = ref<'daily' | 'period'>('period');
 const items = ref<any[]>([]);
+const dailyItems = ref<any[]>([]);
+const dailyCounts = ref<{ excused: number; unexcused: number; none: number }>({ excused: 0, unexcused: 0, none: 0 });
 const loading = ref(false);
 const today = new Date().toISOString().slice(0, 10);
 const dateStr = ref<string>(today);
@@ -450,23 +530,40 @@ async function load() {
   try {
     const params: any = { date: dateStr.value };
     if (selectedClassId.value) params.class_id = selectedClassId.value;
-    const res = await getWingPending(params);
-    items.value = res.items || [];
-    checkedList.value = [];
-    // If classes not yet loaded from timetable, derive available classes from items (fallback)
-    if (!classes.value.length && Array.isArray(res.items)) {
-      const map = new Map<number, { id: number; name?: string | null }>();
-      for (const it of res.items) {
-        if (it.class_id && !map.has(it.class_id))
-          map.set(it.class_id, { id: it.class_id, name: it.class_name });
+    if (mode.value === 'daily') {
+      const res = await getWingDailyAbsences(params);
+      dailyItems.value = res.items || [];
+      dailyCounts.value = res.counts || { excused: 0, unexcused: 0, none: 0 };
+      // derive classes from daily items when needed
+      if (!classes.value.length && Array.isArray(res.items)) {
+        const map = new Map<number, { id: number; name?: string | null }>();
+        for (const it of res.items) {
+          if (it.class_id && !map.has(it.class_id))
+            map.set(it.class_id, { id: it.class_id, name: it.class_name });
+        }
+        classes.value = Array.from(map.values()).sort((a, b) =>
+          ("" + (a.name || a.id)).localeCompare("" + (b.name || b.id), "ar")
+        );
       }
-      classes.value = Array.from(map.values()).sort((a, b) =>
-        ("" + (a.name || a.id)).localeCompare("" + (b.name || b.id), "ar")
-      );
+    } else {
+      const res = await getWingPending(params);
+      items.value = res.items || [];
+      checkedList.value = [];
+      // If classes not yet loaded from timetable, derive available classes from items (fallback)
+      if (!classes.value.length && Array.isArray(res.items)) {
+        const map = new Map<number, { id: number; name?: string | null }>();
+        for (const it of res.items) {
+          if (it.class_id && !map.has(it.class_id))
+            map.set(it.class_id, { id: it.class_id, name: it.class_name });
+        }
+        classes.value = Array.from(map.values()).sort((a, b) =>
+          ("" + (a.name || a.id)).localeCompare("" + (b.name || b.id), "ar")
+        );
+      }
     }
   } catch (e: any) {
     try {
-      toast.error(e?.response?.data?.detail || "تعذر تحميل الطلبات");
+      toast.error(e?.response?.data?.detail || (mode.value==='daily' ? 'تعذر تحميل الحالة اليومية' : 'تعذر تحميل الطلبات'));
     } catch {}
   } finally {
     loading.value = false;

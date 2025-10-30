@@ -1,20 +1,21 @@
 <template>
-  <section class="d-grid gap-3 page-grid">
+  <section class="d-grid gap-3 page-grid page-grid-wide">
+    <!-- Unified page header (outside of content cards) -->
+    <div class="d-flex align-items-center gap-2 mb-2 header-bar frame">
+      <Icon icon="solar:clipboard-check-bold-duotone" class="header-icon" />
+      <div>
+        <div class="fw-bold">تسجيل الغياب</div>
+        <div class="text-muted small">اختر الصف والتاريخ (اختياري: حصة اليوم)</div>
+      </div>
+      <span class="ms-auto"></span>
+    </div>
+
     <div
       v-motion
       :initial="{ opacity: 0, x: -50 }"
       :enter="{ opacity: 1, x: 0, transition: { duration: 400, delay: 100 } }"
       class="auto-card p-3 mb-3"
     >
-      <!-- Merged header + form in a single card (keep the same order) -->
-      <div class="d-flex align-items-center gap-3 mb-3">
-        <Icon icon="solar:clipboard-check-bold-duotone" class="header-icon" />
-        <div>
-          <div class="fw-bold">تسجيل الغياب</div>
-          <div class="text-muted small">اختر الصف والتاريخ (اختياري: حصة اليوم)</div>
-        </div>
-        <span class="ms-auto"></span>
-      </div>
       <form @submit.prevent="loadData" class="attendance-form">
         <div class="form-toolbar d-flex align-items-end gap-2 flex-nowrap">
           <!-- Filters: Class, Date, Today's Period -->
@@ -23,7 +24,7 @@
               <Icon icon="solar:users-group-two-rounded-bold-duotone" width="18" />
               الصف
             </label>
-            <select v-model.number="classId" required class="form-select">
+            <select v-model.number="classId" required class="form-select" data-testid="filter-class">
               <option :value="null" disabled>اختر الصف</option>
               <option v-for="c in classes" :key="c.id" :value="c.id">
                 {{ c.name || "صف #" + c.id }}
@@ -32,11 +33,11 @@
           </div>
 
           <div class="form-field">
-            <label class="form-label">
+            <label class="form-label" for="teachDate">
               <Icon icon="solar:calendar-bold-duotone" width="18" />
               التاريخ
             </label>
-            <input type="date" v-model="dateStr" class="form-control" @change="onDateChange" />
+            <DatePickerDMY :id="'teachDate'" v-model="dateStr" inputClass="form-control" wrapperClass="m-0" :aria-label="'اختيار التاريخ'" @change="onDateChange" />
           </div>
 
           <div class="form-field form-field-wide">
@@ -58,6 +59,7 @@
             variant="primary"
             icon="solar:refresh-bold-duotone"
             class="btn-load"
+            data-testid="load-attendance"
           >
             تحميل
           </DsButton>
@@ -70,6 +72,7 @@
             type="button"
             variant="success"
             icon="solar:check-circle-bold-duotone"
+            data-testid="set-all-present"
             :disabled="!students.length"
             @click="setAll('present')"
           >
@@ -90,6 +93,7 @@
             type="button"
             variant="primary"
             icon="solar:diskette-bold-duotone"
+            data-testid="save-attendance"
             :disabled="saving || !students.length"
             :loading="saving"
             @click="save"
@@ -101,6 +105,7 @@
             type="button"
             variant="warning"
             icon="solar:shield-check-bold-duotone"
+            data-testid="submit-for-review"
             :disabled="!students.length || submitting"
             :loading="submitting"
             @click="submitForReview"
@@ -116,17 +121,19 @@
     <div v-else>
       <!-- شبكة البطاقات و شريط الأدوات -->
       <div class="auto-card p-3">
-        <div class="grid-toolbar d-flex flex-wrap gap-2 align-items-center mb-3">
+        <div class="grid-toolbar d-flex flex-wrap gap-2 align-items-center mb-2">
+                  <StatusLegend />
           <div class="position-relative">
             <input
               v-model="searchQuery"
               type="search"
               class="form-control"
               placeholder="ابحث بالاسم"
+              data-testid="student-search"
             />
             <Icon icon="solar:magnifier-bold-duotone" class="search-icon" />
           </div>
-          <select v-model="statusFilter" class="form-select w-auto">
+          <select v-model="statusFilter" class="form-select w-auto" data-testid="status-filter">
             <option value="">كل الحالات</option>
             <option value="present">حاضر</option>
             <option value="absent">غائب</option>
@@ -138,7 +145,7 @@
           <span class="ms-auto"></span>
         </div>
 
-        <div class="student-grid">
+        <div class="student-grid" data-testid="student-grid">
           <article
             v-for="(s, idx) in filteredStudents"
             :key="s.id"
@@ -162,6 +169,7 @@
                 <button
                   type="button"
                   class="btn btn-sm btn-light"
+                  data-testid="mark-present"
                   :disabled="s.active === false"
                   @click="s.active === false ? null : (recordMap[s.id].status = 'present')"
                   :aria-label="'تعيين حاضر ل' + s.full_name"
@@ -171,6 +179,7 @@
                 <button
                   type="button"
                   class="btn btn-sm btn-light text-danger"
+                  data-testid="mark-absent"
                   :disabled="s.active === false"
                   @click="s.active === false ? null : (recordMap[s.id].status = 'absent')"
                   :aria-label="'تعيين غائب ل' + s.full_name"

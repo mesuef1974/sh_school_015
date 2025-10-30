@@ -1,8 +1,82 @@
 <template>
-  <section class="d-grid gap-3">
-    <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap toolbar-card">
-      <Icon icon="solar:clock-circle-bold-duotone" class="text-2xl" />
-      <div class="fw-bold">جدول الجناح</div>
+  <section class="d-grid gap-3 page-grid page-grid-wide" dir="rtl">
+    <div class="d-flex align-items-center gap-2 mb-2 header-bar frame">
+      <Icon :icon="tileMeta.icon" class="header-icon" width="28" height="28" :style="{ color: tileMeta.color }" />
+      <div>
+        <div class="fw-bold">{{ tileMeta.title }}</div>
+        <div class="text-muted small" v-if="wingLabelFull">{{ wingLabelFull }}</div>
+        <div class="text-muted small" v-else>ملخص ومؤشرات اليوم لنطاق جناحك</div>
+      </div>
+      <span class="ms-auto"></span>
+      <!-- Merged toolbar controls into the page header -->
+      <div class="d-flex align-items-center gap-2 flex-wrap toolbar-controls">
+        <div class="d-flex align-items-center gap-2">
+          <Icon icon="solar:home-2-bold-duotone" />
+          <label class="visually-hidden" for="wingSelect">اختر الجناح</label>
+          <select
+            id="wingSelect"
+            aria-label="اختيار الجناح"
+            class="form-select form-select-sm"
+            v-model.number="wingId"
+            @change="loadData"
+          >
+            <option :value="null" disabled>اختر الجناح</option>
+            <option v-for="(name, id) in wingOptions" :key="id" :value="Number(id)">
+              {{ name }}
+            </option>
+          </select>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <Icon icon="solar:calendar-bold-duotone" />
+          <label class="visually-hidden" for="tt-date">التاريخ</label>
+          <DatePickerDMY
+            :id="'tt-date'"
+            :aria-label="'اختيار التاريخ'"
+            inputClass="form-control form-control-sm"
+            wrapperClass="m-0"
+            v-model="dateStr"
+            @change="loadData"
+          />
+        </div>
+        <!-- Mode toggle hidden: separated into two pages (daily/weekly) -->
+        <div class="btn-group btn-group-sm" role="group" aria-label="وضع العرض" style="display:none">
+          <button
+            type="button"
+            class="btn"
+            :class="mode === 'daily' ? 'btn-primary' : 'btn-outline-secondary'"
+            @click="setMode('daily')"
+          >
+            اليوم
+          </button>
+          <button
+            type="button"
+            class="btn"
+            :class="mode === 'weekly' ? 'btn-primary' : 'btn-outline-secondary'"
+            @click="setMode('weekly')"
+          >
+            أسبوع
+          </button>
+        </div>
+        <!-- Weekly-only column width controls -->
+        <DsButton
+          size="sm"
+          variant="outline"
+          icon="solar:printer-bold-duotone"
+          @click="printPage"
+          aria-label="طباعة الجدول"
+        >طباعة</DsButton>
+        <DsButton
+          size="sm"
+          variant="outline"
+          icon="solar:refresh-bold-duotone"
+          :loading="loading"
+          @click="loadData"
+          aria-label="تحديث البيانات"
+        >تحديث</DsButton>
+      </div>
+    </div>
+
+    <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap toolbar-card d-none">
       <span class="vr mx-2 d-none d-sm-block"></span>
 
       <div class="d-flex align-items-center gap-2 flex-wrap ms-auto toolbar-controls">
@@ -24,82 +98,23 @@
         </div>
         <div class="d-flex align-items-center gap-2">
           <Icon icon="solar:calendar-bold-duotone" />
-          <label class="visually-hidden" for="dateInput">التاريخ</label>
-          <input
-            id="dateInput"
-            aria-label="اختيار التاريخ"
-            type="date"
-            class="form-control form-control-sm"
+          <label class="visually-hidden" for="tt-date-2">التاريخ</label>
+          <DatePickerDMY
+            :id="'tt-date-2'"
+            :aria-label="'اختيار التاريخ'"
+            inputClass="form-control form-control-sm"
+            wrapperClass="m-0"
             v-model="dateStr"
             @change="loadData"
           />
         </div>
-        <div class="btn-group btn-group-sm" role="group" aria-label="وضع العرض">
-          <button
-            type="button"
-            class="btn"
-            :class="mode === 'daily' ? 'btn-primary' : 'btn-outline-secondary'"
-            @click="setMode('daily')"
-          >
-            اليوم
-          </button>
-          <button
-            type="button"
-            class="btn"
-            :class="mode === 'weekly' ? 'btn-primary' : 'btn-outline-secondary'"
-            @click="setMode('weekly')"
-          >
-            أسبوع
-          </button>
+        <div class="btn-group btn-group-sm" role="group" aria-label="وضع العرض" style="display:none">
+          <button type="button" class="btn" :class="mode === 'daily' ? 'btn-primary' : 'btn-outline-secondary'" @click="setMode('daily')">اليوم</button>
+          <button type="button" class="btn" :class="mode === 'weekly' ? 'btn-primary' : 'btn-outline-secondary'" @click="setMode('weekly')">أسبوع</button>
         </div>
-        <DsButton
-          size="sm"
-          variant="outline"
-          icon="solar:printer-bold-duotone"
-          @click="printPage"
-          aria-label="طباعة الجدول"
-          >طباعة</DsButton
-        >
-        <DsButton
-          size="sm"
-          variant="outline"
-          icon="solar:refresh-bold-duotone"
-          :loading="loading"
-          @click="loadData"
-          aria-label="تحديث البيانات"
-          >تحديث</DsButton
-        >
+        <DsButton size="sm" variant="outline" icon="solar:printer-bold-duotone" @click="printPage" aria-label="طباعة الجدول">طباعة</DsButton>
+        <DsButton size="sm" variant="outline" icon="solar:refresh-bold-duotone" :loading="loading" @click="loadData" aria-label="تحديث البيانات">تحديث</DsButton>
         <div class="vr d-none d-sm-block"></div>
-        <div
-          class="btn-group btn-group-sm"
-          role="group"
-          aria-label="تحكم عرض الأعمدة"
-          v-if="mode === 'weekly'"
-        >
-          <button
-            type="button"
-            class="btn"
-            :class="enableResize ? 'btn-primary' : 'btn-outline-secondary'"
-            @click="enableResize = !enableResize"
-          >
-            <Icon
-              :icon="
-                enableResize
-                  ? 'solar:align-horizontally-bold-duotone'
-                  : 'solar:align-right-bold-duotone'
-              "
-            />
-            تعديل العرض
-          </button>
-          <button
-            type="button"
-            class="btn btn-outline-secondary"
-            @click="resetWeeklyWidths"
-            :disabled="!hasCustomWidths"
-          >
-            إعادة ضبط
-          </button>
-        </div>
       </div>
     </div>
 
@@ -110,7 +125,7 @@
         <div class="fw-bold">
           {{
             mode === "daily"
-              ? "جدول الجناح — " + formattedDate + " — " + dayNameAr(dateStr)
+              ? "الجدول اليومي — " + formattedDate + " — " + dayNameAr(dateStr)
               : "الجدول الأسبوعي"
           }}
           <span v-if="wingLabel"> — {{ wingLabel }}</span>
@@ -144,136 +159,120 @@
       <div class="text-muted small" v-else>تحقق من اختيار الجناح والتاريخ</div>
     </div>
 
-    <!-- Daily view: صف واحد لكل حصة -->
-    <div v-else-if="mode === 'daily'" class="auto-card p-0 overflow-hidden">
+    <!-- Daily view (updated): الصفوف = الفصول، الأعمدة = الحصص مع ترويسة مدمجة -->
+    <div v-else-if="mode === 'daily'" class="auto-card p-0 overflow-auto">
       <div class="p-3 d-flex align-items-center gap-2 border-bottom">
         <Icon icon="solar:calendar-date-bold-duotone" />
         <div class="fw-bold">جدول اليوم — {{ formattedDate }} — {{ dayNameAr(dateStr) }}</div>
         <span class="ms-auto small text-muted">{{ groupedDaily.total }} عنصر</span>
       </div>
-      <div class="p-2 in-card-95">
-        <div v-for="p in PERIODS" :key="'row-' + p" class="period-line">
-          <span class="badge text-bg-primary no-wrap">حصة {{ p }}</span>
-          <span class="text-muted small" v-if="periodTimes[p]"
-            ><Icon icon="solar:clock-circle-bold-duotone" width="14" class="me-1" />{{
-              timeRange(p)
-            }}</span
-          >
-          <span class="countdown badge text-bg-light no-wrap" v-if="countdownMap[p]">{{
-            countdownMap[p]
-          }}</span>
-          <div class="items-inline">
-            <template v-if="groupedDaily.groups[p] && groupedDaily.groups[p].length">
-              <template
-                v-for="(item, idx) in groupedDaily.groups[p]"
-                :key="'it-' + p + '-' + item.class_id"
-              >
-                <div
-                  class="period-cell"
-                  :style="{ backgroundColor: item.color || '#f5f7fb' }"
-                  :title="
-                    (item.class_name || 'صف #' + item.class_id) +
-                    ' — ' +
-                    (item.subject_name || 'مادة') +
-                    ' — ' +
-                    (item.teacher_name || '—')
-                  "
-                >
-                  <div class="cell-subject one-line">
-                    <Icon :icon="subjectIcon(item.subject_name)" class="subject-icon" /><span
-                      class="subject-name truncate-1"
-                      >{{ item.subject_name || "مادة" }}</span
+      <div class="in-card-98">
+        <div class="tt-daily-scroller">
+          <table class="tt-daily-table" dir="rtl" aria-label="جدول يومي: الفصول صفوف والحصص أعمدة">
+            <colgroup>
+              <col style="min-width: 160px" />
+              <col v-for="p in PERIODS" :key="'cg-p-'+p" style="min-width: 140px" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="tt-daily-th tt-daily-th-sticky">الفصل</th>
+                <th v-for="p in PERIODS" :key="'hd-p-'+p" class="tt-daily-th">
+                  <div class="fw-bold">حصة {{ p }}</div>
+                  <div v-if="timeRange(p)" class="small text-muted one-line">{{ timeRange(p) }}</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(cls, idx) in dailyClassList" :key="'row-cls-'+cls.id">
+                <th scope="row" class="tt-daily-th tt-daily-th-sticky">
+                  <span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name || ('صف #'+cls.id) }}</span>
+                </th>
+                <td v-for="p in PERIODS" :key="'cell-'+cls.id+'-'+p" class="tt-daily-td">
+                  <template v-if="dailyItemFor(cls.id, p)">
+                    <div
+                      class="period-cell"
+                      :style="{ backgroundColor: dailyItemFor(cls.id, p)?.color || '#f5f7fb' }"
+                      :title="
+                        (dailyItemFor(cls.id, p)?.subject_name || 'مادة') +
+                        ' — ' + (dailyItemFor(cls.id, p)?.teacher_name || '—') +
+                        (periodTimes[p] ? (' — ' + timeRange(p)) : '')
+                      "
                     >
-                  </div>
-                  <div class="cell-teacher one-line truncate-1">{{ item.teacher_name || "—" }}</div>
-                </div>
-              </template>
-            </template>
-            <span v-else class="text-muted">—</span>
-          </div>
+                      <div class="cell-subject one-line">
+                        <Icon :icon="subjectIcon(dailyItemFor(cls.id, p)?.subject_name)" class="subject-icon" />
+                        <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, p)?.subject_name || 'مادة' }}</span>
+                      </div>
+                      <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, p)?.teacher_name || '—' }}</div>
+                    </div>
+                  </template>
+                  <span v-else class="text-muted">—</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
 
-    <!-- Weekly view: جدول احترافي 7×7 ومتمركز -->
+    <!-- Weekly view: الأيام صفوف والحصص أعمدة -->
     <div v-else class="auto-card p-0 overflow-hidden">
       <div class="p-3 d-flex align-items-center gap-2 border-bottom">
         <Icon icon="solar:calendar-bold-duotone" />
         <div class="fw-bold">الجدول الأسبوعي للفصل</div>
         <span class="ms-auto small text-muted">فصول × أيام (الأحد → الخميس)</span>
       </div>
-      <div class="in-card-95">
+      <div class="in-card-98">
         <div class="tt7-wrapper">
           <div class="tt7-scroller">
-            <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي 7×7">
+            <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي: الأيام صفوف والحصص أعمدة">
               <colgroup>
                 <col :style="{ minWidth: weeklyColPx(0) }" />
-                <col
-                  v-for="(d, i) in DAYS5"
-                  :key="'cg-' + d[0]"
-                  :style="{ minWidth: weeklyColPx(i + 1) }"
-                />
+                <col :style="{ minWidth: weeklyColPx(1) }" />
+                <col v-for="(p, i) in PERIODS" :key="'cg-p-' + p" :style="{ minWidth: weeklyColPx(i + 2) }" />
               </colgroup>
               <thead>
                 <tr>
-                  <th class="tt7-th tt7-th-sticky tt7-th-period resizable-th">
-                    الفصل
-                    <span
-                      v-if="enableResize"
-                      class="col-resizer"
-                      @mousedown.prevent="onResizeStart(0, $event)"
-                    ></span>
-                  </th>
-                  <th v-for="(d, i) in DAYS5" :key="'dh-' + d[0]" class="tt7-th resizable-th">
-                    {{ d[1] }}
-                    <span
-                      v-if="enableResize"
-                      class="col-resizer"
-                      @mousedown.prevent="onResizeStart(i + 1, $event)"
-                    ></span>
-                  </th>
+                  <th class="tt7-th tt7-th-sticky tt7-th-period resizable-th">الفصل</th>
+                  <th class="tt7-th resizable-th">اليوم</th>
+                  <th v-for="p in PERIODS" :key="'ph-' + p" class="tt7-th resizable-th">حصة {{ p }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="cls in classList" :key="'row-c-' + cls.id">
-                  <th class="tt7-th tt7-th-period">
-                    <div class="hdr-line">
-                      <span class="badge text-bg-secondary no-wrap">{{ cls.name }}</span>
-                    </div>
-                  </th>
-                  <td v-for="d in DAYS5" :key="'cell-' + d[0] + '-' + cls.id" class="tt7-td">
-                    <div class="tt7-cell">
-                      <template v-if="classDayItems(cls.id, d[0]).length">
-                        <div
-                          v-for="item in classDayItems(cls.id, d[0])"
-                          :key="'it-' + d[0] + '-' + cls.id + '-' + item.period_number"
-                          class="mini-cell"
-                          :style="{ backgroundColor: item.color || '#f5f7fb' }"
-                          :title="
-                            (item.subject_name || 'مادة') +
-                            ' — ' +
-                            (item.teacher_name || '—') +
-                            ' — حصة ' +
-                            (item.period_number || '')
-                          "
-                        >
-                          <div class="mini-subj one-line">
-                            <Icon
-                              :icon="subjectIcon(item.subject_name)"
-                              class="subject-icon"
-                            /><span class="subject-name truncate-1">{{
-                              item.subject_name || "مادة"
-                            }}</span>
+                <template v-for="(cls, ci) in classList" :key="'grp-' + cls.id">
+                  <tr v-for="(d, idx) in DAYS5" :key="'row-c-' + cls.id + '-d-' + d[0]" :class="{ 'class-separator': ci > 0 && idx === 0 }">
+                    <th v-if="idx === 0" class="tt7-th tt7-th-period tt7-th-sticky" :rowspan="DAYS5.length">
+                      <div class="hdr-line">
+                        <span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name }}</span>
+                      </div>
+                    </th>
+                    <th class="tt7-th">{{ d[1] }}</th>
+                    <td v-for="p in PERIODS" :key="'cell-' + cls.id + '-' + d[0] + '-' + p" class="tt7-td">
+                      <div class="tt7-cell">
+                        <template v-if="classDayPeriodItem(cls.id, d[0], p)">
+                          <div
+                            class="mini-cell"
+                            :style="{ backgroundColor: classDayPeriodItem(cls.id, d[0], p)?.color || '#f5f7fb' }"
+                            :title="
+                              (classDayPeriodItem(cls.id, d[0], p)?.subject_name || 'مادة') +
+                              ' — ' +
+                              (classDayPeriodItem(cls.id, d[0], p)?.teacher_name || '—') +
+                              ' — حصة ' + (p || '')
+                            "
+                          >
+                            <div class="mini-subj one-line">
+                              <Icon :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], p)?.subject_name)" class="subject-icon" />
+                              <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], p)?.subject_name || 'مادة' }}</span>
+                            </div>
+                            <div class="mini-teacher one-line truncate-1">
+                              {{ classDayPeriodItem(cls.id, d[0], p)?.teacher_name || '—' }}
+                            </div>
                           </div>
-                          <div class="mini-teacher one-line truncate-1">
-                            {{ item.teacher_name || "—" }}
-                          </div>
-                        </div>
-                      </template>
-                      <span v-else class="text-muted">—</span>
-                    </div>
-                  </td>
-                </tr>
+                        </template>
+                        <span v-else class="text-muted">—</span>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
               </tbody>
             </table>
           </div>
@@ -284,15 +283,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from "vue";
+import { computed, onMounted, ref, reactive, watch, nextTick } from 'vue';
+import { tiles } from '../../../home/icon-tiles.config';
+import { useRoute } from 'vue-router';
+const route = useRoute();
+const tileMeta = computed(() => {
+  const name = route.name as string | undefined;
+  if (name === 'wing-timetable-weekly') {
+    return tiles.find(t => t.to === '/wing/timetable/weekly') || { title: 'الجدول الأسبوعي', icon: 'solar:calendar-bold-duotone', color: '#5dade2' };
+  }
+  return tiles.find(t => t.to === '/wing/timetable/daily') || { title: 'جدول اليوم', icon: 'solar:clock-circle-bold-duotone', color: '#5dade2' };
+});
+import { onBeforeUnmount } from "vue";
 import DsButton from "../../../components/ui/DsButton.vue";
 import { getWingMe, getWingTimetable } from "../../../shared/api/client";
 import { formatDateDMY } from "../../../shared/utils/date";
+import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
+// Wing context: ensure dynamic subtitle like other Wing pages
+import { useWingContext } from '../../../shared/composables/useWingContext';
+const { ensureLoaded, wingLabelFull } = useWingContext();
+onMounted(() => { try { ensureLoaded(); } catch {} });
 
 const today = new Date();
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const dateStr = ref<string>(iso(today));
 const mode = ref<"daily" | "weekly">("daily");
+// Lock mode based on route (two separate pages)
+if ((route.name as string | undefined) === 'wing-timetable-weekly') {
+  mode.value = 'weekly';
+} else {
+  mode.value = 'daily';
+}
+watch(
+  () => route.name,
+  (nv) => {
+    if (nv === 'wing-timetable-weekly') mode.value = 'weekly';
+    else mode.value = 'daily';
+  }
+);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const wingId = ref<number | null>(null);
@@ -324,13 +352,16 @@ const periodTimes = ref<Record<number, { start: string; end: string }>>({});
 
 // Weekly column resize state (period + 7 days)
 const enableResize = ref(false);
-const WEEKLY_COLS = 6; // 0 = class label, 1..5 = days (Sun..Thu)
+const WEEKLY_COLS = 9; // 0 = الفصل (sticky), 1 = اليوم، 2..8 = الحصص 1..7
 const weeklyWidths = ref<number[]>([]);
 const defaultWeeklyWidths = () => {
-  // Default: period=180px (sticky), each day share remaining equally (auto)
-  // We'll set explicit px for all to allow resizing; choose 140px per day as a good start
+  // Reduce class/day to half width and distribute extra space to periods equally
   const arr = new Array(WEEKLY_COLS).fill(140);
-  arr[0] = 180; // period column
+  // Halved sticky columns to free space for periods
+  arr[0] = 50; // الفصل (sticky)
+  arr[1] = 48; // اليوم
+  // Make all period columns equal and wider to avoid inner horizontal scrollbars
+  for (let i = 2; i < WEEKLY_COLS; i++) arr[i] = 240;
   return arr;
 };
 const LS_KEY = "wing_tt_weekly_col_widths";
@@ -354,7 +385,7 @@ function loadWeeklyWidths() {
     if (Array.isArray(arr) && arr.length === WEEKLY_COLS) {
       weeklyWidths.value = arr.map((n: any, idx: number) =>
         Number.isFinite(n)
-          ? Math.max(idx === 0 ? 140 : 100, Math.min(Number(n), 600))
+          ? Math.max(idx === 0 ? 50 : 45, Math.min(Number(n), 600))
           : defaultWeeklyWidths()[idx]
       );
     } else {
@@ -390,7 +421,8 @@ function onResizeMove(e: MouseEvent) {
     document.dir === "rtl" || document.documentElement.getAttribute("dir") === "rtl"
       ? dragState.startX - e.clientX
       : e.clientX - dragState.startX;
-  const minW = idx === 0 ? 140 : 100;
+  // Allow narrower sticky class/day columns to maximize period widths
+  const minW = idx === 0 ? 100 : 90;
   const maxW = 600;
   const next = Math.max(minW, Math.min(dragState.startW + delta, maxW));
   // apply
@@ -419,6 +451,18 @@ const groupedDaily = computed(() => {
     if (groups[it.period_number]) groups[it.period_number].push(it);
   }
   return { groups, total: dailyItems.value.length };
+});
+
+// Build class list for daily header row (unique classes appearing today)
+const dailyClassList = computed(() => {
+  const map = new Map<number, { id: number; name?: string | null }>();
+  for (const it of dailyItems.value) {
+    const id = Number(it.class_id);
+    if (Number.isFinite(id) && !map.has(id)) {
+      map.set(id, { id, name: it.class_name || null });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => (a.name || '').localeCompare(b.name || '') || a.id - b.id);
 });
 
 // Derive current wing label for print header and context
@@ -499,6 +543,21 @@ function classDayItems(classId: number, d: number) {
   return (arr as any[])
     .filter((it) => Number(it.class_id) === Number(classId))
     .sort((a, b) => Number(a.period_number) - Number(b.period_number));
+}
+
+// Helper: find the daily item for a given class and period (used by daily integrated table)
+function dailyItemFor(classId: number, p: number) {
+  const g = groupedDaily.value.groups?.[p] as any[] | undefined;
+  if (!Array.isArray(g)) return null;
+  return g.find((it) => Number(it.class_id) === Number(classId)) || null;
+}
+
+// Helper: weekly single item for class + day + period
+function classDayPeriodItem(classId: number, d: number, p: number) {
+  const arr = weekly.value[String(d)] || [];
+  return (arr as any[]).find(
+    (it) => Number(it.class_id) === Number(classId) && Number(it.period_number) === Number(p)
+  ) || null;
 }
 
 function ensureWeeklyShape() {
@@ -804,6 +863,7 @@ function teardownResizeObserver() {
 .hdr-line {
   display: flex;
   align-items: center;
+  justify-content: center; /* center horizontally in weekly class header cell */
   gap: 0.5rem;
   white-space: nowrap;
   flex-wrap: nowrap;
@@ -839,25 +899,34 @@ function teardownResizeObserver() {
   color: #333;
   font-weight: 700;
   text-align: center;
+  vertical-align: middle;
   padding: 0.75rem;
   border-bottom: 2px solid #e0e6ef;
   white-space: nowrap;
 }
 .tt7-th-period {
-  text-align: end;
+  text-align: center;
   position: sticky;
   inset-inline-start: 0;
   background: #fafbfc;
   border-inline-end: 1px solid #eef2f7;
   min-width: 180px;
-  z-index: 1;
+  z-index: 2;
+}
+.tt7-th-sticky {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 3;
+  background: #f8f9fb;
 }
 .tt7-td {
-  vertical-align: top;
+  vertical-align: middle;
   padding: 0.5rem;
   border-bottom: 1px solid #f0f2f5;
   border-inline-start: 1px solid #f6f7f9;
-  height: 120px;
+  height: 72px; /* contained height to reduce excessive tall rows */
+  max-height: 72px;
+  text-align: center;
 }
 .tt7-table tr:hover td {
   background: #fafbff;
@@ -865,9 +934,11 @@ function teardownResizeObserver() {
 .tt7-cell {
   display: flex;
   flex-direction: column;
+  align-items: center; /* center horizontally */
+  justify-content: center; /* center vertically within td height */
   gap: 6px;
   max-height: 100%;
-  overflow: auto;
+  overflow: hidden; /* prevent inner scrollbars; let content wrap/truncate */
   padding: 2px;
 }
 .mini-cell {
@@ -1083,4 +1154,57 @@ body.resizing {
 .print-header {
   display: none;
 }
+</style>
+
+<style scoped>
+/* Daily view cell spacing and readability */
+.period-line { gap: 10px; padding-block: 6px; }
+.period-line .items-inline { display: flex; flex-wrap: wrap; gap: 8px; }
+.period-cell { padding: 8px 10px; border-radius: 8px; min-height: 56px; line-height: 1.3; display: flex; flex-direction: column; justify-content: center; }
+.cell-subject { font-weight: 600; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.cell-teacher { color: #333; font-size: 0.95rem; }
+.subject-icon { font-size: 16px; }
+
+/* Weekly view: periods column styling */
+.tt7-td-periods { vertical-align: top; }
+.tt7-td-periods .periods-col { display: flex; flex-direction: column; gap: 6px; align-items: center; padding: 6px 4px; }
+
+/* Weekly mini cells spacing between subject and teacher */
+.mini-cell { padding: 4px 6px; border-radius: 8px; line-height: 1.2; }
+.mini-cell .mini-subj { margin-bottom: 4px; display: flex; align-items: center; gap: 6px; font-weight: 600; }
+
+/* Integrated daily table styles */
+.tt-daily-scroller { overflow: auto; }
+.tt-daily-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tt-daily-table thead th { position: sticky; top: 0; background: linear-gradient(135deg, #fff7ed 0%, #ffefd9 100%); z-index: 1; text-align: center; vertical-align: middle; padding: 8px; border-bottom: 1px solid #f3d2a9; }
+/* Ensure the sticky first-column header cell also uses the same header tone */
+.tt-daily-table thead .tt-daily-th-sticky { background: linear-gradient(135deg, #fff7ed 0%, #ffefd9 100%); }
+/* Weekly header row tone */
+.tt7-table thead .tt7-th { background: linear-gradient(135deg, #fff7ed 0%, #ffefd9 100%); }
+.tt-daily-th-sticky { position: sticky; right: 0; background: #fff; z-index: 2; box-shadow: -1px 0 0 #e5e7eb inset; }
+.tt-daily-td, .tt-daily-th { padding: 8px; vertical-align: middle; border-bottom: 1px solid #f0f2f5; text-align: center; }
+/* Ensure the first sticky header cell (الحصة) content is centered horizontally */
+.tt-daily-th-sticky .d-flex { justify-content: center; }
+.tt-daily-td { min-width: 180px; }
+.tt-daily-td .period-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 64px; }
+
+/* Maroon separator between classes (applies to daily and weekly) */
+tr.class-separator > th,
+tr.class-separator > td { border-top: 3px solid #8a1538 !important; }
+
+/* Enlarge class name to 3x current size */
+.tt7-table .class-name-badge {
+  font-size: 2.4rem; /* approx 3x default badge size */
+  line-height: 1.1;
+  padding: 8px 12px;
+}
+/* Daily: enlarge class name to 2x default size */
+.tt-daily-table .class-name-badge {
+  font-size: 1.6rem; /* approx 2x default badge size */
+  line-height: 1.15;
+  padding: 6px 10px;
+}
+
+/* Header row for classes in daily view (old strip) no longer used */
+.classes-header { display: none; }
 </style>

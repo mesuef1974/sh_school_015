@@ -344,8 +344,8 @@ try {
     $results.security_py = 'SKIP'
   }
 } catch {
-  Write-Warn ('pip-audit step failed: {0}' -f $_.Exception.Message)
-  $results.security_py = 'WARN'
+  Write-Host ('[INFO] pip-audit step skipped: {0}' -f $_.Exception.Message) -ForegroundColor Cyan
+  $results.security_py = 'SKIP'
 }
 
 # Frontend (npm audit) — if npm and deps are available

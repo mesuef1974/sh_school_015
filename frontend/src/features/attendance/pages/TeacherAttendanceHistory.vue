@@ -22,6 +22,7 @@
             type="text"
             class="form-control form-control-sm"
             placeholder="بحث في أسماء الطلبة..."
+            data-testid="history-search"
           />
           <div class="text-muted small d-none d-md-block">
             {{ filteredRows.length }} / {{ rows.length }}
@@ -43,18 +44,18 @@
           </select>
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label fw-bold small mb-1">
+          <label class="form-label fw-bold small mb-1" for="histFrom">
             <Icon icon="solar:calendar-bold-duotone" width="16" class="me-1" />
             من
           </label>
-          <input type="date" v-model="fromStr" class="form-control form-control-sm" />
+          <DatePickerDMY :id="'histFrom'" v-model="fromStr" inputClass="form-control form-control-sm" wrapperClass="m-0" :aria-label="'من تاريخ'" />
         </div>
         <div class="col-6 col-md-3 col-lg-2">
-          <label class="form-label fw-bold small mb-1">
+          <label class="form-label fw-bold small mb-1" for="histTo">
             <Icon icon="solar:calendar-bold-duotone" width="16" class="me-1" />
             إلى
           </label>
-          <input type="date" v-model="toStr" class="form-control form-control-sm" />
+          <DatePickerDMY :id="'histTo'" v-model="toStr" inputClass="form-control form-control-sm" wrapperClass="m-0" :aria-label="'إلى تاريخ'" />
         </div>
         <div class="col-6 col-md-3 col-lg-2">
           <label class="form-label fw-bold small mb-1">
@@ -87,6 +88,7 @@
               size="sm"
               variant="success"
               icon="solar:export-bold-duotone"
+              data-testid="history-export"
               :disabled="filteredRows.length === 0"
               @click="exportData"
             >
@@ -278,6 +280,7 @@
             <DsButton
               size="sm"
               variant="outline"
+              data-testid="history-prev"
               :disabled="page <= 1 || loading"
               @click="prevPage"
               icon="solar:arrow-right-bold-duotone"
@@ -291,6 +294,7 @@
             <DsButton
               size="sm"
               variant="outline"
+              data-testid="history-next"
               :disabled="page * pageSize >= total || loading"
               @click="nextPage"
               icon="solar:arrow-left-bold-duotone"
@@ -305,6 +309,7 @@
 </template>
 
 <script setup lang="ts">
+import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 import { subjectIcon } from "../../../shared/icons/subjectIcons";
 import { ref, onMounted, computed } from "vue";
 import {

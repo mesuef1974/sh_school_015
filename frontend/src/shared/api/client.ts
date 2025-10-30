@@ -299,6 +299,33 @@ export async function logout() {
     try {
       localStorage.removeItem("sh_school_refresh");
     } catch {}
+
+    // Clear wing-specific UI caches/preferences
+    try {
+      localStorage.removeItem("wing_selected_classes");
+    } catch {}
+    try {
+      localStorage.removeItem("wing_approvals_prefs");
+    } catch {}
+    try {
+      localStorage.removeItem("wing_tt_weekly_col_widths");
+    } catch {}
+
+    // Clear wing context singleton and query caches
+    try {
+      const wc = await import("../composables/useWingContext");
+      if (wc && typeof (wc as any).clearWingContext === "function") {
+        (wc as any).clearWingContext();
+      }
+    } catch {}
+    try {
+      const qc = await import("../queryClient");
+      const queryClient = (qc as any).queryClient;
+      if (queryClient && typeof queryClient.clear === "function") {
+        queryClient.clear();
+      }
+    } catch {}
+
     // Clear authenticated state in Pinia (if store is initialized)
     try {
       const mod = await import("../../app/stores/auth");
@@ -309,6 +336,7 @@ export async function logout() {
         } catch {}
       }
     } catch {}
+
     // Best-effort: navigate to login and replace history to reduce back-navigation to protected routes
     try {
       const r = await import("../../app/router");
@@ -413,6 +441,7 @@ export async function getWingMe() {
     roles: string[];
     staff: { id?: number; full_name?: string | null };
     wings: { ids: number[]; names: string[] };
+    primary_wing?: { id?: number | null; name?: string | null; number?: number | null; supervisor_full_name?: string | null } | null;
     has_wing_supervisor_role: boolean;
   };
 }
@@ -537,6 +566,11 @@ export async function postWingDecide(payload: {
   return res.data as { updated: number; action: "approve" | "reject" };
 }
 
+export async function postWingSetExcused(payload: { ids: number[]; comment?: string }) {
+  const res = await api.post("/wing/set-excused/", payload);
+  return res.data as { updated: number; action: "set_excused" };
+}
+
 // ---- UI Tiles Designer API ----
 export async function getUiTilesEffective() {
   try {
@@ -550,4 +584,77 @@ export async function getUiTilesEffective() {
 export async function postUiTilesSave(payload: { version?: number; tiles: any[] }) {
   const res = await api.post("/ui/tiles/save", payload);
   return res.data as { saved: number; version?: number };
+}
+
+
+// ---- Absence Alerts & Compute APIs ----
+export async function getWingDailyAbsences(params: { date?: string; class_id?: number }) {
+  const res = await api.get("/wing/daily-absences/", { params });
+  return res.data as {
+    date: string;
+    counts: { excused: number; unexcused: number; none: number };
+    items: {
+      student_id: number;
+      student_name?: string | null;
+      class_id?: number | null;
+      class_name?: string | null;
+      state: "excused" | "unexcused" | "none";
+      p1?: string | null;
+      p2?: string | null;
+    }[];
+  };
+}
+
+// ---- Absence Alerts & Compute APIs ----
+export async function computeAbsenceDays(params: { student: number; from: string; to: string }) {
+  const res = await api.get("/attendance/absence/compute-days/", { params });
+  return res.data as { excused_days: number; unexcused_days: number; student: number; from: string; to: string };
+}
+
+export type AbsenceAlert = {
+  id: number;
+  number: number;
+  academic_year: string;
+  student: number;
+  student_name?: string;
+  class_name?: string;
+  parent_name?: string;
+  parent_mobile?: string;
+  period_start: string;
+  period_end: string;
+  excused_days: number;
+  unexcused_days: number;
+  notes?: string;
+  status: string;
+  wing?: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function createAbsenceAlert(payload: {
+  student: number;
+  period_start: string;
+  period_end: string;
+  notes?: string;
+}) {
+  const res = await api.post("/absence-alerts/", payload);
+  return res.data as AbsenceAlert;
+}
+
+export function getAbsenceAlertDocxHref(id: number) {
+  return api.getUri({ url: `/absence-alerts/${id}/docx/` });
+}
+
+// ---- Wing-scoped students (picker) ----
+export async function getWingStudents(params: { q?: string; class_id?: number }) {
+  const res = await api.get("/wing/students/", { params });
+  return res.data as {
+    items: { id: number; sid?: string | null; full_name?: string | null; class_id?: number | null; class_name?: string | null }[];
+  };
+}
+
+// ---- List Absence Alerts with filters ----
+export async function listAbsenceAlerts(params: { student?: number; status?: string; from?: string; to?: string }) {
+  const res = await api.get("/absence-alerts/", { params });
+  return res.data as any; // DRF default list format
 }
