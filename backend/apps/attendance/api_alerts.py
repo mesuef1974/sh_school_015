@@ -1,5 +1,4 @@
 from __future__ import annotations
-from datetime import date as _date
 
 from django.db import transaction
 from django.http import HttpResponse
@@ -130,7 +129,11 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
             "number": number,
             "academic_year": cy.name,
             "student": student.id,
-            "class_name": getattr(student, "class_name", getattr(student, "class_fk", None).name if getattr(student, "class_fk", None) else ""),
+            "class_name": getattr(
+                student,
+                "class_name",
+                (getattr(student, "class_fk", None).name if getattr(student, "class_fk", None) else ""),
+            ),
             "parent_name": getattr(student, "guardian_name", getattr(student, "parent_name", "")),
             "parent_mobile": getattr(student, "guardian_mobile", getattr(student, "parent_mobile", "")),
             "period_start": start_date,
@@ -162,7 +165,7 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
             content,
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
-        resp["Content-Disposition"] = f"attachment; filename=\"{fname}\""
+        resp["Content-Disposition"] = f'attachment; filename="{fname}"'
         return resp
 
 
@@ -193,4 +196,12 @@ class AbsenceComputeViewSet(viewsets.ViewSet):
                 return Response({"detail": "لا تملك صلاحية"}, status=403)
 
         o, x = compute_absence_days(student_id, start_date, end_date)
-        return Response({"excused_days": o, "unexcused_days": x, "student": student_id, "from": start_date, "to": end_date})
+        return Response(
+            {
+                "excused_days": o,
+                "unexcused_days": x,
+                "student": student_id,
+                "from": start_date,
+                "to": end_date,
+            }
+        )

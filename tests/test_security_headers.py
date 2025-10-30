@@ -1,6 +1,6 @@
 import os
 from contextlib import contextmanager
-from django.test import Client, override_settings
+from django.test import Client
 
 
 @contextmanager
@@ -49,7 +49,11 @@ def test_disable_security_headers_flag(db):
         c = Client()
         resp = c.get("/livez")
         assert "Referrer-Policy" not in resp
-        assert "X-Frame-Options" not in resp or resp["X-Frame-Options"] == "DENY" or resp["X-Frame-Options"] == "SAMEORIGIN"
+        assert (
+            "X-Frame-Options" not in resp
+            or resp["X-Frame-Options"] == "DENY"
+            or resp["X-Frame-Options"] == "SAMEORIGIN"
+        )
         assert "X-Content-Type-Options" not in resp
         assert "Content-Security-Policy" not in resp
         assert "Content-Security-Policy-Report-Only" not in resp

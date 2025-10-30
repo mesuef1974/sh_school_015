@@ -3,7 +3,6 @@ import datetime as dt
 from collections import defaultdict
 from typing import Tuple
 
-from django.utils import timezone
 
 from school.models import AttendanceRecord, AttendancePolicy, Term, SchoolHoliday  # type: ignore
 
@@ -43,11 +42,9 @@ def compute_absence_days(student_id: int, start_date: dt.date, end_date: dt.date
 
     holidays = _holidays_between(start_date, end_date)
 
-    rows = (
-        AttendanceRecord.objects
-        .filter(student_id=student_id, date__range=[start_date, end_date], period_number__in=list(first_two))
-        .values("date", "period_number", "status", "day_of_week")
-    )
+    rows = AttendanceRecord.objects.filter(
+        student_id=student_id, date__range=[start_date, end_date], period_number__in=list(first_two)
+    ).values("date", "period_number", "status", "day_of_week")
 
     per_day: dict[dt.date, dict[int, str | None]] = defaultdict(lambda: {n: None for n in first_two})
     day_of_week_map: dict[dt.date, int] = {}

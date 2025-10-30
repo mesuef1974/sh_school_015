@@ -17,7 +17,7 @@ class SecurityHeadersMiddleware:
         # CSP
         self.csp = os.getenv(
             "DJANGO_CSP",
-            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https: http:; frame-ancestors 'self'" ,
+            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https: http:; frame-ancestors 'self'",
         )
         self.csp_enforce = os.getenv("DJANGO_CSP_ENFORCE", "false").lower() == "true"
         # Referrer Policy

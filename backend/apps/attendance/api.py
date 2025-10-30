@@ -1530,8 +1530,6 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             ]
         }
         """
-        from django.db.models import Q
-        from django.utils import timezone as _tz
         from school.models import AttendanceRecord, Term, AttendancePolicy, SchoolHoliday  # type: ignore
 
         dt, err = _parse_date_or_400(request.query_params.get("date"))
@@ -1546,12 +1544,24 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         # Wing scoping
         staff, wing_ids = self._get_staff_and_wing_ids(request.user)
         if not wing_ids and not getattr(request.user, "is_superuser", False):
-            return Response({"date": dt.isoformat(), "counts": {"excused": 0, "unexcused": 0, "none": 0}, "items": []})
+            return Response(
+                {
+                    "date": dt.isoformat(),
+                    "counts": {"excused": 0, "unexcused": 0, "none": 0},
+                    "items": [],
+                }
+            )
 
         # Holiday check
         try:
             if SchoolHoliday.objects.filter(date=dt).exists():
-                return Response({"date": dt.isoformat(), "counts": {"excused": 0, "unexcused": 0, "none": 0}, "items": []})
+                return Response(
+                    {
+                        "date": dt.isoformat(),
+                        "counts": {"excused": 0, "unexcused": 0, "none": 0},
+                        "items": [],
+                    }
+                )
         except Exception:
             pass
 
@@ -1630,7 +1640,13 @@ class WingSupervisorViewSet(viewsets.ViewSet):
 
         # Sort with priority: unexcused, excused, none; then by class and name
         prio = {"unexcused": 0, "excused": 1, "none": 2}
-        items.sort(key=lambda x: (prio.get(x.get("state"), 9), x.get("class_name") or "", x.get("student_name") or ""))
+        items.sort(
+            key=lambda x: (
+                prio.get(x.get("state"), 9),
+                x.get("class_name") or "",
+                x.get("student_name") or "",
+            )
+        )
         return Response({"date": dt.isoformat(), "counts": counts, "items": items})
 
     @action(detail=False, methods=["get"], url_path="daily-absences/export")
@@ -1647,25 +1663,28 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         items = resp_json.get("items", []) if isinstance(resp_json, dict) else []
         # Build CSV
         import io
+
         output = io.StringIO()
         writer = csv.writer(output)
         writer.writerow(["student_id", "student_name", "class_id", "class_name", "p1", "p2", "state"])
         for it in items:
-            writer.writerow([
-                it.get("student_id"),
-                (it.get("student_name") or ""),
-                it.get("class_id"),
-                (it.get("class_name") or ""),
-                (it.get("p1") or ""),
-                (it.get("p2") or ""),
-                (it.get("state") or ""),
-            ])
+            writer.writerow(
+                [
+                    it.get("student_id"),
+                    (it.get("student_name") or ""),
+                    it.get("class_id"),
+                    (it.get("class_name") or ""),
+                    (it.get("p1") or ""),
+                    (it.get("p2") or ""),
+                    (it.get("state") or ""),
+                ]
+            )
         csv_text = output.getvalue()
         # Prepend BOM for Excel compatibility
         bom = "\ufeff"
         content = (bom + csv_text).encode("utf-8")
         resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
-        dt_str = (resp_json.get("date") if isinstance(resp_json, dict) else timezone.localdate().isoformat())
+        dt_str = resp_json.get("date") if isinstance(resp_json, dict) else timezone.localdate().isoformat()
         resp["Content-Disposition"] = f"attachment; filename=wing-daily-absences-{dt_str}.csv"
         return resp
 
@@ -1891,23 +1910,36 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             return data  # type: ignore
         items = data.get("items", []) if isinstance(data, dict) else []
         import io
+
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["class_id", "class_name", "period_number", "subject_id", "subject_name", "teacher_id", "teacher_name"])
+        writer.writerow(
+            [
+                "class_id",
+                "class_name",
+                "period_number",
+                "subject_id",
+                "subject_name",
+                "teacher_id",
+                "teacher_name",
+            ]
+        )
         for it in items:
-            writer.writerow([
-                it.get("class_id"),
-                (it.get("class_name") or ""),
-                it.get("period_number"),
-                it.get("subject_id"),
-                (it.get("subject_name") or ""),
-                it.get("teacher_id"),
-                (it.get("teacher_name") or ""),
-            ])
+            writer.writerow(
+                [
+                    it.get("class_id"),
+                    (it.get("class_name") or ""),
+                    it.get("period_number"),
+                    it.get("subject_id"),
+                    (it.get("subject_name") or ""),
+                    it.get("teacher_id"),
+                    (it.get("teacher_name") or ""),
+                ]
+            )
         csv_text = output.getvalue()
         content = ("\ufeff" + csv_text).encode("utf-8")
         resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
-        dt_str = (data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat())
+        dt_str = data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat()
         resp["Content-Disposition"] = f"attachment; filename=wing-entered-{dt_str}.csv"
         return resp
 
@@ -1980,23 +2012,36 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             return data  # type: ignore
         items = data.get("items", []) if isinstance(data, dict) else []
         import io
+
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["class_id", "class_name", "period_number", "subject_id", "subject_name", "teacher_id", "teacher_name"])
+        writer.writerow(
+            [
+                "class_id",
+                "class_name",
+                "period_number",
+                "subject_id",
+                "subject_name",
+                "teacher_id",
+                "teacher_name",
+            ]
+        )
         for it in items:
-            writer.writerow([
-                it.get("class_id"),
-                (it.get("class_name") or ""),
-                it.get("period_number"),
-                it.get("subject_id"),
-                (it.get("subject_name") or ""),
-                it.get("teacher_id"),
-                (it.get("teacher_name") or ""),
-            ])
+            writer.writerow(
+                [
+                    it.get("class_id"),
+                    (it.get("class_name") or ""),
+                    it.get("period_number"),
+                    it.get("subject_id"),
+                    (it.get("subject_name") or ""),
+                    it.get("teacher_id"),
+                    (it.get("teacher_name") or ""),
+                ]
+            )
         csv_text = output.getvalue()
         content = ("\ufeff" + csv_text).encode("utf-8")
         resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
-        dt_str = (data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat())
+        dt_str = data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat()
         resp["Content-Disposition"] = f"attachment; filename=wing-missing-{dt_str}.csv"
         return resp
 

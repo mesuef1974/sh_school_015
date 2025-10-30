@@ -85,6 +85,7 @@ if _SENTRY_DSN:
     try:
         import sentry_sdk  # type: ignore
         from sentry_sdk.integrations.django import DjangoIntegration  # type: ignore
+
         sentry_sdk.init(
             dsn=_SENTRY_DSN,
             integrations=[DjangoIntegration()],

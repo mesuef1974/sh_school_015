@@ -5,7 +5,6 @@ import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -17,7 +16,10 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="AlertNumberSequence",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID"),
+                ),
                 ("academic_year", models.CharField(max_length=20, unique=True)),
                 ("last_number", models.PositiveIntegerField(default=0)),
             ],
@@ -29,7 +31,10 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="AbsenceAlert",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID"),
+                ),
                 ("number", models.PositiveIntegerField()),
                 ("academic_year", models.CharField(max_length=20)),
                 ("class_name", models.CharField(max_length=50)),
@@ -77,7 +82,12 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "wing",
-                    models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.PROTECT, to="school.wing"),
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.PROTECT,
+                        to="school.wing",
+                    ),
                 ),
             ],
             options={

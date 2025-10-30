@@ -14,9 +14,7 @@ class AlertNumberSequence(models.Model):
     @classmethod
     def next_number(cls, year_name: str) -> int:
         with transaction.atomic():
-            seq, _ = cls.objects.select_for_update().get_or_create(
-                academic_year=year_name, defaults={"last_number": 0}
-            )
+            seq, _ = cls.objects.select_for_update().get_or_create(academic_year=year_name, defaults={"last_number": 0})
             seq.last_number += 1
             seq.save(update_fields=["last_number"])
             return seq.last_number
