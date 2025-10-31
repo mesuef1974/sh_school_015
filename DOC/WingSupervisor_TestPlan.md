@@ -24,7 +24,8 @@
 - تكامل API
   - GET /api/v1/wing/pending/ يعيد قائمة معلّقة. [IT-Pending-200]
   - POST /api/v1/wing/decide/ يعتمد/يرفض ويعيد {updated, action}. [IT-Decide-200]
-  - POST /api/v1/wing/set-excused/ يحدّث الحالة ويقفل السجل. [IT-Excused-200]
+  - POST /api/v1/wing/set-excused/ يحدّث الحالة ويقفل السجل.
+    - يدعم رفع مستند إثبات اختياري (صورة/PDF) عبر multipart/form-data: evidence، evidence_note، مع ids كـ JSON string. الحجم الأقصى 5MB، الأنواع المسموحة: image/jpeg, image/png, image/webp, application/pdf. [IT-Excused-200] [IT-Excused-Evidence]
 - E2E
   - التبديل بين الوضعين (daily/period)، تحديد عناصر، تنفيذ اعتماد/رفض/اعتبار بعذر مع رسائل نجاح. [E2E-Approvals-Flow]
 - A11y

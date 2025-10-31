@@ -266,7 +266,7 @@
                           color: getClassColor(cell(d, p)!.classroom_id).text,
                         }"
                       >
-                        <Icon :icon="subjectIcon(cell(d, p)?.subject_name)" width="16" />
+                        <Icon v-if="subjectIcon(cell(d, p)?.subject_name)" :icon="subjectIcon(cell(d, p)?.subject_name)" width="16" />
                         <span class="subject-name">{{ cell(d, p)?.subject_name || "—" }}</span>
                       </div>
                       <div class="classroom-info">

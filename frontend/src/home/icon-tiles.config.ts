@@ -203,6 +203,16 @@ export const tiles: Tile[] = [
     color: "#7f8c8d",
     roles: ["wing_supervisor"],
   },
+  // Wing diagnostics (visible to Wing Supervisor)
+  {
+    id: "debug_subject_icons",
+    title: "تشخيص الأيقونات",
+    subtitle: "المواد بلا أيقونات",
+    to: "/debug/subject-icons",
+    icon: "solar:bookmark-square-bold-duotone",
+    color: "#9b59b6",
+    roles: ["wing_supervisor"],
+  },
 
   // Admin tiles
   {

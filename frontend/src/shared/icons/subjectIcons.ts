@@ -28,6 +28,37 @@
 // - لا تغيّر fallback حتى تبقى كل مادة بأيقونة دائمًا
 
 // Light normalization to improve regex matching across Arabic variants and punctuation
+// Dev-only diagnostics flag: can be enabled via Vite env or at runtime by the diagnostics page
+function _debugEnabled(): boolean {
+  try {
+    // Prefer runtime toggle first (set by diagnostics page)
+    if (typeof globalThis !== 'undefined' && (globalThis as any).__DEBUG_SUBJECT_ICONS === true) return true;
+  } catch {}
+  try {
+    // Fallback to Vite env flag
+    return typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_DEBUG_SUBJECT_ICONS === 'true';
+  } catch {
+    return false;
+  }
+}
+export function enableSubjectIconDiagnosticsRuntime(enable: boolean) {
+  try {
+    (globalThis as any).__DEBUG_SUBJECT_ICONS = !!enable;
+  } catch {}
+}
+// Collect diagnostics for subjects that fell back to the default icon (dev-only)
+const _fallbackSubjects = new Set<string>();
+const _fallbackSubjectsNorm = new Set<string>();
+export function getSubjectIconDiagnostics() {
+  return {
+    raw: Array.from(_fallbackSubjects.values()).sort(),
+    normalized: Array.from(_fallbackSubjectsNorm.values()).sort(),
+  };
+}
+export function clearSubjectIconDiagnostics() {
+  _fallbackSubjects.clear();
+  _fallbackSubjectsNorm.clear();
+}
 function normalizeSubjectName(input: string): string {
   let s = (input || "").toLowerCase();
   // Trim and collapse whitespace
@@ -59,16 +90,32 @@ function normalizeSubjectName(input: string): string {
 export const SUBJECT_ICON_RULES: { re: RegExp; icon: string }[] = [
   // Math & related
   {
-    re: /(رياض|رياضيات|math|جبر|هندسه|مثلثات|تفاضل|تكامل|احصاء|تحليل|احتمالات|قياس)/i,
+    re: /(رياضيات|math|جبر|هندسه|مثلثات|تفاضل|تكامل|احصاء|تحليل|احتمالات|قياس)/i,
     icon: "solar:calculator-bold-duotone",
   },
+  // Early Childhood / Kindergarten
+  {
+    re: /(رياض الاطفال|رياضُ الاطفال|رياض الاطفال|طفوله مبكره|الطفوله المبكره|الطفولة المبكره|الطفولة المبكرة|حضانة|حاضنه|kindergarten|nursery)/i,
+    icon: "mdi:human-child",
+  },
+  // Philosophy / Logic (placed early to avoid capture by generic studies)
+  {
+    re: /(فلسفه|فلسفة|منطق|تفكير نقدي|تفكير ناقد|فكر|اخلاقيات|ethics|philosophy|logic)/i,
+    icon: "mdi:head-lightbulb",
+  },
   // Psychology (put before generic "Sciences" so it doesn't get captured by "علوم")
+  { re: /(علم النفس|علوم النفس|نفسي|نفسيه|psychology|psych)/i, icon: "mdi:brain" },
+  // High-priority: Computing/IT specific phrases that include "علوم" to avoid being captured by generic "علوم"
+  {
+    re: /(علوم? الحاسب|علوم? الحاسوب|علوم? الكمبيوتر|علم الحاسب|علم الحاسوب|علم الكمبيوتر|حاسب الي|حاسب آلي|computer science|cs|تقنيه المعلومات|تقنية المعلومات|تكنولوجيا المعلومات|نظم معلومات|معلوماتيه|معلوماتية|information technology)/i,
+    icon: "solar:laptop-2-bold-duotone",
+  },
   // Sciences
   { re: /(فيزياء|phys|كهرومغناطيس|ميكانيكا|فلك|فضاء)/i, icon: "mdi:atom" },
   { re: /(كيمياء|chem|حيويه|عضويه|غير عضويه|تحليليه)/i, icon: "mdi:flask" },
   { re: /(احياء|biology|bio|احياء دقيقه|علم الاحياء|بيولوجيا)/i, icon: "mdi:dna" },
   {
-    re: /(علوم|science|بيئه|بيئي|environment|جيولوجيا|علوم الارض|ارض|فضاء|جيولوجي)/i,
+    re: /(علوم(?!\s*(الحاسب|الحاسوب|الكمبيوتر))|science|بيئه|بيئي|environment|جيولوجيا|علوم الارض|ارض|فضاء|جيولوجي)/i,
     icon: "solar:test-tube-bold-duotone",
   },
   { re: /(مختبر|مختبرات|معمل|لاب|lab)/i, icon: "mdi:flask-outline" },
@@ -126,8 +173,8 @@ export const SUBJECT_ICON_RULES: { re: RegExp; icon: string }[] = [
   },
   // Vocational, Engineering, Home Economics
   {
-    re: /(تصميم|نجاره|ميكانيكا|كهرباء|الترون|الكترون|الكترونيات|كهروميكانيك|ورش|مهنيه|مهنه|حداده|هندسه|تطبيقيه|صيانه|تبريد|تكييف|لحام)/i,
-    icon: "mdi:cog",
+    re: /(تصميم|نجاره|ميكانيكا|كهرباء|الترون|الكترون|الكترونيات|كهروميكانيك|ورش|مهنيه|مهنه|حداده|هندسه|تطبيقيه|صيانه|تبريد|تكييف|لحام|مكانيك|كهرباء)/i,
+    icon: "mdi:hammer-wrench",
   },
   {
     re: /(اقتصاد منزلي|تربيه اسريه|اسريه|منزليه|خياطه|تغذيه|منزلي|اسريه)/i,
@@ -143,16 +190,23 @@ export const SUBJECT_ICON_RULES: { re: RegExp; icon: string }[] = [
     re: /(مهارات|حياتيه|كفايات حياتيه|كفاءات حياتيه|life|قيم|سلوك|مرشد|ارشاد|توجيه|قياده|اتصال|تواصل|مكتبه|بحث|بحث علمي|تعلم|تعلم نشط|تفكير نقدي|منطق|ابداع|ابتكار|تربيه خاصه|صعوبات تعلم|دعم تعلم)/i,
     icon: "solar:leaf-bold-duotone",
   },
-  // Psychology
-  { re: /(علم النفس|علوم النفس|نفسي|نفسيه|psychology)/i, icon: "mdi:brain" },
 ];
 
 function isExcludedSubject(name?: string | null): boolean {
   const raw = (name ?? "").toString().trim();
   if (!raw) return true; // empty labels are excluded
   const s = normalizeSubjectName(raw);
-  // Exclude the generic placeholder subject "عام" or labels that are just dashes
-  if (s === "عام" || s === "-" || s === "عامه") return true;
+  // Exclude placeholders and non-instructional/administrative slots commonly seen in timetables
+  const EX = [
+    "عام","عامه","-","—","بدون","بدون معلم","بدون مدرس",
+    "فراغ","حصه فراغ","حصة فراغ","احتياط","اشراف","إشراف","مناوبه","مناوبة",
+    "متابعه","متابعة","فسحه","فسحة","استراحه","استراحة","طابور","صلاه","صلاة",
+    "نشاط","نشاط حر","نشاط لا صفي","نشاط طلابي","اذاعة","اذاعه","حفل","تدريب","اجتماع","امتحان","اختبار",
+    "غرفه مصادر","غرفة مصادر","مصادر التعلم","خارج القاعه","خارج القاعة","خارج الفصل","خارج الصف"
+  ];
+  if (EX.includes(s)) return true;
+  // Also exclude labels that are only numbers or only punctuation after normalization
+  if (!/\p{L}/u.test(s)) return true;
   return false;
 }
 
@@ -165,5 +219,15 @@ export function subjectIcon(name?: string | null): string {
     if (r.re.test(sNorm) || r.re.test(sRawLower)) return r.icon;
   }
   // Fallback: show a clear check mark icon as agreed
+  if (raw.trim()) {
+    if (_debugEnabled()) {
+      try {
+        _fallbackSubjects.add(raw.trim());
+        _fallbackSubjectsNorm.add(sNorm);
+      } catch {}
+      // eslint-disable-next-line no-console
+      console.warn("[subjectIcon] Fallback used for subject label:", { raw, normalized: sNorm });
+    }
+  }
   return "solar:check-circle-bold-duotone";
 }

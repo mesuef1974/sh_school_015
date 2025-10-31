@@ -4,11 +4,16 @@ import { getWingMe } from "../api/client";
 const cached = ref<any | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
+// Selected wing override (set by pages that allow choosing a wing)
+const selectedWingId = ref<number | null>(null);
+const selectedWingName = ref<string | null>(null);
 
 export function clearWingContext() {
   cached.value = null;
   error.value = null;
   loading.value = false;
+  selectedWingId.value = null;
+  selectedWingName.value = null;
 }
 
 export function useWingContext() {
@@ -30,11 +35,46 @@ export function useWingContext() {
       loading.value = false;
     }
   }
+  function setSelectedWing(id: number | null, name?: string | null) {
+    selectedWingId.value = id != null ? Number(id) : null;
+    selectedWingName.value = (name ?? null) as any;
+  }
+  function clearSelectedWing() {
+    selectedWingId.value = null;
+    selectedWingName.value = null;
+  }
+  const roles = computed(() => (cached.value?.roles ?? []).map((r: any) => String(r || "").trim().toLowerCase()));
+  const isSuper = computed(() => Boolean(cached.value?.user?.is_superuser));
+  const hasWingRole = computed(() => {
+    // Accept common aliases (Arabic/English) for resiliency
+    const aliases = ["wing_supervisor", "مشرف الجناح", "مشرف_الجناح", "مشرف جناح", "supervisor_wing"];
+    const hasAlias = roles.value.some((r: string) => aliases.includes(r));
+    const fuzzy = roles.value.some((r: string) => r.includes("wing") && r.includes("supervisor"));
+    return Boolean(isSuper.value || hasAlias || fuzzy);
+  });
   const wingLabelFull = computed(() => {
     const me = cached.value || {};
     const pw = me?.primary_wing || null;
     const sup = me?.staff?.full_name || me?.user?.full_name || me?.user?.username || "";
-    // Build: مشرف الجناح <اسم الجناح> - <رقم الجناح> - <اسم مشرف الجناح>
+
+    // If a wing is explicitly selected (e.g., from timetable selector), prefer it for the label.
+    if (selectedWingId.value) {
+      const parts: string[] = [];
+      const nameStrRaw = (selectedWingName.value || "").toString();
+      let nameStr = nameStrRaw.trim();
+      if (nameStr) nameStr = nameStr.replace(/^\s*(?:الجناح|جناح)\s+/u, "").trim();
+      if (nameStr) parts.push(nameStr);
+      // Show the ID if we don't have a number; avoid duplicating if already in name
+      const idStr = String(selectedWingId.value);
+      if (idStr && !nameStr.includes(idStr)) parts.push(idStr);
+      // Show supervisor name only if selected wing equals primary wing (we know that supervisor)
+      const sameAsPrimary = pw?.id && Number(pw.id) === Number(selectedWingId.value);
+      if (sameAsPrimary && sup) parts.push(String(sup));
+      if (!parts.length) return "";
+      return `مشرف الجناح ${parts.join(" - ")}`;
+    }
+
+    // Default: use primary wing info from backend
     const parts: string[] = [];
     let nameStr = pw?.name ? String(pw.name) : "";
     // Sanitize wing name: remove leading 'جناح ' or 'الجناح '
@@ -53,5 +93,5 @@ export function useWingContext() {
   const primaryWing = computed(() => (cached.value?.primary_wing || null));
   const supervisorName = computed(() => (cached.value?.staff?.full_name || cached.value?.user?.full_name || cached.value?.user?.username || null));
 
-  return { ensureLoaded, loading, error, wingLabelFull, primaryWing, supervisorName, me: cached };
+  return { ensureLoaded, loading, error, wingLabelFull, primaryWing, supervisorName, me: cached, setSelectedWing, clearSelectedWing, selectedWingId, hasWingRole, isSuper };
 }

@@ -199,7 +199,7 @@
                       "
                     >
                       <div class="cell-subject one-line">
-                        <Icon :icon="subjectIcon(dailyItemFor(cls.id, p)?.subject_name)" class="subject-icon" />
+                        <Icon v-if="subjectIcon(dailyItemFor(cls.id, p)?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, p)?.subject_name)" class="subject-icon" />
                         <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, p)?.subject_name || 'مادة' }}</span>
                       </div>
                       <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, p)?.teacher_name || '—' }}</div>
@@ -260,7 +260,7 @@
                             "
                           >
                             <div class="mini-subj one-line">
-                              <Icon :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], p)?.subject_name)" class="subject-icon" />
+                              <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], p)?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], p)?.subject_name)" class="subject-icon" />
                               <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], p)?.subject_name || 'مادة' }}</span>
                             </div>
                             <div class="mini-teacher one-line truncate-1">
@@ -301,7 +301,7 @@ import { formatDateDMY } from "../../../shared/utils/date";
 import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 // Wing context: ensure dynamic subtitle like other Wing pages
 import { useWingContext } from '../../../shared/composables/useWingContext';
-const { ensureLoaded, wingLabelFull } = useWingContext();
+const { ensureLoaded, wingLabelFull, setSelectedWing } = useWingContext();
 onMounted(() => { try { ensureLoaded(); } catch {} });
 
 const today = new Date();
@@ -643,6 +643,11 @@ async function loadMe() {
       const keys = Object.keys(map);
       if (keys.length) wingId.value = Number(keys[0]);
     }
+    // Reflect current selection in shared Wing context for header subtitle
+    if (wingId.value) {
+      const name = (wingOptions.value as any)[wingId.value] as string | undefined;
+      try { setSelectedWing(wingId.value, name || null); } catch {}
+    }
   } catch {
     wingOptions.value = {} as any;
   }
@@ -703,6 +708,13 @@ async function loadData() {
     loading.value = false;
   }
 }
+
+watch(wingId, (nv) => {
+  try {
+    const name = (wingOptions.value as any)[nv as any] as string | undefined;
+    setSelectedWing(nv ?? null, name || null);
+  } catch {}
+});
 
 onMounted(async () => {
   loadWeeklyWidths();

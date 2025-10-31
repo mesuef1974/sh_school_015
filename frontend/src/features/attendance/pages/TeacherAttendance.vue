@@ -37,7 +37,7 @@
               <Icon icon="solar:calendar-bold-duotone" width="18" />
               التاريخ
             </label>
-            <DatePickerDMY :id="'teachDate'" v-model="dateStr" inputClass="form-control" wrapperClass="m-0" :aria-label="'اختيار التاريخ'" @change="onDateChange" />
+            <DatePickerDMY :id="'teachDate'" v-model="dateStr" inputClass="form-control" wrapperClass="m-0" :aria-label="'اختيار التاريخ'" @change="onDateChange" :helperPrefix="'التاريخ المختار:'" />
           </div>
 
           <div class="form-field form-field-wide">

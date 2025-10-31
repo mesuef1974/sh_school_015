@@ -142,6 +142,48 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "الغياب اليومي للجناح" },
   },
   {
+    path: "/wing/attendance/missing",
+    name: "wing-attendance-missing",
+    component: () => import("../features/wings/pages/WingAttendanceMissing.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "حصص بلا إدخال" },
+  },
+  {
+    path: "/wing/exits",
+    name: "wing-exits",
+    component: () => import("../features/wings/pages/WingExits.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "أذونات الخروج" },
+  },
+  {
+    path: "/wing/incidents",
+    name: "wing-incidents",
+    component: () => import("../features/wings/pages/WingIncidents.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "البلاغات" },
+  },
+  {
+    path: "/wing/classes",
+    name: "wing-classes",
+    component: () => import("../features/wings/pages/WingClasses.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "صفوف وطلبة" },
+  },
+  {
+    path: "/wing/reports",
+    name: "wing-reports",
+    component: () => import("../features/wings/pages/WingReports.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "تقارير" },
+  },
+  {
+    path: "/wing/notifications",
+    name: "wing-notifications",
+    component: () => import("../features/wings/pages/WingNotifications.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "التنبيهات" },
+  },
+  {
+    path: "/wing/settings",
+    name: "wing-settings",
+    component: () => import("../features/wings/pages/WingSettings.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "إعدادات الجناح" },
+  },
+  {
     path: "/designer/tiles",
     name: "tiles-designer",
     component: () => import("../features/design/TilesDesigner.vue"),
@@ -150,6 +192,13 @@ const routes: RouteRecordRaw[] = [
       requiredRoles: ["principal", "it", "admin_deputy"],
       titleAr: "مصمم الأيقونات",
     },
+  },
+  // Debug: Subject Icons diagnostics (integrated for Wing Supervisor role)
+  {
+    path: "/debug/subject-icons",
+    name: "debug-subject-icons",
+    component: () => import("../features/debug/SubjectIconDiagnostics.vue"),
+    meta: { requiresAuth: true, titleAr: "تشخيص أيقونات المواد" },
   },
 ];
 

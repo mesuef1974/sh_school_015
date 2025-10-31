@@ -17,10 +17,12 @@
           <div class="text-muted text-sm">نسب وملخصات الحضور لليوم المحدد</div>
         </div>
         <div class="toolbar-actions d-flex align-items-center gap-2 flex-wrap">
-          <input
-            type="date"
+          <DatePickerDMY
+            :id="'stats-date'"
             v-model="dateStr"
-            class="form-control toolbar-date"
+            :aria-label="'اختيار التاريخ'"
+            inputClass="form-control toolbar-date"
+            wrapperClass="m-0"
             @change="loadSummary"
           />
 
@@ -284,6 +286,7 @@ import {
   GridComponent,
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
+import DatePickerDMY from "../../components/ui/DatePickerDMY.vue";
 
 echarts.use([
   PieChart,

@@ -1426,9 +1426,12 @@ class WingSupervisorViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=["get"], url_path="students")
     def students(self, request: Request) -> Response:
-        """List students scoped to the supervisor's wing(s) for use in pickers.
-        Optional filter: q (search in full_name or sid startswith), class_id
-        Returns minimal fields: id, sid, full_name, class_id, class_name
+        """List students scoped to the supervisor's wing(s) for use in pickers and tables.
+        Optional filters:
+          - q: search in full_name (icontains) or sid (startswith)
+          - class_id: restrict to a specific class
+        Returns fields useful for wing supervisor views: id, sid, full_name, class_id, class_name,
+        parent_name, parent_phone, extra_phone_no, phone_no, active, needs
         """
         staff, wing_ids = self._get_staff_and_wing_ids(request.user)
         if not wing_ids and not getattr(request.user, "is_superuser", False):
@@ -1458,8 +1461,55 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     "full_name": getattr(s, "full_name", None),
                     "class_id": getattr(s, "class_fk_id", None),
                     "class_name": getattr(getattr(s, "class_fk", None), "name", None),
+                    # Extra info for wing supervisor
+                    "parent_name": getattr(s, "parent_name", None),
+                    "parent_phone": getattr(s, "parent_phone", None),
+                    "extra_phone_no": getattr(s, "extra_phone_no", None),
+                    "phone_no": getattr(s, "phone_no", None),
+                    "active": bool(getattr(s, "active", False)),
+                    "needs": bool(getattr(s, "needs", False)),
                 }
                 for s in qs
+            ]
+            return Response({"items": items})
+        except Exception as e:
+            return Response({"detail": f"failed: {e}"}, status=500)
+
+    @action(detail=False, methods=["get"], url_path="classes")
+    def classes(self, request: Request) -> Response:
+        """List classes scoped to the supervisor's wing(s) with basic info.
+        Optional filter: q (search in name or section)
+        Returns: { items: [{id, name, grade, section, wing_id, wing_name, students_count}] }
+        """
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"items": []})
+        q = (request.query_params.get("q") or "").strip()
+        try:
+            from django.db.models import Q
+            from school.models import Class  # type: ignore
+
+            qs = Class.objects.select_related("wing")
+            if wing_ids and not getattr(request.user, "is_superuser", False):
+                qs = qs.filter(wing_id__in=wing_ids)
+            if q:
+                qs = qs.filter(Q(name__icontains=q) | Q(section__icontains=q))
+            # Order: grade asc, name asc for predictability
+            try:
+                qs = qs.order_by("grade", "name")
+            except Exception:
+                qs = qs.order_by("name")
+            items = [
+                {
+                    "id": c.id,
+                    "name": getattr(c, "name", None),
+                    "grade": getattr(c, "grade", None),
+                    "section": getattr(c, "section", None),
+                    "wing_id": getattr(c, "wing_id", None),
+                    "wing_name": getattr(getattr(c, "wing", None), "name", None),
+                    "students_count": getattr(c, "students_count", 0),
+                }
+                for c in qs[:300]
             ]
             return Response({"items": items})
         except Exception as e:
@@ -1799,24 +1849,50 @@ class WingSupervisorViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["post"], url_path="set-excused")
     def set_excused(self, request: Request) -> Response:
         """Mark selected attendance records as 'excused' (إذن خروج) by Wing Supervisor.
-        Payload: { ids: number[], comment?: string }
+        Accepts optional evidence upload (image/PDF) to support converting absence to excused when proof is provided.
+        Payload (JSON or multipart/form-data):
+          - ids: number[] (required)
+          - comment?: string
+          - evidence: file (optional, jpg/png/jpeg/webp/pdf, <= 5MB)
+          - evidence_note?: string (optional)
         Only records within the supervisor's wing(s) are affected.
         """
         payload = request.data or {}
         ids = payload.get("ids") or []
+        # Support ids as JSON string (from multipart forms)
+        if isinstance(ids, str):
+            try:
+                import json as _json
+                ids = _json.loads(ids)
+            except Exception:
+                ids = []
         if not isinstance(ids, list) or not ids:
             return Response({"detail": "ids must be a non-empty list"}, status=400)
         comment = (payload.get("comment") or "").strip()
+        evidence_note = (payload.get("evidence_note") or "").strip()
         staff, wing_ids = self._get_staff_and_wing_ids(request.user)
         if not wing_ids and not getattr(request.user, "is_superuser", False):
             return Response({"detail": "no wing scope"}, status=403)
         try:
             from django.utils import timezone
             from school.models import AttendanceRecord  # type: ignore
+            from apps.attendance.models import AttendanceEvidence  # type: ignore
 
             now = timezone.now().strftime("%Y-%m-%d %H:%M")
             reviewer = getattr(staff, "full_name", None) or getattr(request.user, "username", "")
             updated = 0
+            evidence_file = request.FILES.get("evidence")
+            saved_evidence = []
+            # Validate file if present
+            if evidence_file is not None:
+                allowed = {"image/jpeg", "image/png", "image/webp", "application/pdf"}
+                ctype = getattr(evidence_file, "content_type", "") or ""
+                size = getattr(evidence_file, "size", 0) or 0
+                if ctype not in allowed:
+                    return Response({"detail": "unsupported evidence content-type"}, status=400)
+                if size > 5 * 1024 * 1024:
+                    return Response({"detail": "evidence file too large (max 5MB)"}, status=400)
+
             qs = AttendanceRecord.objects.filter(id__in=ids)
             if wing_ids and not getattr(request.user, "is_superuser", False):
                 qs = qs.filter(classroom__wing_id__in=wing_ids)
@@ -1833,7 +1909,23 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     updated += 1
                 except Exception:
                     continue
-            return Response({"updated": updated, "action": "set_excused"})
+                # Save evidence (duplicate file per record if multiple ids are provided)
+                if evidence_file is not None:
+                    try:
+                        ev = AttendanceEvidence(
+                            record=r,
+                            file=evidence_file,
+                            content_type=getattr(evidence_file, "content_type", "") or "",
+                            original_name=getattr(evidence_file, "name", "") or "",
+                            note=evidence_note[:300],
+                            uploaded_by=getattr(request, "user", None),
+                        )
+                        ev.save()
+                        saved_evidence.append({"record": r.id, "evidence_id": ev.id})
+                    except Exception:
+                        # Evidence failure should not rollback status change; continue
+                        pass
+            return Response({"updated": updated, "action": "set_excused", "evidence_saved": len(saved_evidence), "evidence": saved_evidence})
         except Exception as e:
             return Response({"detail": f"failed: {e}"}, status=500)
 

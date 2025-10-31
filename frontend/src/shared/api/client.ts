@@ -566,9 +566,30 @@ export async function postWingDecide(payload: {
   return res.data as { updated: number; action: "approve" | "reject" };
 }
 
-export async function postWingSetExcused(payload: { ids: number[]; comment?: string }) {
-  const res = await api.post("/wing/set-excused/", payload);
-  return res.data as { updated: number; action: "set_excused" };
+export async function postWingSetExcused(payload: {
+  ids: number[];
+  comment?: string;
+  evidenceFile?: File | null;
+  evidenceNote?: string;
+}) {
+  // When evidence file provided → send as multipart/form-data; else JSON
+  if (payload.evidenceFile) {
+    const fd = new FormData();
+    // DRF parsers expect simple repeated fields or JSON string for arrays.
+    // We'll send JSON string for ids to keep it simple.
+    fd.append("ids", JSON.stringify(payload.ids));
+    if (payload.comment) fd.append("comment", payload.comment);
+    if (payload.evidenceNote) fd.append("evidence_note", payload.evidenceNote);
+    fd.append("evidence", payload.evidenceFile);
+    const res = await api.post("/wing/set-excused/", fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data as { updated: number; action: "set_excused"; evidence_saved?: number };
+  } else {
+    const { evidenceFile, evidenceNote, ...json } = payload as any;
+    const res = await api.post("/wing/set-excused/", json);
+    return res.data as { updated: number; action: "set_excused" };
+  }
 }
 
 // ---- UI Tiles Designer API ----
@@ -645,11 +666,31 @@ export function getAbsenceAlertDocxHref(id: number) {
   return api.getUri({ url: `/absence-alerts/${id}/docx/` });
 }
 
+// ---- Wing-scoped classes ----
+export async function getWingClasses(params: { q?: string } = {}) {
+  const res = await api.get("/wing/classes/", { params });
+  return res.data as {
+    items: { id: number; name?: string | null; grade?: number | null; section?: string | null; wing_id?: number | null; wing_name?: string | null; students_count?: number | null }[];
+  };
+}
+
 // ---- Wing-scoped students (picker) ----
 export async function getWingStudents(params: { q?: string; class_id?: number }) {
   const res = await api.get("/wing/students/", { params });
   return res.data as {
-    items: { id: number; sid?: string | null; full_name?: string | null; class_id?: number | null; class_name?: string | null }[];
+    items: {
+      id: number;
+      sid?: string | null;
+      full_name?: string | null;
+      class_id?: number | null;
+      class_name?: string | null;
+      parent_name?: string | null;
+      parent_phone?: string | null;
+      extra_phone_no?: string | null;
+      phone_no?: string | null;
+      active?: boolean | null;
+      needs?: boolean | null;
+    }[];
   };
 }
 

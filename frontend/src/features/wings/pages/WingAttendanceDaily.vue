@@ -16,7 +16,18 @@
         v-model="dateStr"
         @change="loadAll"
       />
-      <button class="btn btn-outline-secondary" type="button" @click="loadAll">
+      <label class="visually-hidden" for="wing-class-filter">تصفية حسب الصف</label>
+      <select
+        id="wing-class-filter"
+        class="form-select form-select-sm w-auto ms-2"
+        v-model.number="classId"
+        @change="loadAll"
+        :aria-label="'تصفية حسب الصف'"
+      >
+        <option :value="0">كل الصفوف</option>
+        <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name }}</option>
+      </select>
+      <button class="btn btn-outline-secondary" type="button" @click="loadAll" aria-label="تحديث البيانات">
         <Icon icon="solar:refresh-bold-duotone" /> تحديث
       </button>
     </div>
@@ -194,7 +205,14 @@
 import { onMounted } from 'vue';
 import { useWingContext } from '../../../shared/composables/useWingContext';
 const { ensureLoaded, wingLabelFull } = useWingContext();
-onMounted(() => { ensureLoaded(); });
+onMounted(async () => {
+  await ensureLoaded();
+  try {
+    const res = await getWingClasses({});
+    classes.value = res.items?.map((c: any) => ({ id: c.id, name: c.name || `#${c.id}` })) || [];
+  } catch { classes.value = []; }
+  await loadAll();
+});
 import { ref, computed } from "vue";
 import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 import { Icon } from "@iconify/vue";
@@ -211,6 +229,7 @@ import {
   getOpenExitEvents,
   listAbsenceAlerts,
   getAbsenceAlertDocxHref,
+  getWingClasses,
 } from "../../../shared/api/client";
 import { useToast } from "vue-toastification";
 
@@ -220,9 +239,17 @@ const dateStr = ref<string>(today);
 const loadingAll = ref(false);
 const error = ref<string | null>(null);
 
+// Filters
+const classId = ref<number>(0);
+const classes = ref<{ id: number; name?: string | null }[]>([]);
+
 // CSV export hrefs (direct links proxied via Vite to backend)
 const apiBase = "/api/v1";
-const dailyCsvHref = computed(() => `${apiBase}/wing/daily-absences/export/?date=${encodeURIComponent(dateStr.value)}`);
+const dailyCsvHref = computed(() => {
+  const params = new URLSearchParams({ date: dateStr.value });
+  if (classId.value && classId.value > 0) params.append("class_id", String(classId.value));
+  return `${apiBase}/wing/daily-absences/export/?${params.toString()}`;
+});
 const enteredCsvHref = computed(() => `${apiBase}/wing/entered/export/?date=${encodeURIComponent(dateStr.value)}`);
 const missingCsvHref = computed(() => `${apiBase}/wing/missing/export/?date=${encodeURIComponent(dateStr.value)}`);
 
@@ -249,6 +276,9 @@ async function loadAll() {
   error.value = null;
   try {
     const paramsDate = { date: dateStr.value } as any;
+    if (classId.value && classId.value > 0) {
+      paramsDate.class_id = classId.value;
+    }
     const [ov, daily, pend, entered, missing, exits] = await Promise.all([
       getWingOverview(paramsDate),
       getWingDailyAbsences(paramsDate),
@@ -278,7 +308,7 @@ async function loadAll() {
   }
 }
 
-loadAll();
+// initial load happens after ensureLoaded and classes fetched
 </script>
 
 <style scoped>

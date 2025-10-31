@@ -172,7 +172,7 @@
                           v-if="row.subject_name"
                           class="d-inline-flex align-items-center gap-1"
                         >
-                          <Icon :icon="subjectIcon(row.subject_name)" class="me-1" />
+                          <Icon v-if="subjectIcon(row.subject_name)" :icon="subjectIcon(row.subject_name)" class="me-1" />
                           <span>{{ row.subject_name }}</span>
                         </span>
                         <span v-else>—</span>

@@ -241,6 +241,7 @@
               <td class="modern-td">
                 <div v-if="row.subject_name" class="subject-cell">
                   <Icon
+                    v-if="subjectIcon(row.subject_name)"
                     :icon="subjectIcon(row.subject_name)"
                     width="16"
                     style="color: var(--maron-primary)"
