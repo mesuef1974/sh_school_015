@@ -1,82 +1,8 @@
 <template>
   <section class="d-grid gap-3 page-grid page-grid-wide" dir="rtl">
-    <div class="d-flex align-items-center gap-2 mb-2 header-bar frame">
-      <Icon :icon="tileMeta.icon" class="header-icon" width="28" height="28" :style="{ color: tileMeta.color }" />
-      <div>
-        <div class="fw-bold">{{ tileMeta.title }}</div>
-        <div class="text-muted small" v-if="wingLabelFull">{{ wingLabelFull }}</div>
-        <div class="text-muted small" v-else>ملخص ومؤشرات اليوم لنطاق جناحك</div>
-      </div>
-      <span class="ms-auto"></span>
-      <!-- Merged toolbar controls into the page header -->
-      <div class="d-flex align-items-center gap-2 flex-wrap toolbar-controls">
-        <div class="d-flex align-items-center gap-2">
-          <Icon icon="solar:home-2-bold-duotone" />
-          <label class="visually-hidden" for="wingSelect">اختر الجناح</label>
-          <select
-            id="wingSelect"
-            aria-label="اختيار الجناح"
-            class="form-select form-select-sm"
-            v-model.number="wingId"
-            @change="loadData"
-          >
-            <option :value="null" disabled>اختر الجناح</option>
-            <option v-for="(name, id) in wingOptions" :key="id" :value="Number(id)">
-              {{ name }}
-            </option>
-          </select>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-          <Icon icon="solar:calendar-bold-duotone" />
-          <label class="visually-hidden" for="tt-date">التاريخ</label>
-          <DatePickerDMY
-            :id="'tt-date'"
-            :aria-label="'اختيار التاريخ'"
-            inputClass="form-control form-control-sm"
-            wrapperClass="m-0"
-            v-model="dateStr"
-            @change="loadData"
-          />
-        </div>
-        <!-- Mode toggle hidden: separated into two pages (daily/weekly) -->
-        <div class="btn-group btn-group-sm" role="group" aria-label="وضع العرض" style="display:none">
-          <button
-            type="button"
-            class="btn"
-            :class="mode === 'daily' ? 'btn-primary' : 'btn-outline-secondary'"
-            @click="setMode('daily')"
-          >
-            اليوم
-          </button>
-          <button
-            type="button"
-            class="btn"
-            :class="mode === 'weekly' ? 'btn-primary' : 'btn-outline-secondary'"
-            @click="setMode('weekly')"
-          >
-            أسبوع
-          </button>
-        </div>
-        <!-- Weekly-only column width controls -->
-        <DsButton
-          size="sm"
-          variant="outline"
-          icon="solar:printer-bold-duotone"
-          @click="printPage"
-          aria-label="طباعة الجدول"
-        >طباعة</DsButton>
-        <DsButton
-          size="sm"
-          variant="outline"
-          icon="solar:refresh-bold-duotone"
-          :loading="loading"
-          @click="loadData"
-          aria-label="تحديث البيانات"
-        >تحديث</DsButton>
-      </div>
-    </div>
+    <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" :color="tileMeta.color" />
 
-    <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap toolbar-card d-none">
+    <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap toolbar-card">
       <span class="vr mx-2 d-none d-sm-block"></span>
 
       <div class="d-flex align-items-center gap-2 flex-wrap ms-auto toolbar-controls">
@@ -301,6 +227,7 @@ import { formatDateDMY } from "../../../shared/utils/date";
 import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 // Wing context: ensure dynamic subtitle like other Wing pages
 import { useWingContext } from '../../../shared/composables/useWingContext';
+import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 const { ensureLoaded, wingLabelFull, setSelectedWing } = useWingContext();
 onMounted(() => { try { ensureLoaded(); } catch {} });
 

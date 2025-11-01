@@ -118,7 +118,7 @@ export const tiles: Tile[] = [
     title: "حصص بلا إدخال",
     subtitle: "معالجة فورية",
     to: "/wing/attendance/missing",
-    icon: "solar:warning-bold-duotone",
+    icon: "solar:shield-warning-bold-duotone",
     color: "#f39c12",
     roles: ["wing_supervisor"],
   },

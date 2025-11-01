@@ -15,20 +15,48 @@ from . import selectors
 from .selectors import _CLASS_FK_ID  # reuse detected class FK field
 from .serializers import ExitEventSerializer, StudentBriefSerializer
 from .services.attendance import bulk_save_attendance
+from .services.word_table import render_table_docx
 
 logger = logging.getLogger(__name__)
 
 
+from apps.common.date_utils import parse_date_or_error  # type: ignore
+
 def _parse_date_or_400(dt_str: str | None):
-    """Parse ISO date (YYYY-MM-DD) or return (None, Response(400)). If empty, return today's date in the configured local timezone.
+    """Parse UI (DD/MM/YYYY) or ISO (YYYY-MM-DD) date.
+    If empty, return today's date in the configured local timezone.
     Using timezone.localdate() avoids UTC vs local day mismatches (e.g., showing Monday when it is Tuesday locally).
     """
     if not dt_str:
         return timezone.localdate(), None
-    try:
-        return _date.fromisoformat(dt_str), None
-    except Exception:
-        return None, Response({"detail": "date must be YYYY-MM-DD"}, status=400)
+    dt, err = parse_date_or_error(dt_str)
+    if err:
+        return None, Response({"detail": err}, status=400)
+    return dt, None
+
+
+def _parse_range_or_400(from_str: str | None, to_str: str | None):
+    """Parse a (from, to) date range accepting UI (DD/MM/YYYY) and ISO (YYYY-MM-DD).
+    Defaults: to=today, from=to-6 days. Returns (from_date, to_date) or (None, Response(400)).
+    """
+    today = _date.today()
+    # Parse 'to'
+    if to_str:
+        to_dt, err = parse_date_or_error(to_str)
+        if err:
+            return None, Response({"detail": "to must be in 'DD/MM/YYYY' or 'YYYY-MM-DD'"}, status=400)
+    else:
+        to_dt = today
+    # Parse 'from'
+    if from_str:
+        from_dt, err = parse_date_or_error(from_str)
+        if err:
+            return None, Response({"detail": "from must be in 'DD/MM/YYYY' or 'YYYY-MM-DD'"}, status=400)
+    else:
+        from_dt = to_dt - timedelta(days=6)
+    if from_dt > to_dt:
+        return None, Response({"detail": "from must be <= to"}, status=400)
+    return (from_dt, to_dt), None
 
 
 def _filter_by_teacher_subjects(qs, user, class_id):
@@ -1430,6 +1458,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         Optional filters:
           - q: search in full_name (icontains) or sid (startswith)
           - class_id: restrict to a specific class
+          - wing_id: when provided, explicitly scope to this wing (useful for super admins)
         Returns fields useful for wing supervisor views: id, sid, full_name, class_id, class_name,
         parent_name, parent_phone, extra_phone_no, phone_no, active, needs
         """
@@ -1438,17 +1467,31 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             return Response({"items": []})
         q = (request.query_params.get("q") or "").strip()
         class_id = request.query_params.get("class_id")
+        wing_id_q = request.query_params.get("wing_id")
         try:
             class_id_int = int(class_id) if class_id else None
         except Exception:
             class_id_int = None
         try:
+            wing_id_int = int(wing_id_q) if wing_id_q else None
+        except Exception:
+            wing_id_int = None
+        try:
             from django.db.models import Q
             from school.models import Student  # type: ignore
 
             qs = Student.objects.select_related("class_fk")
-            if wing_ids and not getattr(request.user, "is_superuser", False):
+            # Default scoping for non-superusers: limit to their supervised wings
+            is_super = bool(getattr(request.user, "is_superuser", False))
+            if wing_ids and not is_super:
                 qs = qs.filter(class_fk__wing_id__in=wing_ids)
+            # If an explicit wing_id is provided: enforce it
+            if wing_id_int:
+                if is_super or (wing_id_int in wing_ids):
+                    qs = qs.filter(class_fk__wing_id=wing_id_int)
+                else:
+                    # Requested wing is not permitted for this user → return empty
+                    qs = qs.none()
             if class_id_int:
                 qs = qs.filter(class_fk_id=class_id_int)
             if q:
@@ -1475,23 +1518,140 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         except Exception as e:
             return Response({"detail": f"failed: {e}"}, status=500)
 
+    @action(detail=False, methods=["get"], url_path="students/export")
+    def students_export(self, request: Request) -> HttpResponse:
+        """Export wing-scoped students as CSV (UTF-8 BOM).
+        Mirrors filters of students(): q, class_id, wing_id.
+        Supports selecting columns and order via query param:
+          ?columns=sid,full_name,class_name,parent_name,parent_phone,extra_phone_no,phone_no,active,needs
+        If omitted or invalid, falls back to default ordering.
+        """
+        resp_json = self.students(request).data  # type: ignore
+        if isinstance(resp_json, Response):
+            return resp_json  # type: ignore
+        items = resp_json.get("items", []) if isinstance(resp_json, dict) else []
+
+        # Column registry: key -> (header, value_fn)
+        def _val(key: str, it: dict):
+            if key == "active":
+                return "1" if it.get("active") else "0"
+            if key == "needs":
+                return "1" if it.get("needs") else "0"
+            return it.get(key) or ""
+
+        col_map = {
+            "sid": ("sid", "الرقم"),
+            "full_name": ("full_name", "الاسم"),
+            "class_name": ("class_name", "الصف"),
+            "parent_name": ("parent_name", "ولي الأمر"),
+            "parent_phone": ("parent_phone", "هاتف ولي الأمر"),
+            "extra_phone_no": ("extra_phone_no", "هاتف إضافي"),
+            "phone_no": ("phone_no", "هاتف الطالب"),
+            "active": ("active", "نشط"),
+            "needs": ("needs", "يحتاج"),
+        }
+        default_keys = ["sid", "full_name", "class_name", "parent_name", "parent_phone", "extra_phone_no", "phone_no", "active", "needs"]
+        cols_param = (request.query_params.get("columns") or "").strip()
+        keys = [k.strip() for k in cols_param.split(",") if k.strip()] if cols_param else default_keys
+        # Validate and keep order
+        keys = [k for k in keys if k in col_map]
+        if not keys:
+            keys = default_keys
+
+        import io
+        output = io.StringIO()
+        writer = csv.writer(output)
+        # Headers row (values in Arabic)
+        writer.writerow([col_map[k][1] for k in keys])
+        for it in items:
+            row = [_val(k, it) for k in keys]
+            writer.writerow(row)
+        csv_text = output.getvalue()
+        content = ("\ufeff" + csv_text).encode("utf-8")
+        resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = "attachment; filename=wing-students.csv"
+        return resp
+
+    @action(detail=False, methods=["get"], url_path=r"students/export\.docx")
+    def students_export_docx(self, request: Request) -> HttpResponse:
+        """Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+        """
+        resp_json = self.students(request).data  # type: ignore
+        if isinstance(resp_json, Response):
+            return resp_json  # type: ignore
+        items = resp_json.get("items", []) if isinstance(resp_json, dict) else []
+
+        # Column registry (key -> (field, header_ar, formatter))
+        def _fmt(key: str, it: dict):
+            if key == "active":
+                return "نعم" if it.get("active") else "لا"
+            if key == "needs":
+                return "نعم" if it.get("needs") else "لا"
+            if key == "sid":
+                return it.get("sid") or it.get("id") or ""
+            return it.get(key) or ""
+
+        col_map = {
+            "sid": ("sid", "الرقم"),
+            "full_name": ("full_name", "الاسم"),
+            "class_name": ("class_name", "الصف"),
+            "parent_name": ("parent_name", "ولي الأمر"),
+            "parent_phone": ("parent_phone", "هاتف ولي الأمر"),
+            "extra_phone_no": ("extra_phone_no", "هاتف إضافي"),
+            "phone_no": ("phone_no", "هاتف الطالب"),
+            "active": ("active", "نشط"),
+            "needs": ("needs", "يحتاج"),
+        }
+        default_keys = ["sid", "full_name", "class_name", "parent_name", "parent_phone", "extra_phone_no", "phone_no", "active", "needs"]
+        cols_param = (request.query_params.get("columns") or "").strip()
+        keys = [k.strip() for k in cols_param.split(",") if k.strip()] if cols_param else default_keys
+        keys = [k for k in keys if k in col_map]
+        if not keys:
+            keys = default_keys
+
+        headers = [col_map[k][1] for k in keys]
+        rows = []
+        for it in items:
+            rows.append([_fmt(k, it) for k in keys])
+        content = render_table_docx(headers, rows, title="قائمة طلبة الجناح")
+        resp = HttpResponse(content, content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        resp["Content-Disposition"] = "attachment; filename=wing-students.docx"
+        return resp
+
     @action(detail=False, methods=["get"], url_path="classes")
     def classes(self, request: Request) -> Response:
         """List classes scoped to the supervisor's wing(s) with basic info.
-        Optional filter: q (search in name or section)
+        Optional filters:
+          - q: search in name or section
+          - wing_id: when provided, explicitly scope to this wing (useful for super admins)
         Returns: { items: [{id, name, grade, section, wing_id, wing_name, students_count}] }
         """
         staff, wing_ids = self._get_staff_and_wing_ids(request.user)
         if not wing_ids and not getattr(request.user, "is_superuser", False):
             return Response({"items": []})
         q = (request.query_params.get("q") or "").strip()
+        wing_id_q = request.query_params.get("wing_id")
+        try:
+            wing_id_int = int(wing_id_q) if wing_id_q else None
+        except Exception:
+            wing_id_int = None
         try:
             from django.db.models import Q
             from school.models import Class  # type: ignore
 
             qs = Class.objects.select_related("wing")
-            if wing_ids and not getattr(request.user, "is_superuser", False):
+            is_super = bool(getattr(request.user, "is_superuser", False))
+            # Default scoping for non-superusers: limit to their supervised wings
+            if wing_ids and not is_super:
                 qs = qs.filter(wing_id__in=wing_ids)
+            # If an explicit wing_id is provided: enforce it
+            if wing_id_int:
+                if is_super or (wing_id_int in wing_ids):
+                    qs = qs.filter(wing_id=wing_id_int)
+                else:
+                    qs = qs.none()
             if q:
                 qs = qs.filter(Q(name__icontains=q) | Q(section__icontains=q))
             # Order: grade asc, name asc for predictability
@@ -1703,7 +1863,8 @@ class WingSupervisorViewSet(viewsets.ViewSet):
     def daily_absences_export(self, request: Request) -> HttpResponse:
         """Export the general daily absence classification as CSV (UTF-8 with BOM).
         Query params: date=YYYY-MM-DD, class_id?:int
-        Columns: student_id, student_name, class_id, class_name, p1, p2, state
+        Optional: columns=comma,separated,keys to control columns and order.
+        Allowed keys: student_id, student_name, class_id, class_name, p1, p2, state.
         """
         # Reuse the logic from daily_absences to build items
         resp_json = self.daily_absences(request).data  # type: ignore
@@ -1714,21 +1875,32 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         # Build CSV
         import io
 
+        # Column registry
+        col_map = {
+            "student_id": ("student_id", "student_id"),
+            "student_name": ("student_name", "student_name"),
+            "class_id": ("class_id", "class_id"),
+            "class_name": ("class_name", "class_name"),
+            "p1": ("p1", "p1"),
+            "p2": ("p2", "p2"),
+            "state": ("state", "state"),
+        }
+        default_keys = ["student_id", "student_name", "class_id", "class_name", "p1", "p2", "state"]
+        cols_param = (request.query_params.get("columns") or "").strip()
+        keys = [k.strip() for k in cols_param.split(",") if k.strip()] if cols_param else default_keys
+        keys = [k for k in keys if k in col_map]
+        if not keys:
+            keys = default_keys
+
         output = io.StringIO()
         writer = csv.writer(output)
-        writer.writerow(["student_id", "student_name", "class_id", "class_name", "p1", "p2", "state"])
+        # header row (use raw keys for consistency with CSV in this API group)
+        writer.writerow([col_map[k][1] for k in keys])
         for it in items:
-            writer.writerow(
-                [
-                    it.get("student_id"),
-                    (it.get("student_name") or ""),
-                    it.get("class_id"),
-                    (it.get("class_name") or ""),
-                    (it.get("p1") or ""),
-                    (it.get("p2") or ""),
-                    (it.get("state") or ""),
-                ]
-            )
+            row = []
+            for k in keys:
+                row.append(it.get(col_map[k][0]) or "")
+            writer.writerow(row)
         csv_text = output.getvalue()
         # Prepend BOM for Excel compatibility
         bom = "\ufeff"
@@ -1736,6 +1908,33 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
         dt_str = resp_json.get("date") if isinstance(resp_json, dict) else timezone.localdate().isoformat()
         resp["Content-Disposition"] = f"attachment; filename=wing-daily-absences-{dt_str}.csv"
+        return resp
+
+    @action(detail=False, methods=["get"], url_path="daily-absences/export\.docx")
+    def daily_absences_export_docx(self, request: Request) -> HttpResponse:
+        """Export the general daily absence classification as Word (DOCX)."""
+        resp_json = self.daily_absences(request).data  # type: ignore
+        if isinstance(resp_json, Response):
+            return resp_json  # type: ignore
+        items = resp_json.get("items", []) if isinstance(resp_json, dict) else []
+        headers = ["الطالب", "الصف", "ح1", "ح2", "الحالة"]
+        rows = []
+        for it in items:
+            rows.append([
+                it.get("student_name") or it.get("student_id") or "",
+                it.get("class_name") or it.get("class_id") or "",
+                it.get("p1") or "",
+                it.get("p2") or "",
+                it.get("state") or "",
+            ])
+        title = "الحالة العامة اليومية"
+        content = render_table_docx(headers, rows, title=title)
+        resp = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        dt_str = resp_json.get("date") if isinstance(resp_json, dict) else timezone.localdate().isoformat()
+        resp["Content-Disposition"] = f"attachment; filename=wing-daily-absences-{dt_str}.docx"
         return resp
 
     @action(detail=False, methods=["get"], url_path="pending")
@@ -1863,6 +2062,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         if isinstance(ids, str):
             try:
                 import json as _json
+
                 ids = _json.loads(ids)
             except Exception:
                 ids = []
@@ -1925,7 +2125,14 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     except Exception:
                         # Evidence failure should not rollback status change; continue
                         pass
-            return Response({"updated": updated, "action": "set_excused", "evidence_saved": len(saved_evidence), "evidence": saved_evidence})
+            return Response(
+                {
+                    "updated": updated,
+                    "action": "set_excused",
+                    "evidence_saved": len(saved_evidence),
+                    "evidence": saved_evidence,
+                }
+            )
         except Exception as e:
             return Response({"detail": f"failed: {e}"}, status=500)
 
@@ -2035,6 +2242,31 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         resp["Content-Disposition"] = f"attachment; filename=wing-entered-{dt_str}.csv"
         return resp
 
+    @action(detail=False, methods=["get"], url_path="entered/export\.docx")
+    def entered_export_docx(self, request: Request) -> HttpResponse:
+        """Export entered class-periods (supervisor-entered, locked) as DOCX."""
+        data = self.entered(request).data  # type: ignore
+        if isinstance(data, Response):
+            return data  # type: ignore
+        items = data.get("items", []) if isinstance(data, dict) else []
+        headers = ["الصف", "الحصة", "المادة", "المعلم"]
+        rows = []
+        for it in items:
+            rows.append([
+                it.get("class_name") or it.get("class_id") or "",
+                it.get("period_number") or "",
+                it.get("subject_name") or "",
+                it.get("teacher_name") or "",
+            ])
+        content = render_table_docx(headers, rows, title="حصص مُدخلة")
+        resp = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        dt_str = data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat()
+        resp["Content-Disposition"] = f"attachment; filename=wing-entered-{dt_str}.docx"
+        return resp
+
     @action(detail=False, methods=["get"], url_path="missing")
     def missing(self, request: Request) -> Response:
         dt, err = _parse_date_or_400(request.query_params.get("date"))
@@ -2135,6 +2367,31 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         resp = HttpResponse(content, content_type="text/csv; charset=utf-8")
         dt_str = data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat()
         resp["Content-Disposition"] = f"attachment; filename=wing-missing-{dt_str}.csv"
+        return resp
+
+    @action(detail=False, methods=["get"], url_path="missing/export\.docx")
+    def missing_export_docx(self, request: Request) -> HttpResponse:
+        """Export missing class-periods (not yet supervisor-entered) as DOCX."""
+        data = self.missing(request).data  # type: ignore
+        if isinstance(data, Response):
+            return data  # type: ignore
+        items = data.get("items", []) if isinstance(data, dict) else []
+        headers = ["الصف", "الحصة", "المادة", "المعلم"]
+        rows = []
+        for it in items:
+            rows.append([
+                it.get("class_name") or it.get("class_id") or "",
+                it.get("period_number") or "",
+                it.get("subject_name") or "",
+                it.get("teacher_name") or "",
+            ])
+        content = render_table_docx(headers, rows, title="حصص بلا إدخال")
+        resp = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        dt_str = data.get("date") if isinstance(data, dict) else timezone.localdate().isoformat()
+        resp["Content-Disposition"] = f"attachment; filename=wing-missing-{dt_str}.docx"
         return resp
 
     @action(detail=False, methods=["get"], url_path="timetable")

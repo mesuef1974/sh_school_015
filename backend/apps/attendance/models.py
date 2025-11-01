@@ -14,9 +14,7 @@ class AttendanceStatus(models.TextChoices):
 
 
 class AttendanceEvidence(models.Model):
-    record = models.ForeignKey(
-        "school.AttendanceRecord", on_delete=models.CASCADE, related_name="evidence"
-    )
+    record = models.ForeignKey("school.AttendanceRecord", on_delete=models.CASCADE, related_name="evidence")
     file = models.FileField(upload_to="attendance/evidence/%Y/%m/", verbose_name="ملف الإثبات")
     content_type = models.CharField(max_length=100, blank=True, default="")
     original_name = models.CharField(max_length=255, blank=True, default="")

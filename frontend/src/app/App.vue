@@ -140,6 +140,8 @@ const auth = useAuthStore();
 const hasRole = (r: string) => auth.roles.includes(r);
 const isSuper = computed(() => !!auth.profile?.is_superuser);
 const isTeacher = computed(() => auth.roles.includes("teacher"));
+// Backward-compat flag used in templates; treat any user with 'teacher' role as assigned teacher by default.
+const isAssignedTeacher = computed(() => auth.roles.includes("teacher"));
 const isHome = computed(() => route.name === "home");
 const isLogin = computed(() => route.name === "login");
 const hideSchoolName = computed(() => route.path?.startsWith("/supervisor"));

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { backendUrl } from "../config";
 import {
   enqueueAttendance,
   flushAttendanceQueue,
@@ -385,6 +386,7 @@ export async function getOpenExitEvents(params: {
   class_id?: number;
   date?: string;
   student_id?: number;
+  wing_id?: number;
 }) {
   const res = await api.get("/v1/attendance/exit-events/open/", { params });
   return res.data as {
@@ -414,10 +416,17 @@ export async function patchExitReturn(id: number) {
   return res.data as { id: number; returned_at: string; duration_seconds: number };
 }
 
+export async function postExitDecide(payload: { action: "approve" | "reject"; ids: number[]; comment?: string }) {
+  const res = await api.post("/v1/attendance/exit-events/decide/", payload);
+  return res.data as { updated: number; action: "approve" | "reject" };
+}
+
 export async function getExitEvents(params: {
   date?: string;
   class_id?: number;
   student_id?: number;
+  review_status?: "submitted" | "approved" | "rejected";
+  wing_id?: number;
 }) {
   const res = await api.get("/v1/attendance/exit-events/", { params });
   return res.data as {
@@ -430,6 +439,10 @@ export async function getExitEvents(params: {
     returned_at?: string | null;
     duration_seconds?: number | null;
     reason?: string | null;
+    review_status?: "submitted" | "approved" | "rejected" | null;
+    review_comment?: string | null;
+    period_number?: number | null;
+    note?: string | null;
   }[];
 }
 
@@ -446,7 +459,7 @@ export async function getWingMe() {
   };
 }
 
-export async function getWingOverview(params: { date?: string }) {
+export async function getWingOverview(params: { date?: string; wing_id?: number }) {
   const res = await api.get("/wing/overview/", { params });
   return res.data as {
     date: string;
@@ -467,7 +480,7 @@ export async function getWingOverview(params: { date?: string }) {
   };
 }
 
-export async function getWingMissing(params: { date?: string }) {
+export async function getWingMissing(params: { date?: string; wing_id?: number }) {
   const res = await api.get("/wing/missing/", { params });
   return res.data as {
     date: string;
@@ -485,7 +498,7 @@ export async function getWingMissing(params: { date?: string }) {
 }
 
 // Classes that have attendance already entered (per period) for the wing
-export async function getWingEntered(params: { date?: string }) {
+export async function getWingEntered(params: { date?: string; wing_id?: number }) {
   // Primary endpoint (new style under /wing)
   try {
     const res = await api.get("/wing/entered/", { params });
@@ -537,7 +550,7 @@ export async function getWingEntered(params: { date?: string }) {
 }
 
 // Approvals workflow (pending list and decisions)
-export async function getWingPending(params: { date?: string; class_id?: number }) {
+export async function getWingPending(params: { date?: string; class_id?: number; wing_id?: number }) {
   const res = await api.get("/wing/pending/", { params });
   return res.data as {
     date: string;
@@ -609,7 +622,7 @@ export async function postUiTilesSave(payload: { version?: number; tiles: any[] 
 
 
 // ---- Absence Alerts & Compute APIs ----
-export async function getWingDailyAbsences(params: { date?: string; class_id?: number }) {
+export async function getWingDailyAbsences(params: { date?: string; class_id?: number; wing_id?: number }) {
   const res = await api.get("/wing/daily-absences/", { params });
   return res.data as {
     date: string;
@@ -666,8 +679,17 @@ export function getAbsenceAlertDocxHref(id: number) {
   return api.getUri({ url: `/absence-alerts/${id}/docx/` });
 }
 
+export function getAbsenceAlertDocxPersistHref(id: number) {
+  // server will generate and persist then return the file directly
+  return api.getUri({ url: `/absence-alerts/${id}/docx/`, params: { persist: 1 } });
+}
+
+export function getAbsenceAlertDocxLatestHref(id: number) {
+  return api.getUri({ url: `/absence-alerts/${id}/docx/latest/` });
+}
+
 // ---- Wing-scoped classes ----
-export async function getWingClasses(params: { q?: string } = {}) {
+export async function getWingClasses(params: { q?: string; wing_id?: number } = {}) {
   const res = await api.get("/wing/classes/", { params });
   return res.data as {
     items: { id: number; name?: string | null; grade?: number | null; section?: string | null; wing_id?: number | null; wing_name?: string | null; students_count?: number | null }[];
@@ -675,7 +697,7 @@ export async function getWingClasses(params: { q?: string } = {}) {
 }
 
 // ---- Wing-scoped students (picker) ----
-export async function getWingStudents(params: { q?: string; class_id?: number }) {
+export async function getWingStudents(params: { q?: string; class_id?: number; wing_id?: number }) {
   const res = await api.get("/wing/students/", { params });
   return res.data as {
     items: {
@@ -692,6 +714,55 @@ export async function getWingStudents(params: { q?: string; class_id?: number })
       needs?: boolean | null;
     }[];
   };
+}
+
+// ---- Authenticated file downloads (Word exports) ----
+export async function downloadFileWithAuth(url: string, params?: Record<string, any>, fallbackName?: string) {
+  const res = await api.get(url, { params, responseType: "blob" });
+  // Try to extract filename from Content-Disposition
+  let filename = fallbackName || "download.docx";
+  try {
+    const cd = (res.headers as any)["content-disposition"] || (res.headers as any)["Content-Disposition"];
+    if (cd) {
+      const m = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(cd);
+      const name = decodeURIComponent(m?.[1] || m?.[2] || "");
+      if (name) filename = name;
+    }
+  } catch {}
+  const blob = res.data as Blob;
+  const urlObj = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = urlObj;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(urlObj);
+}
+
+export async function downloadWingStudentsWord(params: { q?: string; class_id?: number; wing_id?: number }) {
+  // Try multiple stable aliases to avoid any router/proxy quirks across environments
+  const candidates = [
+    backendUrl("/api/v1/wing/students/export.docx/"),
+    backendUrl("/api/v1/wing/students/export.docx"),
+    backendUrl("/api/v1/wing/students/export-docx/"),
+    backendUrl("/api/v1/wing/students/export-docx"),
+    // Dev-only extra tolerance (when /api/ is exposed alongside /api/v1/)
+    backendUrl("/api/wing/students/export.docx/"),
+    backendUrl("/api/wing/students/export.docx"),
+  ];
+  let lastErr: any = null;
+  for (const url of candidates) {
+    try {
+      await downloadFileWithAuth(url, params, "wing-students.docx");
+      return; // success
+    } catch (e) {
+      lastErr = e;
+      // Try next alias
+    }
+  }
+  // If all attempts failed, rethrow the last error to display a meaningful message upstream
+  throw lastErr || new Error("فشل تنزيل ملف Word لقائمة الطلبة");
 }
 
 // ---- List Absence Alerts with filters ----

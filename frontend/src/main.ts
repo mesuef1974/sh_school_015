@@ -8,6 +8,7 @@ import { i18n } from "./app/i18n";
 import "./styles/maronia.css";
 import "./styles/professional-tables.css";
 import "./styles/attendance-status.css";
+import "./styles/print.css";
 import { VueQueryPlugin, QueryClient, VueQueryPluginOptions } from "@tanstack/vue-query";
 import "vue-toastification/dist/index.css";
 import Toast from "vue-toastification";
@@ -26,6 +27,12 @@ import { MotionPlugin } from "@vueuse/motion";
 import { Toaster } from "vue-sonner";
 
 const app = createApp(App);
+
+// Centralized print manager
+import { printManager } from "./shared/print/printManager";
+// Expose as a Vue global property for easy access inside components (this.$print)
+// @ts-ignore
+app.config.globalProperties.$print = printManager;
 
 // Optional Sentry (frontend) was removed to avoid Vite import resolution errors when @sentry/vue is not installed.
 // To re-enable later: install @sentry/vue and move Sentry init to a separate optional module that is only imported

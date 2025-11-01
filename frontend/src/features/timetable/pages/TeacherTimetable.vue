@@ -20,6 +20,7 @@
         <DsBadge variant="info" icon="solar:calendar-mark-bold-duotone">
           {{ getCurrentWeek() }}
         </DsBadge>
+        <PrintPanelTrigger />
       </div>
     </DsCard>
 
@@ -35,7 +36,7 @@
           class="h-100 outlined-card"
         >
           <div class="mini-table-wrap">
-            <table class="mini-table" dir="rtl">
+            <table class="mini-table print-table" dir="rtl">
               <thead>
                 <tr>
                   <th>اليوم</th>
@@ -198,7 +199,7 @@
       <div class="timetable-wrapper" :class="{ dense: prefs.dense }">
         <div class="tt-scale-95">
           <div class="in-card-95">
-            <table class="timetable-modern">
+            <table class="timetable-modern print-table">
               <thead>
                 <tr>
                   <th class="timetable-th day-column">
@@ -785,6 +786,7 @@ import { formatDateDMY } from "../../../shared/utils/date";
 import DsCard from "../../../components/ui/DsCard.vue";
 import DsBadge from "../../../components/ui/DsBadge.vue";
 import { useTeacherPrefs } from "../../../app/stores/teacherPrefs";
+import PrintPanelTrigger from "../../../components/ui/PrintPanelTrigger.vue";
 
 const loading = ref(false);
 const days = ref<

@@ -682,6 +682,8 @@ body {
 .header-bar.maron h3,
 .header-bar.maron .fw-bold,
 .header-bar.maron .text-muted { color: #fff !important; }
+/* Double-size page header icons (maroon header) */
+.header-bar.maron .header-icon { font-size: 48px; width: 48px; height: 48px; line-height: 1; }
 .header-bar.maron .text-muted { opacity: 0.85; }
 .header-bar.maron .btn-outline-secondary,
 .header-bar.maron .btn-outline-primary {
@@ -714,6 +716,8 @@ body {
 .header-bar.frame h1,
 .header-bar.frame h2,
 .header-bar.frame h3 { color: var(--maron-primary, #8a1538); }
+/* Double-size page header icons globally */
+.header-bar.frame .header-icon { font-size: 48px; width: 48px; height: 48px; line-height: 1; }
 .header-bar.frame .text-muted { color: #666 !important; opacity: 0.9; }
 .header-bar.frame .btn-outline-secondary,
 .header-bar.frame .btn-outline-primary {

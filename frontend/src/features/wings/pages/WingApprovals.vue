@@ -1,14 +1,14 @@
 <template>
   <section class="d-grid gap-3 page-grid page-grid-wide">
-    <!-- Unified page header outside content cards -->
-    <div class="d-flex align-items-center gap-2 header-bar frame">
-      <Icon :icon="tileMeta.icon" class="header-icon" :style="{ color: tileMeta.color }" />
-      <div>
-        <div class="fw-bold">{{ tileMeta.title }}</div>
-        <div class="text-muted small" v-if="wingLabelFull">{{ wingLabelFull }}</div>
-        <div class="text-muted small" v-else>مراجعة واعتماد/رفض السجلات المرسلة من المعلمين</div>
-      </div>
-      <span class="ms-auto"></span>
+    <!-- Unified page header (icon + title + wing label only) -->
+    <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" :color="tileMeta.color">
+          <template #actions>
+            <WingWingPicker id="pick-approvals-wing" />
+          </template>
+        </WingPageHeader>
+
+    <!-- Toolbar card: date, class filter, refresh -->
+    <div class="auto-card p-2 d-flex align-items-center gap-2 flex-wrap">
       <DatePickerDMY
         :id="'wing-approvals-date'"
         :aria-label="'اختيار التاريخ'"
@@ -17,14 +17,23 @@
         v-model="dateStr"
         @change="onDateChange"
       />
-      <select class="form-select w-auto" v-model.number="selectedClassId" @change="load">
+      <select class="form-select w-auto" v-model.number="selectedClassId" @change="load" aria-label="تصفية حسب الصف">
         <option :value="null">كل الصفوف</option>
         <option v-for="c in classes" :key="c.id" :value="c.id">
-          {{ c.name || "صف #" + c.id }}
+          {{ c.name || 'صف #' + c.id }}
         </option>
       </select>
-      <DsButton variant="primary" icon="solar:refresh-bold-duotone" @click="load">تحديث</DsButton>
+      <DsButton ref="refreshBtn" variant="primary" icon="solar:refresh-bold-duotone" @click="load">تحديث</DsButton>
+      <span class="ms-auto small text-muted" aria-live="polite">{{ liveMsg }}</span>
     </div>
+
+    <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+
+    <div v-if="!hasWingRole && !isSuper" class="alert alert-warning" role="alert">
+      لا تملك صلاحية مشرف جناح لهذه الصفحة.
+    </div>
+
+    <div class="visually-hidden" aria-live="polite">{{ liveMsg }}</div>
 
     <div class="auto-card p-3">
       <div class="mb-2 d-flex align-items-center gap-2">
@@ -164,24 +173,24 @@
             </div>
           </details>
           <DsButton
-            :disabled="!selectedIds.size"
+            :disabled="!selectedIds.size || !canAct"
             variant="success"
             icon="solar:check-circle-bold-duotone"
             @click="decide('approve')"
             >اعتماد المحدد</DsButton
           >
           <DsButton
-            :disabled="!selectedIds.size"
+            :disabled="!selectedIds.size || !canAct"
             variant="danger"
             icon="solar:close-circle-bold-duotone"
             @click="decide('reject')"
             >رفض المحدد</DsButton
           >
           <DsButton
-            :disabled="!selectedIds.size"
+            :disabled="!selectedIds.size || !canAct"
             variant="warning"
             icon="solar:document-add-bold-duotone"
-            @click="markExcused()"
+            @click="openExcuseModal()"
             >اعتبار بعذر</DsButton
           >
         </div>
@@ -192,42 +201,43 @@
                 <th style="width: 36px">
                   <input type="checkbox" @change="toggleAll($event)" :checked="allChecked" />
                 </th>
-                <th v-if="columnVis.student" role="button" @click="toggleSort('student')">
+                <th v-if="columnVis.student" role="button" tabindex="0" :aria-sort="sortKey==='student' ? (sortDir==='asc'?'ascending':'descending') : 'none'" @click="toggleSort('student')" @keydown.enter.prevent="toggleSort('student')" @keydown.space.prevent="toggleSort('student')">
                   الطالب
                   <span class="sort" v-if="sortKey === 'student'">{{
                     sortDir === "asc" ? "▲" : "▼"
                   }}</span>
                 </th>
-                <th v-if="columnVis.class" role="button" @click="toggleSort('class')">
+                <th v-if="columnVis.class" role="button" tabindex="0" :aria-sort="sortKey==='class' ? (sortDir==='asc'?'ascending':'descending') : 'none'" @click="toggleSort('class')" @keydown.enter.prevent="toggleSort('class')" @keydown.space.prevent="toggleSort('class')">
                   الصف
                   <span class="sort" v-if="sortKey === 'class'">{{
                     sortDir === "asc" ? "▲" : "▼"
                   }}</span>
                 </th>
-                <th v-if="columnVis.period" role="button" @click="toggleSort('period')">
+                <th v-if="columnVis.period" role="button" tabindex="0" :aria-sort="sortKey==='period' ? (sortDir==='asc'?'ascending':'descending') : 'none'" @click="toggleSort('period')" @keydown.enter.prevent="toggleSort('period')" @keydown.space.prevent="toggleSort('period')">
                   الحصة
                   <span class="sort" v-if="sortKey === 'period'">{{
                     sortDir === "asc" ? "▲" : "▼"
                   }}</span>
                 </th>
-                <th v-if="columnVis.status" role="button" @click="toggleSort('status')">
+                <th v-if="columnVis.status" role="button" tabindex="0" :aria-sort="sortKey==='status' ? (sortDir==='asc'?'ascending':'descending') : 'none'" @click="toggleSort('status')" @keydown.enter.prevent="toggleSort('status')" @keydown.space.prevent="toggleSort('status')">
                   الحالة
                   <span class="sort" v-if="sortKey === 'status'">{{
                     sortDir === "asc" ? "▲" : "▼"
                   }}</span>
                 </th>
-                <th v-if="columnVis.teacher" role="button" @click="toggleSort('teacher')">
+                <th v-if="columnVis.teacher" role="button" tabindex="0" :aria-sort="sortKey==='teacher' ? (sortDir==='asc'?'ascending':'descending') : 'none'" @click="toggleSort('teacher')" @keydown.enter.prevent="toggleSort('teacher')" @keydown.space.prevent="toggleSort('teacher')">
                   المعلم
                   <span class="sort" v-if="sortKey === 'teacher'">{{
                     sortDir === "asc" ? "▲" : "▼"
                   }}</span>
                 </th>
-                <th v-if="columnVis.note" role="button" @click="toggleSort('note')">
+                <th v-if="columnVis.note" role="button" tabindex="0" :aria-sort="sortKey==='note' ? (sortDir==='asc'?'ascending':'descending') : 'none'" @click="toggleSort('note')" @keydown.enter.prevent="toggleSort('note')" @keydown.space.prevent="toggleSort('note')">
                   الملاحظة
                   <span class="sort" v-if="sortKey === 'note'">{{
                     sortDir === "asc" ? "▲" : "▼"
                   }}</span>
                 </th>
+                <th style="width: 160px">إجراءات</th>
               </tr>
             </thead>
             <tbody>
@@ -241,9 +251,20 @@
                 </td>
                 <td v-if="columnVis.teacher">{{ it.teacher_name || "—" }}</td>
                 <td v-if="columnVis.note" class="small text-muted">{{ it.note || "—" }}</td>
+                <td class="text-nowrap">
+                  <button class="btn btn-sm btn-success me-1" :disabled="!canAct" @click="decideOne('approve', it)">
+                    اعتماد
+                  </button>
+                  <button class="btn btn-sm btn-danger me-1" :disabled="!canAct" @click="decideOne('reject', it)">
+                    رفض
+                  </button>
+                  <button class="btn btn-sm btn-warning" :disabled="!canAct" @click="openExcuseFor(it)">
+                    بعذر
+                  </button>
+                </td>
               </tr>
               <tr v-if="!filteredItems.length">
-                <td :colspan="1 + visibleColumnsCount" class="text-center text-muted">
+                <td :colspan="2 + visibleColumnsCount" class="text-center text-muted">
                   لا توجد عناصر مطابقة
                 </td>
               </tr>
@@ -253,43 +274,129 @@
         </div>
       </template>
     </div>
+
+    <!-- Excuse Modal (lightweight, no external deps) -->
+    <div v-if="excuseModal.open" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="excuseModalTitle">
+      <div class="modal-card" @keydown.esc.prevent="closeExcuseModal">
+        <div class="modal-header d-flex align-items-center gap-2">
+          <h5 id="excuseModalTitle" class="m-0">اعتبار السجلات المحددة بعذر</h5>
+          <span class="ms-auto"></span>
+          <button class="btn btn-sm btn-outline-secondary" type="button" @click="closeExcuseModal" aria-label="إغلاق">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2 small text-muted">سيتم تطبيق الإجراء على {{ selectedIds.size }} سجلًا.</div>
+          <div class="mb-2">
+            <label class="form-label">ملاحظة (اختياري)</label>
+            <textarea class="form-control" rows="2" v-model.trim="excuseModal.comment" placeholder="سبب/ملاحظة"></textarea>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">رفع مستند إثبات (اختياري)</label>
+            <input type="file" class="form-control" :accept="ACCEPT_TYPES" @change="onEvidenceChange" />
+            <div class="form-text">الأنواع المسموحة: {{ ACCEPT_TYPES }} — الحد الأقصى: 5MB</div>
+            <div v-if="excuseModal.error" class="text-danger small mt-1">{{ excuseModal.error }}</div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">ملاحظة على الإثبات (اختياري)</label>
+            <input type="text" class="form-control" v-model.trim="excuseModal.evidenceNote" placeholder="وصف قصير للمرفق" />
+          </div>
+        </div>
+        <div class="modal-footer d-flex gap-2">
+          <button class="btn btn-secondary" type="button" @click="closeExcuseModal">إلغاء</button>
+          <button class="btn btn-warning" type="button" @click="confirmExcused" :disabled="excuseModal.busy">
+            <Icon icon="solar:document-add-bold-duotone" />
+            <span class="ms-1">تنفيذ بعذر</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { onMounted, watch } from 'vue';
 import { useWingContext } from '../../../shared/composables/useWingContext';
-const { ensureLoaded, wingLabelFull } = useWingContext();
+const { ensureLoaded, wingLabelFull, hasWingRole, isSuper, selectedWingId } = useWingContext();
 import { tiles } from '../../../home/icon-tiles.config';
 const tileMeta = computed(() => tiles.find(t => t.to === '/wing/approvals') || { title: 'طلبات الاعتماد', icon: 'solar:shield-check-bold-duotone', color: '#2e7d32' });
 onMounted(() => { ensureLoaded(); });
 import { ref, computed, onMounted } from "vue";
+import { useRoute, useRouter } from 'vue-router';
+
+// RBAC: allow actions only for wing supervisor or super admin
+const canAct = computed(() => !!(hasWingRole?.value || isSuper?.value));
+
+// Live region message for a11y
+const liveMsg = ref<string>("");
+
+// Router for URL state persistence
+const route = useRoute();
+const router = useRouter();
+
+// Excuse modal state
+const ACCEPT_TYPES = 'image/jpeg,image/png,image/webp,application/pdf';
+const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const excuseModal = ref<{ open: boolean; comment: string; evidenceFile: File | null; evidenceNote: string; error: string | null; busy: boolean }>({
+  open: false,
+  comment: '',
+  evidenceFile: null,
+  evidenceNote: '',
+  error: null,
+  busy: false,
+});
 import { Icon } from "@iconify/vue";
 import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 import DsButton from "../../../components/ui/DsButton.vue";
 import DsBadge from "../../../components/ui/DsBadge.vue";
 import StatusLegend from "../../../components/ui/StatusLegend.vue";
+import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
+import WingWingPicker from "../../../components/ui/WingWingPicker.vue";
 import {
   getWingPending,
   postWingDecide,
-  getTeacherClasses,
   getWingMe,
-  getWingTimetable,
   getWingDailyAbsences,
+  postWingSetExcused,
+  getWingClasses,
 } from "../../../shared/api/client";
 import { useToast } from "vue-toastification";
 
 const toast = useToast();
-const mode = ref<'daily' | 'period'>('period');
 const items = ref<any[]>([]);
 const dailyItems = ref<any[]>([]);
 const dailyCounts = ref<{ excused: number; unexcused: number; none: number }>({ excused: 0, unexcused: 0, none: 0 });
 const loading = ref(false);
+const error = ref<string | null>(null);
 const today = new Date().toISOString().slice(0, 10);
 const dateStr = ref<string>(today);
+// Display mode for the page: 'daily' general status vs 'period' pending queue
+const mode = ref<'daily' | 'period'>('period');
+import { useWingPrefs } from "../../../shared/composables/useWingPrefs";
+const { approvals_default_mode: approvalsDefaultMode, default_date_mode: approvalsDateMode, apply_on_load: applyOnLoad } = useWingPrefs();
+// Initialize mode from prefs if configured
+if (applyOnLoad.value.approvals) {
+  mode.value = approvalsDefaultMode.value;
+  if (approvalsDateMode.value === 'today') {
+    dateStr.value = today;
+  } else if (approvalsDateMode.value === 'remember') {
+    const prev = localStorage.getItem('wing_approvals.last_date');
+    if (prev) dateStr.value = prev;
+  }
+}
 const classes = ref<{ id: number; name?: string | null }[]>([]);
 const selectedClassId = ref<number | null>(null);
 const checkedList = ref<number[]>([]);
 const selectedIds = computed(() => new Set(checkedList.value));
+
+// Focus management: keep a stable focus target after actions
+const refreshBtn = ref<any | null>(null);
+async function focusRefresh() {
+  try {
+    await Promise.resolve();
+    const el = (refreshBtn as any)?.value?.$el || (refreshBtn as any)?.value;
+    // Try component root or inner native button
+    const target: HTMLElement | null = (el?.querySelector && el.querySelector('button')) || el;
+    if (target && typeof target.focus === 'function') target.focus();
+  } catch {}
+}
 
 // Wing context
 const wingId = ref<number | null>(null);
@@ -527,13 +634,16 @@ function statusLabel(s: string) {
 
 async function load() {
   loading.value = true;
+  error.value = null;
   try {
     const params: any = { date: dateStr.value };
     if (selectedClassId.value) params.class_id = selectedClassId.value;
+    if (selectedWingId?.value) params.wing_id = selectedWingId.value;
     if (mode.value === 'daily') {
       const res = await getWingDailyAbsences(params);
       dailyItems.value = res.items || [];
       dailyCounts.value = res.counts || { excused: 0, unexcused: 0, none: 0 };
+      liveMsg.value = `عدد الطلبة اليوم — بدون عذر: ${dailyCounts.value.unexcused}, بعذر: ${dailyCounts.value.excused}, غير محسوب: ${dailyCounts.value.none}`;
       // derive classes from daily items when needed
       if (!classes.value.length && Array.isArray(res.items)) {
         const map = new Map<number, { id: number; name?: string | null }>();
@@ -549,6 +659,7 @@ async function load() {
       const res = await getWingPending(params);
       items.value = res.items || [];
       checkedList.value = [];
+      liveMsg.value = `العناصر المعلقة المعروضة: ${items.value.length}`;
       // If classes not yet loaded from timetable, derive available classes from items (fallback)
       if (!classes.value.length && Array.isArray(res.items)) {
         const map = new Map<number, { id: number; name?: string | null }>();
@@ -562,9 +673,10 @@ async function load() {
       }
     }
   } catch (e: any) {
-    try {
-      toast.error(e?.response?.data?.detail || (mode.value==='daily' ? 'تعذر تحميل الحالة اليومية' : 'تعذر تحميل الطلبات'));
-    } catch {}
+    const msg = e?.response?.data?.detail || (mode.value==='daily' ? 'تعذر تحميل الحالة اليومية' : 'تعذر تحميل الطلبات');
+    error.value = msg;
+    liveMsg.value = `خطأ: ${msg}`;
+    try { toast.error(msg); } catch {}
   } finally {
     loading.value = false;
   }
@@ -576,23 +688,122 @@ function toggleAll(ev: Event) {
   checkedList.value = chk ? ids : [];
 }
 
-async function decide(action: "approve" | "reject") {
+function openExcuseModal() {
+  if (!selectedIds.value.size || !canAct.value) return;
+  excuseModal.value.open = true;
+  excuseModal.value.comment = '';
+  excuseModal.value.evidenceFile = null;
+  excuseModal.value.evidenceNote = '';
+  excuseModal.value.error = null;
+}
+function closeExcuseModal() {
+  excuseModal.value.open = false;
+}
+function onEvidenceChange(ev: Event) {
+  const input = ev.target as HTMLInputElement;
+  const file = input?.files && input.files[0] ? input.files[0] : null;
+  excuseModal.value.error = null;
+  if (!file) { excuseModal.value.evidenceFile = null; return; }
+  if (file.size > MAX_SIZE) {
+    excuseModal.value.error = `حجم الملف يتجاوز 5MB (الحجم الحالي ${(file.size/1024/1024).toFixed(2)}MB)`;
+    excuseModal.value.evidenceFile = null;
+    return;
+  }
+  const okTypes = ACCEPT_TYPES.split(',');
+  if (okTypes.length && !okTypes.includes(file.type)) {
+    excuseModal.value.error = 'نوع الملف غير مسموح';
+    excuseModal.value.evidenceFile = null;
+    return;
+  }
+  excuseModal.value.evidenceFile = file;
+}
+async function confirmExcused() {
   if (!selectedIds.value.size) return;
+  excuseModal.value.busy = true;
+  try {
+    const ids = Array.from(selectedIds.value);
+    const payload: any = { ids, comment: excuseModal.value.comment };
+    if (excuseModal.value.evidenceFile) payload.evidenceFile = excuseModal.value.evidenceFile;
+    if (excuseModal.value.evidenceNote) payload.evidenceNote = excuseModal.value.evidenceNote;
+    const res = await postWingSetExcused(payload);
+    const successMsg = `تم اعتبار ${res.updated} سجلات بعذر`;
+    liveMsg.value = successMsg;
+    try { toast.success(successMsg, { autoClose: 2500 }); } catch {}
+    excuseModal.value.open = false;
+    // Partial refresh: in period mode, remove affected rows locally
+    if (mode.value === 'period') {
+      const idSet = new Set(ids);
+      items.value = items.value.filter((it) => !idSet.has(it.id));
+      checkedList.value = checkedList.value.filter((id) => !idSet.has(id));
+    } else {
+      await load();
+    }
+    await focusRefresh();
+  } catch (e: any) {
+    const msg = e?.response?.data?.detail || e?.message || 'فشل تعيين بعذر';
+    excuseModal.value.error = msg;
+    liveMsg.value = `خطأ: ${msg}`;
+    try { toast.error(msg); } catch {}
+  } finally {
+    excuseModal.value.busy = false;
+  }
+}
+
+async function decide(action: "approve" | "reject") {
+  if (!selectedIds.value.size || !canAct.value) return;
   const comment = action === "reject" ? prompt("سبب الرفض (اختياري):") || "" : "";
   try {
     const ids = Array.from(selectedIds.value);
     const res = await postWingDecide({ action, ids, comment });
-    const msg =
-      action === "approve" ? `تم اعتماد ${res.updated} عنصرًا` : `تم رفض ${res.updated} عنصرًا`;
-    try {
-      toast.success(msg, { autoClose: 2500 });
-    } catch {}
-    await load();
+    const msg = action === "approve" ? `تم اعتماد ${res.updated} عنصرًا` : `تم رفض ${res.updated} عنصرًا`;
+    liveMsg.value = msg;
+    try { toast.success(msg, { autoClose: 2500 }); } catch {}
+    // Partial refresh in period mode: remove affected rows locally
+    if (mode.value === 'period') {
+      const idSet = new Set(ids);
+      items.value = items.value.filter((it) => !idSet.has(it.id));
+      checkedList.value = checkedList.value.filter((id) => !idSet.has(id));
+    } else {
+      await load();
+    }
   } catch (e: any) {
-    try {
-      toast.error(e?.response?.data?.detail || "فشل تنفيذ العملية");
-    } catch {}
+    const emsg = e?.response?.data?.detail || "فشل تنفيذ العملية";
+    liveMsg.value = `خطأ: ${emsg}`;
+    try { toast.error(emsg); } catch {}
+  } finally {
+    await focusRefresh();
   }
+}
+
+// Per-row quick actions
+async function decideOne(action: "approve" | "reject", it: any) {
+  if (!canAct.value || !it?.id) return;
+  const comment = action === "reject" ? prompt("سبب الرفض (اختياري):") || "" : "";
+  try {
+    const res = await postWingDecide({ action, ids: [it.id], comment });
+    const msg = action === "approve" ? `تم اعتماد عنصر واحد` : `تم رفض عنصر واحد`;
+    liveMsg.value = msg;
+    try { toast.success(msg, { autoClose: 2000 }); } catch {}
+    if (mode.value === 'period') {
+      items.value = items.value.filter((row) => row.id !== it.id);
+      checkedList.value = checkedList.value.filter((id) => id !== it.id);
+    } else {
+      await load();
+    }
+  } catch (e: any) {
+    const emsg = e?.response?.data?.detail || "فشل تنفيذ العملية";
+    liveMsg.value = `خطأ: ${emsg}`;
+    try { toast.error(emsg); } catch {}
+  } finally {
+    await focusRefresh();
+  }
+}
+
+function openExcuseFor(it: any) {
+  if (!canAct.value || !it?.id) return;
+  // Reuse bulk modal logic by setting selection to the single row
+  checkedList.value = [it.id];
+  openExcuseModal();
 }
 
 async function loadWing() {
@@ -606,33 +817,15 @@ async function loadWing() {
 
 async function loadWingClasses() {
   classes.value = [];
-  // Prefer wing timetable daily for the selected date to get classes of this wing
   try {
-    if (wingId.value) {
-      const res: any = await getWingTimetable({
-        mode: "daily",
-        wing_id: wingId.value,
-        date: dateStr.value,
-      });
-      const items = (res as any)?.items || [];
-      const uniq = new Map<number, { id: number; name?: string | null }>();
-      for (const it of items) {
-        if (it.class_id && !uniq.has(it.class_id))
-          uniq.set(it.class_id, { id: it.class_id, name: it.class_name });
-      }
-      classes.value = Array.from(uniq.values()).sort((a, b) =>
-        ("" + (a.name || a.id)).localeCompare("" + (b.name || b.id), "ar")
-      );
-    }
-  } catch {}
-  // Fallback to teacher classes (will later be filtered implicitly by approvals load)
-  if (!classes.value.length) {
-    try {
-      const res = await getTeacherClasses();
-      classes.value = (res?.classes || []).sort((a: any, b: any) =>
-        ("" + (a.name || a.id)).localeCompare("" + (b.name || b.id), "ar")
-      );
-    } catch {}
+    // Use wing-scoped endpoint to ensure only the supervisor's wing classes are listed
+    const paramsWing: any = {};
+    if (selectedWingId?.value) paramsWing.wing_id = selectedWingId.value;
+    const res = await getWingClasses(paramsWing);
+    const items = (res?.items || []).map((c: any) => ({ id: c.id, name: c.name }));
+    classes.value = items.sort((a: any, b: any) => ("" + (a.name || a.id)).localeCompare("" + (b.name || b.id), "ar"));
+  } catch {
+    // keep empty on failure; dropdown will show "كل الصفوف"
   }
 }
 
@@ -643,9 +836,27 @@ function onDateChange() {
 
 onMounted(async () => {
   loadPrefs();
+  // Restore state from URL query (mode, class)
+  try {
+    const q: any = route.query || {};
+    const m = (q.mode || '').toString();
+    if (m === 'daily' || m === 'period') mode.value = m as any;
+    const cls = q.class != null ? Number(q.class) : NaN;
+    if (!Number.isNaN(cls) && cls > 0) selectedClassId.value = cls;
+  } catch {}
   await loadWing();
   await loadWingClasses();
   await load();
+});
+
+// Persist state to URL when mode/class changes
+watch([mode, selectedClassId], () => {
+  try {
+    const q = { ...route.query } as any;
+    q.mode = mode.value;
+    q.class = selectedClassId.value || '';
+    router.replace({ query: q });
+  } catch {}
 });
 </script>
 <style scoped>
@@ -655,12 +866,15 @@ onMounted(async () => {
 .table-card {
   margin-top: 0.5rem;
 }
-.header-bar {
-  align-items: center;
-}
+/* Use global maroon header-bar styles from maronia.css (.header-bar.frame) */
 .wing-title {
   color: #6a1b1b;
   font-weight: 700;
   font-size: 1.15rem;
 }
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1050;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal-card{background:#fff;border-radius:8px;min-width:min(90vw,520px);max-width:95vw;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.modal-header,.modal-footer{padding:.5rem .75rem;border-bottom:1px solid #eee}
+.modal-footer{border-top:1px solid #eee;border-bottom:0;justify-content:flex-end}
+.modal-body{padding:.75rem}
 </style>

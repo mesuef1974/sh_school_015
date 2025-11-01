@@ -1,10 +1,10 @@
 <template>
-  <section class="d-grid gap-3">
+  <section class="d-grid gap-3 use-98vw">
     <header
       v-motion
       :initial="{ opacity: 0, y: -50 }"
       :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }"
-      class="auto-card p-3 d-flex align-items-center gap-3"
+      class="auto-card frame p-3 d-flex align-items-center gap-3"
     >
       <img
         :src="logoSrc"
@@ -20,7 +20,7 @@
       <!-- مثال بسيط على استخدام Lottie عبر vue3-lottie: يظهر على الشاشات المتوسطة فما فوق -->
       <Vue3Lottie
         class="d-none d-md-block"
-        path="https://cdn.lordicon.com/egiwmiit.json"
+        :animationLink="'https://cdn.lordicon.com/egiwmiit.json'"
         :loop="true"
         :autoplay="true"
         :speed="1"
@@ -30,7 +30,7 @@
     </header>
 
     <!-- Toolbar: reorder/cut/copy/paste -->
-    <div class="auto-card p-2 d-flex align-items-center gap-2 flex-wrap">
+    <div class="auto-card frame p-2 d-flex align-items-center gap-2 flex-wrap">
       <DsButton
         size="sm"
         :variant="reorderMode ? 'primary' : 'outline'"
@@ -396,4 +396,12 @@ function retryAnimation() {
   outline: 2px solid rgba(138, 21, 56, 0.35);
   outline-offset: 2px;
 }
+</style>
+
+<style scoped>
+/* Organized home tiles and maroon borders */
+.tile-grid { width: 100%; }
+/* Further shrink tiles by ~10% and center them */
+.tile-grid .tile { width: 70% !important; margin-inline: auto; border: 2px solid var(--maron-primary, #8a1538) !important; }
+.tile-grid .tile-icon { border-color: var(--maron-primary, #8a1538) !important; background: rgba(138, 21, 56, 0.06); }
 </style>

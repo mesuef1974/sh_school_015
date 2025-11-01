@@ -55,40 +55,64 @@ export function useWingContext() {
   const wingLabelFull = computed(() => {
     const me = cached.value || {};
     const pw = me?.primary_wing || null;
-    const sup = me?.staff?.full_name || me?.user?.full_name || me?.user?.username || "";
+    // Supervisor full name only (لا نستخدم اسم المستخدم username)
+    const supFull = me?.staff?.full_name || me?.user?.full_name || "";
 
-    // If a wing is explicitly selected (e.g., from timetable selector), prefer it for the label.
+    // إذا لم يكن لدى المستخدم صلاحية مشرف جناح وليس سوبر، لا نعرض العبارة
+    if (!(isSuper.value || ((me?.roles || []).map((r: any) => String(r).toLowerCase()).some((r: string) => r.includes('wing') && r.includes('supervisor'))))) {
+      // ملاحظة: صفحات الواجهة تستخدم hasWingRole/isSuper لإظهار التحذيرات عند الحاجة
+      // هنا نعيد نصًا فارغًا لتجنّب عرض معلومات مضللة
+      // إبقاء الدالة نقية بدون اعتماد دائري على hasWingRole
+      return '';
+    }
+
+    // Helper: sanitize name (remove leading 'جناح ' / 'الجناح ')
+    const sanitizeName = (s: any) => {
+      let name = (s || '').toString().trim();
+      if (name) name = name.replace(/^\s*(?:الجناح|جناح)\s+/u, '').trim();
+      return name;
+    };
+    // Remove duplicate wing number from name (e.g., 'الوسيل 5' when number = 5)
+    const stripDuplicateNumber = (name: string, numStr: string) => {
+      if (!name || !numStr) return name;
+      const num = numStr.replace(/\s+/g, '');
+      // Patterns at end or wrapped in parentheses or with dashes
+      const patterns = [
+        new RegExp(`\\s*[\u002D\u2013\u2014]?\\s*\\(?${num}\\)?$`), // ... 5) at end with optional dash/space
+        new RegExp(`^\\(?${num}\\)?\\s*[\u002D\u2013\u2014]?\\s*`),   // (5) ... at start
+      ];
+      let out = name;
+      for (const rx of patterns) {
+        out = out.replace(rx, '').trim();
+      }
+      // Also remove standalone duplicate like ' 5 ' in middle surrounded by dashes
+      out = out.replace(new RegExp(`\\s*[\u002D\u2013\u2014]?\\s*${num}\\s*[\u002D\u2013\u2014]?\\s*`), ' ').trim();
+      return out.replace(/\s{2,}/g, ' ').trim();
+    };
+
+    // If a wing is explicitly selected (e.g., timetable), prefer it
     if (selectedWingId.value) {
+      let nameStr = sanitizeName(selectedWingName.value);
+      const numStr = String(selectedWingId.value || '').trim();
+      nameStr = stripDuplicateNumber(nameStr, numStr);
       const parts: string[] = [];
-      const nameStrRaw = (selectedWingName.value || "").toString();
-      let nameStr = nameStrRaw.trim();
-      if (nameStr) nameStr = nameStr.replace(/^\s*(?:الجناح|جناح)\s+/u, "").trim();
+      if (numStr) parts.push(numStr);
       if (nameStr) parts.push(nameStr);
-      // Show the ID if we don't have a number; avoid duplicating if already in name
-      const idStr = String(selectedWingId.value);
-      if (idStr && !nameStr.includes(idStr)) parts.push(idStr);
-      // Show supervisor name only if selected wing equals primary wing (we know that supervisor)
-      const sameAsPrimary = pw?.id && Number(pw.id) === Number(selectedWingId.value);
-      if (sameAsPrimary && sup) parts.push(String(sup));
-      if (!parts.length) return "";
-      return `مشرف الجناح ${parts.join(" - ")}`;
+      if (supFull) parts.push(String(supFull));
+      if (!parts.length) return '';
+      return `جناح ${parts.join(' - ')}`;
     }
 
     // Default: use primary wing info from backend
+    let nameStr = sanitizeName(pw?.name);
+    const numStr = (pw?.number != null && pw?.number !== undefined && pw?.number !== 0) ? String(pw.number) : '';
+    nameStr = stripDuplicateNumber(nameStr, numStr);
     const parts: string[] = [];
-    let nameStr = pw?.name ? String(pw.name) : "";
-    // Sanitize wing name: remove leading 'جناح ' or 'الجناح '
-    if (nameStr) {
-      const trimmed = nameStr.trim();
-      nameStr = trimmed.replace(/^\s*(?:الجناح|جناح)\s+/u, "").trim();
-    }
-    const numStr = pw?.number != null && pw?.number !== undefined && pw.number !== 0 ? String(pw.number) : "";
+    if (numStr) parts.push(numStr);
     if (nameStr) parts.push(nameStr);
-    // Avoid duplicating the number if it already exists in the (sanitized) name string
-    if (numStr && !nameStr.includes(numStr)) parts.push(numStr);
-    if (sup) parts.push(String(sup));
-    if (!parts.length) return "";
-    return `مشرف الجناح ${parts.join(" - ")}`;
+    if (supFull) parts.push(String(supFull));
+    if (!parts.length) return '';
+    return `جناح ${parts.join(' - ')}`;
   });
   const primaryWing = computed(() => (cached.value?.primary_wing || null));
   const supervisorName = computed(() => (cached.value?.staff?.full_name || cached.value?.user?.full_name || cached.value?.user?.username || null));

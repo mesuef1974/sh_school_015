@@ -1,6 +1,7 @@
 from __future__ import annotations
 from django.conf import settings
 from django.db import models, transaction
+from django.utils import timezone
 
 
 class AlertNumberSequence(models.Model):
@@ -72,3 +73,28 @@ class AbsenceAlert(models.Model):
 
     def __str__(self) -> str:
         return f"AbsenceAlert {self.academic_year}/{self.number} – {self.student}"
+
+
+def _docx_upload_to(instance: "AbsenceAlertDocument", filename: str) -> str:
+    # media path: alerts/docx/<year>/<number>-<yyyymmdd_HHMMSS>.docx
+    ts = timezone.now().strftime("%Y%m%d_%H%M%S")
+    return f"alerts/docx/{instance.alert.academic_year}/{instance.alert.number}-{ts}.docx"
+
+
+class AbsenceAlertDocument(models.Model):
+    alert = models.ForeignKey(AbsenceAlert, on_delete=models.CASCADE, related_name="documents")
+    file = models.FileField(upload_to=_docx_upload_to)
+    size = models.PositiveIntegerField(default=0)
+    mime = models.CharField(max_length=100, default="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    sha256 = models.CharField(max_length=64, blank=True)
+    template_name = models.CharField(max_length=200, blank=True)
+    template_hash = models.CharField(max_length=64, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["alert", "created_at"]),
+        ]
+        verbose_name = "ملف تنبيه غياب (DOCX)"
+        verbose_name_plural = "ملفات تنبيهات الغياب (DOCX)"

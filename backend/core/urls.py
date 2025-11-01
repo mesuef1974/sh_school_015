@@ -28,6 +28,8 @@ from django.views.static import serve as static_serve
 from school.admin_site import restricted_admin_site
 from school.api.views import logout as api_logout
 from school.auth import CustomTokenObtainPairView, CustomTokenRefreshView
+# Explicit import for a stable alias to Wing students DOCX export
+from apps.attendance.api import WingSupervisorViewSet
 
 # Paths outside backend/ we might want to expose during development (DEBUG)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -88,6 +90,17 @@ urlpatterns = [
     path("admin/", restricted_admin_site.urls),
     # API v1 (new apps)
     path("api/v1/", include("apps.attendance.urls")),
+    # Stable alias for Wing students DOCX export (works with/without trailing slash)
+    path(
+        "api/v1/wing/students/export.docx/",
+        WingSupervisorViewSet.as_view({"get": "students_export_docx"}),
+        name="wing-students-export-docx",
+    ),
+    path(
+        "api/v1/wing/students/export.docx",
+        WingSupervisorViewSet.as_view({"get": "students_export_docx"}),
+        name="wing-students-export-docx-no-slash",
+    ),
     path("", include("school.urls")),
     # Friendly docs endpoints (development only)
     path("index", RedirectView.as_view(url="/docs/", permanent=False)),
@@ -114,6 +127,8 @@ if settings.DEBUG:
 
     urlpatterns += [
         path("api/v1/__urls__", _dump_urls, name="debug_dump_urls"),
+        # Developer-friendly alias without the double underscore
+        path("api/v1/urls", _dump_urls, name="debug_dump_urls_alias"),
         # Serve the generated docs landing at /docs/
         path(
             "docs/",

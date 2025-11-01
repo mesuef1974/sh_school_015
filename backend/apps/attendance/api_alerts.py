@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 from django.db import transaction
-from django.http import HttpResponse
-from django.utils.dateparse import parse_date
+from django.http import HttpResponse, FileResponse
 from django.utils import timezone
+from apps.common.date_utils import parse_ui_or_iso_date
+from django.core.files.base import ContentFile
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
+import hashlib
+from pathlib import Path
 
 from school.models import Student, AcademicYear, Wing  # type: ignore
-from .models_alerts import AbsenceAlert, AlertNumberSequence
+from .models_alerts import AbsenceAlert, AlertNumberSequence, AbsenceAlertDocument
 from .serializers_alerts import AbsenceAlertSerializer
 from .services.absence_days import compute_absence_days
-from .services.word_renderer import render_alert_docx
+from .services.word_renderer import render_alert_docx, current_template_info
 
 
 class IsWingSupervisorOrAdmin(permissions.BasePermission):
@@ -57,15 +60,11 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
         # Overlap if (period_end >= from) and (period_start <= to)
         try:
             if date_from:
-                from django.utils.dateparse import parse_date as _pd
-
-                df = _pd(date_from)
+                df = parse_ui_or_iso_date(date_from)
                 if df:
                     qs = qs.filter(period_end__gte=df)
             if date_to:
-                from django.utils.dateparse import parse_date as _pd
-
-                dt = _pd(date_to)
+                dt = parse_ui_or_iso_date(date_to)
                 if dt:
                     qs = qs.filter(period_start__lte=dt)
         except Exception:
@@ -103,11 +102,11 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
             except Exception:
                 return Response({"detail": "لا تملك صلاحية"}, status=403)
 
-        # Dates
-        start_date = parse_date(data.get("period_start"))
-        end_date = parse_date(data.get("period_end"))
+        # Dates (accept UI DD/MM/YYYY or ISO YYYY-MM-DD)
+        start_date = parse_ui_or_iso_date(data.get("period_start"))
+        end_date = parse_ui_or_iso_date(data.get("period_end"))
         if start_date is None or end_date is None:
-            return Response({"detail": "تواريخ غير صالحة"}, status=400)
+            return Response({"detail": "تواريخ غير صالحة (يرجى استخدام DD/MM/YYYY أو YYYY-MM-DD)"}, status=400)
         if start_date > end_date:
             return Response({"detail": "نطاق التواريخ غير صحيح"}, status=400)
 
@@ -161,12 +160,95 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"detail": f"تعذر توليد الملف: {e}"}, status=500)
         fname = f"absence-alert-{alert.academic_year}-{alert.number}.docx"
+        # Optional persist=1 to archive the generated file as the latest version
+        if request.query_params.get("persist") in ("1", "true", "yes"):  # archive
+            sha = hashlib.sha256(content).hexdigest()
+            from .services.word_renderer import TEMPLATE_PATH, FALLBACK_TEMPLATE_PATH
+            tpath = TEMPLATE_PATH if Path(TEMPLATE_PATH).exists() else FALLBACK_TEMPLATE_PATH
+            thash = hashlib.sha256(Path(tpath).read_bytes()).hexdigest() if Path(tpath).exists() else ""
+            doc = AbsenceAlertDocument.objects.create(
+                alert=alert,
+                created_by=request.user,
+                size=len(content),
+                sha256=sha,
+                template_name=str(tpath),
+                template_hash=thash,
+            )
+            # Save file content into FileField
+            doc.file.save(fname, ContentFile(content), save=True)
         resp = HttpResponse(
             content,
             content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
+        # Diagnostics: expose which template path/hash were used
+        try:
+            tpath, thash = current_template_info()
+            resp["X-Docx-Template-Path"] = tpath
+            if thash:
+                resp["X-Docx-Template-Hash"] = thash
+        except Exception:
+            pass
         resp["Content-Disposition"] = f'attachment; filename="{fname}"'
         return resp
+
+    @action(detail=True, methods=["post"], url_path="docx/save")
+    def docx_save(self, request: Request, pk=None):
+        alert = self.get_object()
+        try:
+            content = render_alert_docx(alert)
+        except FileNotFoundError as e:
+            return Response({"detail": str(e)}, status=404)
+        except Exception as e:
+            return Response({"detail": f"تعذر توليد الملف: {e}"}, status=500)
+        sha = hashlib.sha256(content).hexdigest()
+        from .services.word_renderer import TEMPLATE_PATH, FALLBACK_TEMPLATE_PATH
+        tpath = TEMPLATE_PATH if Path(TEMPLATE_PATH).exists() else FALLBACK_TEMPLATE_PATH
+        thash = hashlib.sha256(Path(tpath).read_bytes()).hexdigest() if Path(tpath).exists() else ""
+        fname = f"absence-alert-{alert.academic_year}-{alert.number}.docx"
+        doc = AbsenceAlertDocument.objects.create(
+            alert=alert,
+            created_by=request.user,
+            size=len(content),
+            sha256=sha,
+            template_name=str(tpath),
+            template_hash=thash,
+        )
+        doc.file.save(fname, ContentFile(content), save=True)
+        return Response({
+            "id": doc.id,
+            "size": doc.size,
+            "sha256": doc.sha256,
+            "created_at": doc.created_at,
+            "template_name": doc.template_name,
+        }, status=201)
+
+    @action(detail=True, methods=["get"], url_path="docx/latest")
+    def docx_latest(self, request: Request, pk=None):
+        alert = self.get_object()
+        doc = alert.documents.order_by("-created_at").first()
+        if not doc or not doc.file:
+            return Response({"detail": "لا يوجد ملف محفوظ لهذا التنبيه"}, status=404)
+        response = FileResponse(doc.file.open("rb"), content_type=doc.mime)
+        response["Content-Disposition"] = f'attachment; filename="{doc.file.name.split('/')[-1]}"'
+        return response
+
+    @action(detail=True, methods=["get"], url_path="docx/list")
+    def docx_list(self, request: Request, pk=None):
+        alert = self.get_object()
+        items = [
+            {
+                "id": d.id,
+                "name": d.file.name.split('/')[-1] if d.file else None,
+                "size": d.size,
+                "sha256": d.sha256,
+                "template_name": d.template_name,
+                "template_hash": d.template_hash,
+                "created_at": d.created_at,
+                "created_by": getattr(d.created_by, "get_full_name", lambda: str(d.created_by))(),
+            }
+            for d in alert.documents.order_by("-created_at").all()
+        ]
+        return Response({"count": len(items), "items": items})
 
 
 class AbsenceComputeViewSet(viewsets.ViewSet):
@@ -176,8 +258,8 @@ class AbsenceComputeViewSet(viewsets.ViewSet):
     def compute_days(self, request: Request) -> Response:
         try:
             student_id = int(request.query_params.get("student"))
-            start_date = parse_date(request.query_params.get("from"))
-            end_date = parse_date(request.query_params.get("to"))
+            start_date = parse_ui_or_iso_date(request.query_params.get("from"))
+            end_date = parse_ui_or_iso_date(request.query_params.get("to"))
         except Exception:
             return Response({"detail": "مدخلات غير صالحة"}, status=400)
         if not start_date or not end_date:

@@ -163,16 +163,21 @@ REST_FRAMEWORK = {
         "user": ("1000/second" if DEBUG else "2000/hour"),
         "anon": ("1000/second" if DEBUG else "50/hour"),
     },
-    # Global date formatting for DRF DateField outputs: change to DD:MM:YYYY as requested
-    # Keep input flexible to accept both the new format and common ISO formats
-    "DATE_FORMAT": "%d:%m:%Y",
+    # DRF DateField output format: Always ISO for API stability
+    # Accept inputs from UI (DD/MM/YYYY) and ISO (YYYY-MM-DD)
+    "DATE_FORMAT": "%Y-%m-%d",
     "DATE_INPUT_FORMATS": [
-        "%d:%m:%Y",  # new canonical format
         "%Y-%m-%d",  # ISO date
-        "%d/%m/%Y",
-        "%m/%d/%Y",
+        "%d/%m/%Y",  # UI format
     ],
 }
+
+# Global human-facing date/time formats for Django templates/admin (not affecting DRF JSON)
+# This ensures dates render as DD/MM/YYYY in server-rendered pages and admin.
+DATE_FORMAT = "d/m/Y"
+SHORT_DATE_FORMAT = "d/m/Y"
+DATETIME_FORMAT = "d/m/Y H:i"
+SHORT_DATETIME_FORMAT = "d/m/Y H:i"
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),

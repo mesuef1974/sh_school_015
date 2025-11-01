@@ -1,14 +1,9 @@
 <template>
   <section class="wing-dashboard d-grid gap-3 page-grid page-grid-wide">
-    <div class="d-flex align-items-center gap-2 mb-2 header-bar frame">
-      <Icon :icon="tileMeta.icon" class="header-icon" :style="{ color: tileMeta.color }" />
-      <div>
-        <div class="fw-bold">{{ tileMeta.title }}</div>
-        <div class="text-muted small" v-if="wingLabelFull">{{ wingLabelFull }}</div>
-        <div class="text-muted small" v-else>ملخص ومؤشرات اليوم لنطاق جناحك</div>
-      </div>
-      <span class="ms-auto"></span>
-      <DsButton variant="primary" icon="solar:refresh-bold-duotone" @click="loadData">تحديث</DsButton>
+    <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" :color="tileMeta.color" />
+
+    <div class="auto-card p-2 d-flex align-items-center gap-2 flex-wrap">
+      <DsButton variant="outline" icon="solar:refresh-bold-duotone" @click="loadData">تحديث</DsButton>
     </div>
 
     <div v-if="loading" class="alert alert-light border d-flex align-items-center gap-2">
@@ -212,6 +207,7 @@ import { getWingMe, getWingOverview, getWingMissing, getMe } from "../../../shar
 import DsButton from "../../../components/ui/DsButton.vue";
 import { tiles } from "../../../home/icon-tiles.config";
 import { useWingContext } from "../../../shared/composables/useWingContext";
+import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 import { Icon } from "@iconify/vue";
 
 const route = useRoute();

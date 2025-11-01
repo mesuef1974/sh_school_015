@@ -1,0 +1,237 @@
+/* Global centralized print styles for the whole platform.
+   Goals:
+   - Keep the page as-is (header/footer/controls) unless individual pages opt-out.
+   - Professional A4 printing (portrait default) with 1cm margins.
+   - RTL-friendly typography, preserve colors.
+   - Tables print cleanly: full width, fixed layout, wrapping, repeated headers, maroon header row.
+*/
+
+@media print {
+  /* Page setup: default portrait A4 with 1cm margins */
+  @page { size: A4 portrait; margin: 1cm; }
+
+  html, body {
+    direction: rtl;
+    font-family: Arial, Tahoma, "Noto Naskh Arabic", sans-serif;
+    font-size: 11pt;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    background: #fff !important;
+    background-image: none !important;
+  }
+
+  /* Remove any page/site background images when printing */
+  #app, .app, .page-grid, .page-grid-wide, .container, .container-fluid, main, .main-content {
+    background: transparent !important;
+    background-image: none !important;
+  }
+
+  /* Remove effects that waste ink/space; keep everything visible */
+  .card, .navbar, header, footer, .app-header, .app-footer {
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  /* Avoid sticky overlaps when printing */
+  .sticky-top, .position-sticky { position: static !important; top: auto !important; }
+
+  /* Let containers use full width on paper */
+  .container, .container-fluid, .page-grid, .page-grid-wide {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* General table improvements for printing */
+  table, .table {
+    /* Do not force on-screen compact rules here; only print adjustments */
+  }
+
+  /* Apply professional print styles to any table that opts-in via .print-table,
+     or to Bootstrap tables by default for convenience. */
+  table.print-table, table.table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed; /* prevent horizontal overflow */
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+  table.print-table thead, table.table thead { display: table-header-group; }
+  table.print-table tfoot, table.table tfoot { display: table-footer-group; }
+
+  table.print-table th, table.print-table td,
+  table.table th, table.table td {
+    border: 1px solid #bbb !important;
+    padding: 6pt 6pt !important;
+    vertical-align: middle !important;
+    text-align: right !important; /* RTL */
+    white-space: normal !important; /* allow wrapping to contain text */
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word;
+  }
+
+  /* Maroon header with white text */
+  table.print-table thead th,
+  table.table thead th {
+    background: #800000 !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+    text-align: center !important;
+  }
+
+  /* Column sizing heuristics (generic) to improve fit on paper */
+  /* 1) First column (row index '#') — make it very narrow */
+  table.print-table thead th:nth-child(1),
+  table.table thead th:nth-child(1),
+  table.print-table tbody td:nth-child(1),
+  table.table tbody td:nth-child(1) {
+    width: 1.2cm !important;
+    max-width: 1.2cm !important;
+    text-align: center !important;
+    white-space: nowrap !important;
+  }
+  /* 2) Second column (school ID / الرقم المدرسي) — narrow but readable */
+  table.print-table thead th:nth-child(2),
+  table.table thead th:nth-child(2),
+  table.print-table tbody td:nth-child(2),
+  table.table tbody td:nth-child(2) {
+    width: 2.5cm !important;
+    max-width: 2.5cm !important;
+    white-space: nowrap !important;
+  }
+  /* 3) Third column (student name) — give wider space */
+  table.print-table thead th:nth-child(3),
+  table.table thead th:nth-child(3),
+  table.print-table tbody td:nth-child(3),
+  table.table tbody td:nth-child(3) {
+    width: 6cm !important;
+    max-width: 6cm !important;
+  }
+
+  /* Allow wrapping even inside code elements (e.g., school ID) when printing */
+  table.print-table code, table.table code {
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+
+  /* Avoid breaking rows across pages */
+  table.print-table tr, table.print-table td, table.print-table th,
+  table.table tr, table.table td, table.table th {
+    break-inside: avoid; page-break-inside: avoid;
+  }
+
+  /* Links look like plain text when printing */
+  a[href] { color: inherit !important; text-decoration: none !important; }
+  a[href^="tel:"]::after { content: none !important; }
+
+  /* Hide floating print panel and trigger button in print output */
+  .print-panel, .print-trigger-wrapper { display: none !important; }
+
+  /* === Utility toggles injected via PrintToolbar/printManager === */
+  /* 1) Compact density: reduce paddings and font-size slightly to fit more */
+  body.print-compact .table th,
+  body.print-compact .table td,
+  body.print-compact table.print-table th,
+  body.print-compact table.print-table td { padding: 4pt 4pt !important; }
+  body.print-compact { font-size: 10pt; }
+
+  /* 2) Clean mode: minimize chrome (keep header/footer by default) */
+  body.print-clean .btn,
+  body.print-clean .input-group,
+  body.print-clean .form-control,
+  body.print-clean .form-select,
+  body.print-clean select,
+  body.print-clean .badge,
+  body.print-clean .alert,
+  body.print-clean details > summary,
+  body.print-clean .dropdown-menu,
+  body.print-clean .dropdown-card,
+  body.print-clean .pagination,
+  /* Hide breadcrumb/history bars in clean mode as requested */
+  body.print-clean .breadcrumb,
+  body.print-clean nav[aria-label="breadcrumb"],
+  body.print-clean .page-breadcrumbs,
+  body.print-clean .history-bar { display: none !important; }
+
+  /* 3) Focus mode: print only a chosen card/element, keep platform header/footer */
+  /* Always keep the site header/footer visible in all print modes */
+  header, footer, .app-header, .app-footer { display: block !important; visibility: visible !important; }
+  body.print-focus-mode header,
+  body.print-focus-mode footer,
+  body.print-focus-mode .app-header,
+  body.print-focus-mode .app-footer { display: block !important; visibility: visible !important; }
+  /* Hide all Bootstrap cards except the focused one */
+  body.print-focus-mode .card { display: none !important; }
+  body.print-focus-mode .card.print-focus-target { display: block !important; }
+  /* Hide common toolbars/auto-cards when focusing */
+  body.print-focus-mode .auto-card:not(.print-focus-target),
+  body.print-focus-mode .toolbar:not(.print-focus-target),
+  body.print-focus-mode [role="search"]:not(.print-focus-target),
+  body.print-focus-mode .filters:not(.print-focus-target),
+  body.print-focus-mode .input-group:not(.print-focus-target),
+  body.print-focus-mode .form-control:not(.print-focus-target),
+  body.print-focus-mode .form-select:not(.print-focus-target),
+  body.print-focus-mode select:not(.print-focus-target),
+  body.print-focus-mode details > summary:not(.print-focus-target),
+  body.print-focus-mode .dropdown-card:not(.print-focus-target),
+  body.print-focus-mode .dropdown-menu:not(.print-focus-target) { display: none !important; }
+  /* Maximize page width usage for focused printing: collapse grid/gutters and stretch columns */
+  body.print-focus-mode .container,
+  body.print-focus-mode .container-fluid,
+  body.print-focus-mode .page-grid,
+  body.print-focus-mode .page-grid-wide {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body.print-focus-mode .row {
+    display: block !important;
+    margin: 0 !important;
+    --bs-gutter-x: 0;
+    --bs-gutter-y: 0;
+  }
+  /* Make all bootstrap columns span full width on paper */
+  body.print-focus-mode [class^="col-"],
+  body.print-focus-mode [class*=" col-"] {
+    flex: 0 0 100% !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding: 0 !important;
+  }
+  /* Ensure the focused card stretches and avoids being split across pages */
+  body.print-focus-mode .print-focus-target {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  body.print-focus-mode .card.print-focus-target {
+    break-inside: avoid; page-break-inside: avoid;
+    margin: 0 0 .5cm 0 !important; /* small spacing between multiple selected cards */
+  }
+
+  /* 4) No grid: remove borders for a lighter look */
+  body.print-no-grid table.print-table th,
+  body.print-no-grid table.print-table td,
+  body.print-no-grid .table th,
+  body.print-no-grid .table td { border-color: transparent !important; }
+
+  /* 5) Scale presets: scale content slightly (affects font-size)
+     Note: These presets adjust base font-size to approximate print scaling.
+     Choose the closest value; browser print dialog may still apply its own scaling.
+  */
+  body.print-scale-50 { font-size: 6pt; }
+  body.print-scale-60 { font-size: 7pt; }
+  body.print-scale-70 { font-size: 8pt; }
+  body.print-scale-80 { font-size: 9pt; }
+  body.print-scale-90 { font-size: 10pt; }
+  body.print-scale-100 { font-size: 11pt; }
+  body.print-scale-110 { font-size: 12pt; }
+}
+
+/* Optional landscape support via html class (some browsers only).
+   Prefer programmatic injection in printManager for reliability. */
+@media print {
+  html.print-landscape @page { size: A4 landscape; }
+}

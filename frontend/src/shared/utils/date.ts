@@ -23,7 +23,7 @@ export function formatDateDMY(input: DateInput): string {
     return `${d}/${mo}/${y}`;
   }
   // 3) Slash-separated (MM/DD/YYYY or DD/MM/YYYY)
-  m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw);
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(raw);
   if (m) {
     let [_, a, b, y] = m;
     let d = a,
@@ -41,7 +41,7 @@ export function formatDateDMY(input: DateInput): string {
       d = b;
       mo = a;
     }
-    return `${d.padStart(2, "0")}/${mo.padStart(2, "0")}/${y}`;
+    return `${String(d).padStart(2, "0")}/${String(mo).padStart(2, "0")}/${y}`;
   }
   // 4) Fallback: try JS Date
   const dt = new Date(raw);
@@ -52,6 +52,35 @@ export function formatDateDMY(input: DateInput): string {
     return `${dd}/${mm}/${yyyy}`;
   }
   return raw;
+}
+
+/** Strictly validate DD/MM/YYYY (1-31/1-12/4-digit year) and logical date. */
+export function isValidDMY(s: string | null | undefined): boolean {
+  if (!s) return false;
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(s).trim());
+  if (!m) return false;
+  const d = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const y = parseInt(m[3], 10);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(y, mo - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === mo - 1 && dt.getDate() === d;
+}
+
+/** Convert DD/MM/YYYY to ISO YYYY-MM-DD. Returns null if invalid. */
+export function parseDMYtoISO(s: string | null | undefined): string | null {
+  if (!isValidDMY(s || "")) return null;
+  const [d, m, y] = (s as string).split("/");
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+/** Format ISO YYYY-MM-DD to DD/MM/YYYY. Returns empty string if invalid. */
+export function formatISOtoDMY(s: string | null | undefined): string {
+  if (!s) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s).trim());
+  if (!m) return "";
+  const [, y, mo, d] = m;
+  return `${d}/${mo}/${y}`;
 }
 
 /** Convert Date to ISO YYYY-MM-DD string. */

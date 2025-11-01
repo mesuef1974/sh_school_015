@@ -45,7 +45,8 @@ defineProps<{
   gap: 10px;
   align-items: center;
   justify-content: center;
-  width: 100%; /* امتلاء خلية الشبكة */
+  width: 70%; /* Further shrink by ~10% as requested */
+  margin-inline: auto; /* center within grid cell */
   aspect-ratio: 1 / 1; /* مربعة */
   padding: 16px;
   border-radius: 18px;
@@ -144,7 +145,7 @@ defineProps<{
 /* تحسينات استجابة */
 @media (max-width: 576px) {
   .tile {
-    width: 84%;
+    width: 74%;
     padding: 14px;
   }
   .tile-icon {
@@ -156,7 +157,7 @@ defineProps<{
 }
 @media (min-width: 1400px) {
   .tile {
-    width: 72%;
+    width: 63%;
   }
 }
 </style>

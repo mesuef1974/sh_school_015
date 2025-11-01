@@ -1,13 +1,12 @@
 <template>
   <section class="d-grid gap-3 page-grid page-grid-wide" dir="rtl">
-    <div class="d-flex align-items-center gap-2 mb-2 header-bar frame">
-      <Icon :icon="tileMeta.icon" class="header-icon" width="28" height="28" :style="{ color: tileMeta.color }" />
-      <div>
-        <div class="fw-bold">{{ tileMeta.title }}</div>
-        <div class="text-muted small" v-if="wingLabelFull">{{ wingLabelFull }}</div>
-        <div class="text-muted small" v-else>ملخص ومؤشرات اليوم لنطاق جناحك</div>
-      </div>
-      <span class="ms-auto"></span>
+    <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" :color="tileMeta.color">
+          <template #actions>
+            <WingWingPicker id="pick-daily-wing" />
+          </template>
+        </WingPageHeader>
+
+    <div class="auto-card p-2 d-flex align-items-center gap-2 flex-wrap">
       <DatePickerDMY
         :id="'wing-att-daily-date'"
         :aria-label="'اختيار التاريخ'"
@@ -83,6 +82,9 @@
               <a class="btn btn-sm btn-outline-success" :href="dailyCsvHref" target="_blank" rel="noopener">
                 تنزيل CSV
               </a>
+              <a class="btn btn-sm btn-outline-primary" :href="dailyWordHref" target="_blank" rel="noopener">
+                تنزيل Word
+              </a>
             </div>
             <div class="form-text">يُحسب اليوم كاملًا إذا كانت الحصتان 1 و2 غيابًا. العطل مستثناة.</div>
           </div>
@@ -127,7 +129,9 @@
                 مراقبة الحضور
               </router-link>
               <a class="btn btn-sm btn-outline-success" :href="enteredCsvHref" target="_blank" rel="noopener">تنزيل مُدخلة CSV</a>
+              <a class="btn btn-sm btn-outline-primary" :href="enteredWordHref" target="_blank" rel="noopener">تنزيل مُدخلة Word</a>
               <a class="btn btn-sm btn-outline-danger" :href="missingCsvHref" target="_blank" rel="noopener">تنزيل مفقودة CSV</a>
+              <a class="btn btn-sm btn-outline-primary" :href="missingWordHref" target="_blank" rel="noopener">تنزيل مفقودة Word</a>
             </div>
           </div>
         </div>
@@ -202,22 +206,44 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { useWingPrefs } from "../../../shared/composables/useWingPrefs";
+import { onMounted, watch } from 'vue';
 import { useWingContext } from '../../../shared/composables/useWingContext';
-const { ensureLoaded, wingLabelFull } = useWingContext();
+const { ensureLoaded, wingLabelFull, selectedWingId } = useWingContext();
 onMounted(async () => {
   await ensureLoaded();
+  // Apply Wing Settings defaults
+  if (apply_on_load.value.daily) {
+    // Date init
+    if (default_date_mode.value === 'today') {
+      dateStr.value = today;
+    } else if (default_date_mode.value === 'remember') {
+      const prev = localStorage.getItem('wing_daily.last_date');
+      dateStr.value = prev || today;
+    }
+    // Class init
+    if (daily_class_filter_behavior.value === 'default_class' && default_class_id.value) {
+      classId.value = default_class_id.value;
+    } else if (daily_class_filter_behavior.value === 'remember') {
+      const prevClass = Number(localStorage.getItem('wing_daily.last_class') || '0');
+      if (prevClass) classId.value = prevClass;
+    }
+  }
   try {
-    const res = await getWingClasses({});
+    const params: any = {};
+    if (selectedWingId?.value) params.wing_id = selectedWingId.value;
+    const res = await getWingClasses(params);
     classes.value = res.items?.map((c: any) => ({ id: c.id, name: c.name || `#${c.id}` })) || [];
   } catch { classes.value = []; }
   await loadAll();
 });
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 import { Icon } from "@iconify/vue";
 import { tiles } from "../../../home/icon-tiles.config";
 import StatusLegend from "../../../components/ui/StatusLegend.vue";
+import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
+import WingWingPicker from "../../../components/ui/WingWingPicker.vue";
 import { formatDateDMY } from "../../../shared/utils/date";
 const tileMeta = computed(() => tiles.find(t => t.to === "/wing/attendance/daily") || { title: "الغياب اليومي", icon: "solar:calendar-bold-duotone", color: "#1565c0" });
 import {
@@ -234,6 +260,7 @@ import {
 import { useToast } from "vue-toastification";
 
 const toast = useToast();
+const { default_date_mode, apply_on_load, daily_class_filter_behavior, default_class_id } = useWingPrefs();
 const today = new Date().toISOString().slice(0, 10);
 const dateStr = ref<string>(today);
 const loadingAll = ref(false);
@@ -248,10 +275,35 @@ const apiBase = "/api/v1";
 const dailyCsvHref = computed(() => {
   const params = new URLSearchParams({ date: dateStr.value });
   if (classId.value && classId.value > 0) params.append("class_id", String(classId.value));
+  if (selectedWingId?.value) params.append("wing_id", String(selectedWingId.value));
   return `${apiBase}/wing/daily-absences/export/?${params.toString()}`;
 });
-const enteredCsvHref = computed(() => `${apiBase}/wing/entered/export/?date=${encodeURIComponent(dateStr.value)}`);
-const missingCsvHref = computed(() => `${apiBase}/wing/missing/export/?date=${encodeURIComponent(dateStr.value)}`);
+const dailyWordHref = computed(() => {
+  const params = new URLSearchParams({ date: dateStr.value });
+  if (classId.value && classId.value > 0) params.append("class_id", String(classId.value));
+  if (selectedWingId?.value) params.append("wing_id", String(selectedWingId.value));
+  return `${apiBase}/wing/daily-absences/export.docx/?${params.toString()}`;
+});
+const enteredCsvHref = computed(() => {
+  const params = new URLSearchParams({ date: dateStr.value });
+  if (selectedWingId?.value) params.append("wing_id", String(selectedWingId.value));
+  return `${apiBase}/wing/entered/export/?${params.toString()}`;
+});
+const enteredWordHref = computed(() => {
+  const params = new URLSearchParams({ date: dateStr.value });
+  if (selectedWingId?.value) params.append("wing_id", String(selectedWingId.value));
+  return `${apiBase}/wing/entered/export.docx/?${params.toString()}`;
+});
+const missingCsvHref = computed(() => {
+  const params = new URLSearchParams({ date: dateStr.value });
+  if (selectedWingId?.value) params.append("wing_id", String(selectedWingId.value));
+  return `${apiBase}/wing/missing/export/?${params.toString()}`;
+});
+const missingWordHref = computed(() => {
+  const params = new URLSearchParams({ date: dateStr.value });
+  if (selectedWingId?.value) params.append("wing_id", String(selectedWingId.value));
+  return `${apiBase}/wing/missing/export.docx/?${params.toString()}`;
+});
 
 // Data buckets
 const overview = ref<any | null>(null);
@@ -279,13 +331,14 @@ async function loadAll() {
     if (classId.value && classId.value > 0) {
       paramsDate.class_id = classId.value;
     }
+    if (selectedWingId?.value) paramsDate.wing_id = selectedWingId.value;
     const [ov, daily, pend, entered, missing, exits] = await Promise.all([
       getWingOverview(paramsDate),
       getWingDailyAbsences(paramsDate),
       getWingPending(paramsDate),
       getWingEntered(paramsDate),
       getWingMissing(paramsDate),
-      getOpenExitEvents({ date: dateStr.value }),
+      getOpenExitEvents(selectedWingId?.value ? { date: dateStr.value, wing_id: selectedWingId.value } : { date: dateStr.value }),
     ]);
     overview.value = ov;
     dailyCounts.value = daily?.counts || { excused: 0, unexcused: 0, none: 0 };
@@ -308,11 +361,21 @@ async function loadAll() {
   }
 }
 
+// refetch when wing selection changes (super admin)
+watch(selectedWingId, async () => {
+  try {
+    const params: any = {};
+    if (selectedWingId?.value) params.wing_id = selectedWingId.value;
+    const res = await getWingClasses(params);
+    classes.value = res.items?.map((c: any) => ({ id: c.id, name: c.name || `#${c.id}` })) || [];
+  } catch { classes.value = []; }
+  await loadAll();
+});
+
 // initial load happens after ensureLoaded and classes fetched
 </script>
 
 <style scoped>
 .header-bar { align-items: center; }
-.header-icon { font-size: 22px; }
 .card h5 { font-weight: 700; }
 </style>

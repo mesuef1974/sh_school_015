@@ -36,8 +36,15 @@ if "django_extensions" not in _base_apps:
     _base_apps.append("django_extensions")
 INSTALLED_APPS = _base_apps
 
-# CORS: allow all origins in development for simplicity
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS for development: allow credentials and explicitly allow Vite dev origins
+CORS_ALLOW_ALL_ORIGINS = False
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://localhost:5173",
+    "https://127.0.0.1:5173",
+]
 
 # Dev-only logging: suppress benign Windows disconnect noise (WinError 10054) in Uvicorn/Django logs
 # Uses Django's CallbackFilter to drop records whose exception/message mentions WinError 10054
