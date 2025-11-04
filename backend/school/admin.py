@@ -675,10 +675,47 @@ class TemplateSlotInline(admin.TabularInline):
 
 @admin.register(PeriodTemplate)
 class PeriodTemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "code", "name", "day_of_week", "scope")
-    list_filter = ("day_of_week", "scope")
+    list_display = ("id", "code", "name", "day_of_week", "scope", "classes_list", "wings_list", "classes_covered")
+    list_filter = ("day_of_week", "scope", "classes", "wings")
     search_fields = ("code", "name", "scope")
+    filter_horizontal = ("classes", "wings")
     inlines = [TemplateSlotInline]
+
+    def wings_list(self, obj: PeriodTemplate):
+        try:
+            return ", ".join([w.name for w in obj.wings.all()]) or "—"
+        except Exception:
+            return "—"
+
+    wings_list.short_description = "الأجنحة"
+
+    def classes_list(self, obj: PeriodTemplate):
+        try:
+            names = list(obj.classes.values_list("name", flat=True)[:10])
+            more = obj.classes.count() - len(names)
+            base = ", ".join(names) if names else "—"
+            return f"{base}{' +'+str(more)+' أخرى' if more>0 else ''}"
+        except Exception:
+            return "—"
+
+    classes_list.short_description = "الفصول (مباشر)"
+
+    def classes_covered(self, obj: PeriodTemplate):
+        try:
+            from .models import Class
+            # If classes bound directly, show that count; else fall back to wings coverage
+            direct_cnt = obj.classes.count()
+            if direct_cnt:
+                return f"{direct_cnt} صف (مباشر)"
+            wing_ids = list(obj.wings.values_list("id", flat=True))
+            if not wing_ids:
+                return "—"
+            cnt = Class.objects.filter(wing_id__in=wing_ids).count()
+            return f"{cnt} صف (من الأجنحة)"
+        except Exception:
+            return "—"
+
+    classes_covered.short_description = "الفصول المشمولة"
 
 
 @admin.register(TimetableEntry)

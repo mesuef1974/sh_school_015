@@ -3,8 +3,17 @@
     <!-- Header bar (unified) -->
     <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" />
 
-    <!-- Tools card: common filters -->
-    <div class="card p-3">
+        <!-- Print-only standardized header -->
+        <PrintPageHeader
+          :title="`تقارير الجناح — جناح ${selectedWingId || '-'}`"
+          :meta-lines="[
+            `الفترة: ${from} → ${to}`,
+            `الصف: ${classId ? ('#'+classId) : 'كل الصفوف'}`
+          ]"
+        />
+
+    <!-- Tools card: common filters (hidden in print) -->
+    <div class="card p-3 no-print">
       <div class="row g-3 align-items-end">
         <div class="col-md-3 col-12">
           <label for="rep-from" class="form-label">من</label>
@@ -91,6 +100,7 @@ import { Icon } from "@iconify/vue";
 import { computed, onMounted, ref, watch } from "vue";
 import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 import { tiles } from "../../../home/icon-tiles.config";
+import PrintPageHeader from "../../../components/ui/PrintPageHeader.vue";
 const tileMeta = computed(() => tiles.find((t) => t.to === "/wing/reports") || { title: "تقارير", icon: "solar:graph-new-bold-duotone", color: "rgb(26, 188, 156)" });
 import { useWingContext } from "../../../shared/composables/useWingContext";
 const { selectedWingId } = useWingContext();

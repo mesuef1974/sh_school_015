@@ -136,12 +136,6 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "غيابات وتنبيهات الجناح" },
   },
   {
-    path: "/wing/attendance/daily",
-    name: "wing-attendance-daily",
-    component: () => import("../features/wings/pages/WingAttendanceDaily.vue"),
-    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "الغياب اليومي للجناح" },
-  },
-  {
     path: "/wing/attendance/missing",
     name: "wing-attendance-missing",
     component: () => import("../features/wings/pages/WingAttendanceMissing.vue"),

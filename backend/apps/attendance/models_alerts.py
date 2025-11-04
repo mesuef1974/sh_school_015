@@ -85,7 +85,10 @@ class AbsenceAlertDocument(models.Model):
     alert = models.ForeignKey(AbsenceAlert, on_delete=models.CASCADE, related_name="documents")
     file = models.FileField(upload_to=_docx_upload_to)
     size = models.PositiveIntegerField(default=0)
-    mime = models.CharField(max_length=100, default="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    mime = models.CharField(
+        max_length=100,
+        default="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
     sha256 = models.CharField(max_length=64, blank=True)
     template_name = models.CharField(max_length=200, blank=True)
     template_hash = models.CharField(max_length=64, blank=True)

@@ -1,6 +1,15 @@
 <template>
   <section class="d-grid gap-3 page-grid page-grid-wide" dir="rtl">
-    <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" :color="tileMeta.color" />
+    <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" :color="tileMeta.color">
+      <template #actions>
+        <span class="d-inline-flex align-items-center gap-2 flex-wrap align-items-center">
+          <span class="small text-muted" aria-live="polite">
+            <template v-if="isToday">اليوم: {{ formattedDate }} • {{ liveTime }}</template>
+            <template v-else>التاريخ: {{ formattedDate }}</template>
+          </span>
+        </span>
+      </template>
+    </WingPageHeader>
 
     <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap toolbar-card">
       <span class="vr mx-2 d-none d-sm-block"></span>
@@ -40,6 +49,8 @@
         </div>
         <DsButton size="sm" variant="outline" icon="solar:printer-bold-duotone" @click="printPage" aria-label="طباعة الجدول">طباعة</DsButton>
         <DsButton size="sm" variant="outline" icon="solar:refresh-bold-duotone" :loading="loading" @click="loadData" aria-label="تحديث البيانات">تحديث</DsButton>
+        <DsButton size="sm" variant="outline" :icon="paused ? 'solar:play-bold-duotone' : 'solar:pause-bold-duotone'" @click="toggleLive" :label="paused ? 'استئناف التحديث الحي' : 'إيقاف التحديث الحي'">{{ paused ? 'استئناف' : 'إيقاف' }}</DsButton>
+        <span class="small text-muted" aria-live="polite">آخر تحديث: {{ lastUpdated || '—' }}</span>
         <div class="vr d-none d-sm-block"></div>
       </div>
     </div>
@@ -85,8 +96,129 @@
       <div class="text-muted small" v-else>تحقق من اختيار الجناح والتاريخ</div>
     </div>
 
+    <!-- Daily view (Wing 3 Thursday grouped) -->
+    <div v-else-if="mode === 'daily' && isWing3ThuGrouped" class="d-flex flex-column gap-4">
+      <!-- Group: Secondary (10-1, 10-2) -->
+      <div class="auto-card p-0 overflow-auto">
+        <div class="p-3 d-flex align-items-center gap-2 border-bottom">
+          <Icon icon="solar:calendar-date-bold-duotone" />
+          <div class="fw-bold">الخميس — ثانوي (10-1 / 10-2)</div>
+          <span class="ms-auto small text-muted">{{ classListSecondary.length }} فصل</span>
+        </div>
+        <div class="in-card-98">
+          <div class="tt-daily-scroller">
+            <table class="tt-daily-table" dir="rtl" aria-label="جدول يومي (ثانوي)">
+              <colgroup>
+                <col style="min-width: 120px" />
+                <col v-for="tok in dailyHeaderTokensSecondary" :key="'cg-sec-'+String(tok)" style="min-width: 120px" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th class="th-sticky">الفصل</th>
+                  <th v-for="tok in dailyHeaderTokensSecondary" :key="'ph-sec-'+String(tok)" class="resizable-th" :class="dailyHeaderClass(String(tok))">
+                    <template v-if="isPeriodToken(String(tok))">حصة {{ periodNumFromToken(String(tok)) }}</template>
+                    <template v-else>{{ headerLabel(String(tok)) }}</template>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="cls in classListSecondary" :key="'sec-'+cls.id">
+                  <th class="th-sticky">
+                    <div class="hdr-line"><span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name }}</span></div>
+                  </th>
+                  <td v-for="tok in dailyHeaderTokensSecondary" :key="'sec-cell-'+cls.id+'-'+String(tok)" :class="dailyCellClass(String(tok))">
+                    <template v-if="!isPeriodToken(String(tok))">
+                      <div class="slot-cell">
+                        <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                        <div class="slot-time" v-if="slotTimeForGroup('secondary', String(tok))">{{ fmtTime(slotTimeForGroup('secondary', String(tok))![0]) }} – {{ fmtTime(slotTimeForGroup('secondary', String(tok))![1]) }}</div>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <template v-if="dailyItemFor(cls.id, periodNumFromToken(String(tok)))">
+                        <div class="period-cell" :style="{ backgroundColor: dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.color || '#f5f7fb' }">
+                          <div class="cell-subject one-line">
+                            <Icon v-if="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                            <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                          </div>
+                          <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                          <div class="cell-time small text-muted" v-if="timeRangeForGroup('secondary', periodNumFromToken(String(tok)))">
+                            <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                            {{ timeRangeForGroup('secondary', periodNumFromToken(String(tok))) }}
+                          </div>
+                        </div>
+                      </template>
+                      <span v-else class="text-muted">—</span>
+                    </template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Group: Grade 9 (2-4) -->
+      <div class="auto-card p-0 overflow-auto">
+        <div class="p-3 d-flex align-items-center gap-2 border-bottom">
+          <Icon icon="solar:calendar-date-bold-duotone" />
+          <div class="fw-bold">الخميس — تاسع (2 / 3 / 4)</div>
+          <span class="ms-auto small text-muted">{{ classListG9.length }} فصل</span>
+        </div>
+        <div class="in-card-98">
+          <div class="tt-daily-scroller">
+            <table class="tt-daily-table" dir="rtl" aria-label="جدول يومي (تاسع 2-3-4)">
+              <colgroup>
+                <col style="min-width: 120px" />
+                <col v-for="tok in dailyHeaderTokensG9" :key="'cg-g9-'+String(tok)" style="min-width: 120px" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th class="th-sticky">الفصل</th>
+                  <th v-for="tok in dailyHeaderTokensG9" :key="'ph-g9-'+String(tok)" class="resizable-th" :class="dailyHeaderClass(String(tok))">
+                    <template v-if="isPeriodToken(String(tok))">حصة {{ periodNumFromToken(String(tok)) }}</template>
+                    <template v-else>{{ headerLabel(String(tok)) }}</template>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="cls in classListG9" :key="'g9-'+cls.id">
+                  <th class="th-sticky">
+                    <div class="hdr-line"><span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name }}</span></div>
+                  </th>
+                  <td v-for="tok in dailyHeaderTokensG9" :key="'g9-cell-'+cls.id+'-'+String(tok)" :class="dailyCellClass(String(tok))">
+                    <template v-if="!isPeriodToken(String(tok))">
+                      <div class="slot-cell">
+                        <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                        <div class="slot-time" v-if="slotTimeForGroup('grade9_2_4', String(tok))">{{ fmtTime(slotTimeForGroup('grade9_2_4', String(tok))![0]) }} – {{ fmtTime(slotTimeForGroup('grade9_2_4', String(tok))![1]) }}</div>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <template v-if="dailyItemFor(cls.id, periodNumFromToken(String(tok)))">
+                        <div class="period-cell" :style="{ backgroundColor: dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.color || '#f5f7fb' }">
+                          <div class="cell-subject one-line">
+                            <Icon v-if="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                            <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                          </div>
+                          <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                          <div class="cell-time small text-muted" v-if="timeRangeForGroup('grade9_2_4', periodNumFromToken(String(tok)))">
+                            <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                            {{ timeRangeForGroup('grade9_2_4', periodNumFromToken(String(tok))) }}
+                          </div>
+                        </div>
+                      </template>
+                      <span v-else class="text-muted">—</span>
+                    </template>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Daily view (updated): الصفوف = الفصول، الأعمدة = الحصص مع ترويسة مدمجة -->
-    <div v-else-if="mode === 'daily'" class="auto-card p-0 overflow-auto">
+    <div v-else-if="mode === 'daily' && !isWing3ThuGrouped" class="auto-card p-0 overflow-auto">
       <div class="p-3 d-flex align-items-center gap-2 border-bottom">
         <Icon icon="solar:calendar-date-bold-duotone" />
         <div class="fw-bold">جدول اليوم — {{ formattedDate }} — {{ dayNameAr(dateStr) }}</div>
@@ -96,15 +228,24 @@
         <div class="tt-daily-scroller">
           <table class="tt-daily-table" dir="rtl" aria-label="جدول يومي: الفصول صفوف والحصص أعمدة">
             <colgroup>
-              <col style="min-width: 160px" />
-              <col v-for="p in PERIODS" :key="'cg-p-'+p" style="min-width: 140px" />
+              <col style="min-width: 120px" />
+              <col v-for="tok in dailyHeaderTokensSafe" :key="'cg-p-'+String(tok)" style="min-width: 120px" />
             </colgroup>
             <thead>
               <tr>
                 <th class="tt-daily-th tt-daily-th-sticky">الفصل</th>
-                <th v-for="p in PERIODS" :key="'hd-p-'+p" class="tt-daily-th">
-                  <div class="fw-bold">حصة {{ p }}</div>
-                  <div v-if="timeRange(p)" class="small text-muted one-line">{{ timeRange(p) }}</div>
+                <th
+                  v-for="tok in dailyHeaderTokensSafe"
+                  :key="'hd-'+String(tok)"
+                  class="tt-daily-th"
+                  :class="dailyHeaderClass(String(tok))"
+                >
+                  <template v-if="isPeriodToken(String(tok))">
+                    <div class="fw-bold">حصة {{ periodNumFromToken(String(tok)) }}</div>
+                  </template>
+                  <template v-else>
+                    <div class="fw-bold">{{ headerLabel(String(tok)) }}</div>
+                  </template>
                 </th>
               </tr>
             </thead>
@@ -113,25 +254,46 @@
                 <th scope="row" class="tt-daily-th tt-daily-th-sticky">
                   <span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name || ('صف #'+cls.id) }}</span>
                 </th>
-                <td v-for="p in PERIODS" :key="'cell-'+cls.id+'-'+p" class="tt-daily-td">
-                  <template v-if="dailyItemFor(cls.id, p)">
-                    <div
-                      class="period-cell"
-                      :style="{ backgroundColor: dailyItemFor(cls.id, p)?.color || '#f5f7fb' }"
-                      :title="
-                        (dailyItemFor(cls.id, p)?.subject_name || 'مادة') +
-                        ' — ' + (dailyItemFor(cls.id, p)?.teacher_name || '—') +
-                        (periodTimes[p] ? (' — ' + timeRange(p)) : '')
-                      "
-                    >
-                      <div class="cell-subject one-line">
-                        <Icon v-if="subjectIcon(dailyItemFor(cls.id, p)?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, p)?.subject_name)" class="subject-icon" />
-                        <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, p)?.subject_name || 'مادة' }}</span>
+                <td
+                  v-for="tok in dailyHeaderTokensSafe"
+                  :key="'cell-'+cls.id+'-'+String(tok)"
+                  class="tt-daily-td"
+                  :class="dailyCellClass(String(tok))"
+                >
+                  <!-- Non-lesson cell -->
+                  <template v-if="!isPeriodToken(String(tok))">
+                    <div class="slot-cell">
+                      <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                      <div class="slot-time" v-if="slotTimeDailyForClass(cls.id, String(tok))">
+                        {{ fmtTime(slotTimeDailyForClass(cls.id, String(tok))![0]) }} – {{ fmtTime(slotTimeDailyForClass(cls.id, String(tok))![1]) }}
                       </div>
-                      <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, p)?.teacher_name || '—' }}</div>
                     </div>
                   </template>
-                  <span v-else class="text-muted">—</span>
+                  <!-- Lesson cell -->
+                  <template v-else>
+                    <template v-if="dailyItemFor(cls.id, periodNumFromToken(String(tok)))">
+                      <div
+                        class="period-cell"
+                        :style="{ backgroundColor: dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.color || '#f5f7fb' }"
+                        :title="
+                          (dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة') +
+                          ' — ' + (dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—') +
+                          (timeRange(periodNumFromToken(String(tok))) ? (' — ' + timeRange(periodNumFromToken(String(tok)))) : '')
+                        "
+                      >
+                        <div class="cell-subject one-line">
+                          <Icon v-if="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                          <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                        </div>
+                        <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                        <div class="cell-time small text-muted" v-if="timeRange(periodNumFromToken(String(tok)))">
+                          <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                          {{ timeRange(periodNumFromToken(String(tok))) }}
+                        </div>
+                      </div>
+                    </template>
+                    <span v-else class="text-muted">—</span>
+                  </template>
                 </td>
               </tr>
             </tbody>
@@ -140,8 +302,272 @@
       </div>
     </div>
 
-    <!-- Weekly view: الأيام صفوف والحصص أعمدة -->
-    <div v-else class="auto-card p-0 overflow-hidden">
+    <!-- Weekly view: الأيام صفوف والحصص أعمدة (Wing 3 Thursday grouped) -->
+    <div v-else-if="mode === 'weekly' && isWing3ThuGrouped" class="d-flex flex-column gap-4">
+      <!-- Secondary table -->
+      <div v-if="classListWeeklySecondary.length" class="auto-card p-0 overflow-hidden">
+        <div class="p-3 d-flex align-items-center gap-2 border-bottom">
+          <Icon icon="solar:calendar-bold-duotone" />
+          <div class="fw-bold">الجدول الأسبوعي — ثانوي (10-1 / 10-2)</div>
+          <span class="ms-auto small text-muted">{{ classListWeeklySecondary.length }} فصل</span>
+        </div>
+        <div class="in-card-98">
+          <div class="tt7-wrapper">
+            <div class="tt7-scroller">
+              <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي (ثانوي)">
+                <colgroup>
+                  <col :style="{ minWidth: weeklyColPx(0) }" />
+                  <col :style="{ minWidth: weeklyColPx(1) }" />
+                  <col v-for="(tok, i) in weeklyHeaderTokensSecondaryGroup" :key="'cg-sec-' + String(tok)" :style="{ minWidth: weeklyColPx(i + 2) }" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="tt7-th tt7-th-sticky tt7-th-period resizable-th">الفصل</th>
+                    <th class="tt7-th resizable-th">اليوم</th>
+                    <th v-for="tok in weeklyHeaderTokensSecondaryGroup" :key="'ph-sec-' + String(tok)" class="tt7-th resizable-th" :class="weeklyHeaderClass(String(tok))">
+                      <template v-if="isPeriodToken(String(tok))">حصة {{ periodNumFromToken(String(tok)) }}</template>
+                      <template v-else>{{ headerLabel(String(tok)) }}</template>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template v-for="(cls, ci) in classListWeeklySecondary" :key="'sec-' + cls.id">
+                    <tr v-for="(d, idx) in DAYS5" :key="'row-sec-' + cls.id + '-d-' + d[0]" :class="{ 'class-separator': ci > 0 && idx === 0 }">
+                      <th v-if="idx === 0" class="tt7-th tt7-th-period tt7-th-sticky" :rowspan="DAYS5.length">
+                        <div class="hdr-line">
+                          <span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name }}</span>
+                        </div>
+                      </th>
+                      <th class="tt7-th">{{ d[1] }}</th>
+                      <td v-for="tok in weeklyHeaderTokensSecondaryGroup" :key="'cell-sec-' + cls.id + '-' + d[0] + '-' + String(tok)" class="tt7-td" :class="weeklyCellClass(String(tok))">
+                        <div class="tt7-cell">
+                          <template v-if="!isPeriodToken(String(tok))">
+                            <div class="slot-cell">
+                              <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                              <div class="slot-time" v-if="weeklySlotTimeForGroup(d[0], String(tok), 'secondary')">
+                                {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'secondary')![0]) }} – {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'secondary')![1]) }}
+                              </div>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <template v-if="classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))">
+                              <div class="mini-cell" :style="{ backgroundColor: classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.color || '#f5f7fb' }">
+                                <div class="mini-subj one-line">
+                                  <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                                  <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                                </div>
+                                <div class="mini-teacher one-line truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                                <div class="mini-time small text-muted" v-if="weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'secondary')">
+                                  <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                                  {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'secondary')![0]) }} – {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'secondary')![1]) }}
+                                </div>
+                              </div>
+                            </template>
+                            <span v-else class="text-muted">—</span>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grade 9 (2-4) per-class tables: Sun–Wed per class -->
+      <template v-for="cls in classListWeeklyG9" :key="'g9pc-' + cls.id">
+        <div class="auto-card p-0 overflow-hidden">
+          <div class="p-3 d-flex align-items-center gap-2 border-bottom">
+            <Icon icon="solar:calendar-bold-duotone" />
+            <div class="fw-bold">الجدول الأسبوعي — تاسع ({{ cls.name }}) — الأحد إلى الأربعاء</div>
+            <span class="ms-auto small text-muted">فصل واحد</span>
+          </div>
+          <div class="in-card-98">
+            <div class="tt7-wrapper">
+              <div class="tt7-scroller">
+                <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي (تاسع — أحد إلى أربعاء)">
+                  <colgroup>
+                    <col :style="{ minWidth: weeklyColPx(0) }" />
+                    <col :style="{ minWidth: weeklyColPx(1) }" />
+                    <col v-for="(tok, i) in weeklyHeaderTokensG9_SW" :key="'cg-g9-' + String(tok)" :style="{ minWidth: weeklyColPx(i + 2) }" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th class="tt7-th tt7-th-sticky tt7-th-period resizable-th">الفصل</th>
+                      <th class="tt7-th resizable-th">اليوم</th>
+                      <th v-for="tok in weeklyHeaderTokensG9_SW" :key="'ph-g9-' + String(tok)" class="tt7-th resizable-th" :class="weeklyHeaderClass(String(tok))">
+                        <template v-if="isPeriodToken(String(tok))">حصة {{ periodNumFromToken(String(tok)) }}</template>
+                        <template v-else>{{ headerLabel(String(tok)) }}</template>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(d, idx) in DAYS_SW" :key="'row-g9-' + cls.id + '-d-' + d[0]">
+                      <th v-if="idx === 0" class="tt7-th tt7-th-period tt7-th-sticky" :rowspan="DAYS_SW.length">
+                        <div class="hdr-line">
+                          <span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name }}</span>
+                        </div>
+                      </th>
+                      <th class="tt7-th">{{ d[1] }}</th>
+                      <td v-for="tok in weeklyHeaderTokensG9_SW" :key="'cell-g9-' + cls.id + '-' + d[0] + '-' + String(tok)" class="tt7-td" :class="weeklyCellClass(String(tok))">
+                        <div class="tt7-cell">
+                          <template v-if="!isPeriodToken(String(tok))">
+                            <div class="slot-cell">
+                              <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                              <div class="slot-time" v-if="weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')">
+                                {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')![0]) }} – {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')![1]) }}
+                              </div>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <template v-if="classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))">
+                              <div class="mini-cell" :style="{ backgroundColor: classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.color || '#f5f7fb' }">
+                                <div class="mini-subj one-line">
+                                  <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                                  <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                                </div>
+                                <div class="mini-teacher one-line truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                                <div class="mini-time small text-muted" v-if="weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')">
+                                  <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                                  {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')![0]) }} – {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')![1]) }}
+                                </div>
+                              </div>
+                            </template>
+                            <span v-else class="text-muted">—</span>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grade 9 (2-4) — Thursday only for this class (no table header) -->
+        <div class="auto-card p-0 overflow-hidden mt-3">
+          <div class="in-card-98">
+            <div class="tt7-wrapper">
+              <div class="tt7-scroller">
+                <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي (الخميس فقط) — تاسع ({{ cls.name }})">
+                  <colgroup>
+                    <col :style="{ minWidth: weeklyColPx(0) }" />
+                    <col :style="{ minWidth: weeklyColPx(1) }" />
+                    <col v-for="(tok, i) in weeklyHeaderTokensG9_Thu" :key="'cg-g9-thu-' + String(tok)" :style="{ minWidth: weeklyColPx(i + 2) }" />
+                  </colgroup>
+                  <tbody>
+                    <tr v-for="(d, idx) in DAYS_THU" :key="'row-g9-thu-' + cls.id + '-d-' + d[0]">
+                      <th v-if="idx === 0" class="tt7-th tt7-th-period tt7-th-sticky" :rowspan="DAYS_THU.length">
+                        <div class="hdr-line">
+                          <span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name }}</span>
+                        </div>
+                      </th>
+                      <th class="tt7-th">{{ d[1] }}</th>
+                      <td v-for="tok in weeklyHeaderTokensG9_Thu" :key="'cell-g9-thu-' + cls.id + '-' + d[0] + '-' + String(tok)" class="tt7-td" :class="weeklyCellClass(String(tok))">
+                        <div class="tt7-cell">
+                          <template v-if="!isPeriodToken(String(tok))">
+                            <div class="slot-cell">
+                              <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                              <div class="slot-time" v-if="weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')">
+                                {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')![0]) }} – {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')![1]) }}
+                              </div>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <template v-if="classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))">
+                              <div class="mini-cell" :style="{ backgroundColor: classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.color || '#f5f7fb' }">
+                                <div class="mini-subj one-line">
+                                  <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                                  <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                                </div>
+                                <div class="mini-teacher one-line truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                                <div class="mini-time small text-muted" v-if="weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')">
+                                  <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                                  {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')![0]) }} – {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')![1]) }}
+                                </div>
+                              </div>
+                            </template>
+                            <span v-else class="text-muted">—</span>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+
+      <!-- Grade 9 (2-4) — Thursday only (no table header) -->
+      <div v-if="false" class="auto-card p-0 overflow-hidden">
+        <div class="p-3 d-flex align-items-center gap-2 border-bottom">
+          <Icon icon="solar:calendar-bold-duotone" />
+          <div class="fw-bold">الخميس — تاسع (2 / 3 / 4)</div>
+          <span class="ms-auto small text-muted">{{ classListWeeklyG9.length }} فصل</span>
+        </div>
+        <div class="in-card-98">
+          <div class="tt7-wrapper">
+            <div class="tt7-scroller">
+              <table class="tt7-table" dir="rtl" aria-label="جدول أسبوعي (الخميس فقط) — تاسع 2-3-4">
+                <colgroup>
+                  <col :style="{ minWidth: weeklyColPx(0) }" />
+                  <col :style="{ minWidth: weeklyColPx(1) }" />
+                  <col v-for="(tok, i) in weeklyHeaderTokensG9_Thu" :key="'cg-g9-thu-' + String(tok)" :style="{ minWidth: weeklyColPx(i + 2) }" />
+                </colgroup>
+                <tbody>
+                  <template v-for="(cls, ci) in classListWeeklyG9" :key="'g9-thu-' + cls.id">
+                    <tr v-for="(d, idx) in DAYS_THU" :key="'row-g9-thu-' + cls.id + '-d-' + d[0]" :class="{ 'class-separator': ci > 0 && idx === 0 }">
+                      <th v-if="idx === 0" class="tt7-th tt7-th-period tt7-th-sticky" :rowspan="DAYS_THU.length">
+                        <div class="hdr-line">
+                          <span class="badge text-bg-secondary no-wrap class-name-badge">{{ cls.name }}</span>
+                        </div>
+                      </th>
+                      <th class="tt7-th">{{ d[1] }}</th>
+                      <td v-for="tok in weeklyHeaderTokensG9_Thu" :key="'cell-g9-thu-' + cls.id + '-' + d[0] + '-' + String(tok)" class="tt7-td" :class="weeklyCellClass(String(tok))">
+                        <div class="tt7-cell">
+                          <template v-if="!isPeriodToken(String(tok))">
+                            <div class="slot-cell">
+                              <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                              <div class="slot-time" v-if="weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')">
+                                {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')![0]) }} – {{ fmtTime(weeklySlotTimeForGroup(d[0], String(tok), 'grade9_2_4')![1]) }}
+                              </div>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <template v-if="classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))">
+                              <div class="mini-cell" :style="{ backgroundColor: classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.color || '#f5f7fb' }">
+                                <div class="mini-subj one-line">
+                                  <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                                  <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                                </div>
+                                <div class="mini-teacher one-line truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                                <div class="mini-time small text-muted" v-if="weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')">
+                                  <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                                  {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')![0]) }} – {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'grade9_2_4')![1]) }}
+                                </div>
+                              </div>
+                            </template>
+                            <span v-else class="text-muted">—</span>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    <!-- Weekly view: الأيام صفوف والحصص أعمدة (default) -->
+    <div v-else-if="mode === 'weekly' && !isWing3ThuGrouped" class="auto-card p-0 overflow-hidden">
       <div class="p-3 d-flex align-items-center gap-2 border-bottom">
         <Icon icon="solar:calendar-bold-duotone" />
         <div class="fw-bold">الجدول الأسبوعي للفصل</div>
@@ -154,13 +580,16 @@
               <colgroup>
                 <col :style="{ minWidth: weeklyColPx(0) }" />
                 <col :style="{ minWidth: weeklyColPx(1) }" />
-                <col v-for="(p, i) in PERIODS" :key="'cg-p-' + p" :style="{ minWidth: weeklyColPx(i + 2) }" />
+                <col v-for="(tok, i) in weeklyHeaderTokens" :key="'cg-p-' + String(tok)" :style="{ minWidth: weeklyColPx(i + 2) }" />
               </colgroup>
               <thead>
                 <tr>
                   <th class="tt7-th tt7-th-sticky tt7-th-period resizable-th">الفصل</th>
                   <th class="tt7-th resizable-th">اليوم</th>
-                  <th v-for="p in PERIODS" :key="'ph-' + p" class="tt7-th resizable-th">حصة {{ p }}</th>
+                  <th v-for="tok in weeklyHeaderTokens" :key="'ph-' + String(tok)" class="tt7-th resizable-th" :class="weeklyHeaderClass(String(tok))">
+                    <template v-if="isPeriodToken(String(tok))">حصة {{ periodNumFromToken(String(tok)) }}</template>
+                    <template v-else>{{ headerLabel(String(tok)) }}</template>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -172,29 +601,44 @@
                       </div>
                     </th>
                     <th class="tt7-th">{{ d[1] }}</th>
-                    <td v-for="p in PERIODS" :key="'cell-' + cls.id + '-' + d[0] + '-' + p" class="tt7-td">
+                    <td v-for="tok in weeklyHeaderTokens" :key="'cell-' + cls.id + '-' + d[0] + '-' + String(tok)" class="tt7-td" :class="weeklyCellClass(String(tok))">
                       <div class="tt7-cell">
-                        <template v-if="classDayPeriodItem(cls.id, d[0], p)">
-                          <div
-                            class="mini-cell"
-                            :style="{ backgroundColor: classDayPeriodItem(cls.id, d[0], p)?.color || '#f5f7fb' }"
-                            :title="
-                              (classDayPeriodItem(cls.id, d[0], p)?.subject_name || 'مادة') +
-                              ' — ' +
-                              (classDayPeriodItem(cls.id, d[0], p)?.teacher_name || '—') +
-                              ' — حصة ' + (p || '')
-                            "
-                          >
-                            <div class="mini-subj one-line">
-                              <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], p)?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], p)?.subject_name)" class="subject-icon" />
-                              <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], p)?.subject_name || 'مادة' }}</span>
-                            </div>
-                            <div class="mini-teacher one-line truncate-1">
-                              {{ classDayPeriodItem(cls.id, d[0], p)?.teacher_name || '—' }}
+                        <!-- Non-lesson: show label + time -->
+                        <template v-if="!isPeriodToken(String(tok))">
+                          <div class="slot-cell">
+                            <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
+                            <div class="slot-time" v-if="weeklySlotTime(d[0], String(tok))">
+                              {{ fmtTime(weeklySlotTime(d[0], String(tok))![0]) }} – {{ fmtTime(weeklySlotTime(d[0], String(tok))![1]) }}
                             </div>
                           </div>
                         </template>
-                        <span v-else class="text-muted">—</span>
+                        <!-- Lesson cell: show mini with times if available -->
+                        <template v-else>
+                          <template v-if="classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))">
+                            <div
+                              class="mini-cell"
+                              :style="{ backgroundColor: classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.color || '#f5f7fb' }"
+                              :title="
+                                (classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة') +
+                                ' — ' +
+                                (classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—')
+                              "
+                            >
+                              <div class="mini-subj one-line">
+                                <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
+                                <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
+                              </div>
+                              <div class="mini-teacher one-line truncate-1">
+                                {{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—' }}
+                              </div>
+                              <div class="mini-time small text-muted" v-if="weeklyPeriodTime(d[0], periodNumFromToken(String(tok)))">
+                                <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
+                                {{ fmtTime(weeklyPeriodTime(d[0], periodNumFromToken(String(tok)))![0]) }} – {{ fmtTime(weeklyPeriodTime(d[0], periodNumFromToken(String(tok)))![1]) }}
+                              </div>
+                            </div>
+                          </template>
+                          <span v-else class="text-muted">—</span>
+                        </template>
                       </div>
                     </td>
                   </tr>
@@ -211,8 +655,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, reactive, watch, nextTick } from 'vue';
 import { tiles } from '../../../home/icon-tiles.config';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 const route = useRoute();
+const router = useRouter();
 const tileMeta = computed(() => {
   const name = route.name as string | undefined;
   if (name === 'wing-timetable-weekly') {
@@ -223,7 +668,7 @@ const tileMeta = computed(() => {
 import { onBeforeUnmount } from "vue";
 import DsButton from "../../../components/ui/DsButton.vue";
 import { getWingMe, getWingTimetable } from "../../../shared/api/client";
-import { formatDateDMY } from "../../../shared/utils/date";
+import { formatDateDMY, parseDMYtoISO, toIsoDate } from "../../../shared/utils/date";
 import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 // Wing context: ensure dynamic subtitle like other Wing pages
 import { useWingContext } from '../../../shared/composables/useWingContext';
@@ -268,6 +713,16 @@ const DAYS5 = [
   [4, "الأربعاء"],
   [5, "الخميس"],
 ] as const;
+// Weekly grouping subsets
+const DAYS_SW = [
+  [1, "الأحد"],
+  [2, "الاثنين"],
+  [3, "الثلاثاء"],
+  [4, "الأربعاء"],
+] as const;
+const DAYS_THU = [
+  [5, "الخميس"],
+] as const;
 const PERIODS = [1, 2, 3, 4, 5, 6, 7];
 const activeDay = ref<number>(1);
 const activeDayStr = computed(() => String(activeDay.value));
@@ -276,6 +731,22 @@ const weekly = ref<Record<string, any[]>>({});
 const dailyItems = ref<any[]>([]);
 const meta = ref<Record<string, any>>({});
 const periodTimes = ref<Record<number, { start: string; end: string }>>({});
+// Weekly per-day period times map (from API meta.period_times_by_day)
+const weeklyPeriodTimesByDay = ref<Record<string, Record<number, [string, string]>>>({});
+
+// Token-based columns support
+const dailyHeaderTokens = ref<string[]>([]);
+// Safe fallback: if backend didn't send columns for daily view, default to P1..P7
+const dailyHeaderTokensSafe = computed<string[]>(() => {
+  return (dailyHeaderTokens.value && dailyHeaderTokens.value.length)
+    ? dailyHeaderTokens.value
+    : PERIODS.map((n) => `P${n}`);
+});
+const dailySlotMeta = ref<Record<string, { kind: string; label?: string; start_time?: string; end_time?: string }>>({});
+// Per-class non-lesson times for the selected day (e.g., different break/prayer per class)
+const dailyNonLessonTimesByClass = ref<Record<number, Record<string, [string, string]>>>({} as any);
+const weeklyColumnsByDay = ref<Record<string, string[]>>({});
+const weeklySlotMetaByDay = ref<Record<string, Record<string, { kind: string; label?: string; start_time?: string; end_time?: string }>>>({});
 
 // Weekly column resize state (period + 7 days)
 const enableResize = ref(false);
@@ -370,6 +841,42 @@ const isEmpty = computed(() =>
     : Object.values(weekly.value).every((a) => (a as any[]).length === 0)
 );
 const formattedDate = computed(() => formatDateDMY(dateStr.value));
+// Unified date/time header badge support
+const dateISO = computed(() => parseDMYtoISO(dateStr.value) || toIsoDate(new Date()));
+const isToday = computed(() => dateISO.value === toIsoDate(new Date()));
+const liveTime = ref<string>("");
+function updateLiveTime() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  liveTime.value = `${hh}:${mm}`;
+}
+let liveClockTimer: any = null;
+function startLiveClock() { stopLiveClock(); updateLiveTime(); liveClockTimer = setInterval(updateLiveTime, 60_000); }
+function stopLiveClock() { if (liveClockTimer) { clearInterval(liveClockTimer); liveClockTimer = null; } }
+
+// Professional live refresh controls
+const paused = ref<boolean>(String(route.query.paused || '') === '1');
+const lastUpdated = ref<string>('');
+function timeAscii(d: Date): string { const hh = String(d.getHours()).padStart(2,'0'); const mm = String(d.getMinutes()).padStart(2,'0'); return `${hh}:${mm}`; }
+function syncPausedToUrl() {
+  const q = { ...route.query } as any;
+  if (paused.value) q.paused = '1'; else delete q.paused;
+  router.replace({ query: q }).catch(() => {});
+}
+function toggleLive() { paused.value = !paused.value; syncPausedToUrl(); if (!paused.value) { loadData(); } }
+const AUTO_REFRESH_MS = 30000;
+let refreshTimer: any = null;
+function startAutoRefresh() {
+  stopAutoRefresh();
+  refreshTimer = setInterval(() => {
+    if (!document.hidden && isToday.value && !paused.value) {
+      loadData();
+    }
+  }, AUTO_REFRESH_MS);
+}
+function stopAutoRefresh() { if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; } }
+function handleVisibility() { if (!document.hidden && !paused.value) { loadData(); } }
 
 const groupedDaily = computed(() => {
   const groups: Record<number, any[]> = {};
@@ -379,6 +886,129 @@ const groupedDaily = computed(() => {
   }
   return { groups, total: dailyItems.value.length };
 });
+
+// ===== Wing 3 Thursday grouping support =====
+const currentDow = ref<number>(1);
+const isWing3ThuGrouped = computed(() => {
+  const gby = (meta.value as any)?.grouped_by;
+  return Number(wingId.value) === 3 && gby === 'wing3_thursday' && ((mode.value === 'weekly') || (mode.value === 'daily' && Number((resDow.value || currentDow.value)) === 5));
+});
+// Store dow from API
+const resDow = ref<number | null>(null);
+
+function parseGradeSectionFromName(name?: string | null): { grade: number; section: number | null } {
+  const s = String(name || '').trim();
+  const m = /^(\d+)[\-\/.](\d+)/.exec(s);
+  if (m) return { grade: Number(m[1]), section: Number(m[2]) };
+  const m2 = /(\d+)/.exec(s);
+  return { grade: m2 ? Number(m2[1]) : 0, section: null };
+}
+function isSecondaryName(name?: string | null) {
+  const { grade } = parseGradeSectionFromName(name);
+  return grade >= 10;
+}
+function isGrade9_2_4Name(name?: string | null) {
+  const { grade, section } = parseGradeSectionFromName(name);
+  return grade === 9 && section !== null && section >= 2 && section <= 4;
+}
+
+const classListSecondary = computed<{ id: number; name: string }[]>(() => {
+  // build from dailyItems unique classes
+  const seen = new Map<number, string>();
+  for (const it of dailyItems.value) {
+    const cid = Number(it.class_id);
+    const cname = String(it.class_name || '');
+    if (isSecondaryName(cname) && !seen.has(cid)) seen.set(cid, cname);
+  }
+  return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a,b)=> String(a.name).localeCompare(String(b.name), 'ar'));
+});
+const classListG9 = computed<{ id: number; name: string }[]>(() => {
+  const seen = new Map<number, string>();
+  for (const it of dailyItems.value) {
+    const cid = Number(it.class_id);
+    const cname = String(it.class_name || '');
+    if (isGrade9_2_4Name(cname) && !seen.has(cid)) seen.set(cid, cname);
+  }
+  return Array.from(seen.entries()).map(([id, name]) => ({ id, name })).sort((a,b)=> String(a.name).localeCompare(String(b.name), 'ar'));
+});
+
+// Group-specific headers/times (daily)
+const dailyHeaderTokensSecondary = computed<string[]>(() => {
+  const gcols = (meta.value as any)?.group_columns_by_day?.secondary?.['5'];
+  if (Array.isArray(gcols) && gcols.length) return gcols.map(String);
+  return dailyHeaderTokensSafe.value;
+});
+const dailyHeaderTokensG9 = computed<string[]>(() => {
+  const gcols = (meta.value as any)?.group_columns_by_day?.grade9_2_4?.['5'];
+  if (Array.isArray(gcols) && gcols.length) return gcols.map(String);
+  return dailyHeaderTokensSafe.value;
+});
+function slotTimeForGroup(group: 'secondary' | 'grade9_2_4', tok: string): [string, string] | null {
+  const metaMap = (meta.value as any)?.group_slot_meta_by_day?.[group]?.['5']?.[tok];
+  if (metaMap && metaMap.start_time && metaMap.end_time) return [String(metaMap.start_time), String(metaMap.end_time)];
+  return null;
+}
+function timeRangeForGroup(group: 'secondary' | 'grade9_2_4', p: number): string {
+  const mp = (meta.value as any)?.group_period_times_by_day?.[group]?.['5'] || {};
+  const rec = mp[p as any];
+  if (Array.isArray(rec) && rec.length >= 2) {
+    const s = timeToHM(String(rec[0]));
+    const e = timeToHM(String(rec[1]));
+    return s && e ? `${s} — ${e}` : s || e || '';
+  } else if (rec && typeof rec === 'object') {
+    const s = timeToHM((rec as any).start || (rec as any).start_time);
+    const e = timeToHM((rec as any).end || (rec as any).end_time);
+    return s && e ? `${s} — ${e}` : s || e || '';
+  }
+  return '';
+}
+
+// Weekly grouped helpers
+const classListWeeklySecondary = computed(() => classList.value.filter((c) => isSecondaryName(c.name)));
+const classListWeeklyG9 = computed(() => classList.value.filter((c) => isGrade9_2_4Name(c.name)));
+// Group-specific weekly header tokens (prefer DB-provided Thursday group columns when available)
+const weeklyHeaderTokensSecondaryGroup = computed<string[]>(() => {
+  const gcols = (meta.value as any)?.group_columns_by_day?.secondary?.['5'];
+  if (Array.isArray(gcols) && gcols.length) return gcols.map(String);
+  return (weeklyHeaderTokens as any).value || [];
+});
+// Weekly headers for Grade 9 (2-4): use Sun–Wed per-day columns from DB so RECESS appears after P4.
+const weeklyHeaderTokensG9_SW = computed<string[]>(() => {
+  // Prefer columns for Sunday (assumed same structure Sun–Wed for upper floor)
+  const cols1 = (weeklyColumnsByDay.value || {})['1'];
+  if (Array.isArray(cols1) && cols1.length) return cols1.map(String);
+  // Fallback to Monday if Sunday missing
+  const cols2 = (weeklyColumnsByDay.value || {})['2'];
+  if (Array.isArray(cols2) && cols2.length) return cols2.map(String);
+  // Last resort: generic weekly header tokens
+  return (weeklyHeaderTokens as any).value || [];
+});
+// Weekly headers for Thursday (Grade 9 group): keep using group Thursday columns from backend meta
+const weeklyHeaderTokensG9_Thu = computed<string[]>(() => {
+  const gcols = (meta.value as any)?.group_columns_by_day?.grade9_2_4?.['5'];
+  if (Array.isArray(gcols) && gcols.length) return gcols.map(String);
+  return (weeklyHeaderTokens as any).value || [];
+});
+function weeklySlotTimeForGroup(day: number, tok: string, group: 'secondary' | 'grade9_2_4') {
+  if (Number(day) === 5) {
+    const metaMap = (meta.value as any)?.group_slot_meta_by_day?.[group]?.['5']?.[tok];
+    if (metaMap && metaMap.start_time && metaMap.end_time) return [String(metaMap.start_time), String(metaMap.end_time)];
+  }
+  return weeklySlotTime(day, tok);
+}
+function weeklyPeriodTimeForGroup(day: number, p: number, group: 'secondary' | 'grade9_2_4') {
+  if (Number(day) === 5) {
+    const mp = (meta.value as any)?.group_period_times_by_day?.[group]?.['5'] || {};
+    const rec = mp[p as any];
+    if (Array.isArray(rec) && rec.length >= 2) return [String(rec[0]), String(rec[1])];
+    if (rec && typeof rec === 'object') {
+      const s = (rec as any).start || (rec as any).start_time;
+      const e = (rec as any).end || (rec as any).end_time;
+      if (s || e) return [String(s || ''), String(e || '')];
+    }
+  }
+  return weeklyPeriodTime(day, p);
+}
 
 // Build class list for daily header row (unique classes appearing today)
 const dailyClassList = computed(() => {
@@ -438,6 +1068,117 @@ function timeRange(p: number): string {
   const s = timeToHM(rec.start);
   const e = timeToHM(rec.end);
   return s && e ? `${s} — ${e}` : s || e || "";
+}
+
+// ===== Token helpers (daily/weekly) =====
+function isPeriodToken(tok: string): boolean {
+  return typeof tok === 'string' && /^P\d+$/.test(tok);
+}
+function periodNumFromToken(tok: string): number {
+  const m = /^P(\d+)$/.exec(String(tok));
+  return m ? Number(m[1]) : 0;
+}
+function headerLabel(tok: string): string {
+  if (isPeriodToken(tok)) return `حصة ${periodNumFromToken(tok)}`;
+  const kind = String(tok).split('-')[0].toLowerCase();
+  if (kind === 'recess' || kind === 'break') return 'استراحة';
+  if (kind === 'prayer') return 'الصلاة';
+  return tok;
+}
+function fmtTime(t?: string) {
+  if (!t) return '';
+  const m = /^(\d{2}:\d{2})/.exec(String(t));
+  return m ? m[1] : String(t);
+}
+// Daily slot time from meta
+function slotTimeDaily(tok: string): [string, string] | null {
+  const m = dailySlotMeta.value?.[tok];
+  if (m && m.start_time && m.end_time) return [String(m.start_time), String(m.end_time)];
+  return null;
+}
+// Resolve non-lesson kind from token (e.g., 'RECESS-1' -> 'recess')
+function kindFromToken(tok: string): string | null {
+  if (isPeriodToken(tok)) return null;
+  const k = String(tok).split('-')[0].toLowerCase();
+  return k === 'break' ? 'recess' : k;
+}
+// Class-specific non-lesson time if available; else fallback to global slot meta
+function slotTimeDailyForClass(classId: number, tok: string): [string, string] | null {
+  const kind = kindFromToken(tok);
+  if (kind) {
+    const clsMap = dailyNonLessonTimesByClass.value?.[classId];
+    if (clsMap) {
+      const v = clsMap[kind];
+      if (Array.isArray(v) && v.length >= 2) return [String(v[0]), String(v[1])];
+    }
+  }
+  return slotTimeDaily(tok);
+}
+function dailyHeaderClass(tok: string) {
+  if (isPeriodToken(tok)) return {} as any;
+  const kind = String(tok).split('-')[0].toLowerCase();
+  return {
+    'slot-header': true,
+    'slot-kind-recess': kind === 'recess' || kind === 'break',
+    'slot-kind-prayer': kind === 'prayer',
+  } as any;
+}
+function dailyCellClass(tok: string) {
+  if (isPeriodToken(tok)) return {} as any;
+  const kind = String(tok).split('-')[0].toLowerCase();
+  return [
+    'slot-cell-outer',
+    kind === 'recess' || kind === 'break' ? 'slot-kind-recess' : '',
+    kind === 'prayer' ? 'slot-kind-prayer' : '',
+  ];
+}
+
+// Weekly tokens: prefer first day with tokens, fallback to fixed P1..P7
+const weeklyHeaderTokens = computed<string[]>(() => {
+  const days = [1,2,3,4,5];
+  for (const d of days) {
+    const arr = weeklyColumnsByDay.value[String(d)] || [];
+    if (arr && arr.length) return arr;
+  }
+  return [1,2,3,4,5,6,7].map((n) => `P${n}`);
+});
+function weeklyHeaderClass(tok: string) {
+  if (isPeriodToken(tok)) return {} as any;
+  const kind = String(tok).split('-')[0].toLowerCase();
+  return {
+    'slot-header': true,
+    'slot-kind-recess': kind === 'recess' || kind === 'break',
+    'slot-kind-prayer': kind === 'prayer',
+  } as any;
+}
+function weeklyCellClass(tok: string) {
+  if (isPeriodToken(tok)) return {} as any;
+  const kind = String(tok).split('-')[0].toLowerCase();
+  return [
+    'slot-cell-outer',
+    kind === 'recess' || kind === 'break' ? 'slot-kind-recess' : '',
+    kind === 'prayer' ? 'slot-kind-prayer' : '',
+  ];
+}
+function weeklySlotTime(day: number, tok: string): [string, string] | null {
+  const meta = weeklySlotMetaByDay.value?.[String(day)]?.[tok];
+  if (meta && meta.start_time && meta.end_time) return [String(meta.start_time), String(meta.end_time)];
+  // fallback: search any day
+  for (const k of Object.keys(weeklySlotMetaByDay.value || {})) {
+    const m = weeklySlotMetaByDay.value[k]?.[tok];
+    if (m && m.start_time && m.end_time) return [String(m.start_time), String(m.end_time)];
+  }
+  return null;
+}
+function weeklyPeriodTime(day: number, p: number): [string, string] | null {
+  const dmap = weeklyPeriodTimesByDay.value?.[String(day)] || {};
+  const rec = dmap[p as keyof typeof dmap] as any;
+  if (rec && Array.isArray(rec) && rec.length >= 2) return [String(rec[0]), String(rec[1])];
+  const fallback = periodTimes.value[p as keyof typeof periodTimes.value] as any;
+  if (fallback && (fallback.start || fallback.end)) {
+    return [String(fallback.start || ''), String(fallback.end || '')];
+  }
+  return null;
 }
 
 // إرجاع عناصر الخلية لليوم d (1..7) والحصة p (1..7)
@@ -595,8 +1336,43 @@ async function loadData() {
     });
     // Extract period_times (prefer per-day if available)
     const metaRes = (res as any).meta || {};
+    meta.value = metaRes as any;
+    // Store API-reported dow for daily mode to drive grouped rendering condition
+    if ((res as any).mode === 'daily' && typeof (res as any).dow === 'number') {
+      resDow.value = Number((res as any).dow);
+    } else {
+      resDow.value = null;
+    }
+    // Update currentDow from selected date string
+    try {
+      const d = new Date(dateISO.value);
+      // JS: Sunday=0..Saturday=6 → convert to school: Sun=1..Sat=7
+      const js = d.getDay();
+      currentDow.value = js === 0 ? 7 : js;
+    } catch { currentDow.value = 1; }
     const byDay = (metaRes as any).period_times_by_day || null;
     const generic = (metaRes as any).period_times || {};
+    // Save weekly per-day times as [start,end] tuples for quick lookup
+    if (byDay && typeof byDay === 'object') {
+      const map: Record<string, Record<number, [string, string]>> = {};
+      Object.keys(byDay).forEach((d) => {
+        const inner = (byDay as any)[d] || {};
+        const rec: Record<number, [string, string]> = {} as any;
+        Object.keys(inner).forEach((p) => {
+          const v = inner[p as any];
+          if (Array.isArray(v) && v.length >= 2) rec[Number(p)] = [String(v[0]), String(v[1])];
+          else if (v && typeof v === 'object') {
+            const s = (v as any).start || (v as any).start_time;
+            const e = (v as any).end || (v as any).end_time;
+            if (s && e) rec[Number(p)] = [String(s), String(e)];
+          }
+        });
+        map[String(d)] = rec;
+      });
+      weeklyPeriodTimesByDay.value = map;
+    } else {
+      weeklyPeriodTimesByDay.value = {} as any;
+    }
     const pt: Record<number, { start: string; end: string }> = {};
     let rawMap: any = generic;
     if ((res as any).mode === "daily" && byDay && typeof (res as any).dow === "number") {
@@ -613,6 +1389,51 @@ async function loadData() {
       }
     });
     periodTimes.value = pt;
+
+    // Parse tokenized columns/meta for daily and weekly
+    if ((metaRes as any).columns && Array.isArray((metaRes as any).columns)) {
+      dailyHeaderTokens.value = ((metaRes as any).columns as any[]).map(String);
+    } else {
+      dailyHeaderTokens.value = [];
+    }
+    if ((metaRes as any).slot_meta && typeof (metaRes as any).slot_meta === 'object') {
+      dailySlotMeta.value = metaRes.slot_meta as any;
+    } else {
+      dailySlotMeta.value = {} as any;
+    }
+    if ((metaRes as any).columns_by_day && typeof (metaRes as any).columns_by_day === 'object') {
+      weeklyColumnsByDay.value = metaRes.columns_by_day as any;
+    } else {
+      weeklyColumnsByDay.value = {} as any;
+    }
+    if ((metaRes as any).slot_meta_by_day && typeof (metaRes as any).slot_meta_by_day === 'object') {
+      weeklySlotMetaByDay.value = metaRes.slot_meta_by_day as any;
+    } else {
+      weeklySlotMetaByDay.value = {} as any;
+    }
+    // Parse optional class-specific non-lesson times for the selected day
+    if ((metaRes as any).non_lesson_times_by_class && typeof (metaRes as any).non_lesson_times_by_class === 'object') {
+      const raw = metaRes.non_lesson_times_by_class as Record<string, Record<string, [string, string]>>;
+      const mapped: Record<number, Record<string, [string, string]>> = {};
+      Object.keys(raw).forEach((cid) => {
+        const inner = raw[cid] || {} as any;
+        const out: Record<string, [string, string]> = {} as any;
+        Object.keys(inner).forEach((k) => {
+          const v = inner[k] as any;
+          if (Array.isArray(v) && v.length >= 2) {
+            out[String(k).toLowerCase()] = [String(v[0]), String(v[1])];
+          } else if (v && typeof v === 'object') {
+            const s = (v as any).start || (v as any).start_time;
+            const e = (v as any).end || (v as any).end_time;
+            if (s && e) out[String(k).toLowerCase()] = [String(s), String(e)];
+          }
+        });
+        mapped[Number(cid)] = out;
+      });
+      dailyNonLessonTimesByClass.value = mapped;
+    } else {
+      dailyNonLessonTimesByClass.value = {} as any;
+    }
 
     if ((res as any).mode === "weekly") {
       weekly.value = (res as any).days || {};
@@ -632,6 +1453,7 @@ async function loadData() {
   } catch (e: any) {
     error.value = e?.response?.data?.detail || e?.message || String(e);
   } finally {
+    try { lastUpdated.value = timeAscii(new Date()); } catch {}
     loading.value = false;
   }
 }
@@ -954,8 +1776,9 @@ function teardownResizeObserver() {
   text-align: center; /* center text inside lines */
   width: 100%;
   min-width: 0; /* allow grid to control width via minmax */
-  height: 64px;
-  padding: 0.35rem 0.5rem;
+  height: auto; /* allow the cell to grow to fit its content */
+  min-height: 84px; /* ensure time line is always visible (fixes P7 clipping) */
+  padding: 0.5rem 0.6rem;
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 10px;
   background: #f5f7fb;
@@ -1113,8 +1936,8 @@ body.resizing {
 .mini-cell .mini-subj { margin-bottom: 4px; display: flex; align-items: center; gap: 6px; font-weight: 600; }
 
 /* Integrated daily table styles */
-.tt-daily-scroller { overflow: auto; }
-.tt-daily-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.tt-daily-scroller { overflow-x: hidden; overflow-y: auto; }
+.tt-daily-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 .tt-daily-table thead th { position: sticky; top: 0; background: linear-gradient(135deg, #fff7ed 0%, #ffefd9 100%); z-index: 1; text-align: center; vertical-align: middle; padding: 8px; border-bottom: 1px solid #f3d2a9; }
 /* Ensure the sticky first-column header cell also uses the same header tone */
 .tt-daily-table thead .tt-daily-th-sticky { background: linear-gradient(135deg, #fff7ed 0%, #ffefd9 100%); }
@@ -1124,8 +1947,8 @@ body.resizing {
 .tt-daily-td, .tt-daily-th { padding: 8px; vertical-align: middle; border-bottom: 1px solid #f0f2f5; text-align: center; }
 /* Ensure the first sticky header cell (الحصة) content is centered horizontally */
 .tt-daily-th-sticky .d-flex { justify-content: center; }
-.tt-daily-td { min-width: 180px; }
-.tt-daily-td .period-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 64px; }
+.tt-daily-td { min-width: 120px; }
+.tt-daily-td .period-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 88px; }
 
 /* Maroon separator between classes (applies to daily and weekly) */
 tr.class-separator > th,
@@ -1146,4 +1969,68 @@ tr.class-separator > td { border-top: 3px solid #8a1538 !important; }
 
 /* Header row for classes in daily view (old strip) no longer used */
 .classes-header { display: none; }
+</style>
+
+<style scoped>
+/* Center content and add slight spacing between cells */
+.tt-daily-table th,
+.tt-daily-table td,
+.tt7-table th,
+.tt7-table td {
+  vertical-align: middle;
+  text-align: center;
+}
+
+/* Increase padding to create visual separation between cells */
+.tt-daily-table td,
+.tt7-table td {
+  padding: 8px;
+}
+
+/* Daily view inner cells: center and increase height */
+.period-cell,
+.slot-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px; /* slightly taller cells */
+  gap: 4px; /* small space between lines inside the cell */
+  border-radius: 10px;
+  margin: 2px; /* small separation from adjacent cells */
+}
+
+/* Weekly view inner cells: center and increase height */
+.mini-cell,
+.tt7-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 66px; /* slightly taller than before */
+  gap: 4px;
+  border-radius: 8px;
+}
+
+/* Keep sticky header cells centered as well */
+.th-sticky,
+.tt7-th-sticky {
+  text-align: center;
+}
+
+/* Add a subtle separation between table rows (visual breathing room) */
+.tt-daily-table tbody tr + tr,
+.tt7-table tbody tr + tr {
+  border-top: 6px solid transparent;
+}
+
+/* Softer background for non-lesson slots to distinguish them */
+.slot-cell {
+  background-color: #f8f9fb;
+}
+
+/* Slightly larger header cell padding for better readability */
+.resizable-th {
+  padding: 10px 8px;
+}
 </style>

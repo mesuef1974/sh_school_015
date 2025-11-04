@@ -145,7 +145,7 @@
           }}</span>
         </button>
         <button class="tt-btn" @click="handlePrint" title="طباعة الجدول" aria-label="طباعة الجدول">
-          <Icon icon="solar:printer-minimalistic-bold-duotone" width="18" />
+          <Icon icon="solar:printer-bold-duotone" width="18" />
           <span class="d-none d-sm-inline">طباعة</span>
         </button>
         <button
@@ -208,10 +208,16 @@
                       <span>اليوم</span>
                     </div>
                   </th>
-                  <th v-for="p in periodsDesc" :key="'h' + p" class="timetable-th period-column">
+                  <th
+                    v-for="tok in headerColumns"
+                    :key="'h' + tok"
+                    class="timetable-th period-column"
+                    :class="headerClass(tok)"
+                  >
                     <div class="th-content">
                       <Icon icon="solar:clock-circle-bold-duotone" width="18" />
-                      <span>حصة {{ p }}</span>
+                      <span v-if="isPeriodToken(tok)">حصة {{ periodNumFromToken(tok) }}</span>
+                      <span v-else>{{ headerLabel(tok) }}</span>
                     </div>
                   </th>
                 </tr>
@@ -241,77 +247,91 @@
                     </div>
                   </th>
                   <td
-                    v-for="p in periodsDesc"
-                    :key="'c' + d + '-' + p"
-                    class="period-cell"
-                    :class="{ 'has-class': cell(d, p), 'current-period': isCurrentPeriod(d, p) }"
-                    :style="
-                      cell(d, p)
-                        ? { background: getClassColor(cell(d, p)!.classroom_id).light }
-                        : {}
-                    "
+                    v-for="tok in headerColumns"
+                    :key="'c' + d + '-' + tok"
+                    :class="cellClass(d, tok)"
+                    :style="cellStyle(d, tok)"
                   >
-                    <!-- Green countdown near the green dot when current period -->
-                    <div
-                      v-if="prefs.showCountdown && isCurrentPeriod(d, p) && remainingTime(d, p)"
-                      class="countdown-badge"
-                      :title="'الوقت المتبقي للحصة'"
-                    >
-                      {{ remainingTime(d, p) }}
-                    </div>
-                    <div v-if="cell(d, p)" class="period-content">
-                      <div
-                        class="subject-badge"
-                        :style="{
-                          background: getClassColor(cell(d, p)!.classroom_id).bg,
-                          color: getClassColor(cell(d, p)!.classroom_id).text,
-                        }"
-                      >
-                        <Icon v-if="subjectIcon(cell(d, p)?.subject_name)" :icon="subjectIcon(cell(d, p)?.subject_name)" width="16" />
-                        <span class="subject-name">{{ cell(d, p)?.subject_name || "—" }}</span>
-                      </div>
-                      <div class="classroom-info">
-                        <div
-                          class="classroom-badge"
-                          :style="{
-                            borderColor: getClassColor(cell(d, p)!.classroom_id)
-                              .bg.split(',')[0]
-                              .split('(')[1],
-                            color: getClassColor(cell(d, p)!.classroom_id)
-                              .bg.split(',')[0]
-                              .split('(')[1],
-                          }"
-                        >
-                          <Icon icon="solar:home-2-bold-duotone" width="14" />
-                          <span>{{
-                            cell(d, p)?.classroom_name || "صف #" + cell(d, p)?.classroom_id
-                          }}</span>
+                    <!-- Non-lesson slot cell (break/prayer) -->
+                    <template v-if="!isPeriodToken(tok)">
+                      <div class="slot-cell">
+                        <div class="slot-label">{{ headerLabel(tok) }}</div>
+                        <div class="slot-time" v-if="slotTime(d, tok)">
+                          {{ fmtTime(slotTime(d, tok)![0]) }}
+                          –
+                          {{ fmtTime(slotTime(d, tok)![1]) }}
                         </div>
                       </div>
-                      <div class="time-info" v-if="cellTime(d, p)">
-                        <Icon
-                          icon="solar:clock-circle-bold-duotone"
-                          width="14"
-                          style="opacity: 0.6"
-                        />
-                        <span
-                          >{{ fmtTime(cellTime(d, p)?.[0]) }} –
-                          {{ fmtTime(cellTime(d, p)?.[1]) }}</span
-                        >
+                    </template>
+
+                    <!-- Lesson cell -->
+                    <template v-else>
+                      <!-- Green countdown near the green dot when current period -->
+                      <div
+                        v-if="prefs.showCountdown && isCurrentPeriod(d, periodNumFromToken(tok)) && remainingTime(d, periodNumFromToken(tok))"
+                        class="countdown-badge"
+                        :title="'الوقت المتبقي للحصة'"
+                      >
+                        {{ remainingTime(d, periodNumFromToken(tok)) }}
                       </div>
-                    </div>
-                    <div v-else class="empty-period">
-                      <Icon
-                        icon="solar:minus-circle-bold-duotone"
-                        width="20"
-                        style="opacity: 0.2"
-                      />
-                    </div>
-                    <!-- Current period progress bar -->
-                    <div v-if="isCurrentPeriod(d, p)" class="progress-wrap">
+                      <template v-if="cell(d, periodNumFromToken(tok))">
+                        <div class="period-content">
+                          <div
+                            class="subject-badge"
+                            :style="{
+                              background: getClassColor(cell(d, periodNumFromToken(tok))!.classroom_id).bg,
+                              color: getClassColor(cell(d, periodNumFromToken(tok))!.classroom_id).text,
+                            }"
+                          >
+                            <Icon v-if="subjectIcon(cell(d, periodNumFromToken(tok))?.subject_name)" :icon="subjectIcon(cell(d, periodNumFromToken(tok))?.subject_name)" width="16" />
+                            <span class="subject-name">{{ cell(d, periodNumFromToken(tok))?.subject_name || "—" }}</span>
+                          </div>
+                          <div class="classroom-info">
+                            <div
+                              class="classroom-badge"
+                              :style="{
+                                borderColor: getClassColor(cell(d, periodNumFromToken(tok))!.classroom_id)
+                                  .bg.split(',')[0]
+                                  .split('(')[1],
+                                color: getClassColor(cell(d, periodNumFromToken(tok))!.classroom_id)
+                                  .bg.split(',')[0]
+                                  .split('(')[1],
+                              }"
+                            >
+                              <Icon icon="solar:home-2-bold-duotone" width="14" />
+                              <span>{{
+                                cell(d, periodNumFromToken(tok))?.classroom_name || "صف #" + cell(d, periodNumFromToken(tok))?.classroom_id
+                              }}</span>
+                            </div>
+                          </div>
+                          <div class="time-info" v-if="cellTime(d, periodNumFromToken(tok))">
+                            <Icon
+                              icon="solar:clock-circle-bold-duotone"
+                              width="14"
+                              style="opacity: 0.6"
+                            />
+                            <span
+                              >{{ fmtTime(cellTime(d, periodNumFromToken(tok))?.[0]) }} –
+                              {{ fmtTime(cellTime(d, periodNumFromToken(tok))?.[1]) }}</span
+                            >
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div class="empty-period">
+                          <Icon
+                            icon="solar:minus-circle-bold-duotone"
+                            width="20"
+                            style="opacity: 0.2"
+                          />
+                        </div>
+                      </template>
+                    </template>
+                    <!-- Current period progress bar (only for lesson tokens) -->
+                    <div v-if="isPeriodToken(tok) && isCurrentPeriod(d, periodNumFromToken(tok))" class="progress-wrap">
                       <div
                         class="progress-bar"
-                        :style="{ width: periodProgress(d, p) + '%' }"
+                        :style="{ width: periodProgress(d, periodNumFromToken(tok)) + '%' }"
                       ></div>
                     </div>
                   </td>
@@ -328,7 +348,7 @@
 <style scoped>
 /* Modern timetable styling - maroon themed, clean and readable */
 .timetable-wrapper {
-  overflow-x: auto;
+  overflow-x: hidden; /* remove horizontal scroll */
   -webkit-overflow-scrolling: touch;
 }
 
@@ -337,6 +357,7 @@
   border-collapse: separate;
   border-spacing: 0;
   background: #fff;
+  table-layout: fixed; /* distribute available width across columns to avoid overflow */
 }
 
 .timetable-modern thead th {
@@ -386,7 +407,7 @@
 
 .period-column {
   text-align: center;
-  min-width: 140px;
+  min-width: 110px; /* narrower to fit without horizontal scroll */
 }
 .period-cell {
   padding: 0.65rem 0.5rem;
@@ -398,8 +419,52 @@
 }
 .period-cell:hover {
   background: #fafafa;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
+/* Slot (break/prayer) cell styles */
+/* Generic fallback for unknown kinds */
+.slot-cell-outer {
+  background: #f5f7f8;
+}
+/* Recess / Break – soft teal-gray */
+.slot-cell-outer.slot-kind-recess {
+  background: #eaf7f8; /* hsl(190, 40%, 94%) */
+}
+/* Prayer – soft sand */
+.slot-cell-outer.slot-kind-prayer {
+  background: #fdf3e6; /* hsl(35, 70%, 95%) */
+}
+/* Header tint for non-lesson tokens */
+.timetable-modern thead th.slot-header.slot-kind-recess {
+  background: #e6f3f5;
+  color: #2f5d5f;
+}
+.timetable-modern thead th.slot-header.slot-kind-prayer {
+  background: #fbefe2;
+  color: #6b4a2c;
+}
+/* Keep header visual hierarchy */
+.timetable-modern thead th.slot-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+.slot-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: #6b6b6b;
+}
+/* Refine label colors by kind for better contrast */
+.slot-kind-recess .slot-label { color: #2f5d5f; }
+.slot-kind-prayer .slot-label { color: #6b4a2c; }
+.slot-label {
+  font-weight: 700;
+}
+.slot-time {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
 .period-cell.has-class {
   background: #fffdfa;
 }
@@ -806,8 +871,95 @@ const days = ref<
 // Fallback period times per period_number when entry lacks embedded times
 const periodTimes = ref<Record<number, [string, string]>>({} as any);
 
+// New: metadata for non-lesson slots (breaks/prayer)
+const columnsByDay = ref<Record<string, string[]>>({});
+const slotMetaByDay = ref<Record<string, Record<string, { kind: string; label?: string; start_time?: string; end_time?: string }>>>({});
+
 const daysOrder = [1, 2, 3, 4, 5];
 const periodsDesc = [1, 2, 3, 4, 5, 6, 7];
+// Preferred header columns: take from the first day that has metadata; else fallback to period numbers
+const headerColumns = computed<string[]>(() => {
+  for (const d of daysOrder) {
+    const arr = columnsByDay.value[String(d)] || [];
+    if (arr && arr.length) return arr;
+  }
+  // Fallback: use periodsDesc as Pn tokens
+  return periodsDesc.map((n) => `P${n}`);
+});
+
+function isPeriodToken(tok: string): boolean {
+  return typeof tok === 'string' && /^P\d+$/.test(tok);
+}
+function periodNumFromToken(tok: string): number {
+  if (!tok) return 0;
+  const m = /^P(\d+)$/.exec(tok);
+  return m ? Number(m[1]) : 0;
+}
+function headerLabel(tok: string): string {
+  if (isPeriodToken(tok)) return `حصة ${periodNumFromToken(tok)}`;
+  // non-lesson
+  // Try to lookup label from any day
+  for (const d of daysOrder) {
+    const meta = slotMetaByDay.value[String(d)]?.[tok];
+    if (meta?.label) return String(meta.label);
+  }
+  // derive from kind
+  const kind = tok.split('-')[0].toLowerCase();
+  if (kind === 'recess' || kind === 'break') return 'استراحة';
+  if (kind === 'prayer') return 'الصلاة';
+  return tok;
+}
+function slotTime(d: number, tok: string): [string, string] | null {
+  const m = slotMetaByDay.value[String(d)]?.[tok];
+  if (m && m.start_time && m.end_time) return [String(m.start_time), String(m.end_time)];
+  // fallback to any day that has it
+  for (const k of Object.keys(slotMetaByDay.value || {})) {
+    const m2 = slotMetaByDay.value[k]?.[tok];
+    if (m2 && m2.start_time && m2.end_time) return [String(m2.start_time), String(m2.end_time)];
+  }
+  return null;
+}
+// Derive normalized kind from non-lesson token (e.g., 'RECESS-1' -> 'recess')
+function kindFromToken(tok: string): string | null {
+  if (!tok || isPeriodToken(tok)) return null;
+  return tok.split('-')[0].toLowerCase();
+}
+// Header class for non-lesson tokens to tint header background distinctly
+function headerClass(tok: string) {
+  if (isPeriodToken(tok)) return {} as any;
+  const kind = kindFromToken(tok);
+  return {
+    'slot-header': true,
+    'slot-kind-recess': kind === 'recess' || kind === 'break',
+    'slot-kind-prayer': kind === 'prayer',
+  } as any;
+}
+function cellClass(d: number, tok: string) {
+  if (!isPeriodToken(tok)) {
+    const kind = kindFromToken(tok);
+    return [
+      'period-cell',
+      'slot-cell-outer',
+      kind === 'recess' || kind === 'break' ? 'slot-kind-recess' : '',
+      kind === 'prayer' ? 'slot-kind-prayer' : '',
+    ];
+  }
+  const p = periodNumFromToken(tok);
+  return {
+    'period-cell': true,
+    'has-class': !!cell(d, p),
+    'current-period': isCurrentPeriod(d, p),
+  } as any;
+}
+function cellStyle(d: number, tok: string) {
+  if (!isPeriodToken(tok)) {
+    // Use CSS classes for non-lesson backgrounds to ensure consistent theming
+    return {} as any;
+  }
+  const p = periodNumFromToken(tok);
+  const c = cell(d, p) as any;
+  return c ? { background: getClassColor(c.classroom_id).light } : {};
+}
 const empty = computed(() =>
   Object.values(days.value || {}).every((arr) => (arr || []).length === 0)
 );
@@ -1111,10 +1263,11 @@ async function load() {
   try {
     const res = await getTeacherTimetableWeekly();
     days.value = res.days || {};
-    const pt = (res as any)?.meta?.period_times || {};
-    // Normalize keys to numbers
+    const meta: any = (res as any)?.meta || {};
+    const pt = meta?.period_times || {};
+    // Normalize keys to numbers for periodTimes
     const out: Record<number, [string, string]> = {} as any;
-    for (const k of Object.keys(pt)) {
+    for (const k of Object.keys(pt || {})) {
       const num = Number(k);
       const val = pt[k];
       if (num && Array.isArray(val) && val.length >= 2) {
@@ -1122,6 +1275,11 @@ async function load() {
       }
     }
     periodTimes.value = out;
+    // Read columns_by_day and slot_meta_by_day if provided
+    const cols = meta?.columns_by_day || {};
+    const slots = meta?.slot_meta_by_day || {};
+    columnsByDay.value = cols || {};
+    slotMetaByDay.value = slots || {};
   } finally {
     loading.value = false;
   }

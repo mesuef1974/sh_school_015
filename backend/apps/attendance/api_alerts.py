@@ -110,6 +110,33 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
         if start_date > end_date:
             return Response({"detail": "نطاق التواريخ غير صحيح"}, status=400)
 
+        # Idempotency: if an alert exists for the same student and wing within the same Sun→Thu week, return it
+        from datetime import timedelta as _td
+
+        # Compute week range (Sun→Thu) that covers the provided start_date
+        # Python weekday(): Mon=0..Sun=6 → previous/this Sunday offset
+        days_to_sunday = (start_date.weekday() + 1) % 7
+        week_start = start_date - _td(days=days_to_sunday)
+        week_end = week_start + _td(days=4)
+        try:
+            existing = (
+                AbsenceAlert.objects.filter(
+                    student_id=student.id,
+                    wing_id=getattr(student, "wing_id", None),
+                    period_end__gte=week_start,
+                    period_start__lte=week_end,
+                )
+                .order_by("-created_at")
+                .first()
+            )
+        except Exception:
+            existing = None
+        if existing:
+            ser = self.get_serializer(existing)
+            resp = Response(ser.data, status=status.HTTP_200_OK)
+            resp["X-Idempotent-Existing"] = "1"
+            return resp
+
         # Compute O/X according to policy
         excused, unexcused = compute_absence_days(student.id, start_date, end_date)
 
@@ -164,6 +191,7 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
         if request.query_params.get("persist") in ("1", "true", "yes"):  # archive
             sha = hashlib.sha256(content).hexdigest()
             from .services.word_renderer import TEMPLATE_PATH, FALLBACK_TEMPLATE_PATH
+
             tpath = TEMPLATE_PATH if Path(TEMPLATE_PATH).exists() else FALLBACK_TEMPLATE_PATH
             thash = hashlib.sha256(Path(tpath).read_bytes()).hexdigest() if Path(tpath).exists() else ""
             doc = AbsenceAlertDocument.objects.create(
@@ -202,6 +230,7 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
             return Response({"detail": f"تعذر توليد الملف: {e}"}, status=500)
         sha = hashlib.sha256(content).hexdigest()
         from .services.word_renderer import TEMPLATE_PATH, FALLBACK_TEMPLATE_PATH
+
         tpath = TEMPLATE_PATH if Path(TEMPLATE_PATH).exists() else FALLBACK_TEMPLATE_PATH
         thash = hashlib.sha256(Path(tpath).read_bytes()).hexdigest() if Path(tpath).exists() else ""
         fname = f"absence-alert-{alert.academic_year}-{alert.number}.docx"
@@ -214,13 +243,16 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
             template_hash=thash,
         )
         doc.file.save(fname, ContentFile(content), save=True)
-        return Response({
-            "id": doc.id,
-            "size": doc.size,
-            "sha256": doc.sha256,
-            "created_at": doc.created_at,
-            "template_name": doc.template_name,
-        }, status=201)
+        return Response(
+            {
+                "id": doc.id,
+                "size": doc.size,
+                "sha256": doc.sha256,
+                "created_at": doc.created_at,
+                "template_name": doc.template_name,
+            },
+            status=201,
+        )
 
     @action(detail=True, methods=["get"], url_path="docx/latest")
     def docx_latest(self, request: Request, pk=None):
@@ -238,7 +270,7 @@ class AbsenceAlertViewSet(viewsets.ModelViewSet):
         items = [
             {
                 "id": d.id,
-                "name": d.file.name.split('/')[-1] if d.file else None,
+                "name": d.file.name.split("/")[-1] if d.file else None,
                 "size": d.size,
                 "sha256": d.sha256,
                 "template_name": d.template_name,

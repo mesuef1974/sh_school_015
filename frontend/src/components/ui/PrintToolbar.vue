@@ -53,7 +53,7 @@
         <Icon icon="solar:document-add-bold-duotone" class="me-1"/> عرضي
       </button>
       <button class="btn btn-primary btn-sm" @click="printNow">
-        <Icon icon="solar:printer-2-bold-duotone" class="me-1"/> طباعة
+        <Icon icon="solar:printer-bold-duotone" class="me-1"/> طباعة
       </button>
     </div>
   </div>
@@ -61,7 +61,6 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { Icon } from "@iconify/vue";
 
 // Local UI state (could be wired to prefs later if needed)
 const orientation = ref<'portrait'|'landscape'>('portrait');

@@ -28,7 +28,11 @@ TEMPLATE_PATH = Path(_env_template) if _env_template else _DEFAULT_TEMPLATE
 
 # Allow forcing exact template usage by disabling fallback
 # In development default to allow fallback; can be overridden per environment
-_ALLOW_FALLBACK = os.environ.get("ABSENCE_ALERT_ALLOW_FALLBACK", "true").lower() in {"1", "true", "yes"}
+_ALLOW_FALLBACK = os.environ.get("ABSENCE_ALERT_ALLOW_FALLBACK", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 
 def resolve_template_path(preferred: str | None = None) -> Path:
@@ -59,6 +63,7 @@ def _apply_header_image_bytes(doc_bytes: bytes) -> bytes:
     import os
     from docx.oxml import OxmlElement  # type: ignore
     from docx.oxml.ns import nsmap  # type: ignore
+
     mode = (os.environ.get("ABS_DOCX_HEADER_MODE", "none") or "none").lower().strip()
     if _DocxDocument is None:
         return doc_bytes
@@ -89,35 +94,41 @@ def _apply_header_image_bytes(doc_bytes: bytes) -> bytes:
             """Convert the last inline drawing in paragraph to an anchored drawing with behindDoc=1
             and align it to page center/top so body text can flow over it."""
             try:
-                inline_elems = paragraph._p.xpath('.//w:drawing/wp:inline', namespaces=nsmap)  # type: ignore
+                inline_elems = paragraph._p.xpath(".//w:drawing/wp:inline", namespaces=nsmap)  # type: ignore
                 if not inline_elems:
                     return
                 inline = inline_elems[-1]
-                anchor = OxmlElement('wp:anchor')
-                extent = inline.find('wp:extent', namespaces=nsmap)
+                anchor = OxmlElement("wp:anchor")
+                extent = inline.find("wp:extent", namespaces=nsmap)
                 if extent is not None:
-                    new_extent = OxmlElement('wp:extent')
-                    new_extent.set('cx', extent.get('cx'))
-                    new_extent.set('cy', extent.get('cy'))
+                    new_extent = OxmlElement("wp:extent")
+                    new_extent.set("cx", extent.get("cx"))
+                    new_extent.set("cy", extent.get("cy"))
                     anchor.append(new_extent)
-                anchor.set('behindDoc', '1')
-                anchor.set('locked', '0')
-                anchor.set('layoutInCell', '1')
-                anchor.set('allowOverlap', '1')
-                simplePos = OxmlElement('wp:simplePos')
-                simplePos.set('x', '0'); simplePos.set('y', '0')
+                anchor.set("behindDoc", "1")
+                anchor.set("locked", "0")
+                anchor.set("layoutInCell", "1")
+                anchor.set("allowOverlap", "1")
+                simplePos = OxmlElement("wp:simplePos")
+                simplePos.set("x", "0")
+                simplePos.set("y", "0")
                 anchor.append(simplePos)
-                posH = OxmlElement('wp:positionH'); posH.set('relativeFrom', 'page')
-                posH_align = OxmlElement('wp:align'); posH_align.text = 'center'
+                posH = OxmlElement("wp:positionH")
+                posH.set("relativeFrom", "page")
+                posH_align = OxmlElement("wp:align")
+                posH_align.text = "center"
                 posH.append(posH_align)
-                posV = OxmlElement('wp:positionV'); posV.set('relativeFrom', 'page')
-                posV_align = OxmlElement('wp:align'); posV_align.text = 'top'
+                posV = OxmlElement("wp:positionV")
+                posV.set("relativeFrom", "page")
+                posV_align = OxmlElement("wp:align")
+                posV_align.text = "top"
                 posV.append(posV_align)
-                anchor.append(posH); anchor.append(posV)
+                anchor.append(posH)
+                anchor.append(posV)
                 # Ensure the anchored image does not affect document layout flow
-                wrapNone = OxmlElement('wp:wrapNone')
+                wrapNone = OxmlElement("wp:wrapNone")
                 anchor.append(wrapNone)
-                graphic = inline.find('a:graphic', namespaces=nsmap)
+                graphic = inline.find("a:graphic", namespaces=nsmap)
                 if graphic is not None:
                     graphic = graphic.clone()
                     anchor.append(graphic)
@@ -137,7 +148,8 @@ def _apply_header_image_bytes(doc_bytes: bytes) -> bytes:
                 pass
             hdr = section.header
             _clear_header(hdr)
-            p = hdr.add_paragraph(); r = p.add_run()
+            p = hdr.add_paragraph()
+            r = p.add_run()
             try:
                 r.add_picture(str(_HEADER_IMAGE), height=Cm(2.5))
             except Exception:
@@ -168,7 +180,8 @@ def _apply_header_image_bytes(doc_bytes: bytes) -> bytes:
             # First page header (full)
             fheader = getattr(section, "first_page_header", None) or section.header
             _clear_header(fheader)
-            p1 = fheader.add_paragraph(); r1 = p1.add_run()
+            p1 = fheader.add_paragraph()
+            r1 = p1.add_run()
             try:
                 if avail_w and avail_h:
                     r1.add_picture(str(_HEADER_IMAGE), width=avail_w, height=avail_h)
@@ -194,7 +207,8 @@ def _apply_header_image_bytes(doc_bytes: bytes) -> bytes:
             try:
                 hdr = section.header
                 _clear_header(hdr)
-                p2 = hdr.add_paragraph(); r2 = p2.add_run()
+                p2 = hdr.add_paragraph()
+                r2 = p2.add_run()
                 try:
                     if avail_w and avail_h:
                         r2.add_picture(str(_HEADER_IMAGE), width=avail_w, height=avail_h)

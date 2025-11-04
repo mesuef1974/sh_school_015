@@ -8,7 +8,7 @@
 
 @media print {
   /* Page setup: default portrait A4 with 1cm margins */
-  @page { size: A4 portrait; margin: 1cm; }
+  @page { size: A4 portrait; margin: 14mm; }
 
   html, body {
     direction: rtl;
@@ -234,4 +234,24 @@
    Prefer programmatic injection in printManager for reliability. */
 @media print {
   html.print-landscape @page { size: A4 landscape; }
+}
+/* Screen defaults for print utility helpers */
+.print-only { display: none !important; }
+.no-print-inline { display: inline !important; }
+.no-print-block { display: block !important; }
+
+@media print {
+  /* Utility visibility toggles */
+  .no-print { display: none !important; }
+  .no-print-inline { display: none !important; }
+  .no-print-block { display: none !important; }
+  .print-only { display: initial !important; }
+
+  /* Page break helpers for precise control */
+  .page-break-before { break-before: page !important; page-break-before: always !important; }
+  .page-break-after { break-after: page !important; page-break-after: always !important; }
+  .avoid-page-break { break-inside: avoid !important; page-break-inside: avoid !important; }
+
+  /* Prevent splitting common elements across pages */
+  .card, .table-responsive, .print-section, .signature, .stamp { break-inside: avoid; page-break-inside: avoid; }
 }

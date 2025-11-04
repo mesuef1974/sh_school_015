@@ -8,7 +8,7 @@
         </WingPageHeader>
 
     <!-- Toolbar card with filters/actions -->
-    <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap">
+    <div class="auto-card p-3 d-flex align-items-center gap-2 flex-wrap no-print">
       <label class="visually-hidden" for="exit-date">التاريخ</label>
       <input id="exit-date" type="date" v-model="date" class="form-control form-control-sm w-auto" :aria-label="'التاريخ'" />
 
@@ -40,6 +40,16 @@
     </div>
 
     <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
+
+    <!-- Print-only context header for paper output -->
+    <PrintPageHeader
+      :title="`إذونات الخروج — جناح ${selectedWingId || '-'}`"
+      :meta-lines="[
+        `التاريخ: ${date}`,
+        `الحالة: ${status}`,
+        `الصف: ${classId ? ('#'+classId) : 'كل الصفوف'}`
+      ]"
+    />
 
     <!-- Cards by student -->
     <div v-if="loading" class="text-center text-muted p-4">جاري التحميل ...</div>
@@ -120,6 +130,7 @@ const tileMeta = computed(() => tiles.find((t) => t.to === "/wing/exits") || { t
 import { useWingContext } from "../../../shared/composables/useWingContext";
 import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 import WingWingPicker from "../../../components/ui/WingWingPicker.vue";
+import PrintPageHeader from "../../../components/ui/PrintPageHeader.vue";
 import { getWingClasses, getWingStudents, getExitEvents, getOpenExitEvents, postExitDecide } from "../../../shared/api/client";
 // Lightweight date helpers to avoid external dependency
 function pad2(n: number) { return n < 10 ? "0"+n : String(n); }

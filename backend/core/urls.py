@@ -28,6 +28,7 @@ from django.views.static import serve as static_serve
 from school.admin_site import restricted_admin_site
 from school.api.views import logout as api_logout
 from school.auth import CustomTokenObtainPairView, CustomTokenRefreshView
+
 # Explicit import for a stable alias to Wing students DOCX export
 from apps.attendance.api import WingSupervisorViewSet
 
@@ -100,6 +101,17 @@ urlpatterns = [
         "api/v1/wing/students/export.docx",
         WingSupervisorViewSet.as_view({"get": "students_export_docx"}),
         name="wing-students-export-docx-no-slash",
+    ),
+    # Weekly summary DOCX under API v1 with and without trailing slash
+    path(
+        "api/v1/wing/weekly-summary/export.docx/",
+        WingSupervisorViewSet.as_view({"get": "weekly_summary_export_docx"}),
+        name="wing-weekly-summary-export-docx",
+    ),
+    path(
+        "api/v1/wing/weekly-summary/export.docx",
+        WingSupervisorViewSet.as_view({"get": "weekly_summary_export_docx"}),
+        name="wing-weekly-summary-export-docx-no-slash",
     ),
     path("", include("school.urls")),
     # Friendly docs endpoints (development only)

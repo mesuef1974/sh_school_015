@@ -30,4 +30,13 @@ urlpatterns = [
     # Additional alias without dot to avoid any reverse-proxy or router quirks
     path("wing/students/export-docx/", students_export_docx),
     path("wing/students/export-docx", students_export_docx),
+    # Weekly summary (DOCX) stable endpoint (router action with regex path)
+    path(
+        "wing/weekly-summary/export.docx/",
+        WingSupervisorViewSet.as_view({"get": "weekly_summary_export_docx"}),
+    ),
+    path(
+        "wing/weekly-summary/export.docx",
+        WingSupervisorViewSet.as_view({"get": "weekly_summary_export_docx"}),
+    ),
 ]

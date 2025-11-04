@@ -745,3 +745,38 @@ body {
   font-size: 1.1rem;
   line-height: 1.25;
 }
+
+
+/* Dropdown overlay fixes: ensure menus appear above cards and avoid flicker */
+.page-grid .dropdown-menu,
+.auto-card .dropdown-menu,
+.toolbar-card .dropdown-menu,
+.card .dropdown-menu,
+.outlined-card .dropdown-menu,
+.table-card .dropdown-menu {
+  z-index: 2000 !important; /* above sticky headers/cards/modals baseline */
+}
+/* Prevent clipping when ancestor card has overflow hidden */
+/* Scoped to page-grid and also globally for robustness */
+.page-grid .auto-card:has(.dropdown-menu.show),
+.page-grid .table-card:has(.dropdown-menu.show),
+.page-grid .outlined-card:has(.dropdown-menu.show),
+.page-grid .card:has(.dropdown-menu.show),
+.auto-card:has(.dropdown-menu.show),
+.table-card:has(.dropdown-menu.show),
+.outlined-card:has(.dropdown-menu.show),
+.card:has(.dropdown-menu.show),
+.overflow-hidden:has(.dropdown-menu.show) {
+  overflow: visible !important;
+}
+/* Ensure dropdown container establishes stacking context */
+.page-grid .dropdown, .dropdown { position: relative; }
+/* Disable transitions on dropdown to eliminate blink on open/close in some browsers */
+.dropdown-menu { transition: none !important; }
+/* Avoid stacking context conflicts: when a dropdown is open inside a card, cancel hover transform on that card */
+.auto-card:has(.dropdown-menu.show),
+.table-card:has(.dropdown-menu.show),
+.outlined-card:has(.dropdown-menu.show),
+.card:has(.dropdown-menu.show) {
+  transform: none !important;
+}

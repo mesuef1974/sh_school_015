@@ -1,4 +1,4 @@
-from datetime import date as _date
+from datetime import date as _date, time as _time
 from typing import Any, Dict, List
 
 from django.db.models import Count, Q, QuerySet
@@ -8,6 +8,8 @@ try:
     from backend.common.day_utils import iso_to_school_dow
 except Exception:
     from common.day_utils import iso_to_school_dow  # type: ignore
+
+from .timing import resolve_lesson_time, resolve_thursday_wing3_time
 
 
 def _class_fk_id_field() -> str:
@@ -172,6 +174,7 @@ def get_teacher_today_periods(*, staff_id: int, dt: _date) -> List[Dict[str, Any
     """Return ordered list of today's periods for a teacher using TimetableEntry.
     Items: {period_number, classroom_id, classroom_name, subject_id, subject_name, start_time?, end_time?}
     Note: Database stores day_of_week as 1..5 (Sun..Thu). We map from ISO weekday (Mon=1..Sun=7).
+    Timing is resolved from PeriodTemplate/TemplateSlot taking into account wing/floor scope when available.
     """
     term = _current_term()
     if not term:
@@ -180,32 +183,182 @@ def get_teacher_today_periods(*, staff_id: int, dt: _date) -> List[Dict[str, Any
     school_day = iso_to_school_dow(dt)
     if school_day < 1 or school_day > 5:
         return []
-    # Build period time lookup for this SCHOOL weekday (1=Sun..7=Sat) from PeriodTemplate/TemplateSlot
-    times_map: dict[int, tuple] = {}
-    try:
-        from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
-        # PeriodTemplate.day_of_week follows school numbering (1=Sun..7=Sat)
-        tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=school_day).values_list("id", flat=True))
-        if tpl_ids:
-            slots = (
-                TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
-                .exclude(number__isnull=True)
-                .order_by("number", "start_time")
+    # Helper to normalize scope values (wing.floor may be Arabic/English)
+    def _norm_scope(val: str | None) -> str | None:
+        if not val:
+            return None
+        v = str(val).strip().lower()
+        # Arabic to English mapping and common variants
+        mapping = {
+            "أرضي": "ground",
+            "ارضى": "ground",
+            "ارضي": "ground",
+            "الدور الارضي": "ground",
+            "الأرضي": "ground",
+            "علوي": "upper",
+            "الدور العلوي": "upper",
+        }
+        return mapping.get(v, v or None)
+
+    # Infer wing number when Class.wing is not available using grade/section rules provided by school
+    def _infer_wing_no(cls) -> int | None:
+        try:
+            # Prefer explicit wing relation id if present
+            w = getattr(cls, "wing", None)
+            if w and getattr(w, "id", None):
+                return int(w.id)
+            grade = int(getattr(cls, "grade", 0) or 0)
+            # section may be like "1", "1A", "1-Science" or "1/ث"; take leading int
+            sec_raw = str(getattr(cls, "section", "") or "").strip()
+            sec = None
+            import re
+            m = re.match(r"^(\d+)", sec_raw)
+            if m:
+                sec = int(m.group(1))
+            else:
+                # try parse from name like "11/2" or "11-2"
+                name = str(getattr(cls, "name", "") or "")
+                m2 = re.search(r"^(\d+)[\-\./](\d+)", name.strip())
+                if m2:
+                    grade = grade or int(m2.group(1))
+                    sec = int(m2.group(2))
+            if not grade or sec is None:
+                return None
+            # Mapping per user specification
+            if grade == 7 and 1 <= sec <= 5:
+                return 1
+            if grade == 8 and 1 <= sec <= 4:
+                return 2
+            if grade == 9 and sec == 1:
+                return 2
+            if grade == 9 and 2 <= sec <= 4:
+                return 3
+            if grade == 10 and 1 <= sec <= 2:
+                return 3
+            if grade == 10 and 3 <= sec <= 4:
+                return 4
+            if grade == 11 and 1 <= sec <= 3:
+                return 4
+            if grade == 11 and sec == 4:
+                return 5
+            if grade == 12 and 1 <= sec <= 4:
+                return 5
+            return None
+        except Exception:
+            return None
+
+    def _wing_floor_from_no(wing_no: int | None) -> str | None:
+        if wing_no is None:
+            return None
+        return "ground" if wing_no in (1, 2) else ("upper" if wing_no in (3, 4, 5) else None)
+
+    # Cache of times per (day, scope)
+    times_cache: dict[tuple[int, str | None], dict[int, tuple]] = {}
+    # Cache of times per (day, wing_id)
+    times_cache_wing: dict[tuple[int, int], dict[int, tuple]] = {}
+    # Cache of times per (day, class_id)
+    times_cache_class: dict[tuple[int, int], dict[int, tuple]] = {}
+
+    def _times_for(day: int, scope: str | None) -> dict[int, tuple]:
+        key = (day, scope or None)
+        if key in times_cache:
+            return times_cache[key]
+        try:
+            from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+            base_qs = PeriodTemplate.objects.filter(day_of_week=day)
+            tpl_ids: list[int] = []
+            if scope:
+                tpl_ids = list(base_qs.filter(scope__iexact=scope).values_list("id", flat=True))
+            # Fallback to any template for the day if scoped not found
+            if not tpl_ids:
+                tpl_ids = list(base_qs.values_list("id", flat=True))
+            slots_map: dict[int, tuple] = {}
+            if tpl_ids:
+                slots = (
+                    TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                    .exclude(number__isnull=True)
+                    .order_by("number", "start_time")
+                )
+                for s in slots:
+                    slots_map[int(s.number)] = (s.start_time, s.end_time)
+            times_cache[key] = slots_map
+            return slots_map
+        except Exception:
+            times_cache[key] = {}
+            return {}
+
+    def _times_for_by_wing(day: int, wing_id: int) -> dict[int, tuple]:
+        key = (day, wing_id)
+        if key in times_cache_wing:
+            return times_cache_wing[key]
+        try:
+            from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+            tpl_ids = list(
+                PeriodTemplate.objects.filter(day_of_week=day, wings__id=wing_id).values_list("id", flat=True)
             )
-            for s in slots:
-                times_map[int(s.number)] = (s.start_time, s.end_time)
-    except Exception:
-        times_map = {}
+            slots_map: dict[int, tuple] = {}
+            if tpl_ids:
+                slots = (
+                    TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                    .exclude(number__isnull=True)
+                    .order_by("number", "start_time")
+                )
+                for s in slots:
+                    slots_map[int(s.number)] = (s.start_time, s.end_time)
+            times_cache_wing[key] = slots_map
+            return slots_map
+        except Exception:
+            times_cache_wing[key] = {}
+            return {}
+
+    def _times_for_by_class(day: int, class_id: int) -> dict[int, tuple]:
+        key = (day, class_id)
+        if key in times_cache_class:
+            return times_cache_class[key]
+        try:
+            from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+            tpl_ids = list(
+                PeriodTemplate.objects.filter(day_of_week=day, classes__id=class_id).values_list("id", flat=True)
+            )
+            slots_map: dict[int, tuple] = {}
+            if tpl_ids:
+                slots = (
+                    TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                    .exclude(number__isnull=True)
+                    .order_by("number", "start_time")
+                )
+                for s in slots:
+                    slots_map[int(s.number)] = (s.start_time, s.end_time)
+            times_cache_class[key] = slots_map
+            return slots_map
+        except Exception:
+            times_cache_class[key] = {}
+            return {}
 
     qs = (
         TimetableEntry.objects.filter(teacher_id=staff_id, term_id=term.id, day_of_week=school_day)
-        .select_related("classroom", "subject")
+        .select_related("classroom", "classroom__wing", "subject")
         .order_by("period_number")
     )
     out: List[Dict[str, Any]] = []
     for e in qs:
-        st_et = times_map.get(int(e.period_number))
+        cls = e.classroom
+        wing = getattr(cls, "wing", None)
+        wing_no = getattr(wing, "id", None) or _infer_wing_no(cls)
+        # Try centralized resolver with explicit Wing 3 Thursday support first
+        st_et = None
+        try:
+            wno = int(getattr(cls, "wing_id", None) or 0) or (_infer_wing_no(cls) or 0)
+        except Exception:
+            wno = 0
+        if int(school_day) == 5 and int(wno) == 3:
+            st_et = resolve_thursday_wing3_time(cls=cls, period_number=int(e.period_number))
+        if not st_et:
+            st_et = resolve_lesson_time(cls=cls, day=int(school_day), period_number=int(e.period_number))
         out.append(
             {
                 "period_number": e.period_number,
@@ -223,63 +376,278 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
     """Return a week grid for a teacher keyed by school day numbers where 1=Sun..5=Thu.
     This matches the database convention used in TimetableEntry and the compact timetable pages.
     Non-workdays (Fri, Sat) are omitted (left empty keys for 6,7 to maintain shape when needed).
-    { days: { '1': [...], '2': [...], '3': [...], '4': [...], '5': [...] }, meta: { term_id, period_times } }
+    Response shape remains backward-compatible:
+      { days: { '1': [...], ... }, meta: { term_id, period_times, columns_by_day?, slot_meta_by_day? } }
+    - columns_by_day (optional): ordered column tokens per school day including recess/prayer slots.
+      Example: { '1': ['P1','RECESS-1','P2','P3','PRAYER-1','P4', ...] }
+    - slot_meta_by_day (optional): metadata for non-lesson tokens with labels and times.
+      Example: { '1': { 'RECESS-1': {kind:'recess', label:'استراحة', start_time:'10:10', end_time:'10:25'}, ... } }
+    Period times are resolved from PeriodTemplate/TemplateSlot with wing/floor scope where available.
     """
     term = _current_term()
     if not term:
         return {"days": {str(i): [] for i in range(1, 8)}, "meta": {}}
-    # Prepare period time maps per school day using PeriodTemplate/TemplateSlot
-    # PeriodTemplate.day_of_week follows school numbering: 1=Sun .. 7=Sat
-    times_per_day: Dict[int, Dict[int, tuple]] = {d: {} for d in range(1, 6)}
-    try:
-        from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
-        for sd in range(1, 6):  # Sun..Thu
-            tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True))
+    # Helper to normalize scope values (same as in get_teacher_today_periods)
+    def _norm_scope(val: str | None) -> str | None:
+        if not val:
+            return None
+        v = str(val).strip().lower()
+        mapping = {
+            "أرضي": "ground",
+            "ارضى": "ground",
+            "ارضي": "ground",
+            "الدور الارضي": "ground",
+            "الأرضي": "ground",
+            "علوي": "upper",
+            "الدور العلوي": "upper",
+        }
+        return mapping.get(v, v or None)
+
+    # Infer wing number when not available via relation, using school rules
+    def _infer_wing_no(cls) -> int | None:
+        try:
+            w = getattr(cls, "wing", None)
+            if w and getattr(w, "id", None):
+                return int(w.id)
+            grade = int(getattr(cls, "grade", 0) or 0)
+            sec_raw = str(getattr(cls, "section", "") or "").strip()
+            sec = None
+            import re
+            m = re.match(r"^(\d+)", sec_raw)
+            if m:
+                sec = int(m.group(1))
+            else:
+                name = str(getattr(cls, "name", "") or "")
+                m2 = re.search(r"^(\d+)[\-\./](\d+)", name.strip())
+                if m2:
+                    grade = grade or int(m2.group(1))
+                    sec = int(m2.group(2))
+            if not grade or sec is None:
+                return None
+            if grade == 7 and 1 <= sec <= 5:
+                return 1
+            if grade == 8 and 1 <= sec <= 4:
+                return 2
+            if grade == 9 and sec == 1:
+                return 2
+            if grade == 9 and 2 <= sec <= 4:
+                return 3
+            if grade == 10 and 1 <= sec <= 2:
+                return 3
+            if grade == 10 and 3 <= sec <= 4:
+                return 4
+            if grade == 11 and 1 <= sec <= 3:
+                return 4
+            if grade == 11 and sec == 4:
+                return 5
+            if grade == 12 and 1 <= sec <= 4:
+                return 5
+            return None
+        except Exception:
+            return None
+
+    def _wing_floor_from_no(wing_no: int | None) -> str | None:
+        if wing_no is None:
+            return None
+        return "ground" if wing_no in (1, 2) else ("upper" if wing_no in (3, 4, 5) else None)
+
+    # Cache times per (day, scope)
+    times_cache: Dict[tuple[int, str | None], Dict[int, tuple]] = {}
+    # Cache times per (day, wing_id)
+    times_cache_wing: Dict[tuple[int, int], Dict[int, tuple]] = {}
+    # Cache times per (day, class_id)
+    times_cache_class: Dict[tuple[int, int], Dict[int, tuple]] = {}
+
+    def _times_for(day: int, scope: str | None) -> Dict[int, tuple]:
+        key = (day, scope or None)
+        if key in times_cache:
+            return times_cache[key]
+        try:
+            from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+            base_qs = PeriodTemplate.objects.filter(day_of_week=day)
+            tpl_ids: list[int] = []
+            if scope:
+                tpl_ids = list(base_qs.filter(scope__iexact=scope).values_list("id", flat=True))
             if not tpl_ids:
-                continue
-            slots = (
-                TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
-                .exclude(number__isnull=True)
-                .order_by("number", "start_time")
-            )
-            td: Dict[int, tuple] = {}
-            for s in slots:
-                td[int(s.number)] = (s.start_time, s.end_time)
-            if td:
-                times_per_day[sd] = td
-        # If any school day lacks a template, fall back to the first available day's map
-        fallback_map: Dict[int, tuple] | None = None
-        for d in range(1, 6):
-            if times_per_day.get(d):
-                fallback_map = times_per_day[d]
-                break
-        if fallback_map:
-            for d in range(1, 6):
-                if not times_per_day.get(d):
-                    times_per_day[d] = fallback_map
-    except Exception:
-        pass
+                tpl_ids = list(base_qs.values_list("id", flat=True))
+            slots_map: Dict[int, tuple] = {}
+            if tpl_ids:
+                slots = (
+                    TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                    .exclude(number__isnull=True)
+                    .order_by("number", "start_time")
+                )
+                for s in slots:
+                    slots_map[int(s.number)] = (s.start_time, s.end_time)
+            times_cache[key] = slots_map
+            return slots_map
+        except Exception:
+            times_cache[key] = {}
+            return {}
 
-    # Consolidated period_times for UI fallback (use first non-empty day map)
+    def _times_for_by_wing(day: int, wing_id: int) -> Dict[int, tuple]:
+        key = (day, wing_id)
+        if key in times_cache_wing:
+            return times_cache_wing[key]
+        try:
+            from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+            tpl_ids = list(
+                PeriodTemplate.objects.filter(day_of_week=day, wings__id=wing_id).values_list("id", flat=True)
+            )
+            slots_map: Dict[int, tuple] = {}
+            if tpl_ids:
+                slots = (
+                    TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                    .exclude(number__isnull=True)
+                    .order_by("number", "start_time")
+                )
+                for s in slots:
+                    slots_map[int(s.number)] = (s.start_time, s.end_time)
+            times_cache_wing[key] = slots_map
+            return slots_map
+        except Exception:
+            times_cache_wing[key] = {}
+            return {}
+
+    def _times_for_by_class(day: int, class_id: int) -> Dict[int, tuple]:
+        key = (day, class_id)
+        if key in times_cache_class:
+            return times_cache_class[key]
+        try:
+            from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+            tpl_ids = list(
+                PeriodTemplate.objects.filter(day_of_week=day, classes__id=class_id).values_list("id", flat=True)
+            )
+            slots_map: Dict[int, tuple] = {}
+            if tpl_ids:
+                slots = (
+                    TemplateSlot.objects.filter(template_id__in=tpl_ids, kind="lesson")
+                    .exclude(number__isnull=True)
+                    .order_by("number", "start_time")
+                )
+                for s in slots:
+                    slots_map[int(s.number)] = (s.start_time, s.end_time)
+            times_cache_class[key] = slots_map
+            return slots_map
+        except Exception:
+            times_cache_class[key] = {}
+            return {}
+
+    # Consolidated generic period_times fallback (first available day without scope)
     period_times: Dict[int, tuple] = {}
     for d in range(1, 6):
-        if times_per_day.get(d):
-            period_times = dict(times_per_day[d])
+        tm = _times_for(d, None)
+        if tm:
+            period_times = dict(tm)
             break
 
     qs = (
         TimetableEntry.objects.filter(teacher_id=staff_id, term_id=term.id)
-        .select_related("classroom", "subject")
+        .select_related("classroom", "classroom__wing", "subject")
         .order_by("day_of_week", "period_number")
     )
+
+    # Build columns_by_day and slot_meta_by_day using PeriodTemplate/TemplateSlot including recess/prayer
+    columns_by_day: Dict[str, list[str]] = {str(i): [] for i in range(1, 8)}
+    slot_meta_by_day: Dict[str, Dict[str, Dict[str, Any]]] = {str(i): {} for i in range(1, 8)}
+    try:
+        from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
+        # Collect class ids and wings per day from the teacher's timetable
+        classes_per_day: Dict[int, set[int]] = {i: set() for i in range(1, 8)}
+        wings_per_day: Dict[int, set[int]] = {i: set() for i in range(1, 8)}
+        for e in qs:
+            d = int(e.day_of_week)
+            if 1 <= d <= 7:
+                classes_per_day[d].add(int(e.classroom_id))
+                try:
+                    w_id = getattr(e.classroom, "wing_id", None)
+                    if w_id:
+                        wings_per_day[d].add(int(w_id))
+                except Exception:
+                    pass
+        # For each day, choose representative templates with priority: classes -> wings -> floor -> generic
+        for d in range(1, 8):
+            tpl_qs = PeriodTemplate.objects.filter(day_of_week=d)
+            tpl_ids: list[int] = []
+            cls_ids = list(classes_per_day.get(d) or [])
+            if cls_ids:
+                tpl_ids = list(tpl_qs.filter(classes__id__in=cls_ids).distinct().values_list("id", flat=True))
+            if not tpl_ids:
+                wing_ids = list(wings_per_day.get(d) or [])
+                if wing_ids:
+                    tpl_ids = list(tpl_qs.filter(wings__id__in=wing_ids).distinct().values_list("id", flat=True))
+            if not tpl_ids:
+                tpl_ids = list(tpl_qs.values_list("id", flat=True))
+            if not tpl_ids:
+                continue
+            # Fetch all slots (lesson/recess/prayer/...) ordered by time
+            slots = (
+                TemplateSlot.objects.filter(template_id__in=tpl_ids)
+                .order_by("start_time", "number")
+            )
+            # Build ordered tokens, ensuring uniqueness and logical interleaving by time
+            tokens: list[str] = []
+            used_lessons: set[int] = set()
+            kind_counters: Dict[str, int] = {}
+            for s in slots:
+                kind = (getattr(s, "kind", "lesson") or "lesson").strip().lower()
+                if kind == "lesson":
+                    try:
+                        num = int(getattr(s, "number", 0) or 0)
+                    except Exception:
+                        num = 0
+                    if num and num not in used_lessons:
+                        tok = f"P{num}"
+                        tokens.append(tok)
+                        used_lessons.add(num)
+                else:
+                    # Non-lesson: create stable token per order occurrence of this kind
+                    cnt = kind_counters.get(kind, 0) + 1
+                    kind_counters[kind] = cnt
+                    tok = f"{kind.upper()}-{cnt}"
+                    # Save meta
+                    try:
+                        lbl_map = {"recess": "استراحة", "break": "استراحة", "prayer": "الصلاة"}
+                        label = lbl_map.get(kind, kind)
+                        slot_meta_by_day[str(d)][tok] = {
+                            "kind": kind,
+                            "label": label,
+                            "start_time": getattr(s, "start_time", None),
+                            "end_time": getattr(s, "end_time", None),
+                        }
+                    except Exception:
+                        pass
+                    tokens.append(tok)
+            if tokens:
+                columns_by_day[str(d)] = tokens
+    except Exception:
+        pass
+
     # Initialize 1..7 keys; we will fill 1..5 (Sun..Thu) and leave others empty
     days: Dict[str, List[Dict[str, Any]]] = {str(i): [] for i in range(1, 8)}
     for e in qs:
         d = int(e.day_of_week)
         if d < 1 or d > 5:
             continue
-        st_et = times_per_day.get(d, {}).get(int(e.period_number)) or period_times.get(int(e.period_number))
+        cls = e.classroom
+        # Use Wing 3 Thursday resolver first when applicable, then unified resolver
+        st_et = None
+        try:
+            wno = int(getattr(cls, "wing_id", None) or 0) or (_infer_wing_no(cls) or 0)
+        except Exception:
+            wno = 0
+        if int(d) == 5 and int(wno) == 3:
+            st_et = resolve_thursday_wing3_time(cls=cls, period_number=int(e.period_number))
+        if not st_et:
+            st_et = resolve_lesson_time(cls=cls, day=int(d), period_number=int(e.period_number))
+        if not st_et:
+            # last resort keep previous generic fallback
+            st_et = period_times.get(int(e.period_number))
         days[str(d)].append(
             {
                 "period_number": e.period_number,
@@ -290,4 +658,4 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
                 **({"start_time": st_et[0], "end_time": st_et[1]} if st_et else {}),
             }
         )
-    return {"days": days, "meta": {"term_id": term.id, "period_times": period_times}}
+    return {"days": days, "meta": {"term_id": term.id, "period_times": period_times, "columns_by_day": columns_by_day, "slot_meta_by_day": slot_meta_by_day}}

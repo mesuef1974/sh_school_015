@@ -10,7 +10,16 @@
 
     <div class="visually-hidden" aria-live="polite">{{ liveMsg }}</div>
 
-    <div class="card mb-3">
+    <!-- Print-only context header for paper output -->
+    <PrintPageHeader
+      :title="`تنبيهات الغياب — جناح ${selectedWingId || '-'}`"
+      :meta-lines="[
+        `الطالب: ${selectedStudentLabel || 'غير محدد'}`,
+        `الفترة: ${form.from} → ${form.to}`
+      ]"
+    />
+
+    <div class="card mb-3 no-print">
       <div class="card-body">
         <div class="d-flex align-items-center gap-2 mb-2">
           <Icon :icon="'mdi:bell-alert'" />
@@ -93,7 +102,7 @@
           <h5 class="m-0 card-title-maroon">تنبيهات سابقة للطالب</h5>
         </div>
         <div class="table-responsive">
-          <table class="table table-sm align-middle">
+          <table class="table table-sm align-middle print-table">
             <thead>
               <tr>
                 <th>رقم</th>
@@ -157,6 +166,7 @@ import { tiles } from "../../../home/icon-tiles.config";
 const tileMeta = computed(() => tiles.find(t => t.to === "/wing/absences") || { title: "الغيابات والتنبيهات", icon: "solar:bell-bing-bold-duotone", color: "#8a1538" });
 import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 import WingWingPicker from "../../../components/ui/WingWingPicker.vue";
+import PrintPageHeader from "../../../components/ui/PrintPageHeader.vue";
 // RBAC: allow actions only for wing supervisor or super admin
 const canAct = computed(() => !!(hasWingRole?.value || isSuper?.value));
 // Live region for accessibility

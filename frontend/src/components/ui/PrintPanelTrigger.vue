@@ -1,12 +1,12 @@
 <template>
   <div class="print-trigger-wrapper d-inline-flex align-items-center">
     <button ref="btnEl" class="btn btn-sm btn-outline-primary" type="button" @click="toggle" :title="'خيارات الطباعة'" aria-haspopup="dialog" :aria-expanded="open ? 'true' : 'false'">
-      <Icon icon="solar:printer-2-bold-duotone" />
+      <Icon icon="solar:printer-bold-duotone" />
     </button>
 
     <div v-if="open" ref="panelEl" class="print-panel shadow-lg" role="dialog" aria-modal="true" aria-label="لوحة خيارات الطباعة">
       <div class="d-flex align-items-center gap-2 mb-2">
-        <Icon icon="solar:printer-3-bold-duotone" class="text-primary" />
+        <Icon icon="solar:printer-bold-duotone" class="text-primary" />
         <h6 class="m-0">طباعة الصفحة</h6>
         <button class="btn-close ms-auto" @click="close" aria-label="إغلاق"></button>
       </div>
@@ -111,7 +111,6 @@
 
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, computed, watch } from 'vue';
-import { Icon } from '@iconify/vue';
 import { useWingPrefs } from '../../shared/composables/useWingPrefs';
 
 type CardItem = { id: number; label: string; el: Element; selected: boolean; cols: { index: number; label: string; selected: boolean }[] };

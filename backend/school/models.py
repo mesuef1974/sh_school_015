@@ -35,11 +35,12 @@ class Class(models.Model):
         return f"{self.name}"
 
     def save(self, *args, **kwargs):
-        """Auto-derive grade/section from name if missing.
+        """Auto-derive grade/section from name if missing and auto-attach wing when possible.
 
         Tests create Class with only name like "12/1". Our DB requires grade not null,
         so before first insert, parse grade (and optionally section) from the name.
-        Safe, best-effort; never block saving on parsing errors.
+        Also, when wing is not set, infer it from grade/section according to school rules
+        and attach the Wing object if found (best-effort; never block on errors).
         """
         try:
             if (getattr(self, "grade", None) is None) and isinstance(self.name, str):
@@ -56,6 +57,55 @@ class Class(models.Model):
                         self.section = sec
         except Exception:
             # Never block saving due to parsing issues
+            pass
+
+        # Best-effort auto-attach wing if missing
+        try:
+            if getattr(self, "wing_id", None) in (None, 0):
+                # Determine section number from explicit section or from name
+                import re
+
+                sec_num = None
+                sec_raw = str(self.section or "").strip()
+                m = re.match(r"^(\d+)", sec_raw)
+                if m:
+                    sec_num = int(m.group(1))
+                else:
+                    name = str(self.name or "")
+                    m2 = re.search(r"^(\d+)[\-\./](\d+)", name.strip())
+                    if m2:
+                        if not getattr(self, "grade", None):
+                            self.grade = int(m2.group(1))
+                        sec_num = int(m2.group(2))
+                grade_val = int(getattr(self, "grade", 0) or 0)
+                wing_no = None
+                if grade_val == 7 and sec_num and 1 <= sec_num <= 5:
+                    wing_no = 1
+                elif grade_val == 8 and sec_num and 1 <= sec_num <= 4:
+                    wing_no = 2
+                elif grade_val == 9 and sec_num == 1:
+                    wing_no = 2
+                elif grade_val == 9 and sec_num and 2 <= sec_num <= 4:
+                    wing_no = 3
+                elif grade_val == 10 and sec_num and 1 <= sec_num <= 2:
+                    wing_no = 3
+                elif grade_val == 10 and sec_num and 3 <= sec_num <= 4:
+                    wing_no = 4
+                elif grade_val == 11 and sec_num and 1 <= sec_num <= 3:
+                    wing_no = 4
+                elif grade_val == 11 and sec_num == 4:
+                    wing_no = 5
+                elif grade_val == 12 and sec_num and 1 <= sec_num <= 4:
+                    wing_no = 5
+                if wing_no:
+                    from django.apps import apps as _apps
+
+                    Wing = _apps.get_model("school", "Wing")
+                    wing_obj = Wing.objects.filter(id=wing_no).first() or Wing.objects.filter(name__icontains=str(wing_no)).first()
+                    if wing_obj:
+                        self.wing = wing_obj
+        except Exception:
+            # Never block saving due to wing inference problems
             pass
         super().save(*args, **kwargs)
 
@@ -394,6 +444,22 @@ class PeriodTemplate(models.Model):
     name = models.CharField(max_length=100)
     day_of_week = models.PositiveSmallIntegerField()  # 1=Sun .. 7=Sat
     scope = models.CharField(max_length=30, blank=True)  # ground/upper/secondary/...
+    # Explicit link of this day template to one or more classes (الفصول)
+    # This enables per-class custom timings overriding wing/floor/general scopes.
+    classes = models.ManyToManyField(
+        "Class",
+        blank=True,
+        related_name="period_templates",
+        help_text="الفصول التي ينطبق عليها هذا القالب مباشرةً.",
+    )
+    # Existing: link this day template to one or more wings for backward compatibility.
+    # Kept to avoid breaking existing data; class binding has higher priority at runtime.
+    wings = models.ManyToManyField(
+        "Wing",
+        blank=True,
+        related_name="period_templates",
+        help_text="الأجنحة التي ينطبق عليها هذا القالب. يحدد ذلك الفصول التابعة لهذه الأجنحة.",
+    )
 
     class Meta:
         verbose_name = "قالب يوم دراسي"

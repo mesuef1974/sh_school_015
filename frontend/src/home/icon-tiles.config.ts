@@ -105,15 +105,6 @@ export const tiles: Tile[] = [
     roles: ["wing_supervisor"],
   },
   {
-    id: "wing_att_daily",
-    title: "الغياب اليومي",
-    subtitle: "متابعة حضور اليوم",
-    to: "/wing/attendance/daily",
-    icon: "solar:calendar-bold-duotone",
-    color: "#1565c0",
-    roles: ["wing_supervisor"],
-  },
-  {
     id: "wing_missing",
     title: "حصص بلا إدخال",
     subtitle: "معالجة فورية",

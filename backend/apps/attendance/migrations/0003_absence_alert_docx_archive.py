@@ -18,16 +18,35 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="AbsenceAlertDocument",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID"),
+                ),
                 ("file", models.FileField(upload_to="alerts/docx/%Y/%m/")),
                 ("size", models.PositiveIntegerField(default=0)),
-                ("mime", models.CharField(default="application/vnd.openxmlformats-officedocument.wordprocessingml.document", max_length=100)),
+                (
+                    "mime",
+                    models.CharField(
+                        default="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        max_length=100,
+                    ),
+                ),
                 ("sha256", models.CharField(blank=True, max_length=64)),
                 ("template_name", models.CharField(blank=True, max_length=200)),
                 ("template_hash", models.CharField(blank=True, max_length=64)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
-                ("alert", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="documents", to="attendance.absencealert")),
-                ("created_by", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to=settings.AUTH_USER_MODEL)),
+                (
+                    "alert",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="documents",
+                        to="attendance.absencealert",
+                    ),
+                ),
+                (
+                    "created_by",
+                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to=settings.AUTH_USER_MODEL),
+                ),
             ],
             options={
                 "verbose_name": "ملف تنبيه غياب (DOCX)",
