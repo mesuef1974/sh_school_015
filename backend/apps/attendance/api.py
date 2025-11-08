@@ -3,7 +3,6 @@ import csv
 import logging
 from datetime import date as _date
 from datetime import timedelta
-from datetime import time as _time
 
 from django.http import HttpResponse
 from django.utils import timezone
@@ -3391,7 +3390,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             }
         # Add grouped meta for Wing 3 Thursday (daily)
         try:
-            if int(wing_id) == 3 and (mode == 'weekly' or int(dow) == 5):
+            if int(wing_id) == 3 and (mode == "weekly" or int(dow) == 5):
                 from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
                 grp_periods: dict[str, dict[str, dict[int, tuple]]] = {}
@@ -3492,7 +3491,11 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                                 tok = f"{kind.upper()}" if cnt == 1 else f"{kind.upper()}-{cnt}"
                                 cols.append(tok)
                                 try:
-                                    lbl_map = {"recess": "استراحة", "break": "استراحة", "prayer": "الصلاة"}
+                                    lbl_map = {
+                                        "recess": "استراحة",
+                                        "break": "استراحة",
+                                        "prayer": "الصلاة",
+                                    }
                                     label = lbl_map.get(kind, kind)
                                     smeta[tok] = {
                                         "kind": kind,
@@ -3508,7 +3511,10 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     try:
                         if key == "grade9_2_4":
                             # Find any RECESS token in built columns and place it after P3 (before P4)
-                            recess_idx = next((i for i, t in enumerate(cols) if str(t).upper().startswith("RECESS")), None)
+                            recess_idx = next(
+                                (i for i, t in enumerate(cols) if str(t).upper().startswith("RECESS")),
+                                None,
+                            )
                             if recess_idx is not None:
                                 try:
                                     p3_idx = cols.index("P3")
@@ -3530,14 +3536,28 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                                     desired.append(f"P{n}")
                             # Prefer unsuffixed RECESS if present in meta; else first matching token
                             if any(str(t).upper().startswith("RECESS") for t in cols):
-                                tok_rec = "RECESS" if "RECESS" in smeta else next((t for t in cols if str(t).upper().startswith("RECESS")), None)
+                                tok_rec = (
+                                    "RECESS"
+                                    if "RECESS" in smeta
+                                    else next(
+                                        (t for t in cols if str(t).upper().startswith("RECESS")),
+                                        None,
+                                    )
+                                )
                                 if tok_rec:
                                     desired.append(tok_rec)  # type: ignore
                             for n in (4, 5, 6, 7):
                                 if f"P{n}" in cols:
                                     desired.append(f"P{n}")
                             if any(str(t).upper().startswith("PRAYER") for t in cols):
-                                tok_pr = "PRAYER" if "PRAYER" in smeta else next((t for t in cols if str(t).upper().startswith("PRAYER")), None)
+                                tok_pr = (
+                                    "PRAYER"
+                                    if "PRAYER" in smeta
+                                    else next(
+                                        (t for t in cols if str(t).upper().startswith("PRAYER")),
+                                        None,
+                                    )
+                                )
                                 if tok_pr and tok_pr not in desired:
                                     desired.append(tok_pr)  # type: ignore
                             # Deduplicate while preserving order

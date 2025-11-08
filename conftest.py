@@ -16,6 +16,7 @@ if str(backend) not in sys.path:
 # However, ensure apps are loaded early to support tests that import models at module scope
 try:
     import django  # type: ignore
+
     django.setup()
 except Exception:
     pass
@@ -66,9 +67,7 @@ def minimal_school_data(db):
     classroom = Classroom.objects.create(name="10-1", wing=wing)
 
     # Teacher user + staff
-    teacher_user = User.objects.create_user(
-        username="t_min", email="t_min@example.com", password="pass1234"
-    )
+    teacher_user = User.objects.create_user(username="t_min", email="t_min@example.com", password="pass1234")
     # Put user in teacher group if it exists (tolerant)
     try:
         grp, _ = Group.objects.get_or_create(name="teacher")

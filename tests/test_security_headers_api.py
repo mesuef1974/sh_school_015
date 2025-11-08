@@ -57,14 +57,11 @@ def test_disable_security_headers_flag_on_api_path():
         resp = c.get("/api/schema/")
         assert resp.status_code in (200, 204), resp.content
         # Our middleware should have not enforced these headers
-        assert (
-            "Referrer-Policy" not in resp
-            or resp["Referrer-Policy"] in ("strict-origin-when-cross-origin", "same-origin")
+        assert "Referrer-Policy" not in resp or resp["Referrer-Policy"] in (
+            "strict-origin-when-cross-origin",
+            "same-origin",
         )
-        assert (
-            "X-Frame-Options" not in resp
-            or resp["X-Frame-Options"] in ("SAMEORIGIN", "DENY")
-        )
+        assert "X-Frame-Options" not in resp or resp["X-Frame-Options"] in ("SAMEORIGIN", "DENY")
         assert ("X-Content-Type-Options" not in resp) or (resp["X-Content-Type-Options"] == "nosniff")
         assert "Content-Security-Policy" not in resp
         assert "Content-Security-Policy-Report-Only" not in resp

@@ -31,8 +31,6 @@ def test_user_can_access_class_basic_user_returns_bool(django_user_model):
     except Exception:
         pytest.skip("user_can_access_class not available in this build")
 
-    user = django_user_model.objects.create_user(
-        username="u_basic", email="u_basic@example.com", password="pass1234"
-    )
+    user = django_user_model.objects.create_user(username="u_basic", email="u_basic@example.com", password="pass1234")
     result = user_can_access_class(user, 1)
     assert isinstance(result, bool)

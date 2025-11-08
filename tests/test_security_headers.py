@@ -50,9 +50,9 @@ def test_disable_security_headers_flag(db):
         resp = c.get("/livez")
         # Some Django middlewares or proxies may still set certain headers;
         # we only assert that our middleware did not add/enforce them.
-        assert (
-            "Referrer-Policy" not in resp
-            or resp["Referrer-Policy"] in ("strict-origin-when-cross-origin", "same-origin")
+        assert "Referrer-Policy" not in resp or resp["Referrer-Policy"] in (
+            "strict-origin-when-cross-origin",
+            "same-origin",
         )
         assert (
             "X-Frame-Options" not in resp
@@ -81,9 +81,9 @@ def test_disable_security_headers_flag_on_favicon(db):
     with env(DJANGO_SECURITY_HEADERS="false"):
         c = Client()
         resp = c.get("/favicon.ico")
-        assert (
-            "Referrer-Policy" not in resp
-            or resp["Referrer-Policy"] in ("strict-origin-when-cross-origin", "same-origin")
+        assert "Referrer-Policy" not in resp or resp["Referrer-Policy"] in (
+            "strict-origin-when-cross-origin",
+            "same-origin",
         )
         assert (
             "X-Frame-Options" not in resp

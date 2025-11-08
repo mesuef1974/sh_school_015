@@ -40,7 +40,7 @@ def custom_exception_handler(exc: Exception, context: Dict[str, Any]) -> Optiona
 
     Response format:
       { "error": { "code": "SOME_CODE", "message": "...", "details": {...} } }
-    
+
     - Preserves DRF status codes
     - Preserves DRF's default error details (normalized)
     """

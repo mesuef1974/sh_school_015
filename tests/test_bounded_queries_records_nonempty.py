@@ -2,7 +2,9 @@ import pytest
 
 
 @pytest.mark.django_db
-def test_records_endpoint_bounded_queries_nonempty(client, django_user_model, django_assert_num_queries, minimal_school_data):
+def test_records_endpoint_bounded_queries_nonempty(
+    client, django_user_model, django_assert_num_queries, minimal_school_data
+):
     """
     With a tiny non-empty dataset, ensure /api/v1/attendance/records/ performs a
     small, bounded number of queries and returns expected shape with at least one record.

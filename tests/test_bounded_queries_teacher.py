@@ -8,9 +8,7 @@ def test_teacher_weekly_bounded_queries(client, django_user_model, django_assert
     a small, bounded number of queries for an empty dataset.
     We authenticate as a superuser to bypass role checks cleanly.
     """
-    user = django_user_model.objects.create_superuser(
-        username="admin", email="admin@example.com", password="pass1234"
-    )
+    user = django_user_model.objects.create_superuser(username="admin", email="admin@example.com", password="pass1234")
     client.force_login(user)
 
     url = "/api/v1/attendance/timetable/teacher/weekly/"
@@ -31,9 +29,7 @@ def test_teacher_classes_bounded_queries(client, django_user_model, django_asser
     """
     Guard against N+1 on teacher classes discovery endpoint for empty assignments.
     """
-    user = django_user_model.objects.create_user(
-        username="t1", email="t1@example.com", password="pass1234"
-    )
+    user = django_user_model.objects.create_user(username="t1", email="t1@example.com", password="pass1234")
     client.force_login(user)
 
     url = "/api/v1/attendance/teacher/classes/"

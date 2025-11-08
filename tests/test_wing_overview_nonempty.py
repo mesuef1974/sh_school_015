@@ -2,7 +2,9 @@ import pytest
 
 
 @pytest.mark.django_db
-def test_wing_overview_nonempty_bounded_queries(client, django_user_model, django_assert_num_queries, minimal_school_data):
+def test_wing_overview_nonempty_bounded_queries(
+    client, django_user_model, django_assert_num_queries, minimal_school_data
+):
     """
     Ensure /api/v1/wing/overview/ behaves well with a tiny non-empty dataset.
     We assert a conservative upper bound on queries and basic response shape.

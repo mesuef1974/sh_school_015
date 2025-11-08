@@ -10,9 +10,7 @@ def test_attendance_submit_shape_and_error_envelope(client, django_user_model):
     and shape for authenticated superuser with minimal payload.
     """
     # 1) Unauthenticated: expect 4xx with unified envelope or legacy {detail}
-    resp_unauth = client.post(
-        "/api/v1/attendance/submit/", data={"class_id": 1, "date": "2024-01-01"}
-    )
+    resp_unauth = client.post("/api/v1/attendance/submit/", data={"class_id": 1, "date": "2024-01-01"})
     assert 400 <= resp_unauth.status_code < 500, resp_unauth.content
     data1 = resp_unauth.json()
     assert isinstance(data1, dict)
@@ -29,9 +27,7 @@ def test_attendance_submit_shape_and_error_envelope(client, django_user_model):
         username="admin_submit", email="admin_submit@example.com", password="pass1234"
     )
     client.force_login(user)
-    resp_ok = client.post(
-        "/api/v1/attendance/submit/", data={"class_id": 1, "date": "2024-01-01"}
-    )
+    resp_ok = client.post("/api/v1/attendance/submit/", data={"class_id": 1, "date": "2024-01-01"})
     assert resp_ok.status_code in (200, 400, 403), resp_ok.content
     data2 = resp_ok.json()
     if resp_ok.status_code == 200:

@@ -682,13 +682,14 @@ DAY_OF_WEEK_CHOICES_1_5 = (
     (5, DAY_NAMES_AR[5]),
 )
 
+
 class PeriodTemplateForm(forms.ModelForm):
     # Hide the original single-day field; we'll set it automatically from the checkboxes selection.
     day_of_week = forms.ChoiceField(
         choices=DAY_OF_WEEK_CHOICES_1_5,
         widget=forms.HiddenInput,
         label="اليوم",
-        help_text="سيُحدد تلقائيًا من أول يوم مُختار في المربعات أدناه."
+        help_text="سيُحدد تلقائيًا من أول يوم مُختار في المربعات أدناه.",
     )
     # Visible control: select multiple days using checkboxes.
     days_multi = forms.MultipleChoiceField(
@@ -696,7 +697,7 @@ class PeriodTemplateForm(forms.ModelForm):
         widget=forms.CheckboxSelectMultiple,
         label="الأيام",
         required=True,
-        help_text="اختر يومًا واحدًا أو أكثر ليتم إنشاء/تحديث قوالب مطابقة لكل يوم." 
+        help_text="اختر يومًا واحدًا أو أكثر ليتم إنشاء/تحديث قوالب مطابقة لكل يوم.",
     )
 
     class Meta:
@@ -852,10 +853,18 @@ class PeriodTemplateAdmin(admin.ModelAdmin):
             # Rebuild slots to match base
             # Delete existing slots first for idempotency
             TS.objects.filter(template=tgt).delete()
-            TS.objects.bulk_create([
-                TS(template=tgt, number=s.number, start_time=s.start_time, end_time=s.end_time, kind=s.kind)
-                for s in base_slots
-            ])
+            TS.objects.bulk_create(
+                [
+                    TS(
+                        template=tgt,
+                        number=s.number,
+                        start_time=s.start_time,
+                        end_time=s.end_time,
+                        kind=s.kind,
+                    )
+                    for s in base_slots
+                ]
+            )
             if action == "created":
                 created.append(candidate_code)
             else:
@@ -863,9 +872,17 @@ class PeriodTemplateAdmin(admin.ModelAdmin):
 
         # Inform the admin user
         if created:
-            self.message_user(request, f"تم إنشاء {len(created)} قالب/قوالب للأيام: {', '.join(created)}", level=messages.SUCCESS)
+            self.message_user(
+                request,
+                f"تم إنشاء {len(created)} قالب/قوالب للأيام: {', '.join(created)}",
+                level=messages.SUCCESS,
+            )
         if updated:
-            self.message_user(request, f"تم تحديث {len(updated)} قالب/قوالب موجودة: {', '.join(updated)}", level=messages.INFO)
+            self.message_user(
+                request,
+                f"تم تحديث {len(updated)} قالب/قوالب موجودة: {', '.join(updated)}",
+                level=messages.INFO,
+            )
         # Optionally detect any previously generated templates for other days no longer selected; we will skip deleting them to be safe.
         if skipped:
             self.message_user(request, f"تم تجاوز {len(skipped)} دون تغيير.", level=messages.WARNING)

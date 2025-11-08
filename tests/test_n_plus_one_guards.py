@@ -12,9 +12,7 @@ def test_history_strict_has_bounded_queries(client, django_user_model, django_as
     threshold conservative so future additions remain efficient.
     """
     # Create a superuser to bypass classroom access checks cleanly
-    user = django_user_model.objects.create_superuser(
-        username="admin", email="admin@example.com", password="pass1234"
-    )
+    user = django_user_model.objects.create_superuser(username="admin", email="admin@example.com", password="pass1234")
     client.force_login(user)
 
     url = "/api/v1/attendance/history-strict/"

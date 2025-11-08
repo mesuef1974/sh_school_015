@@ -140,7 +140,7 @@
                             <Icon v-if="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
                             <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
                           </div>
-                          <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                          <div class="cell-teacher one-line truncate-1" :title="dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—'">{{ shortTeacherName(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name) }}</div>
                           <div class="cell-time small text-muted" v-if="timeRangeForGroup('secondary', periodNumFromToken(String(tok)))">
                             <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
                             {{ timeRangeForGroup('secondary', periodNumFromToken(String(tok))) }}
@@ -199,7 +199,7 @@
                             <Icon v-if="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
                             <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
                           </div>
-                          <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                          <div class="cell-teacher one-line truncate-1" :title="dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—'">{{ shortTeacherName(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name) }}</div>
                           <div class="cell-time small text-muted" v-if="timeRangeForGroup('grade9_2_4', periodNumFromToken(String(tok)))">
                             <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
                             {{ timeRangeForGroup('grade9_2_4', periodNumFromToken(String(tok))) }}
@@ -285,7 +285,7 @@
                           <Icon v-if="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
                           <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
                         </div>
-                        <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                        <div class="cell-teacher one-line truncate-1" :title="dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—'">{{ shortTeacherName(dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name) }}</div>
                         <div class="cell-time small text-muted" v-if="timeRangeDaily(periodNumFromToken(String(tok)))">
                           <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
                           {{ timeRangeDaily(periodNumFromToken(String(tok))) }}
@@ -356,7 +356,7 @@
                                   <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
                                   <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
                                 </div>
-                                <div class="mini-teacher one-line truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
+                                <div class="mini-teacher one-line truncate-1" :title="classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—'">{{ shortTeacherName(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name) }}</div>
                                 <div class="mini-time small text-muted" v-if="weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'secondary')">
                                   <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
                                   {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'secondary')![0]) }} – {{ fmtTime(weeklyPeriodTimeForGroup(d[0], periodNumFromToken(String(tok)), 'secondary')![1]) }}
@@ -628,8 +628,8 @@
                                 <Icon v-if="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" :icon="subjectIcon(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name)" class="subject-icon" />
                                 <span class="subject-name truncate-1">{{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
                               </div>
-                              <div class="mini-teacher one-line truncate-1">
-                                {{ classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—' }}
+                              <div class="mini-teacher one-line truncate-1" :title="classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name || '—'">
+                                {{ shortTeacherName(classDayPeriodItem(cls.id, d[0], periodNumFromToken(String(tok)))?.teacher_name) }}
                               </div>
                               <div class="mini-time small text-muted" v-if="weeklyPeriodTime(d[0], periodNumFromToken(String(tok)))">
                                 <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
@@ -1080,6 +1080,16 @@ function dayNameAr(d: string): string {
 }
 
 import { subjectIcon } from "../../../shared/icons/subjectIcons";
+
+// Shorten long teacher names to fit inside cells, keeping first few words then ellipsis
+function shortTeacherName(name?: string | null, maxWords: number = 3): string {
+  const raw = (name ?? '').trim().replace(/\s+/g, ' ');
+  if (!raw) return '—';
+  const parts = raw.split(' ');
+  if (parts.length <= maxWords) return raw;
+  const kept = parts.slice(0, maxWords).join(' ');
+  return kept + ' …';
+}
 
 function setMode(m: "daily" | "weekly") {
   if (mode.value !== m) {
@@ -1890,6 +1900,11 @@ function teardownResizeObserver() {
 }
 .mini-teacher,
 .cell-teacher {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   overflow-wrap: anywhere;
   word-break: break-word;
 }

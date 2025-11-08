@@ -3,7 +3,9 @@ import datetime as _dt
 
 
 @pytest.mark.django_db
-def test_exit_events_nonempty_shape_and_bounded_queries(client, django_user_model, django_assert_num_queries, minimal_school_data):
+def test_exit_events_nonempty_shape_and_bounded_queries(
+    client, django_user_model, django_assert_num_queries, minimal_school_data
+):
     """
     With a tiny non-empty dataset, ensure /api/v1/attendance/exit-events/
     returns a stable list/paginated shape and performs a small bounded number

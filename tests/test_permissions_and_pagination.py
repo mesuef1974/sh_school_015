@@ -10,9 +10,7 @@ def test_unified_error_envelope_forbidden_when_authenticated_without_perms(clien
     error envelope: { "error": { code, message, details } }.
     """
     # Create a basic user without model permissions
-    user = django_user_model.objects.create_user(
-        username="u1", email="u1@example.com", password="pass1234"
-    )
+    user = django_user_model.objects.create_user(username="u1", email="u1@example.com", password="pass1234")
     client.force_login(user)
 
     # Hit an endpoint protected by DjangoModelPermissions

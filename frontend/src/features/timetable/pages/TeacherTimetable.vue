@@ -224,7 +224,7 @@
               </thead>
               <tbody>
                 <tr
-                  v-for="(d, idx) in daysOrder"
+                  v-for="(d, idx) in displayDays"
                   :key="'d' + d"
                   class="timetable-tr"
                   v-motion
@@ -334,6 +334,102 @@
                         :style="{ width: periodProgress(d, periodNumFromToken(tok)) + '%' }"
                       ></div>
                     </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Thursday-only strip for teachers of 9-2 / 9-3 / 9-4 -->
+      <div v-if="affectedTeacherG9_2_4" class="timetable-wrapper mt-3">
+        <div class="tt-scale-95">
+          <div class="in-card-95">
+            <table class="timetable-modern print-table" aria-label="الخميس — شريط خاص">
+              <thead>
+                <tr>
+                  <th class="timetable-th day-column">
+                    <div class="th-content">
+                      <Icon icon="solar:calendar-bold-duotone" width="20" />
+                      <span>الخميس</span>
+                    </div>
+                  </th>
+                  <th
+                    v-for="tok in thHeaderTokens"
+                    :key="'thu-h-' + tok"
+                    class="timetable-th period-column"
+                    :class="headerClass(tok)"
+                  >
+                    <div class="th-content">
+                      <Icon icon="solar:clock-circle-bold-duotone" width="18" />
+                      <span v-if="isPeriodToken(tok)">حصة {{ periodNumFromToken(tok) }}</span>
+                      <span v-else>{{ headerLabel(tok) }}</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="timetable-tr">
+                  <th class="day-cell today-cell">
+                    <div class="day-label">
+                      <Icon icon="solar:calendar-mark-bold-duotone" width="18" class="me-1" />
+                      الخميس
+                    </div>
+                  </th>
+                  <td
+                    v-for="tok in thHeaderTokens"
+                    :key="'thu-c-' + tok"
+                    :class="cellClass(5, tok)"
+                    :style="cellStyle(5, tok)"
+                  >
+                    <!-- Non-lesson slot cell (break/prayer) -->
+                    <template v-if="!isPeriodToken(tok)">
+                      <div class="slot-cell">
+                        <div class="slot-label">{{ headerLabel(tok) }}</div>
+                        <div class="slot-time" v-if="thSlotTime(tok)">
+                          {{ fmtTime(thSlotTime(tok)![0]) }} – {{ fmtTime(thSlotTime(tok)![1]) }}
+                        </div>
+                      </div>
+                    </template>
+                    <!-- Lesson cell -->
+                    <template v-else>
+                      <template v-if="cell(5, periodNumFromToken(tok))">
+                        <div class="period-content">
+                          <div
+                            class="subject-badge"
+                            :style="{
+                              background: getClassColor(cell(5, periodNumFromToken(tok))!.classroom_id).bg,
+                              color: getClassColor(cell(5, periodNumFromToken(tok))!.classroom_id).text,
+                            }"
+                          >
+                            <Icon v-if="subjectIcon(cell(5, periodNumFromToken(tok))?.subject_name)" :icon="subjectIcon(cell(5, periodNumFromToken(tok))?.subject_name)" width="16" />
+                            <span class="subject-name">{{ cell(5, periodNumFromToken(tok))?.subject_name || "—" }}</span>
+                          </div>
+                          <div class="classroom-info">
+                            <div
+                              class="classroom-badge"
+                              :style="{
+                                borderColor: getClassColor(cell(5, periodNumFromToken(tok))!.classroom_id).bg.split(',')[0].split('(')[1],
+                                color: getClassColor(cell(5, periodNumFromToken(tok))!.classroom_id).bg.split(',')[0].split('(')[1],
+                              }"
+                            >
+                              <Icon icon="solar:home-2-bold-duotone" width="14" />
+                              <span>{{ cell(5, periodNumFromToken(tok))?.classroom_name || "صف #" + cell(5, periodNumFromToken(tok))?.classroom_id }}</span>
+                            </div>
+                          </div>
+                          <div class="time-info" v-if="cellTime(5, periodNumFromToken(tok))">
+                            <Icon icon="solar:clock-circle-bold-duotone" width="14" style="opacity: 0.6" />
+                            <span>{{ fmtTime(cellTime(5, periodNumFromToken(tok))?.[0]) }} – {{ fmtTime(cellTime(5, periodNumFromToken(tok))?.[1]) }}</span>
+                          </div>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div class="empty-period">
+                          <Icon icon="solar:minus-circle-bold-duotone" width="20" style="opacity: 0.2" />
+                        </div>
+                      </template>
+                    </template>
                   </td>
                 </tr>
               </tbody>
@@ -878,15 +974,64 @@ const slotMetaByDay = ref<Record<string, Record<string, { kind: string; label?: 
 
 const daysOrder = [1, 2, 3, 4, 5];
 const periodsDesc = [1, 2, 3, 4, 5, 6, 7];
+
+// Detect if the teacher teaches any of classes 9-2 / 9-3 / 9-4 on Thursday
+function isGrade9_2_4Name(name?: string | null): boolean {
+  if (!name) return false;
+  const s = String(name).trim();
+  // common forms: "9-2", "9 - 2", "تاسع 2" (support both Arabic/ASCII dash)
+  const simple = /^9\s*[-–—]?\s*[234]$/;
+  if (simple.test(s)) return true;
+  const arWord = /تاسع\s*[234]/; // e.g., "تاسع 2"
+  return arWord.test(s);
+}
+const affectedTeacherG9_2_4 = computed<boolean>(() => {
+  const thu = days.value['5'] || [];
+  return (thu as any[]).some((e: any) => isGrade9_2_4Name(e.classroom_name));
+});
+
+// Display days: if affected, exclude Thursday from the main table and show it in a dedicated strip below
+const displayDays = computed<number[]>(() => (affectedTeacherG9_2_4.value ? [1, 2, 3, 4] : daysOrder));
+
 // Preferred header columns: take from the first day that has metadata; else fallback to period numbers
 const headerColumns = computed<string[]>(() => {
-  for (const d of daysOrder) {
+  for (const d of (displayDays.value || daysOrder)) {
     const arr = columnsByDay.value[String(d)] || [];
     if (arr && arr.length) return arr;
   }
   // Fallback: use periodsDesc as Pn tokens
   return periodsDesc.map((n) => `P${n}`);
 });
+
+// Thursday header tokens: prefer Thursday-specific columns; fallback to Template #4 canonical order for Grade 9 (2-4)
+const thHeaderTokens = computed<string[]>(() => {
+  const cols5 = columnsByDay.value['5'] || [];
+  if (Array.isArray(cols5) && cols5.length) return cols5.map(String);
+  // Canonical Thursday order used in Wing 3 Grade 9 group
+  return ['P1','P2','P3','RECESS','P4','P5','P6','PRAYER'];
+});
+
+// Thursday slot time resolver with exact and prefix match, falls back to any day if missing
+function thSlotTime(tok: string): [string, string] | null {
+  const map5 = slotMetaByDay.value['5'] || {};
+  let mm: any = (map5 as any)[tok];
+  if (!(mm && mm.start_time && mm.end_time)) {
+    const k = Object.keys(map5 || {}).find((t) => String(t).toUpperCase().startsWith(String(tok).toUpperCase()));
+    if (k) mm = (map5 as any)[k];
+  }
+  if (mm && mm.start_time && mm.end_time) return [String(mm.start_time), String(mm.end_time)];
+  // fallback to any day that has token (exact/prefix)
+  for (const dayKey of Object.keys(slotMetaByDay.value || {})) {
+    const m2 = (slotMetaByDay.value as any)[dayKey] || {};
+    let v = m2[tok];
+    if (!(v && v.start_time && v.end_time)) {
+      const k2 = Object.keys(m2 || {}).find((t) => String(t).toUpperCase().startsWith(String(tok).toUpperCase()));
+      if (k2) v = (m2 as any)[k2];
+    }
+    if (v && v.start_time && v.end_time) return [String(v.start_time), String(v.end_time)];
+  }
+  return null;
+}
 
 function isPeriodToken(tok: string): boolean {
   return typeof tok === 'string' && /^P\d+$/.test(tok);

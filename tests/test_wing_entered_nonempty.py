@@ -2,7 +2,9 @@ import pytest
 
 
 @pytest.mark.django_db
-def test_wing_entered_nonempty_shape_and_bounded_queries(client, django_user_model, django_assert_num_queries, minimal_school_data):
+def test_wing_entered_nonempty_shape_and_bounded_queries(
+    client, django_user_model, django_assert_num_queries, minimal_school_data
+):
     """
     With minimal non-empty data, GET /api/v1/wing/entered/ should return a
     stable structure (either {date, items: []} or DRF pagination) and respect a

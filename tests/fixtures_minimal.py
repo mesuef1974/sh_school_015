@@ -28,7 +28,12 @@ def minimal_school_data(db):
     )  # type: ignore
 
     # Academic year and current term
-    ay = AcademicYear.objects.create(name="1446/1447", start_date=_dt.date(2024, 8, 1), end_date=_dt.date(2025, 7, 31), is_current=True)
+    ay = AcademicYear.objects.create(
+        name="1446/1447",
+        start_date=_dt.date(2024, 8, 1),
+        end_date=_dt.date(2025, 7, 31),
+        is_current=True,
+    )
     term = Term.objects.create(
         name="Term 1",
         start_date=_dt.date(2024, 8, 18),
