@@ -306,3 +306,66 @@ class SupportSupervisorAccess(BasePermission):
 
 ### خلاصة
 تمت إعادة تصميم الأدوار والصلاحيات بما يلائم مدرسة حكومية، مع فصل صارم بين الأكاديمي والانضباطي والصحي/النفسي/الاجتماعي، ومنح مشرف الأجنحة صلاحيات الحضور والسلوك فقط، وإضافة أدوار الممرض/ة والأخصائيين ومشرف الدعم بخيارات وصول مبنية على مستوى الكائن والتصاريح المسبقة. هذه الخريطة قابلة للتنفيذ مباشرة على RBAC في Django مع `django-guardian` للكيانات الحساسة، وتراعي أفضل الممارسات المهنية والامتثال.
+
+
+---
+
+## مصفوفة الصلاحيات (RBAC) — مختصر
+
+يوضح هذا القسم سياسة الوصول المتوقعة على المسارات الحسّاسة في API v1. عند الرفض يجب أن يكون الرد إمّا ضمن المغلف الموحد للأخطاء `{ error: { code, message, details } }` أو تراجعًا `{detail}` في بعض الأنظمة القديمة (مغطّى اختباريًا).
+
+الأدوار:
+- superuser — وصول كامل.
+- wing_supervisor — وصول لجناحه وما يتعلق به.
+- teacher — وصول مقيد بما يخص صفوفه/حصصه.
+- basic user — لا يمتلك صلاحيات الوصول لهذه الموارد.
+
+المسارات الحسّاسة وأمثلة السياسة:
+- GET `/api/v1/attendance/students/` (class_id مطلوب):
+  - superuser: يسمح.
+  - teacher: يسمح فقط إذا `user_can_access_class(user, class_id)` يرجع True.
+  - wing_supervisor: عادة لا حاجة، لكن يمكن السماح عند الحاجة التنظيمية.
+  - basic: 403 مع مغلف خطأ موحد.
+
+- GET `/api/v1/attendance/records/` (class_id, date):
+  - superuser: يسمح.
+  - teacher: يسمح فقط لصفوفه (وفق `user_can_access_class`).
+  - wing_supervisor: يسمح عند الحاجة التنظيمية.
+  - basic: 403 مع مغلف خطأ موحد.
+
+- GET `/api/v1/attendance/history(-strict)/` (class_id, from, to):
+  - superuser: يسمح.
+  - teacher: يسمح ضمن صفوفه و/أو مواده (تطبيق فلترة المعلم/المادة موجود).
+  - wing_supervisor: يسمح للمراقبة.
+  - basic: 403.
+
+- POST `/api/v1/attendance/submit/` (class_id, date[, period_number]):
+  - superuser: يسمح (200 مع `{submitted,...}`).
+  - teacher: يسمح إذا امتلك صلاحية الصف (خلاف ذلك 403 بمغلف موحد).
+  - wing_supervisor: عادة غير مطلوب.
+  - basic: 403.
+
+- GET `/api/v1/wing/pending/` وقراءة القوائم المرتبطة بالجناح:
+  - superuser: يسمح.
+  - wing_supervisor: يسمح لجناحه.
+  - teacher/basic: مرفوض (401/403) بمغلف موحد.
+
+- POST `/api/v1/wing/decide/` (approve/reject) و`/api/v1/wing/set-excused/`:
+  - superuser: يسمح.
+  - wing_supervisor: يسمح.
+  - teacher/basic: مرفوض (401/403) بمغلف موحد.
+
+ملاحظات:
+- يعتمد القرار الدقيق على `apps.common.permissions.user_can_access_class` (إن وُجد) لضمان مركزية السياسة.
+- تمت تغطية سيناريوهات 401/403 في الاختبارات `tests/test_rbac_*.py` لضمان ثبات العقد.
+
+### شكل الأخطاء الموحّد
+- عند الرفض/الخطأ، يفضّل الشكل:
+```
+{ "error": { "code": "PERMISSION_DENIED", "message": "...", "details": { "detail": "..." } } }
+```
+- تم توفير `core.exceptions.custom_exception_handler` و`core.middleware_errors.DRFErrorEnvelopeMiddleware` لتطبيع الردود.
+
+### فحوص القبول (Acceptance)
+- تمر اختبارات: `tests/test_rbac_user_can_access_class.py`، `tests/test_rbac_endpoints.py`، `tests/test_rbac_submit.py`.
+- تظل المسارات تعيد 401/403 وفق السياسة، مع مغلف الأخطاء الموحّد (أو `{detail}` كتراجع).

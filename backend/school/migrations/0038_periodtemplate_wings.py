@@ -1,16 +1,15 @@
 from django.db import migrations, models
-import django.db.models.deletion
 
 
 def populate_wings_from_scope(apps, schema_editor):
-    PeriodTemplate = apps.get_model('school', 'PeriodTemplate')
-    Wing = apps.get_model('school', 'Wing')
+    PeriodTemplate = apps.get_model("school", "PeriodTemplate")
+    Wing = apps.get_model("school", "Wing")
     # Map scope like 'wing-1'..'wing-5' to the wing with matching id or name
     for tpl in PeriodTemplate.objects.all():
-        scope = (getattr(tpl, 'scope', '') or '').strip().lower()
-        if scope.startswith('wing-'):
+        scope = (getattr(tpl, "scope", "") or "").strip().lower()
+        if scope.startswith("wing-"):
             try:
-                no = int(scope.split('-', 1)[1])
+                no = int(scope.split("-", 1)[1])
             except Exception:
                 continue
             # Try by id first
@@ -31,16 +30,20 @@ def noop_reverse(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('school', '0037_exit_event_review_fields'),
+        ("school", "0037_exit_event_review_fields"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='periodtemplate',
-            name='wings',
-            field=models.ManyToManyField(blank=True, help_text='الأجنحة التي ينطبق عليها هذا القالب. يحدد ذلك الفصول التابعة لهذه الأجنحة.', related_name='period_templates', to='school.wing'),
+            model_name="periodtemplate",
+            name="wings",
+            field=models.ManyToManyField(
+                blank=True,
+                help_text="الأجنحة التي ينطبق عليها هذا القالب. يحدد ذلك الفصول التابعة لهذه الأجنحة.",
+                related_name="period_templates",
+                to="school.wing",
+            ),
         ),
         migrations.RunPython(populate_wings_from_scope, noop_reverse),
     ]

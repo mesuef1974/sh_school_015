@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional, Iterable, Tuple
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
@@ -29,6 +28,7 @@ class Command(BaseCommand):
         from django.core.exceptions import FieldError
         from django.db import transaction
         from school.models import AttendanceRecord, AttendanceDaily  # type: ignore
+
         try:
             from school.models import ExitEvent  # type: ignore
         except Exception:

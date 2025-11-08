@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from datetime import date, timedelta
 from typing import Optional, Tuple, Iterable
 
@@ -9,6 +8,7 @@ from django.core.management import call_command
 
 # Local lightweight date parser to avoid cross-app import issues
 from datetime import date as _date
+
 
 def parse_ui_or_iso_date(s: Optional[str]) -> Optional[_date]:
     if not s:
@@ -80,7 +80,11 @@ class Command(BaseCommand):
             default=None,
             help="Target absent ratio (0..1) for periods 1 and 2 (e.g., 0.10 for 10%)",
         )
-        parser.add_argument("--finalize", action="store_true", help="Lock created records and daily summaries (closed)")
+        parser.add_argument(
+            "--finalize",
+            action="store_true",
+            help="Lock created records and daily summaries (closed)",
+        )
         parser.add_argument(
             "--approve",
             action="store_true",
@@ -102,8 +106,16 @@ class Command(BaseCommand):
                 "all = perform teacher phase then supervisor phase consecutively."
             ),
         )
-        parser.add_argument("--with-exits", action="store_true", help="Also seed ExitEvent records (approved/closed)")
-        parser.add_argument("--with-alerts", action="store_true", help="Also issue AbsenceAlert for the week (archived)")
+        parser.add_argument(
+            "--with-exits",
+            action="store_true",
+            help="Also seed ExitEvent records (approved/closed)",
+        )
+        parser.add_argument(
+            "--with-alerts",
+            action="store_true",
+            help="Also issue AbsenceAlert for the week (archived)",
+        )
         parser.add_argument("--with-behavior", action="store_true", help="Also seed behavior incidents if supported")
 
     def handle(self, *args, **opts):
@@ -281,17 +293,23 @@ class Command(BaseCommand):
         from django.contrib.auth.models import User
         from django.utils import timezone
         from django.core.files.base import ContentFile
-        from school.models import AttendanceDaily, AcademicYear, Wing, Class
-        from apps.attendance.models_alerts import AbsenceAlert, AlertNumberSequence, AbsenceAlertDocument
+        from school.models import AttendanceDaily, AcademicYear, Wing
+        from apps.attendance.models_alerts import (
+            AbsenceAlert,
+            AlertNumberSequence,
+            AbsenceAlertDocument,
+        )
         from apps.attendance.services.word_renderer import render_alert_docx
 
         DEMO_TAG = "[demo]"
 
         wing = Wing.objects.get(pk=wing_id)
         # Determine academic year for the range (pick the one covering start)
-        ay = AcademicYear.objects.filter(start_date__lte=start, end_date__gte=end).first() or \
-             AcademicYear.objects.filter(start_date__lte=start, end_date__gte=start).first() or \
-             AcademicYear.objects.order_by("-is_current").first()
+        ay = (
+            AcademicYear.objects.filter(start_date__lte=start, end_date__gte=end).first()
+            or AcademicYear.objects.filter(start_date__lte=start, end_date__gte=start).first()
+            or AcademicYear.objects.order_by("-is_current").first()
+        )
         year_name = ay.name if ay else "N/A"
 
         # Delete prior demo alerts in this range for this wing
@@ -310,7 +328,10 @@ class Command(BaseCommand):
         ).select_related("student", "school_class")
         per_student = {}
         for d in dqs.iterator():
-            st = per_student.setdefault(d.student_id, {"excused": 0, "unexcused": 0, "student": d.student, "class": d.school_class})
+            st = per_student.setdefault(
+                d.student_id,
+                {"excused": 0, "unexcused": 0, "student": d.student, "class": d.school_class},
+            )
             if d.daily_excused:
                 st["excused"] += 1
             elif d.absent_periods > 0:
@@ -350,7 +371,10 @@ class Command(BaseCommand):
                     content = render_alert_docx(alert)
                     if content:
                         doc = AbsenceAlertDocument(alert=alert, created_by=alert.created_by)
-                        doc.file.save(f"absence-alert-{alert.academic_year}-{alert.number}.docx", ContentFile(content))
+                        doc.file.save(
+                            f"absence-alert-{alert.academic_year}-{alert.number}.docx",
+                            ContentFile(content),
+                        )
                         doc.size = doc.file.size or 0
                         doc.save()
                 except Exception:

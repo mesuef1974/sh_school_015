@@ -1,4 +1,4 @@
-from datetime import date as _date, time as _time
+from datetime import date as _date
 from typing import Any, Dict, List
 
 from django.db.models import Count, Q, QuerySet
@@ -9,7 +9,7 @@ try:
 except Exception:
     from common.day_utils import iso_to_school_dow  # type: ignore
 
-from .timing import resolve_lesson_time, resolve_thursday_wing3_time
+from .timing import resolve_lesson_time
 
 
 def _class_fk_id_field() -> str:
@@ -43,6 +43,15 @@ def get_attendance_records(class_id: int, dt: _date, period_number: int | None =
     qs = AttendanceRecord.objects.filter(**{_CLASS_FK_ID: class_id}, date=dt).filter(student__class_fk_id=class_id)
     if period_number is not None:
         qs = qs.filter(period_number=period_number)
+    # Performance: avoid N+1 when serializing student/subject/teacher fields downstream
+    try:
+        qs = qs.select_related("student", "subject", "teacher")
+    except Exception:
+        # If any relation missing in legacy schema, degrade gracefully
+        try:
+            qs = qs.select_related("student", "subject")
+        except Exception:
+            pass
     return qs
 
 
@@ -213,6 +222,7 @@ def get_teacher_today_periods(*, staff_id: int, dt: _date) -> List[Dict[str, Any
             sec_raw = str(getattr(cls, "section", "") or "").strip()
             sec = None
             import re
+
             m = re.match(r"^(\d+)", sec_raw)
             if m:
                 sec = int(m.group(1))
@@ -355,10 +365,7 @@ def get_teacher_today_periods(*, staff_id: int, dt: _date) -> List[Dict[str, Any
             wno = int(getattr(cls, "wing_id", None) or 0) or (_infer_wing_no(cls) or 0)
         except Exception:
             wno = 0
-        if int(school_day) == 5 and int(wno) == 3:
-            st_et = resolve_thursday_wing3_time(cls=cls, period_number=int(e.period_number))
-        if not st_et:
-            st_et = resolve_lesson_time(cls=cls, day=int(school_day), period_number=int(e.period_number))
+        st_et = resolve_lesson_time(cls=cls, day=int(school_day), period_number=int(e.period_number))
         out.append(
             {
                 "period_number": e.period_number,
@@ -414,6 +421,7 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
             sec_raw = str(getattr(cls, "section", "") or "").strip()
             sec = None
             import re
+
             m = re.match(r"^(\d+)", sec_raw)
             if m:
                 sec = int(m.group(1))
@@ -557,20 +565,13 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
     try:
         from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
-        # Collect class ids and wings per day from the teacher's timetable
+        # Collect class ids per day from the teacher's timetable
         classes_per_day: Dict[int, set[int]] = {i: set() for i in range(1, 8)}
-        wings_per_day: Dict[int, set[int]] = {i: set() for i in range(1, 8)}
         for e in qs:
             d = int(e.day_of_week)
             if 1 <= d <= 7:
                 classes_per_day[d].add(int(e.classroom_id))
-                try:
-                    w_id = getattr(e.classroom, "wing_id", None)
-                    if w_id:
-                        wings_per_day[d].add(int(w_id))
-                except Exception:
-                    pass
-        # For each day, choose representative templates with priority: classes -> wings -> floor -> generic
+        # For each day, choose representative templates with priority: classes -> generic
         for d in range(1, 8):
             tpl_qs = PeriodTemplate.objects.filter(day_of_week=d)
             tpl_ids: list[int] = []
@@ -578,18 +579,11 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
             if cls_ids:
                 tpl_ids = list(tpl_qs.filter(classes__id__in=cls_ids).distinct().values_list("id", flat=True))
             if not tpl_ids:
-                wing_ids = list(wings_per_day.get(d) or [])
-                if wing_ids:
-                    tpl_ids = list(tpl_qs.filter(wings__id__in=wing_ids).distinct().values_list("id", flat=True))
-            if not tpl_ids:
                 tpl_ids = list(tpl_qs.values_list("id", flat=True))
             if not tpl_ids:
                 continue
             # Fetch all slots (lesson/recess/prayer/...) ordered by time
-            slots = (
-                TemplateSlot.objects.filter(template_id__in=tpl_ids)
-                .order_by("start_time", "number")
-            )
+            slots = TemplateSlot.objects.filter(template_id__in=tpl_ids).order_by("start_time", "number")
             # Build ordered tokens, ensuring uniqueness and logical interleaving by time
             tokens: list[str] = []
             used_lessons: set[int] = set()
@@ -641,10 +635,7 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
             wno = int(getattr(cls, "wing_id", None) or 0) or (_infer_wing_no(cls) or 0)
         except Exception:
             wno = 0
-        if int(d) == 5 and int(wno) == 3:
-            st_et = resolve_thursday_wing3_time(cls=cls, period_number=int(e.period_number))
-        if not st_et:
-            st_et = resolve_lesson_time(cls=cls, day=int(d), period_number=int(e.period_number))
+        st_et = resolve_lesson_time(cls=cls, day=int(d), period_number=int(e.period_number))
         if not st_et:
             # last resort keep previous generic fallback
             st_et = period_times.get(int(e.period_number))
@@ -658,4 +649,12 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
                 **({"start_time": st_et[0], "end_time": st_et[1]} if st_et else {}),
             }
         )
-    return {"days": days, "meta": {"term_id": term.id, "period_times": period_times, "columns_by_day": columns_by_day, "slot_meta_by_day": slot_meta_by_day}}
+    return {
+        "days": days,
+        "meta": {
+            "term_id": term.id,
+            "period_times": period_times,
+            "columns_by_day": columns_by_day,
+            "slot_meta_by_day": slot_meta_by_day,
+        },
+    }

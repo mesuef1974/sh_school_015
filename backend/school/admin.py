@@ -673,21 +673,107 @@ class TemplateSlotInline(admin.TabularInline):
     fields = ("number", "start_time", "end_time", "kind")
 
 
+# Form to render day_of_week as radio (Sun..Thu) with Arabic labels
+DAY_OF_WEEK_CHOICES_1_5 = (
+    (1, DAY_NAMES_AR[1]),
+    (2, DAY_NAMES_AR[2]),
+    (3, DAY_NAMES_AR[3]),
+    (4, DAY_NAMES_AR[4]),
+    (5, DAY_NAMES_AR[5]),
+)
+
+class PeriodTemplateForm(forms.ModelForm):
+    # Hide the original single-day field; we'll set it automatically from the checkboxes selection.
+    day_of_week = forms.ChoiceField(
+        choices=DAY_OF_WEEK_CHOICES_1_5,
+        widget=forms.HiddenInput,
+        label="اليوم",
+        help_text="سيُحدد تلقائيًا من أول يوم مُختار في المربعات أدناه."
+    )
+    # Visible control: select multiple days using checkboxes.
+    days_multi = forms.MultipleChoiceField(
+        choices=DAY_OF_WEEK_CHOICES_1_5,
+        widget=forms.CheckboxSelectMultiple,
+        label="الأيام",
+        required=True,
+        help_text="اختر يومًا واحدًا أو أكثر ليتم إنشاء/تحديث قوالب مطابقة لكل يوم." 
+    )
+
+    class Meta:
+        model = PeriodTemplate
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pre-select the current object's day in the multi selector for convenience
+        current_day = None
+        try:
+            current_day = int(self.instance.day_of_week or 0)
+        except Exception:
+            current_day = None
+        if current_day in dict(DAY_OF_WEEK_CHOICES_1_5):
+            self.initial.setdefault("days_multi", [str(current_day)])
+
+    def clean(self):
+        cleaned = super().clean()
+        # Ensure at least one day is selected via checkboxes and set day_of_week automatically
+        multi = cleaned.get("days_multi") or []
+        # Normalize to list[str]
+        multi = [str(d) for d in multi]
+        if not multi:
+            self.add_error("days_multi", "يجب اختيار يوم واحد على الأقل.")
+            return cleaned
+        # Prefer keeping current instance day if it is among selections; otherwise pick the smallest day
+        current_day = None
+        try:
+            current_day = int(getattr(self.instance, "day_of_week", 0) or 0)
+        except Exception:
+            current_day = None
+        chosen_ints = []
+        for d in multi:
+            try:
+                chosen_ints.append(int(d))
+            except Exception:
+                pass
+        base_day = None
+        if current_day and current_day in chosen_ints:
+            base_day = current_day
+        elif chosen_ints:
+            base_day = min(chosen_ints)
+        if base_day is None:
+            self.add_error("days_multi", "قيمة الأيام غير صحيحة.")
+            return cleaned
+        cleaned["day_of_week"] = str(base_day)
+        cleaned["days_multi"] = [str(d) for d in sorted(set(chosen_ints))]
+        return cleaned
+
+    def clean_day_of_week(self):
+        # Cast back to int expected by model field
+        return int(self.cleaned_data.get("day_of_week"))
+
+
 @admin.register(PeriodTemplate)
 class PeriodTemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "code", "name", "day_of_week", "scope", "classes_list", "wings_list", "classes_covered")
-    list_filter = ("day_of_week", "scope", "classes", "wings")
+    form = PeriodTemplateForm
+    list_display = (
+        "id",
+        "code",
+        "name",
+        "day_name_ar_col",
+        "scope",
+        "classes_list",
+        "classes_covered",
+    )
+    list_filter = ("day_of_week", "scope", "classes")
     search_fields = ("code", "name", "scope")
-    filter_horizontal = ("classes", "wings")
+    filter_horizontal = ("classes",)
+    exclude = ("wings",)
     inlines = [TemplateSlotInline]
 
-    def wings_list(self, obj: PeriodTemplate):
-        try:
-            return ", ".join([w.name for w in obj.wings.all()]) or "—"
-        except Exception:
-            return "—"
+    def day_name_ar_col(self, obj: PeriodTemplate):
+        return DAY_NAMES_AR.get(getattr(obj, "day_of_week", 0), "—")
 
-    wings_list.short_description = "الأجنحة"
+    day_name_ar_col.short_description = "اليوم"
 
     def classes_list(self, obj: PeriodTemplate):
         try:
@@ -702,20 +788,87 @@ class PeriodTemplateAdmin(admin.ModelAdmin):
 
     def classes_covered(self, obj: PeriodTemplate):
         try:
-            from .models import Class
-            # If classes bound directly, show that count; else fall back to wings coverage
+            # Only count classes bound directly; wings are no longer used as a selection source.
             direct_cnt = obj.classes.count()
             if direct_cnt:
                 return f"{direct_cnt} صف (مباشر)"
-            wing_ids = list(obj.wings.values_list("id", flat=True))
-            if not wing_ids:
-                return "—"
-            cnt = Class.objects.filter(wing_id__in=wing_ids).count()
-            return f"{cnt} صف (من الأجنحة)"
+            return "—"
         except Exception:
             return "—"
 
     classes_covered.short_description = "الفصول المشمولة"
+
+    def save_model(self, request, obj: PeriodTemplate, form, change):
+        """Save the base object, then ensure multi-day clones are created/updated.
+        We avoid schema changes by duplicating templates for selected days with unique codes.
+        """
+        # Save base object first (uses chosen single day)
+        super().save_model(request, obj, form, change)
+
+        selected_days = form.cleaned_data.get("days_multi") or []
+        # Normalize to set of ints
+        try:
+            selected_days = {int(d) for d in selected_days}
+        except Exception:
+            selected_days = set()
+        if not selected_days:
+            return  # nothing to do
+        # Guarantee the base day is part of the set
+        base_day = int(obj.day_of_week)
+        selected_days.add(base_day)
+
+        created = []
+        updated = []
+        skipped = []
+
+        from .models import PeriodTemplate as PT, TemplateSlot as TS  # local aliases
+
+        base_code = obj.code
+        base_name = obj.name
+        base_scope = obj.scope
+        base_classes_qs = obj.classes.all()
+        base_slots = list(obj.slots.all())
+
+        for day in sorted(selected_days):
+            if day == base_day:
+                continue  # current object already saved for this day
+            # Propose a derived unique code for this day
+            candidate_code = f"{base_code}-D{day}"
+            # Try to find existing clone by our derived code
+            tgt = PT.objects.filter(code=candidate_code).first()
+            if not tgt:
+                # If admin previously created a template manually with same name/day, we will create our own code
+                tgt = PT(code=candidate_code)
+                action = "created"
+            else:
+                action = "updated"
+            # Set/Update fields
+            tgt.name = f"{base_name} – {DAY_NAMES_AR.get(day, str(day))}"
+            tgt.day_of_week = day
+            tgt.scope = base_scope
+            tgt.save()
+            # Sync classes M2M (set to match base exactly)
+            tgt.classes.set(base_classes_qs)
+            # Rebuild slots to match base
+            # Delete existing slots first for idempotency
+            TS.objects.filter(template=tgt).delete()
+            TS.objects.bulk_create([
+                TS(template=tgt, number=s.number, start_time=s.start_time, end_time=s.end_time, kind=s.kind)
+                for s in base_slots
+            ])
+            if action == "created":
+                created.append(candidate_code)
+            else:
+                updated.append(candidate_code)
+
+        # Inform the admin user
+        if created:
+            self.message_user(request, f"تم إنشاء {len(created)} قالب/قوالب للأيام: {', '.join(created)}", level=messages.SUCCESS)
+        if updated:
+            self.message_user(request, f"تم تحديث {len(updated)} قالب/قوالب موجودة: {', '.join(updated)}", level=messages.INFO)
+        # Optionally detect any previously generated templates for other days no longer selected; we will skip deleting them to be safe.
+        if skipped:
+            self.message_user(request, f"تم تجاوز {len(skipped)} دون تغيير.", level=messages.WARNING)
 
 
 @admin.register(TimetableEntry)

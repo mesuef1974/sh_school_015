@@ -327,4 +327,13 @@ if (import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_AXE).toLowerCase()
   }
 }
 
+// Optional Sentry bootstrap (dynamic, env-gated)
+try {
+  const dsn: any = (import.meta as any)?.env?.VITE_SENTRY_DSN
+  if (dsn) {
+    // Lazy-load to avoid bundling when DSN is not configured
+    import('./sentry').then(m => m.initSentry(app)).catch(() => {})
+  }
+} catch {}
+
 app.mount("#app");

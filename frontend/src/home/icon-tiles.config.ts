@@ -16,15 +16,6 @@ export type Tile = {
 export const tiles: Tile[] = [
   // Teacher tiles
   {
-    id: "students",
-    title: "الطلبة",
-    subtitle: "إدارة شؤون الطلبة",
-    to: "/students",
-    icon: "solar:users-group-rounded-bold-duotone",
-    color: "#2e7d32",
-    roles: ["teacher"],
-  },
-  {
     id: "teacher_timetable",
     title: "جدولي",
     subtitle: "جدولي الدراسي",
@@ -34,12 +25,39 @@ export const tiles: Tile[] = [
     roles: ["teacher"],
   },
   {
+    id: "attendance_register",
+    title: "تسجيل الغياب",
+    subtitle: "تسجيل حضور وغياب اليوم",
+    to: "/attendance/teacher",
+    icon: "solar:clipboard-check-bold-duotone",
+    color: "#8a1538",
+    roles: ["teacher"],
+  },
+  {
     id: "attendance_history",
     title: "سجل الغياب",
     subtitle: "عرض سجلات الغياب",
     to: "/attendance/teacher/history",
     icon: "solar:history-bold-duotone",
     color: "#8a1538",
+    roles: ["teacher"],
+  },
+  {
+    id: "attendance_procedures",
+    title: "إجراءات الغياب",
+    subtitle: "تنبيهات ومتابعة الحالات",
+    to: "/attendance/procedures",
+    icon: "solar:document-text-bold-duotone",
+    color: "#6a1b9a",
+    roles: ["teacher"],
+  },
+  {
+    id: "teacher_stats",
+    title: "الإحصائيات",
+    subtitle: "نسب وتحليلات تفصيلية",
+    to: "/stats",
+    icon: "solar:chart-2-bold-duotone",
+    color: "#1976d2",
     roles: ["teacher"],
   },
 

@@ -1,98 +1,87 @@
 openapi: 3.0.3
 info:
-  title: Shahania School API
+  title: School API
   version: 1.0.0
+  description: School management API documentation
 paths:
-  /api/classes/:
+  /api/absence-alerts/:
     get:
-      operationId: api_classes_list
+      operationId: api_absence_alerts_list
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: أي حقل يجب استخدامه عند ترتيب النتائج.
-        schema:
-          type: string
       - name: page
         required: false
         in: query
-        description: رقم الصفحة ضمن النتائج المقسمة.
+        description: A page number within the paginated result set.
         schema:
           type: integer
-      - name: search
-        required: false
-        in: query
-        description: مصطلح البحث.
-        schema:
-          type: string
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedClassList'
+                $ref: '#/components/schemas/PaginatedAbsenceAlertList'
           description: ''
     post:
-      operationId: api_classes_create
+      operationId: api_absence_alerts_create
       tags:
       - api
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Class'
+              $ref: '#/components/schemas/AbsenceAlert'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Class'
+              $ref: '#/components/schemas/AbsenceAlert'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Class'
+              $ref: '#/components/schemas/AbsenceAlert'
         required: true
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Class'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
-  /api/classes/{id}/:
+  /api/absence-alerts/{id}/:
     get:
-      operationId: api_classes_retrieve
+      operationId: api_absence_alerts_retrieve
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا class.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Class'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
     put:
-      operationId: api_classes_update
+      operationId: api_absence_alerts_update
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا class.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
@@ -100,32 +89,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Class'
+              $ref: '#/components/schemas/AbsenceAlert'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Class'
+              $ref: '#/components/schemas/AbsenceAlert'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Class'
+              $ref: '#/components/schemas/AbsenceAlert'
         required: true
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Class'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
     patch:
-      operationId: api_classes_partial_update
+      operationId: api_absence_alerts_partial_update
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا class.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
@@ -133,130 +122,240 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedClass'
+              $ref: '#/components/schemas/PatchedAbsenceAlert'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedClass'
+              $ref: '#/components/schemas/PatchedAbsenceAlert'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedClass'
+              $ref: '#/components/schemas/PatchedAbsenceAlert'
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Class'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
     delete:
-      operationId: api_classes_destroy
+      operationId: api_absence_alerts_destroy
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا class.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '204':
           description: No response body
-  /api/staff/:
+  /api/absence-alerts/{id}/docx/:
     get:
-      operationId: api_staff_list
+      operationId: api_absence_alerts_docx_retrieve
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: أي حقل يجب استخدامه عند ترتيب النتائج.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: رقم الصفحة ضمن النتائج المقسمة.
+      - in: path
+        name: id
         schema:
           type: integer
-      - name: search
-        required: false
-        in: query
-        description: مصطلح البحث.
-        schema:
-          type: string
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedStaffList'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
+  /api/absence-alerts/{id}/docx/latest/:
+    get:
+      operationId: api_absence_alerts_docx_latest_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceAlert'
+          description: ''
+  /api/absence-alerts/{id}/docx/list/:
+    get:
+      operationId: api_absence_alerts_docx_list_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceAlert'
+          description: ''
+  /api/absence-alerts/{id}/docx/save/:
     post:
-      operationId: api_staff_create
+      operationId: api_absence_alerts_docx_save_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
       tags:
       - api
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Staff'
+              $ref: '#/components/schemas/AbsenceAlert'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Staff'
+              $ref: '#/components/schemas/AbsenceAlert'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Staff'
+              $ref: '#/components/schemas/AbsenceAlert'
         required: true
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceAlert'
+          description: ''
+  /api/attendance/absence/compute-days/:
+    get:
+      operationId: api_attendance_absence_compute_days_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/bulk_save/:
+    post:
+      operationId: api_attendance_bulk_save_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/exit-events/:
+    get:
+      operationId: api_attendance_exit_events_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExitEventList'
+          description: ''
+    post:
+      operationId: api_attendance_exit_events_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Staff'
+                $ref: '#/components/schemas/ExitEvent'
           description: ''
-  /api/staff/{id}/:
+  /api/attendance/exit-events/{id}/:
     get:
-      operationId: api_staff_retrieve
+      operationId: api_attendance_exit_events_retrieve
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا staff.
+        description: A unique integer value identifying this جلسة خروج.
         required: true
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Staff'
+                $ref: '#/components/schemas/ExitEvent'
           description: ''
     put:
-      operationId: api_staff_update
+      operationId: api_attendance_exit_events_update
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا staff.
+        description: A unique integer value identifying this جلسة خروج.
         required: true
       tags:
       - api
@@ -264,32 +363,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Staff'
+              $ref: '#/components/schemas/ExitEvent'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Staff'
+              $ref: '#/components/schemas/ExitEvent'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Staff'
+              $ref: '#/components/schemas/ExitEvent'
         required: true
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Staff'
+                $ref: '#/components/schemas/ExitEvent'
           description: ''
     patch:
-      operationId: api_staff_partial_update
+      operationId: api_attendance_exit_events_partial_update
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا staff.
+        description: A unique integer value identifying this جلسة خروج.
         required: true
       tags:
       - api
@@ -297,130 +396,438 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedStaff'
+              $ref: '#/components/schemas/PatchedExitEvent'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedStaff'
+              $ref: '#/components/schemas/PatchedExitEvent'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedStaff'
+              $ref: '#/components/schemas/PatchedExitEvent'
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Staff'
+                $ref: '#/components/schemas/ExitEvent'
           description: ''
     delete:
-      operationId: api_staff_destroy
+      operationId: api_attendance_exit_events_destroy
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا staff.
+        description: A unique integer value identifying this جلسة خروج.
         required: true
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '204':
           description: No response body
-  /api/students/:
-    get:
-      operationId: api_students_list
+  /api/attendance/exit-events/{id}/return/:
+    patch:
+      operationId: api_attendance_exit_events_return_partial_update
       parameters:
-      - name: ordering
-        required: false
-        in: query
-        description: أي حقل يجب استخدامه عند ترتيب النتائج.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: رقم الصفحة ضمن النتائج المقسمة.
+      - in: path
+        name: id
         schema:
           type: integer
-      - name: search
-        required: false
-        in: query
-        description: مصطلح البحث.
-        schema:
-          type: string
-      tags:
-      - api
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedStudentList'
-          description: ''
-    post:
-      operationId: api_students_create
+        description: A unique integer value identifying this جلسة خروج.
+        required: true
       tags:
       - api
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Student'
+              $ref: '#/components/schemas/PatchedExitEvent'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Student'
+              $ref: '#/components/schemas/PatchedExitEvent'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Student'
+              $ref: '#/components/schemas/PatchedExitEvent'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/attendance/exit-events/decide/:
+    post:
+      operationId: api_attendance_exit_events_decide_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
         required: true
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/attendance/exit-events/open/:
+    get:
+      operationId: api_attendance_exit_events_open_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/attendance/exit-events/pending/:
+    get:
+      operationId: api_attendance_exit_events_pending_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/attendance/history/:
+    get:
+      operationId: api_attendance_history_retrieve
+      description: |-
+        Return paginated attendance history for a class within a date range.
+        Query params:
+          - class_id: int (required)
+          - from: YYYY-MM-DD (default: today-6 days)
+          - to: YYYY-MM-DD (default: today)
+          - page: int (default 1)
+          - page_size: int (default 100, max 200)
+        Response: {count, page, page_size, results:[{date,student_id,student_name,status,note}]}
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/history-export/:
+    get:
+      operationId: api_attendance_history_export_retrieve
+      description: |-
+        Export attendance history for a class within a date range.
+        Query params: class_id (int, required), from (YYYY-MM-DD), to (YYYY-MM-DD), format(optional): csv|xlsx
+        Applies the same access control as list_history.
+        Default: CSV (TSV actually for Excel safety). When format=xlsx is provided, returns .xlsx.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/history-strict/:
+    get:
+      operationId: api_attendance_history_strict_retrieve
+      description: |-
+        Strict history: in addition to classroom filter, ensure student's current class matches.
+        Same shape as /history but guarantees results only from the selected class.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/records/:
+    get:
+      operationId: api_attendance_records_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/students/:
+    get:
+      operationId: api_attendance_students_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/submit/:
+    post:
+      operationId: api_attendance_submit_create
+      description: |-
+        Mark all attendance records for the given class/date (and optional period)
+        as submitted without closing them. Records remain editable until a wing supervisor approves.
+        Submission is indicated by a '[SUBMITTED @ ts]' tag in note and keeping locked=False.
+        Payload: { class_id:int, date:YYYY-MM-DD, period_number?:int|null }
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/summary/:
+    get:
+      operationId: api_attendance_summary_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/teacher/classes/:
+    get:
+      operationId: api_attendance_teacher_classes_retrieve
+      description: |-
+        V2 override: Return classes taught by the authenticated teacher.
+        If the user lacks a Staff mapping but is in the 'teacher' group, return an empty list (200) instead of 403.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/timetable/teacher/today/:
+    get:
+      operationId: api_attendance_timetable_teacher_today_retrieve
+      description: |-
+        Return today's ordered periods for the authenticated teacher.
+        Maps request.user->Staff; superuser can pass ?teacher_id to inspect.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/attendance/timetable/teacher/weekly/:
+    get:
+      operationId: api_attendance_timetable_teacher_weekly_retrieve
+      description: Return weekly timetable grid for the authenticated teacher.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/change_password/:
+    post:
+      operationId: api_change_password_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/logout/:
+    post:
+      operationId: api_logout_create
+      description: |-
+        Blacklist the refresh token to log the user out from this device.
+        Accepts refresh token from JSON body or from HttpOnly cookie.
+        Also clears the refresh cookie on successful logout.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/me/:
+    get:
+      operationId: api_me_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/token/:
+    post:
+      operationId: api_token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomTokenObtainPair'
+          description: ''
+  /api/token/refresh/:
+    post:
+      operationId: api_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/absence-alerts/:
+    get:
+      operationId: api_v1_absence_alerts_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAbsenceAlertList'
+          description: ''
+    post:
+      operationId: api_v1_absence_alerts_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AbsenceAlert'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AbsenceAlert'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AbsenceAlert'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
       responses:
         '201':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
-  /api/students/{id}/:
+  /api/v1/absence-alerts/{id}/:
     get:
-      operationId: api_students_retrieve
+      operationId: api_v1_absence_alerts_retrieve
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا student.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
     put:
-      operationId: api_students_update
+      operationId: api_v1_absence_alerts_update
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا student.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
@@ -428,32 +835,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Student'
+              $ref: '#/components/schemas/AbsenceAlert'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Student'
+              $ref: '#/components/schemas/AbsenceAlert'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Student'
+              $ref: '#/components/schemas/AbsenceAlert'
         required: true
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
     patch:
-      operationId: api_students_partial_update
+      operationId: api_v1_absence_alerts_partial_update
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا student.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
@@ -461,234 +868,1785 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedStudent'
+              $ref: '#/components/schemas/PatchedAbsenceAlert'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PatchedStudent'
+              $ref: '#/components/schemas/PatchedAbsenceAlert'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PatchedStudent'
+              $ref: '#/components/schemas/PatchedAbsenceAlert'
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Student'
+                $ref: '#/components/schemas/AbsenceAlert'
           description: ''
     delete:
-      operationId: api_students_destroy
+      operationId: api_v1_absence_alerts_destroy
       parameters:
       - in: path
         name: id
         schema:
           type: integer
-        description: نوع رقم صحيح فريد يحدد هذا student.
+        description: A unique integer value identifying this تنبيه غياب.
         required: true
       tags:
       - api
       security:
       - jwtAuth: []
-      - {}
+      - cookieAuth: []
       responses:
         '204':
+          description: No response body
+  /api/v1/absence-alerts/{id}/docx/:
+    get:
+      operationId: api_v1_absence_alerts_docx_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceAlert'
+          description: ''
+  /api/v1/absence-alerts/{id}/docx/latest/:
+    get:
+      operationId: api_v1_absence_alerts_docx_latest_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceAlert'
+          description: ''
+  /api/v1/absence-alerts/{id}/docx/list/:
+    get:
+      operationId: api_v1_absence_alerts_docx_list_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceAlert'
+          description: ''
+  /api/v1/absence-alerts/{id}/docx/save/:
+    post:
+      operationId: api_v1_absence_alerts_docx_save_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this تنبيه غياب.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AbsenceAlert'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AbsenceAlert'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AbsenceAlert'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AbsenceAlert'
+          description: ''
+  /api/v1/attendance/absence/compute-days/:
+    get:
+      operationId: api_v1_attendance_absence_compute_days_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/bulk_save/:
+    post:
+      operationId: api_v1_attendance_bulk_save_create
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/exit-events/:
+    get:
+      operationId: api_v1_attendance_exit_events_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedExitEventList'
+          description: ''
+    post:
+      operationId: api_v1_attendance_exit_events_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/v1/attendance/exit-events/{id}/:
+    get:
+      operationId: api_v1_attendance_exit_events_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this جلسة خروج.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+    put:
+      operationId: api_v1_attendance_exit_events_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this جلسة خروج.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+    patch:
+      operationId: api_v1_attendance_exit_events_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this جلسة خروج.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExitEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExitEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExitEvent'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+    delete:
+      operationId: api_v1_attendance_exit_events_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this جلسة خروج.
+        required: true
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/attendance/exit-events/{id}/return/:
+    patch:
+      operationId: api_v1_attendance_exit_events_return_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this جلسة خروج.
+        required: true
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExitEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExitEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExitEvent'
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/v1/attendance/exit-events/decide/:
+    post:
+      operationId: api_v1_attendance_exit_events_decide_create
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExitEvent'
+        required: true
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/v1/attendance/exit-events/open/:
+    get:
+      operationId: api_v1_attendance_exit_events_open_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/v1/attendance/exit-events/pending/:
+    get:
+      operationId: api_v1_attendance_exit_events_pending_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExitEvent'
+          description: ''
+  /api/v1/attendance/history/:
+    get:
+      operationId: api_v1_attendance_history_retrieve
+      description: |-
+        Return paginated attendance history for a class within a date range.
+        Query params:
+          - class_id: int (required)
+          - from: YYYY-MM-DD (default: today-6 days)
+          - to: YYYY-MM-DD (default: today)
+          - page: int (default 1)
+          - page_size: int (default 100, max 200)
+        Response: {count, page, page_size, results:[{date,student_id,student_name,status,note}]}
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/history-export/:
+    get:
+      operationId: api_v1_attendance_history_export_retrieve
+      description: |-
+        Export attendance history for a class within a date range.
+        Query params: class_id (int, required), from (YYYY-MM-DD), to (YYYY-MM-DD), format(optional): csv|xlsx
+        Applies the same access control as list_history.
+        Default: CSV (TSV actually for Excel safety). When format=xlsx is provided, returns .xlsx.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/history-strict/:
+    get:
+      operationId: api_v1_attendance_history_strict_retrieve
+      description: |-
+        Strict history: in addition to classroom filter, ensure student's current class matches.
+        Same shape as /history but guarantees results only from the selected class.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/records/:
+    get:
+      operationId: api_v1_attendance_records_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/students/:
+    get:
+      operationId: api_v1_attendance_students_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/submit/:
+    post:
+      operationId: api_v1_attendance_submit_create
+      description: |-
+        Mark all attendance records for the given class/date (and optional period)
+        as submitted without closing them. Records remain editable until a wing supervisor approves.
+        Submission is indicated by a '[SUBMITTED @ ts]' tag in note and keeping locked=False.
+        Payload: { class_id:int, date:YYYY-MM-DD, period_number?:int|null }
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/summary/:
+    get:
+      operationId: api_v1_attendance_summary_retrieve
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/teacher/classes/:
+    get:
+      operationId: api_v1_attendance_teacher_classes_retrieve
+      description: |-
+        V2 override: Return classes taught by the authenticated teacher.
+        If the user lacks a Staff mapping but is in the 'teacher' group, return an empty list (200) instead of 403.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/timetable/teacher/today/:
+    get:
+      operationId: api_v1_attendance_timetable_teacher_today_retrieve
+      description: |-
+        Return today's ordered periods for the authenticated teacher.
+        Maps request.user->Staff; superuser can pass ?teacher_id to inspect.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/attendance/timetable/teacher/weekly/:
+    get:
+      operationId: api_v1_attendance_timetable_teacher_weekly_retrieve
+      description: Return weekly timetable grid for the authenticated teacher.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/login/:
+    post:
+      operationId: api_v1_auth_login_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CustomTokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomTokenObtainPair'
+          description: ''
+  /api/v1/auth/logout/:
+    post:
+      operationId: api_v1_auth_logout_create
+      description: |-
+        Blacklist the refresh token to log the user out from this device.
+        Accepts refresh token from JSON body or from HttpOnly cookie.
+        Also clears the refresh cookie on successful logout.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/auth/refresh/:
+    post:
+      operationId: api_v1_auth_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - api
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/wing/classes/:
+    get:
+      operationId: api_v1_wing_classes_retrieve
+      description: |-
+        List classes scoped to the supervisor's wing(s) with basic info.
+        Optional filters:
+          - q: search in name or section
+          - wing_id: when provided, explicitly scope to this wing (useful for super admins)
+        Returns: { items: [{id, name, grade, section, wing_id, wing_name, students_count}] }
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/daily-absences/:
+    get:
+      operationId: api_v1_wing_daily_absences_retrieve
+      description: |-
+        Return general daily absence status per student for the supervisor's wing(s).
+        Uses first-two-periods rule consistent with Absence Alerts policy.
+        Query params: date=YYYY-MM-DD (default today), class_id?:int
+        Response shape:
+        {
+            date: str,
+            counts: { excused: int, unexcused: int, none: int },
+            items: [
+                { student_id, student_name, class_id, class_name, state: 'excused'|'unexcused'|'none',
+                  p1?: str|null, p2?: str|null }
+            ]
+        }
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/daily-absences/export/:
+    get:
+      operationId: api_v1_wing_daily_absences_export_retrieve
+      description: |-
+        Export the general daily absence classification as CSV (UTF-8 with BOM).
+        Query params: date=YYYY-MM-DD, class_id?:int
+        Optional: columns=comma,separated,keys to control columns and order.
+        Allowed keys: student_id, student_name, class_id, class_name, p1, p2, state.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/daily-absences/export.docx/:
+    get:
+      operationId: api_v1_wing_daily_absences_export.docx_retrieve
+      description: Export the general daily absence classification as Word (DOCX).
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/decide/:
+    post:
+      operationId: api_v1_wing_decide_create
+      description: |-
+        Approve or reject a batch of attendance records by IDs.
+        Payload: { action: 'approve'|'reject', ids: number[], comment?: string }
+        Approve keeps records locked and annotates note; reject unlocks records for teacher correction.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/entered/:
+    get:
+      operationId: api_v1_wing_entered_retrieve
+      description: |-
+        Return class-periods that already have supervisor-entered, locked attendance
+        for the current wing(s) on the given date. Mirrors the shape of `missing`.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/entered/export/:
+    get:
+      operationId: api_v1_wing_entered_export_retrieve
+      description: |-
+        Export entered class-periods (supervisor-entered, locked) as CSV.
+        Columns: class_id, class_name, period_number, subject_id, subject_name, teacher_id, teacher_name
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/entered/export.docx/:
+    get:
+      operationId: api_v1_wing_entered_export.docx_retrieve
+      description: Export entered class-periods (supervisor-entered, locked) as DOCX.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/me/:
+    get:
+      operationId: api_v1_wing_me_retrieve
+      description: |-
+        Return current Wing Supervisor context: roles, staff, supervised wings, and primary wing details.
+        This augments the previous diagnostic payload with `primary_wing` fields used in page headers.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/missing/:
+    get:
+      operationId: api_v1_wing_missing_retrieve
+      description: |-
+        APIs for Wing Supervisors: overview KPIs and missing attendance entries for today (or a given date).
+        Scopes data to the wings supervised by the current user. Superusers see all wings.
+        Also exposes a minimal approvals workflow over teacher-submitted attendance, where
+        submission is modeled by the `locked` flag on AttendanceRecord.
+
+        Additionally, exposes a daily aggregated absence status per student (الحالة العامة اليومية)
+        using the same first-two-periods policy used by alerts.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/missing/export/:
+    get:
+      operationId: api_v1_wing_missing_export_retrieve
+      description: |-
+        Export missing class-periods (not yet supervisor-entered) as CSV.
+        Columns: class_id, class_name, period_number, subject_id, subject_name, teacher_id, teacher_name
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/missing/export.docx/:
+    get:
+      operationId: api_v1_wing_missing_export.docx_retrieve
+      description: Export missing class-periods (not yet supervisor-entered) as DOCX.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/overview/:
+    get:
+      operationId: api_v1_wing_overview_retrieve
+      description: |-
+        APIs for Wing Supervisors: overview KPIs and missing attendance entries for today (or a given date).
+        Scopes data to the wings supervised by the current user. Superusers see all wings.
+        Also exposes a minimal approvals workflow over teacher-submitted attendance, where
+        submission is modeled by the `locked` flag on AttendanceRecord.
+
+        Additionally, exposes a daily aggregated absence status per student (الحالة العامة اليومية)
+        using the same first-two-periods policy used by alerts.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/pending/:
+    get:
+      operationId: api_v1_wing_pending_retrieve
+      description: |-
+        List submitted attendance items awaiting supervisor decision.
+        Submission is indicated by a '[SUBMITTED @ ts]' tag in note OR legacy locked=True without supervisor source.
+        Results are scoped to the wings supervised by the current user (or all if superuser).
+        Query params: date=YYYY-MM-DD (default today), class_id?:int
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/set-excused/:
+    post:
+      operationId: api_v1_wing_set_excused_create
+      description: |-
+        Mark selected attendance records as 'excused' (إذن خروج) by Wing Supervisor.
+        Accepts optional evidence upload (image/PDF) to support converting absence to excused when proof is provided.
+        Payload (JSON or multipart/form-data):
+          - ids: number[] (required)
+          - comment?: string
+          - evidence: file (optional, jpg/png/jpeg/webp/pdf, <= 5MB)
+          - evidence_note?: string (optional)
+        Only records within the supervisor's wing(s) are affected.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/students/:
+    get:
+      operationId: api_v1_wing_students_retrieve
+      description: |-
+        List students scoped to the supervisor's wing(s) for use in pickers and tables.
+        Optional filters:
+          - q: search in full_name (icontains) or sid (startswith)
+          - class_id: restrict to a specific class
+          - wing_id: when provided, explicitly scope to this wing (useful for super admins)
+        Returns fields useful for wing supervisor views: id, sid, full_name, class_id, class_name,
+        parent_name, parent_phone, extra_phone_no, phone_no, active, needs
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/students/export/:
+    get:
+      operationId: api_v1_wing_students_export_retrieve
+      description: |-
+        Export wing-scoped students as CSV (UTF-8 BOM).
+        Mirrors filters of students(): q, class_id, wing_id.
+        Supports selecting columns and order via query param:
+          ?columns=sid,full_name,class_name,parent_name,parent_phone,extra_phone_no,phone_no,active,needs
+        If omitted or invalid, falls back to default ordering.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/students/export-docx:
+    get:
+      operationId: api_v1_wing_students_export_docx_retrieve
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/students/export-docx/:
+    get:
+      operationId: api_v1_wing_students_export_docx_retrieve_2
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/students/export.docx:
+    get:
+      operationId: api_v1_wing_students_export.docx_retrieve
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/students/export.docx/:
+    get:
+      operationId: api_v1_wing_students_export.docx_retrieve_2
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/timetable/:
+    get:
+      operationId: api_v1_wing_timetable_retrieve
+      description: |-
+        Return wing timetable. Supports ?wing_id, ?date=YYYY-MM-DD, and ?mode=daily|weekly (default daily).
+        Data is scoped to the current user's supervised wings unless superuser.
+        Includes a lightweight meta object to explain empty states (diagnostics only).
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/weekly-summary/export.docx:
+    get:
+      operationId: api_v1_wing_weekly_summary_export.docx_retrieve
+      description: |-
+        Export a weekly (or arbitrary range) wing summary as a Word document (DOCX).
+        Query params:
+          - from: start date (YYYY-MM-DD or DD/MM/YYYY). Default = today-6d
+          - to: end date (YYYY-MM-DD or DD/MM/YYYY). Default = today
+          - wing_id: optional for superusers; regular users limited to their supervised wings
+        The generated table includes one row per day with KPIs and two signature lines at the end:
+        مشرف الجناح، وكيل الشؤون الإدارية.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/wing/weekly-summary/export.docx/:
+    get:
+      operationId: api_v1_wing_weekly_summary_export.docx_retrieve_2
+      description: |-
+        Export a weekly (or arbitrary range) wing summary as a Word document (DOCX).
+        Query params:
+          - from: start date (YYYY-MM-DD or DD/MM/YYYY). Default = today-6d
+          - to: end date (YYYY-MM-DD or DD/MM/YYYY). Default = today
+          - wing_id: optional for superusers; regular users limited to their supervised wings
+        The generated table includes one row per day with KPIs and two signature lines at the end:
+        مشرف الجناح، وكيل الشؤون الإدارية.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/classes/:
+    get:
+      operationId: api_wing_classes_retrieve
+      description: |-
+        List classes scoped to the supervisor's wing(s) with basic info.
+        Optional filters:
+          - q: search in name or section
+          - wing_id: when provided, explicitly scope to this wing (useful for super admins)
+        Returns: { items: [{id, name, grade, section, wing_id, wing_name, students_count}] }
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/daily-absences/:
+    get:
+      operationId: api_wing_daily_absences_retrieve
+      description: |-
+        Return general daily absence status per student for the supervisor's wing(s).
+        Uses first-two-periods rule consistent with Absence Alerts policy.
+        Query params: date=YYYY-MM-DD (default today), class_id?:int
+        Response shape:
+        {
+            date: str,
+            counts: { excused: int, unexcused: int, none: int },
+            items: [
+                { student_id, student_name, class_id, class_name, state: 'excused'|'unexcused'|'none',
+                  p1?: str|null, p2?: str|null }
+            ]
+        }
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/daily-absences/export/:
+    get:
+      operationId: api_wing_daily_absences_export_retrieve
+      description: |-
+        Export the general daily absence classification as CSV (UTF-8 with BOM).
+        Query params: date=YYYY-MM-DD, class_id?:int
+        Optional: columns=comma,separated,keys to control columns and order.
+        Allowed keys: student_id, student_name, class_id, class_name, p1, p2, state.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/daily-absences/export.docx/:
+    get:
+      operationId: api_wing_daily_absences_export.docx_retrieve
+      description: Export the general daily absence classification as Word (DOCX).
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/decide/:
+    post:
+      operationId: api_wing_decide_create
+      description: |-
+        Approve or reject a batch of attendance records by IDs.
+        Payload: { action: 'approve'|'reject', ids: number[], comment?: string }
+        Approve keeps records locked and annotates note; reject unlocks records for teacher correction.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/entered/:
+    get:
+      operationId: api_wing_entered_retrieve
+      description: |-
+        Return class-periods that already have supervisor-entered, locked attendance
+        for the current wing(s) on the given date. Mirrors the shape of `missing`.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/entered/export/:
+    get:
+      operationId: api_wing_entered_export_retrieve
+      description: |-
+        Export entered class-periods (supervisor-entered, locked) as CSV.
+        Columns: class_id, class_name, period_number, subject_id, subject_name, teacher_id, teacher_name
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/entered/export.docx/:
+    get:
+      operationId: api_wing_entered_export.docx_retrieve
+      description: Export entered class-periods (supervisor-entered, locked) as DOCX.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/me/:
+    get:
+      operationId: api_wing_me_retrieve
+      description: |-
+        Return current Wing Supervisor context: roles, staff, supervised wings, and primary wing details.
+        This augments the previous diagnostic payload with `primary_wing` fields used in page headers.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/missing/:
+    get:
+      operationId: api_wing_missing_retrieve
+      description: |-
+        APIs for Wing Supervisors: overview KPIs and missing attendance entries for today (or a given date).
+        Scopes data to the wings supervised by the current user. Superusers see all wings.
+        Also exposes a minimal approvals workflow over teacher-submitted attendance, where
+        submission is modeled by the `locked` flag on AttendanceRecord.
+
+        Additionally, exposes a daily aggregated absence status per student (الحالة العامة اليومية)
+        using the same first-two-periods policy used by alerts.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/missing/export/:
+    get:
+      operationId: api_wing_missing_export_retrieve
+      description: |-
+        Export missing class-periods (not yet supervisor-entered) as CSV.
+        Columns: class_id, class_name, period_number, subject_id, subject_name, teacher_id, teacher_name
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/missing/export.docx/:
+    get:
+      operationId: api_wing_missing_export.docx_retrieve
+      description: Export missing class-periods (not yet supervisor-entered) as DOCX.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/overview/:
+    get:
+      operationId: api_wing_overview_retrieve
+      description: |-
+        APIs for Wing Supervisors: overview KPIs and missing attendance entries for today (or a given date).
+        Scopes data to the wings supervised by the current user. Superusers see all wings.
+        Also exposes a minimal approvals workflow over teacher-submitted attendance, where
+        submission is modeled by the `locked` flag on AttendanceRecord.
+
+        Additionally, exposes a daily aggregated absence status per student (الحالة العامة اليومية)
+        using the same first-two-periods policy used by alerts.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/pending/:
+    get:
+      operationId: api_wing_pending_retrieve
+      description: |-
+        List submitted attendance items awaiting supervisor decision.
+        Submission is indicated by a '[SUBMITTED @ ts]' tag in note OR legacy locked=True without supervisor source.
+        Results are scoped to the wings supervised by the current user (or all if superuser).
+        Query params: date=YYYY-MM-DD (default today), class_id?:int
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/set-excused/:
+    post:
+      operationId: api_wing_set_excused_create
+      description: |-
+        Mark selected attendance records as 'excused' (إذن خروج) by Wing Supervisor.
+        Accepts optional evidence upload (image/PDF) to support converting absence to excused when proof is provided.
+        Payload (JSON or multipart/form-data):
+          - ids: number[] (required)
+          - comment?: string
+          - evidence: file (optional, jpg/png/jpeg/webp/pdf, <= 5MB)
+          - evidence_note?: string (optional)
+        Only records within the supervisor's wing(s) are affected.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/students/:
+    get:
+      operationId: api_wing_students_retrieve
+      description: |-
+        List students scoped to the supervisor's wing(s) for use in pickers and tables.
+        Optional filters:
+          - q: search in full_name (icontains) or sid (startswith)
+          - class_id: restrict to a specific class
+          - wing_id: when provided, explicitly scope to this wing (useful for super admins)
+        Returns fields useful for wing supervisor views: id, sid, full_name, class_id, class_name,
+        parent_name, parent_phone, extra_phone_no, phone_no, active, needs
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/students/export/:
+    get:
+      operationId: api_wing_students_export_retrieve
+      description: |-
+        Export wing-scoped students as CSV (UTF-8 BOM).
+        Mirrors filters of students(): q, class_id, wing_id.
+        Supports selecting columns and order via query param:
+          ?columns=sid,full_name,class_name,parent_name,parent_phone,extra_phone_no,phone_no,active,needs
+        If omitted or invalid, falls back to default ordering.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/students/export-docx:
+    get:
+      operationId: api_wing_students_export_docx_retrieve
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/students/export-docx/:
+    get:
+      operationId: api_wing_students_export_docx_retrieve_2
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/students/export.docx:
+    get:
+      operationId: api_wing_students_export.docx_retrieve
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/students/export.docx/:
+    get:
+      operationId: api_wing_students_export.docx_retrieve_2
+      description: |-
+        Export wing-scoped students as DOCX.
+        Supports selecting columns and order via query param ?columns=key1,key2,...
+        Allowed keys: sid, full_name, class_name, parent_name, parent_phone, extra_phone_no, phone_no, active, needs.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/timetable/:
+    get:
+      operationId: api_wing_timetable_retrieve
+      description: |-
+        Return wing timetable. Supports ?wing_id, ?date=YYYY-MM-DD, and ?mode=daily|weekly (default daily).
+        Data is scoped to the current user's supervised wings unless superuser.
+        Includes a lightweight meta object to explain empty states (diagnostics only).
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/weekly-summary/export.docx:
+    get:
+      operationId: api_wing_weekly_summary_export.docx_retrieve
+      description: |-
+        Export a weekly (or arbitrary range) wing summary as a Word document (DOCX).
+        Query params:
+          - from: start date (YYYY-MM-DD or DD/MM/YYYY). Default = today-6d
+          - to: end date (YYYY-MM-DD or DD/MM/YYYY). Default = today
+          - wing_id: optional for superusers; regular users limited to their supervised wings
+        The generated table includes one row per day with KPIs and two signature lines at the end:
+        مشرف الجناح، وكيل الشؤون الإدارية.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/wing/weekly-summary/export.docx/:
+    get:
+      operationId: api_wing_weekly_summary_export.docx_retrieve_2
+      description: |-
+        Export a weekly (or arbitrary range) wing summary as a Word document (DOCX).
+        Query params:
+          - from: start date (YYYY-MM-DD or DD/MM/YYYY). Default = today-6d
+          - to: end date (YYYY-MM-DD or DD/MM/YYYY). Default = today
+          - wing_id: optional for superusers; regular users limited to their supervised wings
+        The generated table includes one row per day with KPIs and two signature lines at the end:
+        مشرف الجناح، وكيل الشؤون الإدارية.
+      tags:
+      - api
+      security:
+      - jwtAuth: []
+      - cookieAuth: []
+      responses:
+        '200':
           description: No response body
 components:
   schemas:
-    Class:
+    AbsenceAlert:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        name:
+        number:
+          type: integer
+          readOnly: true
+        academic_year:
+          type: string
+          readOnly: true
+        student:
+          type: integer
+        student_id:
+          type: integer
+        student_name:
+          type: string
+          readOnly: true
+        class_name:
           type: string
           maxLength: 50
-        grade_level:
+        parent_name:
+          type: string
+          maxLength: 100
+        parent_mobile:
+          type: string
+          maxLength: 30
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        excused_days:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
+          readOnly: true
+        unexcused_days:
+          type: integer
+          readOnly: true
+        notes:
+          type: string
+          maxLength: 300
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        wing:
+          type: integer
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
       required:
-      - grade_level
+      - academic_year
+      - class_name
+      - created_at
+      - excused_days
       - id
-      - name
-    PaginatedClassList:
+      - number
+      - period_end
+      - period_start
+      - student
+      - student_name
+      - unexcused_days
+      - updated_at
+      - wing
+    CustomTokenObtainPair:
       type: object
-      required:
-      - count
-      - results
       properties:
-        count:
-          type: integer
-          example: 123
-        next:
+        username:
           type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
+          writeOnly: true
+        password:
           type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Class'
-    PaginatedStaffList:
-      type: object
+          writeOnly: true
       required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Staff'
-    PaginatedStudentList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Student'
-    PatchedClass:
+      - password
+      - username
+    ExitEvent:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        name:
+        student:
+          type: integer
+        student_id:
+          type: integer
+        student_name:
+          type: string
+          readOnly: true
+        classroom:
+          type: integer
+          nullable: true
+        class_id:
+          type: integer
+        date:
+          type: string
+          format: date
+        period_number:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        note:
+          type: string
+          nullable: true
+          maxLength: 300
+        review_status:
+          readOnly: true
+          nullable: true
+          description: |-
+            حالة اعتماد إذن الخروج من قبل مشرف الجناح
+
+            * `submitted` - بانتظار الاعتماد
+            * `approved` - موافق عليه
+            * `rejected` - مرفوض
+          oneOf:
+          - $ref: '#/components/schemas/ReviewStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        reviewed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        review_comment:
+          type: string
+          maxLength: 300
+        reviewer_id:
+          type: integer
+          readOnly: true
+        reviewer_username:
+          type: string
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        returned_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        duration_seconds:
+          type: integer
+          readOnly: true
+          nullable: true
+      required:
+      - date
+      - duration_seconds
+      - id
+      - reason
+      - returned_at
+      - review_status
+      - reviewed_at
+      - reviewer_id
+      - reviewer_username
+      - started_at
+      - student_name
+    NullEnum:
+      enum:
+      - null
+    PaginatedAbsenceAlertList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AbsenceAlert'
+    PaginatedExitEventList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExitEvent'
+    PatchedAbsenceAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: integer
+          readOnly: true
+        academic_year:
+          type: string
+          readOnly: true
+        student:
+          type: integer
+        student_id:
+          type: integer
+        student_name:
+          type: string
+          readOnly: true
+        class_name:
           type: string
           maxLength: 50
-        grade_level:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-    PatchedStaff:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        staff_code:
+        parent_name:
+          type: string
+          maxLength: 100
+        parent_mobile:
           type: string
           maxLength: 30
-        name:
-          type: string
-          maxLength: 120
-        job_title:
-          type: string
-          maxLength: 120
-        email:
-          type: string
-          format: email
-          maxLength: 254
-        phone:
-          type: string
-          maxLength: 30
-    PatchedStudent:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        student_code:
-          type: string
-          maxLength: 30
-        name:
-          type: string
-          maxLength: 120
-        date_of_birth:
+        period_start:
           type: string
           format: date
-          nullable: true
-        clazz:
-          type: integer
-          nullable: true
-    Staff:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        staff_code:
-          type: string
-          maxLength: 30
-        name:
-          type: string
-          maxLength: 120
-        job_title:
-          type: string
-          maxLength: 120
-        email:
-          type: string
-          format: email
-          maxLength: 254
-        phone:
-          type: string
-          maxLength: 30
-      required:
-      - id
-      - name
-      - staff_code
-    Student:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        student_code:
-          type: string
-          maxLength: 30
-        name:
-          type: string
-          maxLength: 120
-        date_of_birth:
+        period_end:
           type: string
           format: date
+        excused_days:
+          type: integer
+          readOnly: true
+        unexcused_days:
+          type: integer
+          readOnly: true
+        notes:
+          type: string
+          maxLength: 300
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        wing:
+          type: integer
+          readOnly: true
           nullable: true
-        clazz:
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedExitEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        student:
+          type: integer
+        student_id:
+          type: integer
+        student_name:
+          type: string
+          readOnly: true
+        classroom:
           type: integer
           nullable: true
+        class_id:
+          type: integer
+        date:
+          type: string
+          format: date
+        period_number:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+        reason:
+          $ref: '#/components/schemas/ReasonEnum'
+        note:
+          type: string
+          nullable: true
+          maxLength: 300
+        review_status:
+          readOnly: true
+          nullable: true
+          description: |-
+            حالة اعتماد إذن الخروج من قبل مشرف الجناح
+
+            * `submitted` - بانتظار الاعتماد
+            * `approved` - موافق عليه
+            * `rejected` - مرفوض
+          oneOf:
+          - $ref: '#/components/schemas/ReviewStatusEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        reviewed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        review_comment:
+          type: string
+          maxLength: 300
+        reviewer_id:
+          type: integer
+          readOnly: true
+        reviewer_username:
+          type: string
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        returned_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        duration_seconds:
+          type: integer
+          readOnly: true
+          nullable: true
+    ReasonEnum:
+      enum:
+      - admin
+      - wing
+      - nurse
+      - restroom
+      type: string
+      description: |-
+        * `admin` - إدارة
+        * `wing` - مشرف الجناح
+        * `nurse` - الممرض
+        * `restroom` - دورة المياه
+    ReviewStatusEnum:
+      enum:
+      - submitted
+      - approved
+      - rejected
+      type: string
+      description: |-
+        * `submitted` - بانتظار الاعتماد
+        * `approved` - موافق عليه
+        * `rejected` - مرفوض
+    StatusEnum:
+      enum:
+      - draft
+      - issued
+      - notified
+      - signed_student
+      - signed_parent
+      - archived
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `issued` - Issued
+        * `notified` - Notified
+        * `signed_student` - Signed Student
+        * `signed_parent` - Signed Parent
+        * `archived` - Archived
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
       required:
-      - id
-      - name
-      - student_code
+      - access
+      - refresh
   securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
     jwtAuth:
       type: http
       scheme: bearer

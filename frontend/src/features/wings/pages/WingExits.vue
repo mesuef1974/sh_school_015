@@ -132,6 +132,7 @@ import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 import WingWingPicker from "../../../components/ui/WingWingPicker.vue";
 import PrintPageHeader from "../../../components/ui/PrintPageHeader.vue";
 import { getWingClasses, getWingStudents, getExitEvents, getOpenExitEvents, postExitDecide } from "../../../shared/api/client";
+import { getErrorMessage, showApiErrorToast } from "../../../shared/api/useApiToast";
 // Lightweight date helpers to avoid external dependency
 function pad2(n: number) { return n < 10 ? "0"+n : String(n); }
 function todayISO(): string {
@@ -252,8 +253,9 @@ async function reload() {
       liveMsg.value = `عدد الأذونات (${statusLabel({review_status: status.value})}): ${items.value.length}`;
     }
   } catch (err: any) {
-    console.error(err);
-    error.value = err?.response?.data?.detail || err?.message || 'حدث خطأ غير متوقع';
+    const msg = getErrorMessage(err, 'تعذّر تحميل البيانات');
+    error.value = msg;
+    try { showApiErrorToast(err, msg); } catch {}
   } finally {
     loading.value = false;
   }
@@ -272,8 +274,9 @@ async function decideOne(action: 'approve'|'reject', e: any) {
       liveMsg.value = `تم ${action === 'approve' ? 'اعتماد' : 'رفض'} إذن واحد.`;
     }
   } catch (err: any) {
-    console.error(err);
-    error.value = err?.response?.data?.detail || err?.message || 'تعذر تنفيذ الإجراء';
+    const msg = getErrorMessage(err, 'تعذر تنفيذ الإجراء');
+    error.value = msg;
+    try { showApiErrorToast(err, msg); } catch {}
   }
 }
 async function approveStudent(g: any) {
@@ -301,8 +304,9 @@ async function decideMany(action: 'approve'|'reject', ids: number[]) {
     // focus back to refresh for stability
     setTimeout(() => refreshBtn.value?.focus(), 0);
   } catch (err: any) {
-    console.error(err);
-    error.value = err?.response?.data?.detail || err?.message || 'تعذر تنفيذ الإجراء';
+    const msg = getErrorMessage(err, 'تعذر تنفيذ الإجراء');
+    error.value = msg;
+    try { showApiErrorToast(err, msg); } catch {}
   }
 }
 

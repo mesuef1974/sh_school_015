@@ -11,6 +11,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,vue,css,scss,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,vue,css,scss,md}\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:debug": "playwright test --debug"

@@ -101,7 +101,10 @@ class Class(models.Model):
                     from django.apps import apps as _apps
 
                     Wing = _apps.get_model("school", "Wing")
-                    wing_obj = Wing.objects.filter(id=wing_no).first() or Wing.objects.filter(name__icontains=str(wing_no)).first()
+                    wing_obj = (
+                        Wing.objects.filter(id=wing_no).first()
+                        or Wing.objects.filter(name__icontains=str(wing_no)).first()
+                    )
                     if wing_obj:
                         self.wing = wing_obj
         except Exception:

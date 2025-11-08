@@ -847,6 +847,7 @@
 import { onMounted, onUnmounted, ref, computed } from "vue";
 import { useFullscreen } from "@vueuse/core";
 import { getTeacherTimetableWeekly } from "../../../shared/api/client";
+import { showApiErrorToast, getErrorMessage } from "../../../shared/api/useApiToast";
 import { formatDateDMY } from "../../../shared/utils/date";
 import DsCard from "../../../components/ui/DsCard.vue";
 import DsBadge from "../../../components/ui/DsBadge.vue";
@@ -1280,6 +1281,9 @@ async function load() {
     const slots = meta?.slot_meta_by_day || {};
     columnsByDay.value = cols || {};
     slotMetaByDay.value = slots || {};
+  } catch (e) {
+    const msg = getErrorMessage(e as any, 'تعذّر تحميل الجدول');
+    try { showApiErrorToast(e, msg); } catch {}
   } finally {
     loading.value = false;
   }

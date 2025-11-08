@@ -29,7 +29,37 @@ class SecurityHeadersMiddleware:
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         resp = self.get_response(request)
-        if not self.enabled:
+        # Re-evaluate the enable flag per-request so tests (and runtime) can toggle via env dynamically
+        enabled_now = os.getenv("DJANGO_SECURITY_HEADERS", "true").lower() != "false"
+        if not enabled_now:
+            # Ensure removal of any security headers possibly set by upstream middleware
+            headers = (
+                "Referrer-Policy",
+                "X-Frame-Options",
+                "X-Content-Type-Options",
+                "Content-Security-Policy",
+                "Content-Security-Policy-Report-Only",
+            )
+            # Try modern HeadersMapping API first
+            try:
+                for h in headers:
+                    if hasattr(resp, "headers"):
+                        try:
+                            resp.headers.pop(h, None)  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            # Fallback to dict-style deletion
+            for h in headers:
+                try:
+                    if h in resp:
+                        del resp[h]
+                except Exception:
+                    try:
+                        resp[h] = None  # type: ignore[index]
+                    except Exception:
+                        pass
             return resp
         # CSP
         if self.csp:

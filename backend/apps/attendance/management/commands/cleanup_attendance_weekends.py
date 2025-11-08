@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Optional
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
@@ -57,12 +57,15 @@ class Command(BaseCommand):
         )
         parser.add_argument("--dry-run", action="store_true", help="Do not write, only report counts")
         parser.add_argument(
-            "--yes", action="store_true", help="Confirm deletion. Required unless --dry-run is used."
+            "--yes",
+            action="store_true",
+            help="Confirm deletion. Required unless --dry-run is used.",
         )
 
     def handle(self, *args, **opts):
         from django.core.exceptions import FieldError
         from school.models import AttendanceRecord, AttendanceDaily  # type: ignore
+
         try:
             from school.models import ExitEvent  # type: ignore
         except Exception:
@@ -153,9 +156,7 @@ class Command(BaseCommand):
             ar_qs = ar_qs.filter(Q(note__icontains="[demo]") | Q(notes__icontains="[demo]"))
         # Additional safety: exclude weekdays just in case a broad filter was used
         # Evaluate ids and post-filter by Python weekday
-        ar_ids = list(
-            ar_qs.values_list("id", "date")
-        )
+        ar_ids = list(ar_qs.values_list("id", "date"))
         ar_ids = [i for i in ar_ids if isinstance(i[1], date) and _weekend_py(i[1])]
         total_counts["AttendanceRecord"] = len(ar_ids)
 
@@ -166,7 +167,9 @@ class Command(BaseCommand):
         if q is not None:
             ad_qs = ad_qs.filter(q)
         if dates is None and not dangerous:
-            ad_qs = ad_qs.filter(Q(note__icontains="[demo]") | Q(notes__icontains="[demo]") | Q(source__icontains="demo"))
+            ad_qs = ad_qs.filter(
+                Q(note__icontains="[demo]") | Q(notes__icontains="[demo]") | Q(source__icontains="demo")
+            )
         ad_ids = list(ad_qs.values_list("id", "date"))
         ad_ids = [i for i in ad_ids if isinstance(i[1], date) and _weekend_py(i[1])]
         total_counts["AttendanceDaily"] = len(ad_ids)
@@ -191,7 +194,7 @@ class Command(BaseCommand):
                 if dates is None and not dangerous:
                     ee_qs = ee_qs.filter(Q(note__icontains="[demo]") | Q(notes__icontains="[demo]"))
                 pairs = list(ee_qs.values_list("id", "started_at"))
-                ee_ids = [p for p in pairs if getattr(p[1], 'date', None) and _weekend_py(p[1].date())]
+                ee_ids = [p for p in pairs if getattr(p[1], "date", None) and _weekend_py(p[1].date())]
             total_counts["ExitEvent"] = len(ee_ids)
 
         # Report
@@ -207,6 +210,7 @@ class Command(BaseCommand):
 
         # Apply deletions
         from django.db import transaction
+
         with transaction.atomic():
             if ar_ids:
                 AttendanceRecord.objects.filter(id__in=[i[0] for i in ar_ids]).delete()

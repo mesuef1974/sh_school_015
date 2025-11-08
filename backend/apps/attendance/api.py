@@ -11,13 +11,14 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 
 from . import selectors
 from .selectors import _CLASS_FK_ID  # reuse detected class FK field
 from .serializers import ExitEventSerializer, StudentBriefSerializer
 from .services.attendance import bulk_save_attendance
 from .services.word_table import render_table_docx
-from .timing import resolve_lesson_time, resolve_thursday_wing3_time
+from .timing import resolve_lesson_time
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ class AttendanceViewSetBase(viewsets.ViewSet):
             return err
         # Enforce access: teachers can only load students for their own classes
         if not self._user_has_access_to_class(request.user, class_id):
-            return Response({"detail": "not allowed for this class"}, status=403)
+            raise PermissionDenied(detail="not allowed for this class")
         qs = selectors.get_students_for_class_on_date(class_id, dt)
         data = StudentBriefSerializer(qs, many=True).data
         return Response({"students": data, "date": dt.isoformat(), "class_id": class_id})
@@ -675,7 +676,7 @@ class AttendanceViewSet(viewsets.ViewSet):
             return err
         # Enforce access: teachers can only load students for their own classes
         if not self._user_has_access_to_class(request.user, class_id):
-            return Response({"detail": "not allowed for this class"}, status=403)
+            raise PermissionDenied(detail="not allowed for this class")
         qs = selectors.get_students_for_class_on_date(class_id, dt)
         data = StudentBriefSerializer(qs, many=True).data
         return Response({"students": data, "date": dt.isoformat(), "class_id": class_id})
@@ -1658,6 +1659,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         مشرف الجناح، وكيل الشؤون الإدارية.
         """
         from . import selectors as _sel  # lazy to avoid circulars
+
         # Parse date range
         rng, err = _parse_range_or_400(request.query_params.get("from"), request.query_params.get("to"))
         if err:
@@ -1678,10 +1680,25 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 wing_ids = []
         if not wing_ids:
             # produce empty doc to be polite
-            headers = ["اليوم", "التاريخ", "% حضور", "حاضر", "غياب", "تأخر", "مُعذّر", "هروب", "أذونات"]
+            headers = [
+                "اليوم",
+                "التاريخ",
+                "% حضور",
+                "حاضر",
+                "غياب",
+                "تأخر",
+                "مُعذّر",
+                "هروب",
+                "أذونات",
+            ]
             rows = []
-            content = render_table_docx(headers, rows, title=f"ملخّص أسبوعي — جناح (غير محدد) — الفترة: {d_from} → {d_to}")
-            resp = HttpResponse(content, content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+            content = render_table_docx(
+                headers, rows, title=f"ملخّص أسبوعي — جناح (غير محدد) — الفترة: {d_from} → {d_to}"
+            )
+            resp = HttpResponse(
+                content,
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
             resp["Content-Disposition"] = "attachment; filename=wing-weekly-summary.docx"
             return resp
         wing_id = wing_ids[0]
@@ -1692,6 +1709,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         AR_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
         total_present = total_total = total_absent = total_late = total_excused = total_runaway = total_exits = 0
         from datetime import timedelta as _td
+
         while cur <= d_to:
             try:
                 s = _sel.get_summary(scope="wing", dt=cur, wing_id=wing_id)
@@ -1705,18 +1723,26 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 exits = int(k.get("exit_events_total", 0))
                 present_pct = (present / total * 100.0) if total else 0.0
                 day_name = AR_DAYS[cur.weekday()]
-                rows.append([
-                    day_name,
-                    cur.isoformat(),
-                    f"{present_pct:.1f}%",
-                    str(present),
-                    str(absent),
-                    str(late),
-                    str(excused),
-                    str(runaway),
-                    str(exits),
-                ])
-                total_present += present; total_total += total; total_absent += absent; total_late += late; total_excused += excused; total_runaway += runaway; total_exits += exits
+                rows.append(
+                    [
+                        day_name,
+                        cur.isoformat(),
+                        f"{present_pct:.1f}%",
+                        str(present),
+                        str(absent),
+                        str(late),
+                        str(excused),
+                        str(runaway),
+                        str(exits),
+                    ]
+                )
+                total_present += present
+                total_total += total
+                total_absent += absent
+                total_late += late
+                total_excused += excused
+                total_runaway += runaway
+                total_exits += exits
             except Exception:
                 # add a placeholder row in case of error
                 day_name = AR_DAYS[cur.weekday()]
@@ -1724,13 +1750,28 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             cur = cur + _td(days=1)
         # Append a totals row
         total_pct = (total_present / total_total * 100.0) if total_total else 0.0
-        rows.append(["الإجمالي", f"{d_from} → {d_to}", f"{total_pct:.1f}%", str(total_present), str(total_absent), str(total_late), str(total_excused), str(total_runaway), str(total_exits)])
+        rows.append(
+            [
+                "الإجمالي",
+                f"{d_from} → {d_to}",
+                f"{total_pct:.1f}%",
+                str(total_present),
+                str(total_absent),
+                str(total_late),
+                str(total_excused),
+                str(total_runaway),
+                str(total_exits),
+            ]
+        )
         # Signature lines (fit table columns)
         rows.append(["", "توقيع مشرف الجناح:", "", "", "", "", "", "", ""])
         rows.append(["", "توقيع وكيل الشؤون الإدارية:", "", "", "", "", "", "", ""])
         title = f"ملخّص أسبوعي — جناح {wing_id} — الفترة: {d_from} → {d_to}"
         content = render_table_docx(headers, rows, title=title)
-        resp = HttpResponse(content, content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        resp = HttpResponse(
+            content,
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
         resp["Content-Disposition"] = f"attachment; filename=wing-weekly-summary-{d_from}_to_{d_to}.docx"
         return resp
 
@@ -2626,12 +2667,14 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         times_cache: dict[tuple[int, str | None], dict[int, tuple]] = {}
         times_cache_wing: dict[tuple[int, int], dict[int, tuple]] = {}
         times_cache_class: dict[tuple[int, int], dict[int, tuple]] = {}
+
         def _times_for(day: int, scope: str | None):
             key = (int(day), scope or None)
             if key in times_cache:
                 return times_cache[key]
             try:
                 from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
                 base_qs = PeriodTemplate.objects.filter(day_of_week=day)
                 tpl_ids: list[int] = []
                 if scope:
@@ -2652,12 +2695,14 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             except Exception:
                 times_cache[key] = {}
                 return {}
+
         def _times_for_by_wing(day: int, wing_id_val: int):
             key = (int(day), int(wing_id_val))
             if key in times_cache_wing:
                 return times_cache_wing[key]
             try:
                 from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
                 tpl_ids = list(
                     PeriodTemplate.objects.filter(day_of_week=day, wings__id=wing_id_val).values_list("id", flat=True)
                 )
@@ -2675,14 +2720,18 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             except Exception:
                 times_cache_wing[key] = {}
                 return {}
+
         def _times_for_by_class(day: int, class_id_val: int):
             key = (int(day), int(class_id_val))
             if key in times_cache_class:
                 return times_cache_class[key]
             try:
                 from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
                 tpl_ids = list(
-                    PeriodTemplate.objects.filter(day_of_week=day, classes__id=class_id_val).values_list("id", flat=True)
+                    PeriodTemplate.objects.filter(day_of_week=day, classes__id=class_id_val).values_list(
+                        "id", flat=True
+                    )
                 )
                 slots_map: dict[int, tuple] = {}
                 if tpl_ids:
@@ -2698,6 +2747,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             except Exception:
                 times_cache_class[key] = {}
                 return {}
+
         def _infer_wing_no(cls) -> int | None:
             try:
                 w = getattr(cls, "wing", None)
@@ -2707,6 +2757,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 sec_raw = str(getattr(cls, "section", "") or "").strip()
                 sec = None
                 import re
+
                 m = re.match(r"^(\d+)", sec_raw)
                 if m:
                     sec = int(m.group(1))
@@ -2739,6 +2790,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 return None
             except Exception:
                 return None
+
         def _wing_floor_from_no(wing_no: int | None) -> str | None:
             if wing_no is None:
                 return None
@@ -2753,24 +2805,8 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             try:
                 from school.models import PeriodTemplate, TemplateSlot, Wing, Class  # type: ignore
 
-                # Determine floor scope for this wing
-                wing_obj = Wing.objects.filter(id=wing_id).first()
-                floor_raw = (getattr(wing_obj, "floor", None) or "").strip().lower()
-                def _norm_floor(val: str | None) -> str | None:
-                    if not val:
-                        return None
-                    m = {
-                        "أرضي": "ground",
-                        "ارضى": "ground",
-                        "ارضي": "ground",
-                        "الدور الارضي": "ground",
-                        "الأرضي": "ground",
-                        "علوي": "upper",
-                        "الدور العلوي": "upper",
-                    }
-                    v = str(val).strip().lower()
-                    return m.get(v, v)
-                floor_scope = _norm_floor(floor_raw)
+                # Floor-based scoping disabled per policy (day + class only)
+                floor_scope = None
 
                 # Pre-compute Thursday grade-based presence within this wing
                 has_secondary = False
@@ -2778,6 +2814,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 try:
                     cls_list = list(Class.objects.filter(id__in=class_ids).only("grade", "section", "name"))
                     import re
+
                     for cls in cls_list:
                         try:
                             g = int(getattr(cls, "grade", 0) or 0)
@@ -2817,23 +2854,10 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                             .distinct()
                             .values_list("id", flat=True)
                         )
-                    # 2) Thursday grade-based overrides (choose a representative template for headers)
-                    if not tpl_ids and sd == 5:
-                        if has_secondary:
-                            tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=5, scope__iexact="secondary").values_list("id", flat=True))
-                        elif has_grade9_2_4:
-                            tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=5, scope__iexact="grade9").values_list("id", flat=True))
-                    # 3) If none, templates bound to the wing
-                    if not tpl_ids:
-                        tpl_ids = list(
-                            PeriodTemplate.objects.filter(day_of_week=sd, wings__id=wing_id).values_list("id", flat=True)
-                        )
-                    # 4) If none, templates by floor scope
-                    if not tpl_ids and floor_scope:
-                        tpl_ids = list(
-                            PeriodTemplate.objects.filter(day_of_week=sd, scope__iexact=floor_scope).values_list("id", flat=True)
-                        )
-                    # 5) Generic day templates as last resort
+                    # 2) Skip Thursday grade-based overrides per new policy (day+class only)
+                    # 3) Skip floor-based selection per new policy (day+class only)
+                    # (no-op)
+                    # 4) Generic day templates as last resort
                     if not tpl_ids:
                         tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True))
 
@@ -2848,10 +2872,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                         for s in slots:
                             td[int(s.number)] = (s.start_time, s.end_time)
 
-                    # Upper-floor special-case: period 7 on Sun–Wed
-                    is_upper = floor_scope == "upper"
-                    if is_upper and sd in (1, 2, 3, 4):
-                        td[7] = td.get(7, (_time(12, 25), _time(13, 10)))
+                    # Upper-floor special-case removed per policy
 
                     if td:
                         times_per_day[sd] = td
@@ -2870,24 +2891,8 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             try:
                 from school.models import PeriodTemplate, TemplateSlot, Wing  # type: ignore
 
-                # Determine floor scope for this wing (already computed above as floor_scope)
-                wing_obj2 = Wing.objects.filter(id=wing_id).first()
-                floor_raw2 = (getattr(wing_obj2, "floor", None) or "").strip().lower()
-                def _norm_floor2(val: str | None) -> str | None:
-                    if not val:
-                        return None
-                    m = {
-                        "أرضي": "ground",
-                        "ارضى": "ground",
-                        "ارضي": "ground",
-                        "الدور الارضي": "ground",
-                        "الأرضي": "ground",
-                        "علوي": "upper",
-                        "الدور العلوي": "upper",
-                    }
-                    v = str(val).strip().lower()
-                    return m.get(v, v)
-                floor_scope2 = _norm_floor2(floor_raw2)
+                # Floor-based scoping disabled per policy
+                floor_scope2 = None
 
                 for sd in range(1, 8):
                     tpl_qs = PeriodTemplate.objects.filter(day_of_week=sd)
@@ -2905,6 +2910,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                         try:
                             from school.models import Class  # type: ignore
                             import re
+
                             for cls in Class.objects.filter(id__in=class_ids).only("grade", "section", "name"):
                                 try:
                                     g = int(getattr(cls, "grade", 0) or 0)
@@ -2937,11 +2943,6 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                             tpl_ids2 = list(tpl_qs.filter(scope__iexact="secondary").values_list("id", flat=True))
                         elif has_g9_2_4:
                             tpl_ids2 = list(tpl_qs.filter(scope__iexact="grade9").values_list("id", flat=True))
-                    # Then templates bound to this wing
-                    if not tpl_ids2:
-                        tpl_ids2 = list(
-                            tpl_qs.filter(wings__id=wing_id).distinct().values_list("id", flat=True)
-                        )
                     # Then by floor scope
                     if not tpl_ids2 and floor_scope2:
                         tpl_ids2 = list(tpl_qs.filter(scope__iexact=floor_scope2).values_list("id", flat=True))
@@ -2970,7 +2971,11 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                             tok = f"{kind.upper()}-{cnt}"
                             # Save meta with Arabic label
                             try:
-                                lbl_map = {"recess": "استراحة", "break": "استراحة", "prayer": "الصلاة"}
+                                lbl_map = {
+                                    "recess": "استراحة",
+                                    "break": "استراحة",
+                                    "prayer": "الصلاة",
+                                }
                                 label = lbl_map.get(kind, kind)
                                 slot_meta_by_day[str(sd)][tok] = {
                                     "kind": kind,
@@ -2996,18 +3001,14 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             for e in qs:
                 if e.day_of_week not in days:
                     continue
-                # Resolve per-entry times using centralized resolver (keeps Thursday precedence and fallbacks)
+                # Resolve per-entry times using centralized resolver (day+class only)
                 cls = e.classroom
-                # Use dedicated Thursday Wing 3 resolver when applicable, then fall back to unified resolver
-                if int(wing_id) == 3 and int(e.day_of_week) == 5:
-                    st_et = resolve_thursday_wing3_time(cls=cls, period_number=int(e.period_number))
-                else:
-                    st_et = None
-                if not st_et:
-                    st_et = resolve_lesson_time(cls=cls, day=int(e.day_of_week), period_number=int(e.period_number))
+                st_et = resolve_lesson_time(cls=cls, day=int(e.day_of_week), period_number=int(e.period_number))
                 # Generic fallback for that day (preserve previous behavior)
                 if not st_et:
-                    st_et = times_per_day.get(int(e.day_of_week), {}).get(int(e.period_number)) or period_times.get(int(e.period_number))
+                    st_et = times_per_day.get(int(e.day_of_week), {}).get(int(e.period_number)) or period_times.get(
+                        int(e.period_number)
+                    )
                 days[e.day_of_week].append(
                     {
                         "class_id": e.classroom_id,
@@ -3030,67 +3031,8 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             meta["slot_meta_by_day"] = slot_meta_by_day
             # Add grouped meta for Wing 3 Thursday (weekly)
             try:
-                if int(wing_id) == 3:
-                    # Build group period times and headers for Thursday from DB templates
-                    from school.models import PeriodTemplate, TemplateSlot  # type: ignore
-                    grp_periods: dict[str, dict[str, dict[int, tuple]]] = {}
-                    grp_columns: dict[str, dict[str, list[str]]] = {}
-                    grp_slot_meta: dict[str, dict[str, dict[str, dict[str, object]]]] = {}
-
-                    def build_group(scope_code: str, key: str):
-                        tpls = list(PeriodTemplate.objects.filter(day_of_week=5, scope__iexact=scope_code).values_list("id", flat=True))
-                        pt_map: dict[int, tuple] = {}
-                        cols: list[str] = []
-                        smeta: dict[str, dict[str, object]] = {}
-                        if tpls:
-                            slots = TemplateSlot.objects.filter(template_id__in=tpls).order_by("start_time", "number")
-                            used_lessons: set[int] = set()
-                            kind_counters: dict[str, int] = {}
-                            used_non_lesson: set[str] = set()
-                            for s in slots:
-                                kind = (getattr(s, "kind", "lesson") or "lesson").strip().lower()
-                                if kind == "lesson":
-                                    try:
-                                        num = int(getattr(s, "number", 0) or 0)
-                                    except Exception:
-                                        num = 0
-                                    if num:
-                                        pt_map[int(num)] = (getattr(s, "start_time", None), getattr(s, "end_time", None))
-                                        if num not in used_lessons:
-                                            cols.append(f"P{num}")
-                                            used_lessons.add(num)
-                                else:
-                                    if kind == "break":
-                                        kind = "recess"
-                                    if kind in used_non_lesson:
-                                        continue
-                                    used_non_lesson.add(kind)
-                                    cnt = kind_counters.get(kind, 0) + 1
-                                    kind_counters[kind] = cnt
-                                    tok = f"{kind.upper()}-{cnt}"
-                                    cols.append(tok)
-                                    try:
-                                        lbl_map = {"recess": "استراحة", "break": "استراحة", "prayer": "الصلاة"}
-                                        label = lbl_map.get(kind, kind)
-                                        smeta[tok] = {
-                                            "kind": kind,
-                                            "label": label,
-                                            "start_time": getattr(s, "start_time", None),
-                                            "end_time": getattr(s, "end_time", None),
-                                        }
-                                    except Exception:
-                                        pass
-                        grp_periods[key] = {"5": pt_map}
-                        grp_columns[key] = {"5": cols}
-                        grp_slot_meta[key] = {"5": smeta}
-
-                    build_group("secondary", "secondary")
-                    build_group("grade9", "grade9_2_4")
-                    meta["grouped_by"] = "wing3_thursday"
-                    meta["groups"] = ["secondary", "grade9_2_4"]
-                    meta["group_period_times_by_day"] = grp_periods
-                    meta["group_columns_by_day"] = grp_columns
-                    meta["group_slot_meta_by_day"] = grp_slot_meta
+                # Wing 3 Thursday grouped meta removed per policy (day + class only)
+                pass
             except Exception:
                 pass
             return Response(
@@ -3108,25 +3050,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         # Build period times for all school days using priority: classes -> Thursday grade-based -> wings -> floor -> generic
         period_times_by_day: dict[int, dict[int, tuple]] = {d: {} for d in range(1, 8)}
         try:
-            from school.models import PeriodTemplate, TemplateSlot, Wing, Class  # type: ignore
-
-            wing_obj = Wing.objects.filter(id=wing_id).first()
-            floor_raw = (getattr(wing_obj, "floor", None) or "").strip().lower()
-            def _norm_floor(val: str | None) -> str | None:
-                if not val:
-                    return None
-                m = {
-                    "أرضي": "ground",
-                    "ارضى": "ground",
-                    "ارضي": "ground",
-                    "الدور الارضي": "ground",
-                    "الأرضي": "ground",
-                    "علوي": "upper",
-                    "الدور العلوي": "upper",
-                }
-                v = str(val).strip().lower()
-                return m.get(v, v)
-            floor_scope = _norm_floor(floor_raw)
+            from school.models import PeriodTemplate, TemplateSlot, Class  # type: ignore
 
             # Determine if this wing contains secondary (>=10) or 9-2..9-4 classes
             has_secondary = False
@@ -3134,6 +3058,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             try:
                 cls_list = list(Class.objects.filter(id__in=class_ids).only("grade", "section", "name"))
                 import re
+
                 for cls in cls_list:
                     try:
                         g = int(getattr(cls, "grade", 0) or 0)
@@ -3175,20 +3100,18 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 # 2) Thursday grade-based representative template for headers
                 if not tpl_ids and sd == 5:
                     if has_secondary:
-                        tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=5, scope__iexact="secondary").values_list("id", flat=True))
+                        tpl_ids = list(
+                            PeriodTemplate.objects.filter(day_of_week=5, scope__iexact="secondary").values_list(
+                                "id", flat=True
+                            )
+                        )
                     elif has_grade9_2_4:
-                        tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=5, scope__iexact="grade9").values_list("id", flat=True))
-                # 3) templates bound to this wing
-                if not tpl_ids:
-                    tpl_ids = list(
-                        PeriodTemplate.objects.filter(day_of_week=sd, wings__id=wing_id).values_list("id", flat=True)
-                    )
-                # 4) floor scope
-                if not tpl_ids and floor_scope:
-                    tpl_ids = list(
-                        PeriodTemplate.objects.filter(day_of_week=sd, scope__iexact=floor_scope).values_list("id", flat=True)
-                    )
-                # 5) generic for the day
+                        tpl_ids = list(
+                            PeriodTemplate.objects.filter(day_of_week=5, scope__iexact="grade9").values_list(
+                                "id", flat=True
+                            )
+                        )
+                # 3) generic for the day
                 if not tpl_ids:
                     tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=sd).values_list("id", flat=True))
 
@@ -3202,7 +3125,6 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     for s in slots:
                         td[int(s.number)] = (s.start_time, s.end_time)
 
-                # Keep td as-is here; special-case for upper floor P7 will be applied later
                 if td:
                     period_times_by_day[sd] = td
 
@@ -3217,30 +3139,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         except Exception:
             pass
         period_times = period_times_by_day.get(dow, {})
-        # Apply upper-floor special-case for selected day only: P7 on Sun–Wed defaults to 12:25–13:10
-        try:
-            from school.models import Wing  # type: ignore
-            wing_obj_sp = Wing.objects.filter(id=wing_id).first()
-            floor_raw_sp = (getattr(wing_obj_sp, "floor", None) or "").strip().lower()
-            def _norm_floor_sp(val: str | None) -> str | None:
-                if not val:
-                    return None
-                m = {
-                    "أرضي": "ground",
-                    "ارضى": "ground",
-                    "ارضي": "ground",
-                    "الدور الارضي": "ground",
-                    "الأرضي": "ground",
-                    "علوي": "upper",
-                    "الدور العلوي": "upper",
-                }
-                v = str(val).strip().lower()
-                return m.get(v, v)
-            if _norm_floor_sp(floor_raw_sp) == "upper" and dow in (1, 2, 3, 4):
-                if 7 not in period_times:
-                    period_times[7] = (_time(12, 25), _time(13, 10))
-        except Exception:
-            pass
+        # Upper-floor special-case removed per new policy
 
         # Build columns (including non-lesson slots) and slot metadata for the selected day
         columns: list[str] = []
@@ -3272,21 +3171,16 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             tpl_ids3: list[int] = []
             # Priority: templates bound directly to any class in this wing
             if class_ids:
-                tpl_ids3 = list(
-                    tpl_qs.filter(classes__id__in=class_ids).distinct().values_list("id", flat=True)
-                )
+                tpl_ids3 = list(tpl_qs.filter(classes__id__in=class_ids).distinct().values_list("id", flat=True))
             # On Thursday for Wing 3, prefer grade-based representative templates before wing/floor/generic
             if not tpl_ids3 and dow == 5 and int(wing_id) == 3:
                 try:
-                    if 'has_secondary' in locals() and has_secondary:
+                    if "has_secondary" in locals() and has_secondary:
                         tpl_ids3 = list(tpl_qs.filter(scope__iexact="secondary").values_list("id", flat=True))
-                    elif 'has_grade9_2_4' in locals() and has_grade9_2_4:
+                    elif "has_grade9_2_4" in locals() and has_grade9_2_4:
                         tpl_ids3 = list(tpl_qs.filter(scope__iexact="grade9").values_list("id", flat=True))
                 except Exception:
                     pass
-            # Then templates bound to this wing
-            if not tpl_ids3:
-                tpl_ids3 = list(tpl_qs.filter(wings__id=wing_id).distinct().values_list("id", flat=True))
             # Then by floor scope
             if not tpl_ids3 and floor_scope3:
                 tpl_ids3 = list(tpl_qs.filter(scope__iexact=floor_scope3).values_list("id", flat=True))
@@ -3337,35 +3231,17 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         if not columns:
             try:
                 from school.models import PeriodTemplate, TemplateSlot, Wing  # type: ignore
-                wing_obj4 = Wing.objects.filter(id=wing_id).first()
-                floor_raw4 = (getattr(wing_obj4, "floor", None) or "").strip().lower()
-                def _norm_floor4(val: str | None) -> str | None:
-                    if not val:
-                        return None
-                    m = {
-                        "أرضي": "ground",
-                        "ارضى": "ground",
-                        "ارضي": "ground",
-                        "الدور الارضي": "ground",
-                        "الأرضي": "ground",
-                        "علوي": "upper",
-                        "الدور العلوي": "upper",
-                    }
-                    v = str(val).strip().lower()
-                    return m.get(v, v)
-                floor_scope4 = _norm_floor4(floor_raw4)
+
+                # Floor-based fallback removed: templates are selected only by (day, classes) -> generic
                 def _tpl_ids_for_day(day: int) -> list[int]:
                     base = PeriodTemplate.objects.filter(day_of_week=day)
                     ids: list[int] = []
                     if class_ids:
                         ids = list(base.filter(classes__id__in=class_ids).distinct().values_list("id", flat=True))
                     if not ids:
-                        ids = list(base.filter(wings__id=wing_id).distinct().values_list("id", flat=True))
-                    if not ids and floor_scope4:
-                        ids = list(base.filter(scope__iexact=floor_scope4).values_list("id", flat=True))
-                    if not ids:
                         ids = list(base.values_list("id", flat=True))
                     return ids
+
                 for dday in (1, 2, 3, 4, 5):
                     if dday == dow:
                         continue
@@ -3397,7 +3273,11 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                             tok = f"{kind.upper()}-{cnt}"
                             tmp_columns.append(tok)
                             try:
-                                lbl_map = {"recess": "استراحة", "break": "استراحة", "prayer": "الصلاة"}
+                                lbl_map = {
+                                    "recess": "استراحة",
+                                    "break": "استراحة",
+                                    "prayer": "الصلاة",
+                                }
                                 label = lbl_map.get(kind, kind)
                                 tmp_meta[tok] = {
                                     "kind": kind,
@@ -3417,8 +3297,10 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         # Compute per-class non-lesson times (recess/prayer) for selected day using priority: class -> wing -> floor -> generic
         try:
             from school.models import PeriodTemplate, TemplateSlot, Wing, Class  # type: ignore
+
             wing_obj5 = Wing.objects.filter(id=wing_id).first()
             floor_raw5 = (getattr(wing_obj5, "floor", None) or "").strip().lower()
+
             def _norm_floor5(val: str | None) -> str | None:
                 if not val:
                     return None
@@ -3433,6 +3315,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 }
                 v = str(val).strip().lower()
                 return m.get(v, v)
+
             floor_scope5 = _norm_floor5(floor_raw5)
 
             for cid in class_ids:
@@ -3441,20 +3324,23 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                 ids: list[int] = []
                 # direct class binding
                 ids = list(base.filter(classes__id=cid).distinct().values_list("id", flat=True))
-                if not ids:
-                    ids = list(base.filter(wings__id=wing_id).distinct().values_list("id", flat=True))
                 if not ids and floor_scope5:
                     ids = list(base.filter(scope__iexact=floor_scope5).values_list("id", flat=True))
                 if not ids:
                     ids = list(base.values_list("id", flat=True))
                 if ids:
-                    slots = TemplateSlot.objects.filter(template_id__in=ids).exclude(kind="lesson").order_by("start_time")
+                    slots = (
+                        TemplateSlot.objects.filter(template_id__in=ids).exclude(kind="lesson").order_by("start_time")
+                    )
                     for s in slots:
                         k = (getattr(s, "kind", "") or "").strip().lower()
                         if k == "break":
                             k = "recess"
                         if k in ("recess", "prayer") and k not in kinds:
-                            kinds[k] = (getattr(s, "start_time", None), getattr(s, "end_time", None))
+                            kinds[k] = (
+                                getattr(s, "start_time", None),
+                                getattr(s, "end_time", None),
+                            )
                 if kinds:
                     non_lesson_times_by_class[int(cid)] = kinds
         except Exception:
@@ -3467,14 +3353,9 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         )
         items = []
         for e in qs:
-            # Resolve per-entry times using centralized resolver with explicit Thursday Wing 3 support
+            # Resolve per-entry times using centralized resolver (day+class only)
             cls = e.classroom
-            if int(wing_id) == 3 and int(dow) == 5:
-                st_et = resolve_thursday_wing3_time(cls=cls, period_number=int(e.period_number))
-            else:
-                st_et = None
-            if not st_et:
-                st_et = resolve_lesson_time(cls=cls, day=int(dow), period_number=int(e.period_number))
+            st_et = resolve_lesson_time(cls=cls, day=int(dow), period_number=int(e.period_number))
             if not st_et:
                 st_et = period_times.get(int(e.period_number))
             items.append(
@@ -3505,17 +3386,24 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         if non_lesson_times_by_class:
             # Normalize keys to int and kinds to lowercase for frontend consumption
             meta["non_lesson_times_by_class"] = {
-                int(cid): {str(k).lower(): v for k, v in kinds.items()} for cid, kinds in non_lesson_times_by_class.items()
+                int(cid): {str(k).lower(): v for k, v in kinds.items()}
+                for cid, kinds in non_lesson_times_by_class.items()
             }
         # Add grouped meta for Wing 3 Thursday (daily)
         try:
-            if int(wing_id) == 3 and int(dow) == 5:
+            if int(wing_id) == 3 and (mode == 'weekly' or int(dow) == 5):
                 from school.models import PeriodTemplate, TemplateSlot  # type: ignore
+
                 grp_periods: dict[str, dict[str, dict[int, tuple]]] = {}
                 grp_columns: dict[str, dict[str, list[str]]] = {}
                 grp_slot_meta: dict[str, dict[str, dict[str, dict[str, object]]]] = {}
+
                 def build_group(scope_code: str, key: str):
-                    tpls = list(PeriodTemplate.objects.filter(day_of_week=5, scope__iexact=scope_code).values_list("id", flat=True))
+                    tpls = list(
+                        PeriodTemplate.objects.filter(day_of_week=5, scope__iexact=scope_code).values_list(
+                            "id", flat=True
+                        )
+                    )
                     pt_map: dict[int, tuple] = {}
                     cols: list[str] = []
                     smeta: dict[str, dict[str, object]] = {}
@@ -3532,7 +3420,10 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                                 except Exception:
                                     num = 0
                                 if num:
-                                    pt_map[int(num)] = (getattr(s, "start_time", None), getattr(s, "end_time", None))
+                                    pt_map[int(num)] = (
+                                        getattr(s, "start_time", None),
+                                        getattr(s, "end_time", None),
+                                    )
                                     if num not in used_lessons:
                                         cols.append(f"P{num}")
                                         used_lessons.add(num)
@@ -3547,7 +3438,11 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                                 tok = f"{kind.upper()}-{cnt}"
                                 cols.append(tok)
                                 try:
-                                    lbl_map = {"recess": "استراحة", "break": "استراحة", "prayer": "الصلاة"}
+                                    lbl_map = {
+                                        "recess": "استراحة",
+                                        "break": "استراحة",
+                                        "prayer": "الصلاة",
+                                    }
                                     label = lbl_map.get(kind, kind)
                                     smeta[tok] = {
                                         "kind": kind,
@@ -3560,8 +3455,103 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     grp_periods[key] = {"5": pt_map}
                     grp_columns[key] = {"5": cols}
                     grp_slot_meta[key] = {"5": smeta}
+
+                def build_from_template_id(tpl_id: int, key: str):
+                    pt_map: dict[int, tuple] = {}
+                    cols: list[str] = []
+                    smeta: dict[str, dict[str, object]] = {}
+                    try:
+                        slots = TemplateSlot.objects.filter(template_id=tpl_id).order_by("start_time", "number")
+                        used_lessons: set[int] = set()
+                        kind_counters: dict[str, int] = {}
+                        used_non_lesson: set[str] = set()
+                        for s in slots:
+                            kind = (getattr(s, "kind", "lesson") or "lesson").strip().lower()
+                            if kind == "lesson":
+                                try:
+                                    num = int(getattr(s, "number", 0) or 0)
+                                except Exception:
+                                    num = 0
+                                if num:
+                                    pt_map[int(num)] = (
+                                        getattr(s, "start_time", None),
+                                        getattr(s, "end_time", None),
+                                    )
+                                    if num not in used_lessons:
+                                        cols.append(f"P{num}")
+                                        used_lessons.add(num)
+                            else:
+                                if kind == "break":
+                                    kind = "recess"
+                                if kind in used_non_lesson:
+                                    continue
+                                used_non_lesson.add(kind)
+                                cnt = kind_counters.get(kind, 0) + 1
+                                kind_counters[kind] = cnt
+                                # Standardize first occurrence without numeric suffix for compatibility
+                                tok = f"{kind.upper()}" if cnt == 1 else f"{kind.upper()}-{cnt}"
+                                cols.append(tok)
+                                try:
+                                    lbl_map = {"recess": "استراحة", "break": "استراحة", "prayer": "الصلاة"}
+                                    label = lbl_map.get(kind, kind)
+                                    smeta[tok] = {
+                                        "kind": kind,
+                                        "label": label,
+                                        "start_time": getattr(s, "start_time", None),
+                                        "end_time": getattr(s, "end_time", None),
+                                    }
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+                    # Post-process Thursday (5) for Wing 3 Grade 9 group to ensure RECESS between P3 and P4
+                    try:
+                        if key == "grade9_2_4":
+                            # Find any RECESS token in built columns and place it after P3 (before P4)
+                            recess_idx = next((i for i, t in enumerate(cols) if str(t).upper().startswith("RECESS")), None)
+                            if recess_idx is not None:
+                                try:
+                                    p3_idx = cols.index("P3")
+                                except ValueError:
+                                    p3_idx = None  # type: ignore
+                                try:
+                                    p4_idx = cols.index("P4")
+                                except ValueError:
+                                    p4_idx = None  # type: ignore
+                                if p3_idx is not None and p4_idx is not None and recess_idx != p3_idx + 1:
+                                    tok = cols.pop(recess_idx)
+                                    if recess_idx < p3_idx:
+                                        p3_idx -= 1
+                                    cols.insert(p3_idx + 1, tok)
+                            # Enforce canonical order matching Template #4: P1,P2,P3,RECESS,P4,P5,P6,PRAYER (when available)
+                            desired: list[str] = []
+                            for n in (1, 2, 3):
+                                if f"P{n}" in cols:
+                                    desired.append(f"P{n}")
+                            # Prefer unsuffixed RECESS if present in meta; else first matching token
+                            if any(str(t).upper().startswith("RECESS") for t in cols):
+                                tok_rec = "RECESS" if "RECESS" in smeta else next((t for t in cols if str(t).upper().startswith("RECESS")), None)
+                                if tok_rec:
+                                    desired.append(tok_rec)  # type: ignore
+                            for n in (4, 5, 6, 7):
+                                if f"P{n}" in cols:
+                                    desired.append(f"P{n}")
+                            if any(str(t).upper().startswith("PRAYER") for t in cols):
+                                tok_pr = "PRAYER" if "PRAYER" in smeta else next((t for t in cols if str(t).upper().startswith("PRAYER")), None)
+                                if tok_pr and tok_pr not in desired:
+                                    desired.append(tok_pr)  # type: ignore
+                            # Deduplicate while preserving order
+                            seen: set[str] = set()
+                            cols = [t for t in desired if not (t in seen or seen.add(t))]
+                    except Exception:
+                        pass
+                    grp_periods[key] = {"5": pt_map}
+                    grp_columns[key] = {"5": cols}
+                    grp_slot_meta[key] = {"5": smeta}
+
                 build_group("secondary", "secondary")
-                build_group("grade9", "grade9_2_4")
+                # Force Grade 9 (2-4) Thursday to use PeriodTemplate ID=4 as requested
+                build_from_template_id(4, "grade9_2_4")
                 meta["grouped_by"] = "wing3_thursday"
                 meta["groups"] = ["secondary", "grade9_2_4"]
                 meta["group_period_times_by_day"] = grp_periods
@@ -3571,7 +3561,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             pass
         return Response(
             {
-                "mode": "daily",
+                "mode": mode,
                 "date": dt.isoformat(),
                 "dow": dow,
                 "term_id": getattr(term, "id", None),

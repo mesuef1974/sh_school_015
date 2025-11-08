@@ -80,14 +80,16 @@ class Command(BaseCommand):
                 if not wing_no:
                     skipped += 1
                     continue
-                wing_obj = Wing.objects.filter(id=wing_no).first() or Wing.objects.filter(name__icontains=str(wing_no)).first()
+                wing_obj = (
+                    Wing.objects.filter(id=wing_no).first() or Wing.objects.filter(name__icontains=str(wing_no)).first()
+                )
                 if not wing_obj:
                     skipped += 1
                     continue
                 self.stdout.write(f"Assign {cls.name} -> Wing {wing_obj.id} ({wing_obj.name})")
                 if not dry:
                     cls.wing = wing_obj
-                    cls.save(update_fields=["wing", "updated_at"]) if hasattr(cls, "updated_at") else cls.save()
+                    (cls.save(update_fields=["wing", "updated_at"]) if hasattr(cls, "updated_at") else cls.save())
                     updated += 1
             if dry:
                 transaction.set_rollback(True)

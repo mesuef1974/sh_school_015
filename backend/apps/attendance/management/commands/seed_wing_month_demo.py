@@ -68,7 +68,11 @@ class Command(BaseCommand):
             default=None,
             help="Target absent ratio (0..1) for periods 1 and 2 (e.g., 0.10 for 10%)",
         )
-        parser.add_argument("--finalize", action="store_true", help="Lock created records and daily summaries (closed)")
+        parser.add_argument(
+            "--finalize",
+            action="store_true",
+            help="Lock created records and daily summaries (closed)",
+        )
         parser.add_argument(
             "--approve",
             action="store_true",
@@ -90,8 +94,16 @@ class Command(BaseCommand):
                 "all = perform teacher phase then supervisor phase consecutively."
             ),
         )
-        parser.add_argument("--with-exits", action="store_true", help="Also seed ExitEvent records (approved/closed)")
-        parser.add_argument("--with-alerts", action="store_true", help="Also issue AbsenceAlert (archived) for each week")
+        parser.add_argument(
+            "--with-exits",
+            action="store_true",
+            help="Also seed ExitEvent records (approved/closed)",
+        )
+        parser.add_argument(
+            "--with-alerts",
+            action="store_true",
+            help="Also issue AbsenceAlert (archived) for each week",
+        )
         parser.add_argument("--with-behavior", action="store_true", help="Also seed behavior incidents if supported")
 
     def handle(self, *args, **opts):

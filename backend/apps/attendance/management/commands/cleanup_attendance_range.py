@@ -51,11 +51,16 @@ class Command(BaseCommand):
             help="Only delete records clearly marked as demo ([demo] in notes).",
         )
         parser.add_argument("--dry-run", action="store_true", help="Do not write, only report counts")
-        parser.add_argument("--yes", action="store_true", help="Confirm deletion. Required unless --dry-run is used.")
+        parser.add_argument(
+            "--yes",
+            action="store_true",
+            help="Confirm deletion. Required unless --dry-run is used.",
+        )
 
     def handle(self, *args, **opts):
         from django.core.exceptions import FieldError
         from school.models import AttendanceRecord, AttendanceDaily  # type: ignore
+
         try:
             from school.models import ExitEvent  # type: ignore
         except Exception:
@@ -127,16 +132,14 @@ class Command(BaseCommand):
             try:
                 ee_qs = _filter_by_wing(ExitEvent.objects.filter(date__gte=start, date__lte=end))
             except Exception:
-                ee_qs = _filter_by_wing(ExitEvent.objects.filter(started_at__date__gte=start, started_at__date__lte=end))
+                ee_qs = _filter_by_wing(
+                    ExitEvent.objects.filter(started_at__date__gte=start, started_at__date__lte=end)
+                )
             if only_demo:
                 ee_qs = ee_qs.filter(Q(note__icontains="[demo]") | Q(notes__icontains="[demo]"))
             ee_count = ee_qs.count()
 
-        self.stdout.write(
-            self.style.WARNING(
-                f"Range cleanup preview — AR: {ar_count}, AD: {ad_count}, EE: {ee_count}"
-            )
-        )
+        self.stdout.write(self.style.WARNING(f"Range cleanup preview — AR: {ar_count}, AD: {ad_count}, EE: {ee_count}"))
 
         if dry:
             self.stdout.write(self.style.NOTICE("Dry-run only. No deletions performed."))
@@ -144,6 +147,7 @@ class Command(BaseCommand):
 
         from django.db import transaction
         from django.db.models.deletion import ProtectedError
+
         with transaction.atomic():
             try:
                 # Delete child records first to satisfy FK constraints (e.g., ExitEvent -> AttendanceRecord)
@@ -155,9 +159,11 @@ class Command(BaseCommand):
                 # Finally remove the per-lesson attendance records
                 if ar_count:
                     ar_qs.delete()
-            except ProtectedError as pe:
+            except ProtectedError:
                 # Provide a clear diagnostic and abort transaction
                 self.stderr.write(self.style.ERROR("Deletion blocked by database protection (ProtectedError)."))
-                self.stderr.write(self.style.ERROR("Hint: ensure dependent records (e.g., ExitEvent or other FKs) are deleted first."))
+                self.stderr.write(
+                    self.style.ERROR("Hint: ensure dependent records (e.g., ExitEvent or other FKs) are deleted first.")
+                )
                 raise
         self.stdout.write(self.style.SUCCESS("Range cleanup done."))

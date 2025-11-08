@@ -23,6 +23,7 @@ from django.http import HttpResponse
 from django.urls import include, path, re_path
 from django.views.generic import RedirectView
 from django.views.static import serve as static_serve
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 # Use restricted admin site that allows only superusers or Staff with role 'admin'
 from school.admin_site import restricted_admin_site
@@ -67,6 +68,31 @@ def favicon(request):
     return HttpResponse(svg, content_type="image/svg+xml")
 
 
+def sentry_test(request):
+    """Trigger a Sentry test event (env-gated).
+
+    Allowed only when DEBUG=True or for authenticated staff users.
+    Returns 202 when event is sent, 204 when Sentry not configured, 403 otherwise.
+    """
+    from django.conf import settings as dj_settings
+
+    allow = bool(getattr(dj_settings, "DEBUG", False))
+    try:
+        if hasattr(request, "user") and getattr(request.user, "is_staff", False):
+            allow = True or allow
+    except Exception:
+        pass
+    if not allow:
+        return HttpResponse(status=403)
+    try:
+        import sentry_sdk  # type: ignore
+
+        sentry_sdk.capture_message("Sentry test event (manual)", level="info")
+        return HttpResponse("sent", status=202, content_type="text/plain")
+    except Exception:
+        return HttpResponse("sentry not configured", status=204, content_type="text/plain")
+
+
 # Explicit 404 for removed attendance export endpoints (placed first to mask any router actions)
 
 
@@ -87,6 +113,10 @@ urlpatterns = [
     ),
     path("livez", livez, name="livez"),
     path("healthz", healthz, name="healthz"),
+    path("sentry-test/", sentry_test, name="sentry-test"),
+    # OpenAPI/Swagger docs (drf-spectacular)
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("favicon.ico", favicon, name="favicon"),
     path("admin/", restricted_admin_site.urls),
     # API v1 (new apps)

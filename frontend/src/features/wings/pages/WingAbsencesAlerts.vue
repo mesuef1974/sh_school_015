@@ -184,6 +184,7 @@ import {
   listAbsenceAlerts,
 } from "../../../shared/api/client";
 import { formatDateDMY } from "../../../shared/utils/date";
+import { getErrorMessage, showApiErrorToast } from "../../../shared/api/useApiToast";
 
 const today = new Date().toISOString().slice(0, 10);
 const form = ref<{ student: number | null; from: string; to: string }>({ student: null, from: today, to: today });
@@ -223,6 +224,7 @@ async function loadStudents() {
     }
   } catch (e: any) {
     // swallow; show inline error only when computing/issuing
+    // Optionally, we could toast: showApiErrorToast(e, 'تعذّر تحميل قائمة الطلاب');
   }
 }
 
@@ -284,8 +286,10 @@ async function onCompute() {
     result.value = { excused_days: res.excused_days, unexcused_days: res.unexcused_days };
     liveMsg.value = `نتيجة الحساب — بعذر: ${res.excused_days}, بدون عذر: ${res.unexcused_days}`;
   } catch (e: any) {
-    error.value = e?.response?.data?.detail || e?.message || "حدث خطأ أثناء الحساب";
-    liveMsg.value = `خطأ: ${error.value}`;
+    const msg = getErrorMessage(e, 'حدث خطأ أثناء الحساب');
+    error.value = msg;
+    liveMsg.value = `خطأ: ${msg}`;
+    try { showApiErrorToast(e, msg); } catch {}
   } finally {
     busy.value = false;
   }

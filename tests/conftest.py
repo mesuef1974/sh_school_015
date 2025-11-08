@@ -1,16 +1,3 @@
-import os
-import django
-
-# Ensure Django settings are correctly set for tests regardless of environment quirks
-# Respect existing value (e.g., CI may set core.settings_test); default to core.settings if unset
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
-# Make sure backend is on PYTHONPATH when running tests in various environments
-import sys
-from pathlib import Path
-
-root = Path(__file__).resolve().parents[1]
-backend = root / "backend"
-if str(backend) not in sys.path:
-    sys.path.insert(0, str(backend))
-
-django.setup()
+# Per-tests directory conftest for pytest
+# Intentionally left minimal to avoid interfering with root conftest and pytest-django setup.
+# Do not add Django setup here; root-level conftest.py already configures settings and paths.

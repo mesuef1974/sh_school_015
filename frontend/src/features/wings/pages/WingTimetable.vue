@@ -130,7 +130,7 @@
                     <template v-if="!isPeriodToken(String(tok))">
                       <div class="slot-cell">
                         <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
-                        <div class="slot-time" v-if="slotTimeForGroup('secondary', String(tok))">{{ fmtTime(slotTimeForGroup('secondary', String(tok))![0]) }} – {{ fmtTime(slotTimeForGroup('secondary', String(tok))![1]) }}</div>
+                        <div class="slot-time" v-if="groupSlotTimeDailyForClass('secondary', String(tok), cls.id)">{{ fmtTime(groupSlotTimeDailyForClass('secondary', String(tok), cls.id)![0]) }} – {{ fmtTime(groupSlotTimeDailyForClass('secondary', String(tok), cls.id)![1]) }}</div>
                       </div>
                     </template>
                     <template v-else>
@@ -189,7 +189,7 @@
                     <template v-if="!isPeriodToken(String(tok))">
                       <div class="slot-cell">
                         <div class="slot-label">{{ headerLabel(String(tok)) }}</div>
-                        <div class="slot-time" v-if="slotTimeForGroup('grade9_2_4', String(tok))">{{ fmtTime(slotTimeForGroup('grade9_2_4', String(tok))![0]) }} – {{ fmtTime(slotTimeForGroup('grade9_2_4', String(tok))![1]) }}</div>
+                        <div class="slot-time" v-if="groupSlotTimeDailyForClass('grade9_2_4', String(tok), cls.id)">{{ fmtTime(groupSlotTimeDailyForClass('grade9_2_4', String(tok), cls.id)![0]) }} – {{ fmtTime(groupSlotTimeDailyForClass('grade9_2_4', String(tok), cls.id)![1]) }}</div>
                       </div>
                     </template>
                     <template v-else>
@@ -278,7 +278,7 @@
                         :title="
                           (dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة') +
                           ' — ' + (dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—') +
-                          (timeRange(periodNumFromToken(String(tok))) ? (' — ' + timeRange(periodNumFromToken(String(tok)))) : '')
+                          (timeRangeDaily(periodNumFromToken(String(tok))) ? (' — ' + timeRangeDaily(periodNumFromToken(String(tok)))) : '')
                         "
                       >
                         <div class="cell-subject one-line">
@@ -286,9 +286,9 @@
                           <span class="subject-name truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.subject_name || 'مادة' }}</span>
                         </div>
                         <div class="cell-teacher one-line truncate-1">{{ dailyItemFor(cls.id, periodNumFromToken(String(tok)))?.teacher_name || '—' }}</div>
-                        <div class="cell-time small text-muted" v-if="timeRange(periodNumFromToken(String(tok)))">
+                        <div class="cell-time small text-muted" v-if="timeRangeDaily(periodNumFromToken(String(tok)))">
                           <Icon icon="solar:clock-circle-bold-duotone" class="me-1" />
-                          {{ timeRange(periodNumFromToken(String(tok))) }}
+                          {{ timeRangeDaily(periodNumFromToken(String(tok))) }}
                         </div>
                       </div>
                     </template>
@@ -673,6 +673,7 @@ import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 // Wing context: ensure dynamic subtitle like other Wing pages
 import { useWingContext } from '../../../shared/composables/useWingContext';
 import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
+import { getErrorMessage, showApiErrorToast } from "../../../shared/api/useApiToast";
 const { ensureLoaded, wingLabelFull, setSelectedWing } = useWingContext();
 onMounted(() => { try { ensureLoaded(); } catch {} });
 
@@ -890,8 +891,11 @@ const groupedDaily = computed(() => {
 // ===== Wing 3 Thursday grouping support =====
 const currentDow = ref<number>(1);
 const isWing3ThuGrouped = computed(() => {
+  // Weekly: always use grouped layout for Wing 3 regardless of meta flag to ensure split tables
+  if (Number(wingId.value) === 3 && mode.value === 'weekly') return true;
+  // Daily: only when it's Thursday and backend indicates the special layout
   const gby = (meta.value as any)?.grouped_by;
-  return Number(wingId.value) === 3 && gby === 'wing3_thursday' && ((mode.value === 'weekly') || (mode.value === 'daily' && Number((resDow.value || currentDow.value)) === 5));
+  return Number(wingId.value) === 3 && gby === 'wing3_thursday' && Number((resDow.value || currentDow.value)) === 5;
 });
 // Store dow from API
 const resDow = ref<number | null>(null);
@@ -943,12 +947,17 @@ const dailyHeaderTokensG9 = computed<string[]>(() => {
   if (Array.isArray(gcols) && gcols.length) return gcols.map(String);
   return dailyHeaderTokensSafe.value;
 });
-function slotTimeForGroup(group: 'secondary' | 'grade9_2_4', tok: string): [string, string] | null {
+function slotTimeForGroup(group: 'secondary' | 'grade9_2_4', tok: string, classId?: number): [string, string] | null {
+  // Prefer group-specific slot times for Thursday
   const metaMap = (meta.value as any)?.group_slot_meta_by_day?.[group]?.['5']?.[tok];
   if (metaMap && metaMap.start_time && metaMap.end_time) return [String(metaMap.start_time), String(metaMap.end_time)];
+  // Fallback: use general slot times for Thursday (from meta.slot_meta_by_day)
+  const fallback = weeklySlotMetaByDay.value?.['5']?.[tok];
+  if (fallback && fallback.start_time && fallback.end_time) return [String(fallback.start_time), String(fallback.end_time)];
   return null;
 }
 function timeRangeForGroup(group: 'secondary' | 'grade9_2_4', p: number): string {
+  // Prefer group-specific period times for Thursday (from meta.group_period_times_by_day)
   const mp = (meta.value as any)?.group_period_times_by_day?.[group]?.['5'] || {};
   const rec = mp[p as any];
   if (Array.isArray(rec) && rec.length >= 2) {
@@ -960,7 +969,15 @@ function timeRangeForGroup(group: 'secondary' | 'grade9_2_4', p: number): string
     const e = timeToHM((rec as any).end || (rec as any).end_time);
     return s && e ? `${s} — ${e}` : s || e || '';
   }
-  return '';
+  // Fallback 1: use generic per-day times by day (Thursday) if available
+  const pair = weeklyPeriodTime(5, p);
+  if (pair && pair.length >= 2) {
+    const s = timeToHM(String(pair[0]));
+    const e = timeToHM(String(pair[1]));
+    return s && e ? `${s} — ${e}` : s || e || '';
+  }
+  // Fallback 2: default mapping (Sun–Wed schedule)
+  return timeRange(p);
 }
 
 // Weekly grouped helpers
@@ -987,12 +1004,27 @@ const weeklyHeaderTokensG9_SW = computed<string[]>(() => {
 const weeklyHeaderTokensG9_Thu = computed<string[]>(() => {
   const gcols = (meta.value as any)?.group_columns_by_day?.grade9_2_4?.['5'];
   if (Array.isArray(gcols) && gcols.length) return gcols.map(String);
-  return (weeklyHeaderTokens as any).value || [];
+  // Fallback to canonical Thursday order for Grade 9 (2-4) per Template #4
+  return ['P1','P2','P3','RECESS','P4','P5','P6','PRAYER'];
 });
 function weeklySlotTimeForGroup(day: number, tok: string, group: 'secondary' | 'grade9_2_4') {
   if (Number(day) === 5) {
-    const metaMap = (meta.value as any)?.group_slot_meta_by_day?.[group]?.['5']?.[tok];
+    const groupMap = (meta.value as any)?.group_slot_meta_by_day?.[group]?.['5'] || {};
+    let metaMap = groupMap?.[tok];
+    if (!(metaMap && metaMap.start_time && metaMap.end_time)) {
+      // Try prefix match (e.g., RECESS-1) if exact token missing
+      const k = Object.keys(groupMap || {}).find((t) => String(t).toUpperCase().startsWith(String(tok).toUpperCase()));
+      if (k) metaMap = groupMap[k];
+    }
     if (metaMap && metaMap.start_time && metaMap.end_time) return [String(metaMap.start_time), String(metaMap.end_time)];
+    // Fallback to general Thursday slot times if group-specific missing
+    const genMap = (weeklySlotMetaByDay.value || {})['5'] || {};
+    let fb = genMap?.[tok];
+    if (!(fb && fb.start_time && fb.end_time)) {
+      const k2 = Object.keys(genMap || {}).find((t) => String(t).toUpperCase().startsWith(String(tok).toUpperCase()));
+      if (k2) fb = (genMap as any)[k2];
+    }
+    if (fb && fb.start_time && fb.end_time) return [String(fb.start_time), String(fb.end_time)];
   }
   return weeklySlotTime(day, tok);
 }
@@ -1006,6 +1038,9 @@ function weeklyPeriodTimeForGroup(day: number, p: number, group: 'secondary' | '
       const e = (rec as any).end || (rec as any).end_time;
       if (s || e) return [String(s || ''), String(e || '')];
     }
+    // Fallback to general Thursday period times if group-specific missing
+    const pair = weeklyPeriodTime(5, p);
+    if (pair && pair.length >= 2) return [String(pair[0]), String(pair[1])];
   }
   return weeklyPeriodTime(day, p);
 }
@@ -1069,6 +1104,19 @@ function timeRange(p: number): string {
   const e = timeToHM(rec.end);
   return s && e ? `${s} — ${e}` : s || e || "";
 }
+function timeRangeDaily(p: number): string {
+  const day = Number(resDow.value || currentDow.value || 0);
+  if (day >= 1 && day <= 7) {
+    const pair = weeklyPeriodTime(day, p);
+    if (pair && pair.length >= 2) {
+      const s = timeToHM(String(pair[0]));
+      const e = timeToHM(String(pair[1]));
+      if (s || e) return s && e ? `${s} — ${e}` : (s || e || "");
+    }
+  }
+  // Fallback to generic mapping (Sun–Wed default times)
+  return timeRange(p);
+}
 
 // ===== Token helpers (daily/weekly) =====
 function isPeriodToken(tok: string): boolean {
@@ -1112,6 +1160,30 @@ function slotTimeDailyForClass(classId: number, tok: string): [string, string] |
       if (Array.isArray(v) && v.length >= 2) return [String(v[0]), String(v[1])];
     }
   }
+  return slotTimeDaily(tok);
+}
+// Wing 3 grouped (Thursday) — get non-lesson slot time with class override and fallbacks
+function groupSlotTimeDailyForClass(
+  group: 'secondary' | 'grade9_2_4',
+  tok: string,
+  classId: number
+): [string, string] | null {
+  // 1) Prefer class-specific override for the selected day (from meta.non_lesson_times_by_class)
+  const kind = kindFromToken(tok);
+  if (kind) {
+    const clsMap = dailyNonLessonTimesByClass.value?.[classId];
+    if (clsMap) {
+      const v = (clsMap as any)[kind];
+      if (Array.isArray(v) && v.length >= 2) return [String(v[0]), String(v[1])];
+    }
+  }
+  // 2) Prefer group-specific Thursday slot meta when available
+  const metaMap = (meta.value as any)?.group_slot_meta_by_day?.[group]?.['5']?.[tok];
+  if (metaMap && metaMap.start_time && metaMap.end_time) return [String(metaMap.start_time), String(metaMap.end_time)];
+  // 3) Fallback to general Thursday slot meta
+  const fallback = weeklySlotMetaByDay.value?.['5']?.[tok];
+  if (fallback && fallback.start_time && fallback.end_time) return [String(fallback.start_time), String(fallback.end_time)];
+  // 4) Last resort: daily slot meta (if defined for current day/view)
   return slotTimeDaily(tok);
 }
 function dailyHeaderClass(tok: string) {
@@ -1451,7 +1523,9 @@ async function loadData() {
       updateUnifiedCellWidth();
     }
   } catch (e: any) {
-    error.value = e?.response?.data?.detail || e?.message || String(e);
+    const msg = getErrorMessage(e, 'تعذّر تحميل البيانات');
+    error.value = msg;
+    try { showApiErrorToast(e, msg); } catch {}
   } finally {
     try { lastUpdated.value = timeAscii(new Date()); } catch {}
     loading.value = false;

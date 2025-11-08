@@ -1,9 +1,10 @@
 from __future__ import annotations
 from datetime import time as _time
-from typing import Any, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 # Centralized timetable timing resolution utilities
 # Used by teacher selectors and wing supervisor API to avoid duplication.
+
 
 def _norm_scope(val: Optional[str]) -> Optional[str]:
     if not val:
@@ -79,6 +80,10 @@ _times_cache_class: Dict[tuple[int, int], Dict[int, tuple]] = {}
 
 
 def times_for(day: int, scope: Optional[str]) -> Dict[int, tuple]:
+    """Return lesson times for a given day from PeriodTemplate/TemplateSlot.
+    If scope is provided (e.g., 'secondary' or 'grade9'), attempt a scoped match first,
+    then fall back to any template for that day.
+    """
     key = (int(day), scope or None)
     if key in _times_cache:
         return _times_cache[key]
@@ -114,9 +119,7 @@ def times_for_by_wing(day: int, wing_id: int) -> Dict[int, tuple]:
     try:
         from school.models import PeriodTemplate, TemplateSlot  # type: ignore
 
-        tpl_ids = list(
-            PeriodTemplate.objects.filter(day_of_week=day, wings__id=wing_id).values_list("id", flat=True)
-        )
+        tpl_ids = list(PeriodTemplate.objects.filter(day_of_week=day, wings__id=wing_id).values_list("id", flat=True))
         slots_map: Dict[int, tuple] = {}
         if tpl_ids:
             slots = (
@@ -185,101 +188,48 @@ def parse_grade_section(cls) -> tuple[int, Optional[int]]:
 
 
 def resolve_lesson_time(*, cls, day: int, period_number: int) -> Optional[Tuple[_time, _time]]:
-    """Resolve a lesson's start/end time for a given class, day (1..7), and period number.
-    Precedence:
-      1) class-bound template
-      2) Thursday grade-based (secondary for grade>=10, grade9 for 9-2..9-4)
-      3) wing-bound templates (M2M)
-      4) legacy scope wing-N
-      5) floor scope (ground/upper)
-      6) generic for the day
-    Applies upper-floor special case for Sun–Wed period 7: 12:25–13:10.
+    """Resolve start/end time with precedence:
+    1) Class-bound template (PeriodTemplate.classes)
+    2) Thursday Wing 3 special-case by grade (secondary | grade9) when day=5
+    3) Generic template for the day (any PeriodTemplate with matching day_of_week)
     """
     # 1) Class binding
-    st_et = None
+    st_et: Optional[Tuple[_time, _time]] = None
     try:
         if getattr(cls, "id", None):
-            st_et = times_for_by_class(day, int(cls.id)).get(int(period_number))
+            st_et = times_for_by_class(int(day), int(cls.id)).get(int(period_number))
     except Exception:
         st_et = None
 
-    # 2) Thursday grade-based
+    # 2) Thursday Wing 3 by grade (kept per requirement)
     if not st_et and int(day) == 5:
-        g, sec = parse_grade_section(cls)
-        if g >= 10:
-            st_et = times_for(day, "secondary").get(int(period_number))
-        if (not st_et) and g == 9 and sec is not None and 2 <= int(sec) <= 4:
-            st_et = times_for(day, "grade9").get(int(period_number))
-
-    # 3) Wing-bound (M2M)
-    if not st_et:
         try:
-            wing_id_val = int(getattr(cls, "wing_id", None) or 0)
+            wno_raw = getattr(cls, "wing_id", None)
+            wno = int(wno_raw) if wno_raw is not None else (_infer_wing_no(cls) or 0)
         except Exception:
-            wing_id_val = 0
-        if wing_id_val:
-            st_et = times_for_by_wing(day, wing_id_val).get(int(period_number))
+            wno = _infer_wing_no(cls) or 0
+        if int(wno) == 3:
+            g, sec = parse_grade_section(cls)
+            scope: Optional[str] = None
+            if g >= 10:
+                scope = "secondary"
+            elif g == 9 and (sec is not None) and 2 <= int(sec) <= 4:
+                scope = "grade9"
+            if scope:
+                scoped = times_for(5, scope)
+                st_et = scoped.get(int(period_number))
+                if st_et:
+                    return st_et
 
-    # 4) Legacy wing-N scope
+    # 3) Generic fallback for that day
     if not st_et:
-        wno = _infer_wing_no(cls)
-        if wno:
-            st_et = times_for(day, f"wing-{wno}").get(int(period_number))
-
-    # 5) Floor scope
-    if not st_et:
-        wno2 = _infer_wing_no(cls)
-        floor_scope = _wing_floor_from_no(wno2)
-        if floor_scope:
-            st_et = times_for(day, floor_scope).get(int(period_number))
-
-    # 6) Generic fallback for that day
-    if not st_et:
-        st_et = times_for(day, None).get(int(period_number))
-
-    # Upper-floor special case: Sun–Wed P7
-    try:
-        is_upper = False
-        w = getattr(cls, "wing", None)
-        if w is not None:
-            is_upper = (_norm_scope(getattr(w, "floor", None)) == "upper")
-        else:
-            wno = _infer_wing_no(cls)
-            is_upper = (_wing_floor_from_no(wno) == "upper")
-    except Exception:
-        is_upper = False
-    if is_upper and int(day) in (1, 2, 3, 4) and int(period_number) == 7:
-        st_et = (_time(12, 25), _time(13, 10))
+        st_et = times_for(int(day), None).get(int(period_number))
 
     return st_et
 
 
 def resolve_thursday_wing3_time(*, cls, period_number: int) -> Optional[Tuple[_time, _time]]:
-    """Dedicated resolver for Wing 3 on Thursday (الخميس – جناح 3).
-    Uses DB-backed templates with strict precedence tailored for Wing 3 composition:
-      - Classes grade >= 10 → Thursday secondary template (thu_secondary)
-      - Classes grade 9 sections 2..4 → Thursday grade9 template (thu_grade9_2_3_4)
-      - Otherwise fallback to generic Thursday resolution for the class.
-    This function exists to provide an explicit, professional and safe entry point for
-    Wing 3 Thursday timing, while delegating to resolve_lesson_time for all fallbacks.
+    """Explicit resolver for Thursday Wing 3 timing.
+    Applies grade-based selection (secondary | grade9 2..4) consistent with resolve_lesson_time.
     """
-    # Prefer explicit class bindings if any
-    try:
-        if getattr(cls, "id", None):
-            v = times_for_by_class(5, int(cls.id)).get(int(period_number))
-            if v:
-                return v
-    except Exception:
-        pass
-    # Grade-based for Wing 3 composition
-    g, sec = parse_grade_section(cls)
-    if g >= 10:
-        v = times_for(5, "secondary").get(int(period_number))
-        if v:
-            return v
-    if g == 9 and sec is not None and 2 <= int(sec) <= 4:
-        v = times_for(5, "grade9").get(int(period_number))
-        if v:
-            return v
-    # Fall back to the generic resolver for Thursday
     return resolve_lesson_time(cls=cls, day=5, period_number=int(period_number))

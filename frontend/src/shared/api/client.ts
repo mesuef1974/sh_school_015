@@ -1,5 +1,4 @@
 import axios from "axios";
-import { backendUrl } from "../config";
 import {
   enqueueAttendance,
   flushAttendanceQueue,
@@ -21,6 +20,48 @@ export const api = axios.create({
   withCredentials: true,
   timeout: 8000, // fail fast in dev if backend is down
 });
+
+export type ApiError = {
+  status?: number;
+  code?: string;
+  message: string;
+  details?: any;
+  original?: any;
+};
+
+export function normalizeApiError(err: any): ApiError | null {
+  try {
+    const status = err?.response?.status;
+    const data = err?.response?.data;
+    if (data?.error) {
+      const code = data.error.code || undefined;
+      const message = (data.error.message as string) || err?.message || "Request failed";
+      const details = data.error.details;
+      return { status, code, message, details, original: err };
+    }
+    // Axios/network error (no HTTP response or generic network/timeout)
+    if (
+      !err?.response ||
+      err?.code === 'ERR_NETWORK' ||
+      err?.code === 'ECONNABORTED' ||
+      /timeout/i.test(err?.message || '') ||
+      (typeof err?.message === 'string' && err.message.includes('Network Error'))
+    ) {
+      return {
+        status: undefined,
+        code: 'NETWORK_ERROR',
+        message: err?.message || 'تعذّر الاتصال بالخادم',
+        details: null,
+        original: err,
+      };
+    }
+    // Fallback: construct from status/text
+    const message = err?.message || `HTTP ${status || ''}`.trim();
+    return { status, code: undefined, message, details: data, original: err };
+  } catch {
+    return { message: 'Unknown error', details: null } as ApiError;
+  }
+}
 
 // Initialize offline queue to auto-flush queued attendance on connectivity regain
 initOfflineQueue(async (p: AttendanceBulkItem) => {
@@ -45,14 +86,14 @@ api.interceptors.response.use(
     const status = err?.response?.status;
     const original = err?.config || {};
     if (status === 401 && !original._retry) {
-      original._retry = true;
+      (original as any)._retry = true;
       try {
         refreshing = refreshing ?? refreshAccessToken();
         const newToken = await refreshing.finally(() => (refreshing = null));
         if (newToken) {
           setAccessToken(newToken);
           original.headers = original.headers || {};
-          original.headers["Authorization"] = `Bearer ${newToken}`;
+          (original.headers as any)["Authorization"] = `Bearer ${newToken}`;
           return api(original);
         }
       } catch {}
@@ -61,7 +102,10 @@ api.interceptors.response.use(
       // Could not refresh → redirect to login
       window.location.href = "/login";
     }
-    return Promise.reject(err);
+    // Normalize backend error envelope { error: { code, message, details } }
+    const payload = err?.response?.data as any;
+    const normalized = normalizeApiError(err);
+    return Promise.reject(normalized ?? payload ?? err);
   }
 );
 
@@ -203,7 +247,7 @@ export async function getTeacherTimetableWeekly() {
 export async function getWingTimetable(
   params: { wing_id?: number; date?: string; mode?: "daily" | "weekly" } = {}
 ) {
-  const res = await api.get("/wing/timetable/", { params });
+  const res = await api.get("/v1/wing/timetable/", { params });
   return res.data as
     | {
         mode: "daily";
@@ -429,7 +473,9 @@ export async function getExitEvents(params: {
   wing_id?: number;
 }) {
   const res = await api.get("/v1/attendance/exit-events/", { params });
-  return res.data as {
+  const data = res.data as any;
+  const items = Array.isArray(data) ? data : (data?.results ?? []);
+  return items as {
     id: number;
     student_id: number;
     student_name?: string | null;
@@ -448,7 +494,7 @@ export async function getExitEvents(params: {
 
 // ---- Wing Supervisor APIs (use relative /api to leverage Vite proxy and avoid CORS) ----
 export async function getWingMe() {
-  const res = await api.get("/wing/me/");
+  const res = await api.get("/v1/wing/me/");
   return res.data as {
     user: any;
     roles: string[];
@@ -460,7 +506,7 @@ export async function getWingMe() {
 }
 
 export async function getWingOverview(params: { date?: string; wing_id?: number }) {
-  const res = await api.get("/wing/overview/", { params });
+  const res = await api.get("/v1/wing/overview/", { params });
   return res.data as {
     date: string;
     scope: string;
@@ -481,11 +527,20 @@ export async function getWingOverview(params: { date?: string; wing_id?: number 
 }
 
 export async function getWingMissing(params: { date?: string; wing_id?: number }) {
-  const res = await api.get("/wing/missing/", { params });
-  return res.data as {
-    date: string;
-    count?: number;
-    items: {
+  const res = await api.get("/v1/wing/missing/", { params });
+  const data = res.data as any;
+  // Normalize to stable shape { date?, count?, items: [] }
+  const items = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.items)
+    ? data.items
+    : Array.isArray(data?.results)
+    ? data.results
+    : [];
+  const out = {
+    date: (data && typeof data === "object" ? data.date : undefined) || (params?.date as any) || "",
+    count: typeof data?.count === "number" ? data.count : undefined,
+    items: items as {
       class_id: number;
       class_name?: string;
       period_number: number;
@@ -493,27 +548,28 @@ export async function getWingMissing(params: { date?: string; wing_id?: number }
       subject_name?: string;
       teacher_id: number;
       teacher_name?: string;
-    }[];
+    }[],
   };
+  return out;
 }
 
 // Classes that have attendance already entered (per period) for the wing
 export async function getWingEntered(params: { date?: string; wing_id?: number }) {
   // Primary endpoint (new style under /wing)
   try {
-    const res = await api.get("/wing/entered/", { params });
-    return res.data as {
-      date: string;
-      count?: number;
-      items: {
-        class_id: number;
-        class_name?: string;
-        period_number: number;
-        subject_id: number;
-        subject_name?: string;
-        teacher_id: number;
-        teacher_name?: string;
-      }[];
+    const res = await api.get("/v1/wing/entered/", { params });
+    const data = res.data as any;
+    const items = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data?.results)
+      ? data.results
+      : [];
+    return {
+      date: (data && typeof data === "object" ? data.date : undefined) || (params?.date as any) || "",
+      count: typeof data?.count === "number" ? data.count : undefined,
+      items: items as any[],
     };
   } catch (e: any) {
     // Fallbacks for deployments exposing the endpoint under /v1
@@ -551,7 +607,7 @@ export async function getWingEntered(params: { date?: string; wing_id?: number }
 
 // Approvals workflow (pending list and decisions)
 export async function getWingPending(params: { date?: string; class_id?: number; wing_id?: number }) {
-  const res = await api.get("/wing/pending/", { params });
+  const res = await api.get("/v1/wing/pending/", { params });
   return res.data as {
     date: string;
     count: number;
@@ -575,7 +631,7 @@ export async function postWingDecide(payload: {
   ids: number[];
   comment?: string;
 }) {
-  const res = await api.post("/wing/decide/", payload);
+  const res = await api.post("/v1/wing/decide/", payload);
   return res.data as { updated: number; action: "approve" | "reject" };
 }
 
@@ -594,13 +650,13 @@ export async function postWingSetExcused(payload: {
     if (payload.comment) fd.append("comment", payload.comment);
     if (payload.evidenceNote) fd.append("evidence_note", payload.evidenceNote);
     fd.append("evidence", payload.evidenceFile);
-    const res = await api.post("/wing/set-excused/", fd, {
+    const res = await api.post("/v1/wing/set-excused/", fd, {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return res.data as { updated: number; action: "set_excused"; evidence_saved?: number };
   } else {
     const { evidenceFile, evidenceNote, ...json } = payload as any;
-    const res = await api.post("/wing/set-excused/", json);
+    const res = await api.post("/v1/wing/set-excused/", json);
     return res.data as { updated: number; action: "set_excused" };
   }
 }
@@ -623,7 +679,7 @@ export async function postUiTilesSave(payload: { version?: number; tiles: any[] 
 
 // ---- Absence Alerts & Compute APIs ----
 export async function getWingDailyAbsences(params: { date?: string; class_id?: number; wing_id?: number }) {
-  const res = await api.get("/wing/daily-absences/", { params });
+  const res = await api.get("/v1/wing/daily-absences/", { params });
   return res.data as {
     date: string;
     counts: { excused: number; unexcused: number; none: number };
@@ -690,7 +746,7 @@ export function getAbsenceAlertDocxLatestHref(id: number) {
 
 // ---- Wing-scoped classes ----
 export async function getWingClasses(params: { q?: string; wing_id?: number } = {}) {
-  const res = await api.get("/wing/classes/", { params });
+  const res = await api.get("/v1/wing/classes/", { params });
   return res.data as {
     items: { id: number; name?: string | null; grade?: number | null; section?: string | null; wing_id?: number | null; wing_name?: string | null; students_count?: number | null }[];
   };
@@ -698,7 +754,7 @@ export async function getWingClasses(params: { q?: string; wing_id?: number } = 
 
 // ---- Wing-scoped students (picker) ----
 export async function getWingStudents(params: { q?: string; class_id?: number; wing_id?: number }) {
-  const res = await api.get("/wing/students/", { params });
+  const res = await api.get("/v1/wing/students/", { params });
   return res.data as {
     items: {
       id: number;

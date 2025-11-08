@@ -20,8 +20,7 @@ if (-not $Env:DJANGO_DEBUG -or $Env:DJANGO_DEBUG -eq '') { $Env:DJANGO_DEBUG = '
 Write-Host 'Starting backend (serve_https.ps1) in a new window...' -ForegroundColor Cyan
 $serveScript = Join-Path $Root 'scripts\serve_https.ps1'
 # Prefer PowerShell 7 (pwsh) if available; fall back to Windows PowerShell
-$shellExe = 'powersذ
-hell'
+$shellExe = 'powershell'
 try { if (Get-Command pwsh -ErrorAction Stop) { $shellExe = 'pwsh' } } catch { $shellExe = 'powershell' }
 Start-Process -FilePath $shellExe -ArgumentList @('-NoProfile','-NoExit','-ExecutionPolicy','Bypass','-File', $serveScript)
 

@@ -19,7 +19,11 @@ class Command(BaseCommand):
         parser.add_argument("--start", type=str, default=None, help="Optional start date (YYYY-MM-DD or DD/MM/YYYY)")
         parser.add_argument("--end", type=str, default=None, help="Optional end date (YYYY-MM-DD or DD/MM/YYYY)")
         parser.add_argument("--dry-run", action="store_true", help="Do not write, only report counts")
-        parser.add_argument("--yes", action="store_true", help="Confirm deletion. Required unless --dry-run is used.")
+        parser.add_argument(
+            "--yes",
+            action="store_true",
+            help="Confirm deletion. Required unless --dry-run is used.",
+        )
 
     @staticmethod
     def _parse_ui_or_iso_date(s: Optional[str]) -> Optional[date]:
@@ -45,6 +49,7 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         from django.core.exceptions import FieldError
         from school.models import AttendanceRecord, AttendanceDaily  # type: ignore
+
         try:
             from school.models import ExitEvent  # type: ignore
         except Exception:
@@ -102,7 +107,6 @@ class Command(BaseCommand):
 
         # Helper: build a tolerant Q for demo-tagged notes/fields on any model
         def _demo_q_for(model_cls):
-            from django.core.exceptions import FieldError
             q = Q()
             # common note fields
             for fname in ("note", "notes", "remark", "remarks"):
@@ -157,6 +161,7 @@ class Command(BaseCommand):
             return
 
         from django.db import transaction
+
         with transaction.atomic():
             # Delete children first
             if ee_qs is not None and ee_count:

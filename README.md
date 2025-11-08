@@ -1336,3 +1336,64 @@ Notes:
 ملاحظات:
 - لا تضع أي أسرار حقيقية في ملفات `.env` داخل Git. استخدم الأمثلة كنقطة بداية فقط.
 - للمزيد راجع: `DOC/SECRETS_AND_ENV_ar.md` و`DOC/SECURE_IMPLEMENTATION_PLAN_ar.md`.
+
+
+---
+
+## ابدأ خلال 60 ثانية (Windows/PowerShell)
+
+- تشغيل بيئة التطوير (Backend + Frontend) في لفة واحدة:
+```
+pwsh -File scripts/dev_all.ps1
+```
+
+- فحص الصحة السريع محليًا (Lint/Tests/OpenAPI بحسب الإعدادات):
+```
+pwsh -File scripts/verify_all.ps1
+```
+
+- تشغيل واجهة أمامية فقط (اختياري):
+```
+cd frontend
+npm ci
+npm run dev
+```
+
+- فحوص جودة الواجهة الأمامية (Lint/Typecheck/Unit/Build):
+```
+cd frontend
+npm ci
+npm run lint && npm run typecheck && npm run test && npm run build
+```
+
+### اختبارات E2E الدخانية (اختياري)
+- محليًا (شغّل preview أولًا):
+```
+cd frontend
+npm run build
+npm run preview -- --port 4173
+$env:E2E_BASE_URL = "http://127.0.0.1:4173"
+npm run e2e
+```
+- في CI: فعّل المهمة الاختيارية عبر متغير:
+  - `E2E_SMOKE=true`
+  - (اختياري) `E2E_USER` و`E2E_PASS` لاختبار تسجيل الدخول.
+
+### سياسة أمن المحتوى (CSP) وCORS/CSRF (واعية بالبيئة)
+- التطوير: Report‑Only افتراضيًا.
+- Staging/Production: لتفعيل Enforce (دون تغييرات كود)، اضبط القيم في البيئة:
+```
+DJANGO_CSP_ENFORCE=true
+DJANGO_CSP="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' https: http:; frame-ancestors 'self'"
+# إن كانت الواجهة على نطاق آخر:
+DJANGO_CORS_ALLOWED_ORIGINS="https://app.example.com"
+DJANGO_CSRF_TRUSTED_ORIGINS="https://app.example.com"
+```
+- تحقق سريعًا من العناوين:
+```
+Invoke-WebRequest -Uri https://127.0.0.1:8443/livez -SkipCertificateCheck
+```
+
+### ملاحظات Windows شائعة
+- عند تعثر تثبيت Vite بسبب قفل esbuild، سكربت `dev_all.ps1` يحاول تنظيف المسار وإعادة المحاولة.
+- عند العمل على HTTPS محليًا، يستخدم السكربت `-SkipCertificateCheck` لتجاوز الشهادة الذاتية في التطوير فقط.

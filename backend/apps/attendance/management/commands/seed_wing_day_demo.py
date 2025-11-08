@@ -112,7 +112,11 @@ class Command(BaseCommand):
             default=None,
             help="Target absent ratio (0..1) for periods 1 and 2 (e.g., 0.10 for 10%)",
         )
-        parser.add_argument("--finalize", action="store_true", help="Lock created records and daily summaries (closed)")
+        parser.add_argument(
+            "--finalize",
+            action="store_true",
+            help="Lock created records and daily summaries (closed)",
+        )
         parser.add_argument(
             "--approve",
             action="store_true",
@@ -178,7 +182,7 @@ class Command(BaseCommand):
         period_times: Dict[int, Tuple[datetime.time, datetime.time]] = {}
         try:
             # heuristic: search TemplateSlot for this day via PeriodTemplate
-            from school.models import TemplateSlot, PeriodTemplate
+            from school.models import TemplateSlot
 
             slots = (
                 TemplateSlot.objects.filter(template__day_of_week=dow, kind="lesson")
@@ -214,7 +218,14 @@ class Command(BaseCommand):
         # Summary accumulators
         overall = {
             "total_periods": 0,
-            "status": {"present": 0, "late": 0, "absent": 0, "runaway": 0, "excused": 0, "left_early": 0},
+            "status": {
+                "present": 0,
+                "late": 0,
+                "absent": 0,
+                "runaway": 0,
+                "excused": 0,
+                "left_early": 0,
+            },
             "late_minutes": 0,
             "early_minutes": 0,
             "p12_total": 0,
@@ -226,7 +237,14 @@ class Command(BaseCommand):
             if cid not in per_class:
                 per_class[cid] = {
                     "total_periods": 0,
-                    "status": {"present": 0, "late": 0, "absent": 0, "runaway": 0, "excused": 0, "left_early": 0},
+                    "status": {
+                        "present": 0,
+                        "late": 0,
+                        "absent": 0,
+                        "runaway": 0,
+                        "excused": 0,
+                        "left_early": 0,
+                    },
                     "late_minutes": 0,
                     "early_minutes": 0,
                     "p12_total": 0,
@@ -294,7 +312,10 @@ class Command(BaseCommand):
 
                     status = pick_status()
                     # Enforce forced absence for P1/P2 if configured
-                    if (stu.class_fk_id, e.period_number) in forced_absent and stu.id in forced_absent[(stu.class_fk_id, e.period_number)]:
+                    if (
+                        stu.class_fk_id,
+                        e.period_number,
+                    ) in forced_absent and stu.id in forced_absent[(stu.class_fk_id, e.period_number)]:
                         status = "absent"
                     st_time, et_time = get_times(e.period_number)
                     late_m = 0
@@ -403,14 +424,14 @@ class Command(BaseCommand):
 
         # If finalize requested, also lock daily summaries for this wing/date (safe bulk update)
         if opts.get("finalize") and not opts.get("dry_run"):
-            AttendanceDaily.objects.filter(
-                date=dt, term=term, student__class_fk__wing_id=wing_id
-            ).update(locked=True)
+            AttendanceDaily.objects.filter(date=dt, term=term, student__class_fk__wing_id=wing_id).update(locked=True)
 
         # Optional professional summary output
         if opts.get("summary"):
+
             def pct(n, d):
                 return (n * 100.0 / d) if d else 0.0
+
             self.stdout.write("")
             self.stdout.write(self.style.NOTICE("=== Summary (Wing {} on {}) ===".format(wing_id, dt)))
             # Per class
@@ -436,13 +457,21 @@ class Command(BaseCommand):
                     "OVERALL: total={}, absent={} ({:.1f}%), late={} ({:.1f}%), excused={} ({:.1f}%), left_early={} ({:.1f}%), "
                     "runaway={} ({:.2f}%) | P1-2 absent={}/{} ({:.1f}%) | late_min={} early_min={}".format(
                         tp,
-                        s['absent'], pct(s['absent'], tp),
-                        s['late'], pct(s['late'], tp),
-                        s['excused'], pct(s['excused'], tp),
-                        s['left_early'], pct(s['left_early'], tp),
-                        s['runaway'], pct(s['runaway'], tp),
-                        p12a, p12t, pct(p12a, p12t),
-                        overall['late_minutes'], overall['early_minutes'],
+                        s["absent"],
+                        pct(s["absent"], tp),
+                        s["late"],
+                        pct(s["late"], tp),
+                        s["excused"],
+                        pct(s["excused"], tp),
+                        s["left_early"],
+                        pct(s["left_early"], tp),
+                        s["runaway"],
+                        pct(s["runaway"], tp),
+                        p12a,
+                        p12t,
+                        pct(p12a, p12t),
+                        overall["late_minutes"],
+                        overall["early_minutes"],
                     )
                 )
             )

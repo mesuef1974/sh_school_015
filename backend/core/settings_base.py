@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third-party
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "django_rq",
     "rest_framework_simplejwt.token_blacklist",
@@ -55,10 +56,17 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Ensure DRF error responses are wrapped in the unified envelope even when views return Response({...}, status=403)
+    "core.middleware_errors.DRFErrorEnvelopeMiddleware",
     "core.middleware_security.SecurityHeadersMiddleware",
 ]
 
-# CORS settings will be defined in environment files (dev/prod)
+# CORS settings
+# Allow credentials by default so HttpOnly refresh tokens can be used across same-site or whitelisted origins.
+CORS_ALLOW_CREDENTIALS = True
+# Origins are defined per-environment:
+# - In development: see settings_dev.py (explicit localhost:5173 etc.)
+# - In production: see settings_prod.py (DJANGO_CORS_ALLOWED_ORIGINS)
 
 ROOT_URLCONF = "core.urls"
 
@@ -163,6 +171,13 @@ REST_FRAMEWORK = {
         "user": ("1000/second" if DEBUG else "2000/hour"),
         "anon": ("1000/second" if DEBUG else "50/hour"),
     },
+    # Pagination defaults for stable list responses
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
+    # OpenAPI schema generation
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    # Unified error responses
+    "EXCEPTION_HANDLER": "core.exceptions.custom_exception_handler",
     # DRF DateField output format: Always ISO for API stability
     # Accept inputs from UI (DD/MM/YYYY) and ISO (YYYY-MM-DD)
     "DATE_FORMAT": "%Y-%m-%d",
@@ -178,6 +193,15 @@ DATE_FORMAT = "d/m/Y"
 SHORT_DATE_FORMAT = "d/m/Y"
 DATETIME_FORMAT = "d/m/Y H:i"
 SHORT_DATETIME_FORMAT = "d/m/Y H:i"
+
+# OpenAPI/Swagger (drf-spectacular)
+SPECTACULAR_SETTINGS = {
+    "TITLE": os.getenv("OPENAPI_TITLE", "School API"),
+    "DESCRIPTION": os.getenv("OPENAPI_DESCRIPTION", "School management API documentation"),
+    "VERSION": os.getenv("OPENAPI_VERSION", "1.0.0"),
+    # Do not include the schema JSON inside the Swagger served view
+    "SERVE_INCLUDE_SCHEMA": False,
+}
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
