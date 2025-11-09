@@ -6,7 +6,6 @@ import uuid
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -18,7 +17,10 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="BehaviorLevel",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID"),
+                ),
                 ("code", models.PositiveSmallIntegerField(unique=True)),
                 ("name", models.CharField(max_length=64)),
                 ("description", models.TextField(blank=True)),
@@ -32,7 +34,10 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="Violation",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID"),
+                ),
                 ("code", models.CharField(max_length=16, unique=True)),
                 ("category", models.CharField(max_length=256)),
                 ("description", models.TextField(blank=True)),
@@ -42,7 +47,11 @@ class Migration(migrations.Migration):
                 ("requires_committee", models.BooleanField(default=False)),
                 (
                     "level",
-                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="violations", to="discipline.behaviorlevel"),
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="violations",
+                        to="discipline.behaviorlevel",
+                    ),
                 ),
             ],
             options={
@@ -55,11 +64,25 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="Incident",
             fields=[
-                ("id", models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                (
+                    "id",
+                    models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False),
+                ),
                 ("occurred_at", models.DateTimeField()),
                 ("location", models.CharField(blank=True, max_length=128)),
                 ("narrative", models.TextField(blank=True)),
-                ("status", models.CharField(choices=[("open", "Open"), ("under_review", "Under Review"), ("closed", "Closed")], default="open", max_length=16)),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("open", "Open"),
+                            ("under_review", "Under Review"),
+                            ("closed", "Closed"),
+                        ],
+                        default="open",
+                        max_length=16,
+                    ),
+                ),
                 ("severity", models.PositiveSmallIntegerField()),
                 ("committee_required", models.BooleanField(default=False)),
                 ("submitted_at", models.DateTimeField(blank=True, null=True)),
@@ -72,23 +95,47 @@ class Migration(migrations.Migration):
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 (
                     "closed_by",
-                    models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="closed_incidents", to=settings.AUTH_USER_MODEL),
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="closed_incidents",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
                 ),
                 (
                     "reporter",
-                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="reported_incidents", to=settings.AUTH_USER_MODEL),
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="reported_incidents",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
                 ),
                 (
                     "reviewed_by",
-                    models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="reviewed_incidents", to=settings.AUTH_USER_MODEL),
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="reviewed_incidents",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
                 ),
                 (
                     "student",
-                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="incidents", to="school.student"),
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="incidents",
+                        to="school.student",
+                    ),
                 ),
                 (
                     "violation",
-                    models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="incidents", to="discipline.violation"),
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="incidents",
+                        to="discipline.violation",
+                    ),
                 ),
             ],
             options={

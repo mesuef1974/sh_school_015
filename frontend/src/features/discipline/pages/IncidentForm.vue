@@ -44,11 +44,13 @@
 
         <div class="col-md-4 col-12">
           <label class="form-label">الطالب</label>
-          <select v-model.number="form.student" class="form-select" :disabled="loading || roster.length===0">
+          <select v-model.number="form.student" class="form-select" :disabled="loading || rosterLoading || roster.length===0">
             <option :value="0">— اختر —</option>
             <option v-for="s in roster" :key="s.id" :value="s.id">{{ s.full_name || ('#'+s.id) }}</option>
           </select>
-          <div class="form-text" v-if="form.class_id && roster.length===0">لا يوجد طلاب لهذا الصف/التاريخ.</div>
+          <div class="form-text" v-if="rosterLoading">جاري تحميل طلاب الصف …</div>
+          <div class="form-text text-danger" v-else-if="rosterError">{{ rosterError }}</div>
+          <div class="form-text" v-else-if="form.class_id && roster.length===0">لا يوجد طلاب لهذا الصف/التاريخ.</div>
         </div>
 
         <div class="col-md-4 col-12">
@@ -95,6 +97,8 @@ const msgClass = computed(()=> msg.value.includes('فشل')? 'text-danger':'text
 const classes = ref<{id:number; name?:string}[]>([]);
 const periods = ref<{period_number:number; classroom_id:number; classroom_name?:string; subject_name?:string; start_time?:string; end_time?:string}[]>([]);
 const roster = ref<{id:number; full_name?:string|null}[]>([]);
+const rosterLoading = ref(false);
+const rosterError = ref('');
 
 // Date and period selectors
 const todayIso = () => new Date().toISOString().slice(0,10);
@@ -142,12 +146,26 @@ async function loadTimetable(){
 }
 
 async function loadRoster(){
-  roster.value = [];
-  if (!form.value.class_id) return;
+  rosterLoading.value = true; rosterError.value=''; roster.value = [];
+  if (!form.value.class_id){ rosterLoading.value=false; return; }
   try{
     const res = await getClassStudents({ class_id: form.value.class_id, date: date.value });
     roster.value = res.students || [];
-  }catch{ roster.value = []; }
+    if (!Array.isArray(roster.value)) roster.value = [] as any;
+  }catch(e:any){
+    roster.value = [];
+    const detail = e?.response?.data?.detail || e?.message || '';
+    // Friendly Arabic messages for common cases
+    if (typeof detail === 'string' && /not allowed/i.test(detail)) {
+      rosterError.value = 'لا تملك صلاحية للوصول إلى هذا الصف.';
+    } else if (typeof detail === 'string') {
+      rosterError.value = detail;
+    } else {
+      rosterError.value = 'تعذّر تحميل طلاب الصف.';
+    }
+  } finally {
+    rosterLoading.value = false;
+  }
 }
 
 function onDateChange(){
@@ -180,7 +198,6 @@ async function onSubmit(){
     const payload = {
       violation: form.value.violation,
       student: form.value.student,
-      reporter: auth.profile?.id,
       occurred_at: new Date(form.value.occurred_at).toISOString(),
       location: form.value.location || (classes.value.find(c=>c.id===form.value.class_id)?.name || ''),
       narrative: form.value.narrative,
@@ -189,7 +206,8 @@ async function onSubmit(){
     msg.value = 'تم الحفظ بنجاح';
     router.push({ name: 'discipline-incidents' });
   }catch(e:any){
-    msg.value = 'فشل الحفظ';
+    const detail = e?.response?.data?.detail || e?.message || '';
+    msg.value = detail ? `فشل الحفظ: ${detail}` : 'فشل الحفظ';
   }finally{
     loading.value = false;
   }

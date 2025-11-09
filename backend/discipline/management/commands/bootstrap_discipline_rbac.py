@@ -19,9 +19,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--with-access",
             action="store_true",
-            help=(
-                "Also grant 'discipline.access' catalog/role permission to WingSupervisor, Counselor, Leadership."
-            ),
+            help=("Also grant 'discipline.access' catalog/role permission to WingSupervisor, Counselor, Leadership."),
         )
 
     def handle(self, *args, **options):
@@ -54,7 +52,7 @@ class Command(BaseCommand):
         )
         if access_perm.name != access_label:
             access_perm.name = access_label
-            access_perm.save(update_fields=["name"]) 
+            access_perm.save(update_fields=["name"])
 
         def ensure_group(name: str, perm_keys: List[str], add_access: bool = False) -> Group:
             g, _ = Group.objects.get_or_create(name=name)

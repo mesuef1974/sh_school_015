@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -22,9 +21,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--file",
             dest="file",
-            help=(
-                "Path to the JSON file. Defaults to <repo_root>/DOC/نماذج الغياب/violations_detailed.json"
-            ),
+            help=("Path to the JSON file. Defaults to <repo_root>/DOC/نماذج الغياب/violations_detailed.json"),
         )
         parser.add_argument(
             "--dry-run",

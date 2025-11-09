@@ -33,9 +33,7 @@ class Violation(models.Model):
         verbose_name = "Violation"
         verbose_name_plural = "Violations"
         ordering = ("severity", "code")
-        permissions = (
-            ("access", "Can access discipline module"),
-        )
+        permissions = (("access", "Can access discipline module"),)
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.code} — {self.category}"

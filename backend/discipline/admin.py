@@ -18,8 +18,18 @@ class ViolationAdmin(admin.ModelAdmin):
 
 @admin.register(Incident)
 class IncidentAdmin(admin.ModelAdmin):
-    list_display = ("id", "violation", "student", "occurred_at", "status")
+    list_display = ("id", "violation", "student", "reporter", "occurred_at", "status")
     list_filter = ("status", "severity", "committee_required")
-    search_fields = ("id", "narrative", "location", "violation__code", "violation__category")
+    search_fields = (
+        "id",
+        "narrative",
+        "location",
+        "violation__code",
+        "violation__category",
+        "reporter__username",
+        "reporter__first_name",
+        "reporter__last_name",
+    )
     autocomplete_fields = ("violation", "student", "reporter")
     readonly_fields = ("created_at", "updated_at")
+    list_select_related = ("violation", "student", "reporter")

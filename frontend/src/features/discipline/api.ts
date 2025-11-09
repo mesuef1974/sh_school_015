@@ -5,8 +5,8 @@ export async function listViolations(params: any = {}) {
   return res.data;
 }
 
-export async function listIncidents(params: any = {}) {
-  const res = await api.get("/v1/discipline/incidents/", { params });
+export async function listIncidents(params: any = {}, opts: any = {}) {
+  const res = await api.get("/v1/discipline/incidents/", { params, ...(opts || {}) });
   return res.data;
 }
 
@@ -57,5 +57,15 @@ export async function closeIncident(id: string) {
 
 export async function getKanban(params: any = {}) {
   const res = await api.get("/v1/discipline/incidents/kanban/", { params });
+  return res.data;
+}
+
+export async function getIncidentsMine(params: any = {}, opts: any = {}) {
+  const res = await api.get("/v1/discipline/incidents/mine/", { params, ...(opts || {}) });
+  return res.data;
+}
+
+export async function getIncidentsVisible(params: any = {}) {
+  const res = await api.get("/v1/discipline/incidents/visible/", { params });
   return res.data;
 }

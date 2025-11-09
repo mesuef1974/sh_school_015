@@ -155,7 +155,8 @@ curl -k -H "Accept: application/json" "https://127.0.0.1:8443/api/v1/discipline/
 
 - إنشاء حادثة (يتطلب incident_create):
 ```powershell
-curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/" -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" -d '{"violation": 1, "student": 1, "reporter": 1, "occurred_at": "2025-11-09T10:15:00+03:00", "location": "جناح A", "narrative": "تفاصيل مختصرة"}'
+# ملاحظة: لا ترسل الحقل reporter؛ الخادم يضبطه تلقائيًا من المستخدم الحالي
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/" -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" -d '{"violation": 1, "student": 1, "occurred_at": "2025-11-09T10:15:00+03:00", "location": "جناح A", "narrative": "تفاصيل مختصرة"}'
 ```
 
 - إرسال للمراجعة submit (يتطلب incident_submit):
@@ -278,3 +279,32 @@ curl -k -H "Authorization: Bearer $env:TOKEN" "https://127.0.0.1:8443/api/v1/dis
 - level_color: لون دلالي بحسب الشدة (1–4)
 
 ملاحظة: سياسة التكرار المؤدية للتصعيد التلقائي ما زالت 2 حالة لنفس الطالب ونفس المخالفة خلال 30 يومًا وتطبَّق عند submit.
+
+
+## تشخيص سريع لوقائع الانضباط (discipline:smoke)
+يساعدك هذا التشخيص على تحديد أين تكمن المشكلة عند عدم ظهور «وقائع الانضباط» في الواجهة.
+
+- التشغيل:
+  - معاينة فقط: `pwsh -File scripts\exec_hub.ps1 discipline:smoke -WhatIf`
+  - تنفيذ: `pwsh -File scripts\exec_hub.ps1 discipline:smoke`
+
+ملاحظات:
+- يتطلب توكن وصول (JWT) إذا لم تكن تعمل من المتصفح. يمكنك الحصول عليه سريعًا عبر:
+  - `pwsh -File scripts\exec_hub.ps1 login:test` ثم انسخ access_token من الخلاصة.
+  - أعد تشغيل التشخيص ممررًا التوكن: `pwsh -File scripts\discipline_smoke.ps1 -Token <ACCESS_TOKEN>`
+- المنفذ الافتراضي 8443 ويُقرأ تلقائيًا؛ غيّر BaseUrl عند الحاجة: `-BaseUrl https://127.0.0.1:8443/api/v1`
+- استخدم `-SkipCertificateCheck` إذا كان لديك شهادة محلية.
+
+ما الذي يفعله التشخيص؟
+1) يستدعي `/api/v1/discipline/incidents/visible/` ويطبع:
+   - mine_count: عدد الوقائع الخاصة بالمستخدم الحالي.
+   - all_count: إجمالي الوقائع التي يمكن رؤيتها وفق صلاحياتك.
+   - عينات IDs لكل منهما.
+2) يسحب أول 5 من `/incidents/?page_size=5` و`/incidents/?mine=1&page_size=5` ويعرض JSON مختصر.
+
+تفسير النتائج السريع:
+- إذا كان `mine_count>0` ولكن واجهة «سجلاتي» فارغة → مشكلة واجهة (فلترة/تحليل استجابة).
+- إذا كان `all_count>0` والمستخدم متميز (staff/superuser) ولكن واجهة «الكل» فارغة → راجع باراميترات الطلب أو فلتر الحالة.
+- إذا كان كلاهما 0 بينما تتوقع وجود بيانات → راجع ربط المُبلّغ (reporter) والصلاحيات.
+
+أرسل لنا مخرجات التشخيص (mine_count/all_count وعينات IDs) إن استمرت المشكلة لنقدم إصلاحًا موجّهًا.

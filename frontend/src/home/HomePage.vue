@@ -92,7 +92,7 @@
           @dragstart="onDragStart(t.__key, index, $event)"
           @dragover.prevent="onDragOver(index, $event)"
           @drop.prevent="onDrop(index, $event)"
-          @click.prevent="onTileClick(t.id)"
+          @click="onTileClick(t)"
         >
           <IconTile
             :to="reorderMode ? undefined : t.to"
@@ -112,10 +112,12 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from "vue";
 import { useAuthStore } from "../app/stores/auth";
+import { useRouter } from "vue-router";
 import IconTile from "../widgets/IconTile.vue";
 import DsButton from "../components/ui/DsButton.vue";
 import { tiles } from "./icon-tiles.config";
 
+const router = useRouter();
 const auth = useAuthStore();
 const name = computed(() => auth.profile?.full_name || auth.profile?.username || "");
 const roles = computed(() => auth.profile?.roles || []);
@@ -200,8 +202,12 @@ function indexOfKey(idx: number): number {
 function toggleReorder() {
   reorderMode.value = !reorderMode.value;
 }
-function onTileClick(id: string) {
-  selectedId.value = id;
+function onTileClick(t: any) {
+  // If reordering, just select; otherwise navigate if tile has a route
+  selectedId.value = t?.id || null;
+  if (!reorderMode.value && t?.to) {
+    try { router.push(t.to); } catch {}
+  }
 }
 
 function moveItem(from: number, to: number) {

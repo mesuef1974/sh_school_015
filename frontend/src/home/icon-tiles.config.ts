@@ -65,7 +65,7 @@ export const tiles: Tile[] = [
     id: "discipline_incidents_my",
     title: "وقائع الانضباط",
     subtitle: "سجلاتي والإرسال",
-    to: "/discipline/incidents",
+    to: "/discipline/incidents/simple",
     icon: "solar:document-bold-duotone",
     color: "#2e86c1",
     roles: ["teacher"],

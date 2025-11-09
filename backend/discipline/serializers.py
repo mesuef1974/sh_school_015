@@ -21,6 +21,7 @@ class IncidentSerializer(serializers.ModelSerializer):
         model = Incident
         fields = "__all__"
         read_only_fields = (
+            "reporter",
             "severity",
             "committee_required",
             "submitted_at",
@@ -45,6 +46,7 @@ class IncidentSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         from django.utils import timezone
         from datetime import timedelta
+
         data = super().to_representation(instance)
         try:
             data["student_name"] = getattr(getattr(instance, "student", None), "full_name", None)
@@ -79,6 +81,7 @@ class IncidentSerializer(serializers.ModelSerializer):
         # SLA helper fields
         try:
             from django.conf import settings as dj_settings
+
             submitted_at = getattr(instance, "submitted_at", None)
             if submitted_at:
                 review_due = submitted_at + timedelta(hours=getattr(dj_settings, "DISCIPLINE_REVIEW_SLA_H", 24))

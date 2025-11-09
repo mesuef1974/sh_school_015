@@ -22,7 +22,7 @@
 
 Param(
   [Parameter(Position=0,Mandatory=$false)]
-  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test','history:smoke','discipline:bootstrap-rbac')]
+  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test','history:smoke','discipline:bootstrap-rbac','discipline:smoke')]
   [string]$Task,
 
   [switch]$List,
@@ -34,6 +34,7 @@ Param(
   [Parameter(Mandatory=$false)] [string]$BaseUrl,
   [Parameter(Mandatory=$false)] [string]$Username,
   [Parameter(Mandatory=$false)] [string]$Password,
+  [Parameter(Mandatory=$false)] [string]$Token,
   [switch]$SkipCertificateCheck,
 
   # Passthrough for smoke scripts
@@ -194,6 +195,7 @@ function Show-List {
     @{Key='history:smoke';Desc='Quick HTTPS smoke for attendance history: expect 401 without token'}
     @{Key='login:test';Desc='Obtain JWT, call /api/me, trigger refresh; prints a concise auth report'}
     @{Key='discipline:bootstrap-rbac';Desc='Create/refresh discipline role groups and permissions (idempotent)'}
+    @{Key='discipline:smoke';Desc='Diagnose discipline incidents visibility: counts, samples, list (requires auth token)'}
   )
   $rows | ForEach-Object { Write-Host ("- {0} : {1}" -f $_.Key, $_.Desc) }
   Write-Host "Use: pwsh -File scripts/exec_hub.ps1 <task> [-WhatIf] [-Confirm]" -ForegroundColor DarkGray
@@ -218,5 +220,17 @@ switch ($Task) {
   'history:smoke' { Task-HistorySmoke }
   'login:test'    { Task-LoginTest }
   'discipline:bootstrap-rbac' { Task-DisciplineBootstrapRbac }
+  'discipline:smoke' { 
+    Write-Header 'discipline:smoke'
+    $script = 'scripts/discipline_smoke.ps1'
+    if (-not (Test-Path $script)) { Write-Error "Missing $script"; exit 1 }
+    $forward = @()
+    if ($PSBoundParameters.ContainsKey('BaseUrl') -and $BaseUrl) { $forward += @('-BaseUrl', $BaseUrl) }
+    if ($PSBoundParameters.ContainsKey('Token') -and $Token) { $forward += @('-Token', $Token) }
+    if ($PSBoundParameters.ContainsKey('SkipCertificateCheck') -and $SkipCertificateCheck) { $forward += @('-SkipCertificateCheck') }
+    $cmd = "pwsh -File $script $($forward -join ' ')"
+    if (Simulate $cmd) { return }
+    & pwsh -File $script @forward
+  }
   default         { Write-Error "Unknown task: $Task"; exit 1 }
 }

@@ -1,14 +1,5 @@
 <template>
-  <component
-    :is="to ? 'RouterLink' : 'a'"
-    :to="to"
-    :href="href"
-    :class="['tile', compact ? 'tile--compact' : '']"
-    :style="{ '--tile-color': color || '#7a6' }"
-    target="_self"
-    rel="noopener"
-    :aria-label="title"
-  >
+  <RouterLink v-if="to" :to="to" class="tile" :class="[compact ? 'tile--compact' : '']" :style="{ '--tile-color': color || '#7a6' }" :aria-label="title">
     <div class="tile-icon">
       <Icon :icon="icon" />
     </div>
@@ -17,7 +8,17 @@
       <div v-if="subtitle" class="tile-subtitle">{{ subtitle }}</div>
     </div>
     <div v-if="badge !== undefined && badge !== null" class="tile-badge">{{ badge }}</div>
-  </component>
+  </RouterLink>
+  <a v-else :href="href || 'javascript:void(0)'" class="tile" :class="[compact ? 'tile--compact' : '']" :style="{ '--tile-color': color || '#7a6' }" :aria-label="title">
+    <div class="tile-icon">
+      <Icon :icon="icon" />
+    </div>
+    <div class="tile-text">
+      <div class="tile-title">{{ title }}</div>
+      <div v-if="subtitle" class="tile-subtitle">{{ subtitle }}</div>
+    </div>
+    <div v-if="badge !== undefined && badge !== null" class="tile-badge">{{ badge }}</div>
+  </a>
 </template>
 
 <script setup lang="ts">

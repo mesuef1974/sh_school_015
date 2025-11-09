@@ -4,6 +4,13 @@
       <WingPageHeader :icon="tileMeta.icon" :title="tileMeta.title" :color="tileMeta.color" :subtitle="tileMeta.subtitle">
         <template #actions>
           <div class="d-flex align-items-center gap-2">
+            <div v-if="isPrivileged" class="d-flex align-items-center gap-1">
+              <label class="form-label mb-0 small">النطاق</label>
+              <select v-model="scope" class="form-select form-select-sm" style="width:auto" @change="onScopeChange">
+                <option value="mine">سجلاتي</option>
+                <option value="all">الكل</option>
+              </select>
+            </div>
             <button class="btn btn-outline-primary" :disabled="loading" @click="reload">تحديث</button>
             <button class="btn btn-primary" @click="$router.push({name:'discipline-incident-new'})">تسجيل واقعة</button>
           </div>
@@ -56,7 +63,12 @@
           </thead>
           <tbody>
             <tr v-if="!loading && items.length===0">
-              <td :colspan="11" class="text-center text-muted py-4">لا توجد سجلات مطابقة للمعايير الحالية</td>
+              <td :colspan="11" class="text-center text-muted py-4">
+                لا توجد سجلات مطابقة للمعايير الحالية
+                <template v-if="isPrivileged && scope==='mine'">
+                  <br />قد تكون الوقائع مسجلة من حساب آخر. جرّب تغيير النطاق إلى «الكل».
+                </template>
+              </td>
             </tr>
             <tr v-for="it in items" :key="it.id">
               <td>{{ fmtDate(it.occurred_at) }}</td>
@@ -95,7 +107,7 @@
 import { ref, computed } from 'vue';
 import WingPageHeader from '../../../components/ui/WingPageHeader.vue';
 import { tiles } from '../../../home/icon-tiles.config';
-import { listIncidents, submitIncident } from '../api';
+import { listIncidents, submitIncident, getIncidentsVisible, getIncidentsMine } from '../api';
 import { useAuthStore } from '../../../app/stores/auth';
 
 const tileMeta = computed(()=> tiles.find(t=> t.to === '/discipline/incidents') || ({ title: 'وقائع المعلم', subtitle: 'سجلاتي والإرسال للمراجعة', icon: 'solar:document-text-bold-duotone', color: '#2e86c1' } as any));
@@ -110,18 +122,50 @@ const lastUpdated = ref<string>('');
 const busyId = ref<string| null>(null);
 let timer:any = null;
 
+const isPrivileged = computed(()=> !!(auth.profile?.is_superuser || auth.profile?.is_staff || (auth.profile?.permissions||[]).includes('discipline.access')));
+// Default scope: teachers -> 'mine', privileged (staff/superuser/discipline.access) -> 'all'
+const SCOPE_STORAGE_KEY = 'discipline_incidents_scope';
+function loadSavedScope(): 'mine'|'all' {
+  try { const v = localStorage.getItem(SCOPE_STORAGE_KEY); if (v === 'mine' || v === 'all') return v; } catch {}
+  return isPrivileged.value ? 'all' : 'mine';
+}
+const scope = ref<'mine'|'all'>(loadSavedScope());
+
+function onScopeChange(){ try { localStorage.setItem(SCOPE_STORAGE_KEY, scope.value); } catch {} reload(); }
+
 async function reload(){
+  // Cancel any prior in-flight request to avoid hanging spinners
   loading.value = true; items.value = []; error.value='';
+  const ac = new AbortController();
+  const to = setTimeout(()=> ac.abort(), 10000); // hard cap 10s to fail fast
   try{
-    const params:any = {};
+    const params:any = { page_size: 50 };
     if (status.value) params.status = status.value; // server-side status filter
     if (q.value) params.search = q.value;
-    const data = await listIncidents(params);
-    items.value = data?.results ?? data ?? [];
+    let data: any;
+    const opts = { signal: ac.signal } as any;
+    // Non-privileged → always call the dedicated /mine endpoint
+    if (!isPrivileged.value) {
+      data = await getIncidentsMine(params, opts);
+    } else {
+      // Privileged: honor scope toggle
+      if (scope.value === 'mine') {
+        data = await getIncidentsMine(params, opts);
+        // Auto-fallback: if mine is empty, try ALL once
+        if ((!data || (Array.isArray(data)? data.length===0 : !(data.results||[]).length)) && !error.value) {
+          try { data = await listIncidents(params, opts); } catch { /* ignore, main error handler will show */ }
+        }
+      } else {
+        data = await listIncidents(params, opts);
+      }
+    }
+    items.value = Array.isArray(data) ? data : (data?.results ?? []);
     lastUpdated.value = new Date().toLocaleString();
   } catch(e:any){
-    error.value = e?.message || 'تعذّر تحميل البيانات';
+    const msg = e?.code === 'ERR_CANCELED' ? 'انتهت مهلة الاتصال (10 ثوانٍ). حاول مجددًا.' : (e?.message || 'تعذّر تحميل البيانات');
+    error.value = msg + (e?.code && e?.code!=='ERR_CANCELED' ? ` (${e.code})` : '');
   } finally {
+    clearTimeout(to);
     loading.value = false;
   }
 }

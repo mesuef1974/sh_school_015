@@ -826,3 +826,12 @@ export async function listAbsenceAlerts(params: { student?: number; status?: str
   const res = await api.get("/absence-alerts/", { params });
   return res.data as any; // DRF default list format
 }
+
+
+// --- Discipline/Teacher helpers (lightweight wrappers) ---
+// These helpers are used by the discipline IncidentForm to prefill teacher context.
+// Only getClassStudents is defined here; other helpers already exist above.
+export async function getClassStudents(params: { class_id: number; date?: string }) {
+  const res = await api.get("/v1/attendance/class/students/", { params });
+  return res.data;
+}
