@@ -285,4 +285,9 @@ DISCIPLINE_AUTO_ESCALATE_SEVERITY = os.getenv("DISCIPLINE_AUTO_ESCALATE_SEVERITY
 # In some imported dev databases, the user id that created incidents may differ from the
 # current user's id although the username matches. Enable a safe dev-mode fallback to
 # match "my incidents" by username as well.
-DISCIPLINE_MATCH_MINE_BY_USERNAME = os.getenv("DISCIPLINE_MATCH_MINE_BY_USERNAME", str(DEBUG).lower()).lower() in {"1","true","yes","on"}
+DISCIPLINE_MATCH_MINE_BY_USERNAME = os.getenv("DISCIPLINE_MATCH_MINE_BY_USERNAME", str(DEBUG).lower()).lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}

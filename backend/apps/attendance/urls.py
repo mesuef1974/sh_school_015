@@ -23,7 +23,9 @@ urlpatterns = [
     path("", include(router.urls)),
     # Expose GET /api/v1/attendance/class/students/ expected by frontend IncidentForm
     path("attendance/class/students/", AttendanceViewSetBase.as_view({"get": "list_students"})),
-    path("attendance/class/students", AttendanceViewSetBase.as_view({"get": "list_students"})),  # alias without trailing slash
+    path(
+        "attendance/class/students", AttendanceViewSetBase.as_view({"get": "list_students"})
+    ),  # alias without trailing slash
     # Expose POST /api/v1/attendance/submit/ to match frontend expectation
     path("attendance/submit/", attendance_submit),
     # Stable endpoint for Word export of wing students (matches frontend href)

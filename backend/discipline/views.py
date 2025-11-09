@@ -63,6 +63,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
             # optionally include username match as a safe fallback.
             from django.conf import settings as dj_settings
             from django.db.models import Q
+
             if getattr(dj_settings, "DISCIPLINE_MATCH_MINE_BY_USERNAME", False):
                 qs = qs.filter(Q(reporter_id=user.id) | Q(reporter__username=getattr(user, "username", None)))
             else:
@@ -103,7 +104,10 @@ class IncidentViewSet(viewsets.ModelViewSet):
         if not self._has(user, "incident_create"):
             if logger and logger.isEnabledFor(logging.INFO):
                 logger.info("incident.create.denied_perm user=%s", getattr(user, "id", None))
-            return Response({"detail": "لا تملك صلاحية إنشاء", "code": "NO_CREATE_PERMISSION"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "لا تملك صلاحية إنشاء", "code": "NO_CREATE_PERMISSION"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         # Allow staff/superuser to create without scope restriction
         if not (getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)):
             try:
@@ -113,8 +117,15 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 occurred_at_raw = request.data.get("occurred_at")
             except Exception:
                 if logger and logger.isEnabledFor(logging.WARNING):
-                    logger.warning("incident.create.bad_payload user=%s data_keys=%s", getattr(user, "id", None), list(request.data.keys()))
-                return Response({"detail": "بيانات غير صالحة", "code": "BAD_PAYLOAD"}, status=status.HTTP_400_BAD_REQUEST)
+                    logger.warning(
+                        "incident.create.bad_payload user=%s data_keys=%s",
+                        getattr(user, "id", None),
+                        list(request.data.keys()),
+                    )
+                return Response(
+                    {"detail": "بيانات غير صالحة", "code": "BAD_PAYLOAD"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             # Look up violation severity to decide strictness
             try:
                 viol = Violation.objects.only("severity").get(id=violation_id)
@@ -130,8 +141,15 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     raise ValueError
             except Exception:
                 if logger and logger.isEnabledFor(logging.WARNING):
-                    logger.warning("incident.create.bad_time user=%s occurred_at=%s", getattr(user, "id", None), occurred_at_raw)
-                return Response({"detail": "وقت الحادثة غير صالح", "code": "BAD_OCCURRED_AT"}, status=status.HTTP_400_BAD_REQUEST)
+                    logger.warning(
+                        "incident.create.bad_time user=%s occurred_at=%s",
+                        getattr(user, "id", None),
+                        occurred_at_raw,
+                    )
+                return Response(
+                    {"detail": "وقت الحادثة غير صالح", "code": "BAD_OCCURRED_AT"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             # For low severity incidents (<=2), ensure reporter has the student in any of their classes for the date
             if severity <= 2:
                 try:
@@ -156,7 +174,12 @@ class IncidentViewSet(viewsets.ModelViewSet):
                                     break
                             except Exception as e:
                                 if logger and logger.isEnabledFor(logging.DEBUG):
-                                    logger.debug("incident.create.scope_roster_error user=%s class_id=%s err=%s", getattr(user, "id", None), cid, e)
+                                    logger.debug(
+                                        "incident.create.scope_roster_error user=%s class_id=%s err=%s",
+                                        getattr(user, "id", None),
+                                        cid,
+                                        e,
+                                    )
                                 continue
                         if not allowed:
                             if logger and logger.isEnabledFor(logging.INFO):
@@ -168,19 +191,31 @@ class IncidentViewSet(viewsets.ModelViewSet):
                                     severity,
                                 )
                             return Response(
-                                {"detail": "لا يحق لك تسجيل واقعة لهذا الطالب خارج صفوفك.", "code": "OUT_OF_SCOPE"},
+                                {
+                                    "detail": "لا يحق لك تسجيل واقعة لهذا الطالب خارج صفوفك.",
+                                    "code": "OUT_OF_SCOPE",
+                                },
                                 status=status.HTTP_403_FORBIDDEN,
                             )
                     else:
                         # No Staff link for this user: cannot enforce scope in this environment → allow and defer to review.
                         if logger and logger.isEnabledFor(logging.INFO):
-                            logger.info("incident.create.soft_allow_no_staff_link user=%s student=%s violation=%s", getattr(user, "id", None), student_id, violation_id)
+                            logger.info(
+                                "incident.create.soft_allow_no_staff_link user=%s student=%s violation=%s",
+                                getattr(user, "id", None),
+                                student_id,
+                                violation_id,
+                            )
                         pass
                 except Exception as e:
                     # If scope validation fails unexpectedly, allow creation to avoid blocking teachers due to configuration gaps.
                     # Staff/superusers are always allowed; non-privileged users proceed as well, and supervisors can later review.
                     if logger and logger.isEnabledFor(logging.WARNING):
-                        logger.warning("incident.create.soft_allow_exception user=%s err=%s", getattr(user, "id", None), e)
+                        logger.warning(
+                            "incident.create.soft_allow_exception user=%s err=%s",
+                            getattr(user, "id", None),
+                            e,
+                        )
                     pass
         if logger and logger.isEnabledFor(logging.INFO):
             logger.info("incident.create.allowed user=%s", getattr(user, "id", None))
@@ -375,6 +410,16 @@ class IncidentViewSet(viewsets.ModelViewSet):
         Provides quick insight when UI shows empty lists. Enabled for DEBUG environments.
         Response: { mine_count, all_count, sample: { mine: [ids], all: [ids] } }
         """
+        # Restrict diagnostics to DEBUG or privileged users to avoid data leakage in production
+        from django.conf import settings as dj_settings
+
+        if not (
+            getattr(dj_settings, "DEBUG", False)
+            or request.user.is_staff
+            or request.user.is_superuser
+            or request.user.has_perm("discipline.access")
+        ):
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
             # Mine
             mine_qs = Incident.objects.all().filter(reporter_id=request.user.id)
@@ -387,8 +432,19 @@ class IncidentViewSet(viewsets.ModelViewSet):
             s = (self.request.query_params.get("search") or "").strip()
             if s:
                 from django.db.models import Q
-                mine_qs = mine_qs.filter(Q(narrative__icontains=s) | Q(location__icontains=s) | Q(violation__category__icontains=s) | Q(violation__code__icontains=s))
-                all_qs = all_qs.filter(Q(narrative__icontains=s) | Q(location__icontains=s) | Q(violation__category__icontains=s) | Q(violation__code__icontains=s))
+
+                mine_qs = mine_qs.filter(
+                    Q(narrative__icontains=s)
+                    | Q(location__icontains=s)
+                    | Q(violation__category__icontains=s)
+                    | Q(violation__code__icontains=s)
+                )
+                all_qs = all_qs.filter(
+                    Q(narrative__icontains=s)
+                    | Q(location__icontains=s)
+                    | Q(violation__category__icontains=s)
+                    | Q(violation__code__icontains=s)
+                )
             data = {
                 "mine_count": mine_qs.count(),
                 "all_count": all_qs.count(),
@@ -409,9 +465,12 @@ class IncidentViewSet(viewsets.ModelViewSet):
         """
         from django.conf import settings as dj_settings
         from django.db.models import Q
+
         base_qs = Incident.objects.select_related("violation", "student", "reporter")
         if getattr(dj_settings, "DISCIPLINE_MATCH_MINE_BY_USERNAME", False):
-            qs = base_qs.filter(Q(reporter_id=request.user.id) | Q(reporter__username=getattr(request.user, "username", None)))
+            qs = base_qs.filter(
+                Q(reporter_id=request.user.id) | Q(reporter__username=getattr(request.user, "username", None))
+            )
         else:
             qs = base_qs.filter(reporter_id=request.user.id)
         qs = qs.order_by("-occurred_at", "-created_at")

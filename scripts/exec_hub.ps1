@@ -22,7 +22,7 @@
 
 Param(
   [Parameter(Position=0,Mandatory=$false)]
-  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test','history:smoke','discipline:bootstrap-rbac','discipline:smoke')]
+  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test','history:smoke','discipline:bootstrap-rbac','discipline:smoke','discipline:seed')]
   [string]$Task,
 
   [switch]$List,
@@ -196,6 +196,7 @@ function Show-List {
     @{Key='login:test';Desc='Obtain JWT, call /api/me, trigger refresh; prints a concise auth report'}
     @{Key='discipline:bootstrap-rbac';Desc='Create/refresh discipline role groups and permissions (idempotent)'}
     @{Key='discipline:smoke';Desc='Diagnose discipline incidents visibility: counts, samples, list (requires auth token)'}
+    @{Key='discipline:seed';Desc='Seed demo discipline incidents for a username (idempotent with --clear)'}
   )
   $rows | ForEach-Object { Write-Host ("- {0} : {1}" -f $_.Key, $_.Desc) }
   Write-Host "Use: pwsh -File scripts/exec_hub.ps1 <task> [-WhatIf] [-Confirm]" -ForegroundColor DarkGray
@@ -220,7 +221,7 @@ switch ($Task) {
   'history:smoke' { Task-HistorySmoke }
   'login:test'    { Task-LoginTest }
   'discipline:bootstrap-rbac' { Task-DisciplineBootstrapRbac }
-  'discipline:smoke' { 
+  'discipline:smoke' {
     Write-Header 'discipline:smoke'
     $script = 'scripts/discipline_smoke.ps1'
     if (-not (Test-Path $script)) { Write-Error "Missing $script"; exit 1 }
@@ -231,6 +232,21 @@ switch ($Task) {
     $cmd = "pwsh -File $script $($forward -join ' ')"
     if (Simulate $cmd) { return }
     & pwsh -File $script @forward
+  }
+  'discipline:seed' {
+    Write-Header 'discipline:seed'
+    $manage = Join-Path $Root 'backend\manage.py'
+    if (-not (Test-Path $manage)) { Write-Error 'Missing backend/manage.py'; exit 1 }
+    $args = @('manage.py','seed_discipline_incidents')
+    if ($PSBoundParameters.ContainsKey('Username') -and $Username) { $args += @('--user', $Username) }
+    # Forward any truly unbound arguments (e.g., --count 20 --clear --dry-run --student 123)
+    if ($script:UNBOUND -and $script:UNBOUND.Length -gt 0) { $args += $script:UNBOUND }
+    $cmd = 'python ' + ($args -join ' ')
+    if (Simulate $cmd) { return }
+    Push-Location (Join-Path $Root 'backend')
+    try {
+      & python @args
+    } finally { Pop-Location }
   }
   default         { Write-Error "Unknown task: $Task"; exit 1 }
 }
