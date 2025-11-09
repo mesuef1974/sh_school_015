@@ -40,9 +40,10 @@ INSTALLED_APPS = [
     "corsheaders",
     "django_rq",
     "rest_framework_simplejwt.token_blacklist",
-    # Local app
+    # Local apps
     "school",
     "apps.attendance",
+    "discipline",
 ]
 
 MIDDLEWARE = [
@@ -269,3 +270,15 @@ CACHES = {
         "TIMEOUT": 600,  # 10 minutes
     },
 }
+
+# --- Discipline module configurable policies (can be overridden via environment) ---
+# Review SLA in hours (time allowed for wing supervisor review after submit)
+DISCIPLINE_REVIEW_SLA_H = int(os.getenv("DISCIPLINE_REVIEW_SLA_H", "24"))
+# Guardian notification SLA in hours (time allowed to notify guardians after submit)
+DISCIPLINE_NOTIFY_SLA_H = int(os.getenv("DISCIPLINE_NOTIFY_SLA_H", "48"))
+# Repeat policy window in days (look-back window for counting repeats of the same violation by the same student)
+DISCIPLINE_REPEAT_WINDOW_D = int(os.getenv("DISCIPLINE_REPEAT_WINDOW_D", "30"))
+# Number of prior incidents within the window that should trigger automatic escalation
+DISCIPLINE_REPEAT_THRESHOLD = int(os.getenv("DISCIPLINE_REPEAT_THRESHOLD", "2"))
+# When repeat threshold is met on submit, automatically bump severity by 1 (max 4)
+DISCIPLINE_AUTO_ESCALATE_SEVERITY = os.getenv("DISCIPLINE_AUTO_ESCALATE_SEVERITY", "true").lower() == "true"

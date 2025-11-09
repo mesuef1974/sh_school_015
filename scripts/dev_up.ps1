@@ -88,6 +88,8 @@ if ($suUser) {
 
 # 9) Bootstrap RBAC and staff links (best-effort)
 try { python manage.py bootstrap_rbac } catch { Write-Warning "[dev_up] bootstrap_rbac: $($_.Exception.Message)" }
+# Discipline RBAC (idempotent) – runs automatically with dev:up per project policy
+try { python manage.py bootstrap_discipline_rbac --with-access } catch { Write-Warning "[dev_up] bootstrap_discipline_rbac: $($_.Exception.Message)" }
 try { python manage.py ensure_staff_users } catch { Write-Warning "[dev_up] ensure_staff_users: $($_.Exception.Message)" }
 try { python manage.py activate_staff_users } catch { Write-Warning "[dev_up] activate_staff_users: $($_.Exception.Message)" }
 

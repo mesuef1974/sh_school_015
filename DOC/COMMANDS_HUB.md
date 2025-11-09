@@ -85,6 +85,7 @@ pwsh -File scripts/exec_hub.ps1 dev:up -WhatIf
 - scripts/full_audit.ps1: check + showmigrations + migrate --check + healthcheck
 - backend/manage.py ensure_superuser: إنشاء مشرف (يُدار داخل dev_up)
 - bootstrap_rbac / ensure_staff_users / activate_staff_users (أفضل جهد)
+- backend/manage.py import_violations [--file <path>] [--dry-run]: استيراد/تحديث كتالوج المخالفات من JSON (افتراضيًا من DOC/نماذج الغياب/violations_detailed.json)
 
 ### الواجهة Frontend
 - scripts/dev_all.ps1: تشغيل السيرفر الخلفي ثم Vite dev server
@@ -125,3 +126,155 @@ pwsh -File scripts/dev_smoke.ps1 -HttpsOnly
 - يستخدم المنفذ HTTPS المكتشف تلقائيًا من backend/.runtime/https_port.txt (الافتراضي 8443).
 - في حال أردت التحقق من HTTP أيضًا (إن كان مفعّلًا)، أزل السويتش `-HttpsOnly`.
 - عند اختبار يدوي لنقاط الـ API عبر HTTPS، تذكّر استخدام `-SkipCertificateCheck` لأن الشهادة تطويرية ذاتية التوقيع.
+
+---
+
+## 6) اختبارات سريعة لكتالوج الانضباط (Discipline Catalog)
+يوفّر النظام نقاط API جاهزة لقراءة كتالوج السلوكيات والمستويات (محمية بصلاحية discipline.access أو حساب Staff/Superuser).
+
+- سحب المستويات:
+```powershell
+# يتطلب توكن JWT في العادة؛ في DEBUG يمكنك تجربة عبر المتصفح بعد تسجيل الدخول
+curl -k -H "Accept: application/json" https://127.0.0.1:8443/api/v1/discipline/behavior-levels/
+```
+
+- سحب المخالفات مع بحث:
+```powershell
+curl -k -H "Accept: application/json" "https://127.0.0.1:8443/api/v1/discipline/violations/?search=الهروب"
+```
+
+- ملاحظات:
+  - المسارات متاحة تحت: /api/v1/discipline/behavior-levels/ و /api/v1/discipline/violations/
+  - تتطلب مصادقة JWT أو جلسة إدارية في DEBUG.
+  - RBAC: مستخدمو الإدارة/المشرفون مسموح لهم افتراضيًا؛ غير ذلك يحتاجون صلاحية discipline.access.
+
+---
+
+## 7) أفعال سير العمل للحوادث (Incidents Workflow)
+تمت إضافة أفعال أساسية ضمن ViewSet الحوادث. جميع الأمثلة التالية تفترض أنك تملك توكن JWT في المتغير TOKEN.
+
+- إنشاء حادثة (يتطلب incident_create):
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/" -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" -d '{"violation": 1, "student": 1, "reporter": 1, "occurred_at": "2025-11-09T10:15:00+03:00", "location": "جناح A", "narrative": "تفاصيل مختصرة"}'
+```
+
+- إرسال للمراجعة submit (يتطلب incident_submit):
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/{INC_ID}/submit/" -H "Authorization: Bearer $env:TOKEN"
+```
+
+- المراجعة review (يتطلب incident_review):
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/{INC_ID}/review/" -H "Authorization: Bearer $env:TOKEN"
+```
+
+- إضافة إجراء/عقوبة (يتطلب incident_review):
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/{INC_ID}/add-action/" -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" -d '{"name": "تنبيه شفهي", "notes": "تم بحضور المرشد"}'
+```
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/{INC_ID}/add-sanction/" -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" -d '{"name": "تعهد خطي", "notes": "وقع الطالب"}'
+```
+
+- التصعيد escalate (يتطلب incident_escalate):
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/{INC_ID}/escalate/" -H "Authorization: Bearer $env:TOKEN"
+```
+
+- إشعار ولي الأمر notify-guardian (يتطلب incident_notify_guardian):
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/{INC_ID}/notify-guardian/" -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" -d '{"channel": "internal", "note": "تم إرسال الإشعار"}'
+```
+
+- إغلاق الحالة close (يتطلب incident_close):
+```powershell
+curl -k -X POST "https://127.0.0.1:8443/api/v1/discipline/incidents/{INC_ID}/close/" -H "Authorization: Bearer $env:TOKEN"
+```
+
+ملاحظات:
+- سياسة التكرار المفعّلة: التصعيد التلقائي عند وجود حالتين سابقتين لنفس الطالب ونفس المخالفة خلال آخر 30 يومًا (تظهر عند submit وتنعكس على committee_required عند الحاجة).
+- يتجاوز المشرفون/المديرون القيود دائمًا؛ غير ذلك تُطلب الأذونات الدقيقة المذكورة أعلاه.
+
+---
+
+## 8) تهيئة سريعة لصلاحيات الانضباط (Bootstrap RBAC)
+هناك طريقتان سريعتان:
+
+1) عبر مركز الأوامر الموحد (يوصي به):
+```powershell
+# معاينة بدون تنفيذ
+pwsh -File scripts/exec_hub.ps1 discipline:bootstrap-rbac -WhatIf
+# تنفيذ فعلي مع تأكيد
+pwsh -File scripts/exec_hub.ps1 discipline:bootstrap-rbac -Confirm
+```
+
+2) مباشرةً بأمر إدارة Django:
+```powershell
+cd backend
+python manage.py bootstrap_discipline_rbac --with-access
+```
+
+- ينشئ/يحدّث المجموعات: Teacher, WingSupervisor, Counselor, Leadership.
+- يربط الأذونات الدقيقة التالية كما في RBAC_SEEDING.md:
+  - Teacher: incident_create, incident_submit
+  - WingSupervisor: incident_review, incident_escalate, incident_notify_guardian, incident_close (+ discipline.access عند تمرير --with-access)
+  - Counselor: incident_review, incident_notify_guardian (+ discipline.access عند تمرير --with-access)
+  - Leadership: incident_review, incident_escalate, incident_notify_guardian, incident_close (+ discipline.access عند تمرير --with-access)
+
+يمكن تكرار تشغيل الأمر دون ضرر.
+
+### ضبط سياسات SLA والتكرار عبر متغيرات البيئة
+يمكنك تخصيص السياسات بلا هجرات عبر متغيرات البيئة (or settings):
+- DISCIPLINE_REVIEW_SLA_H (افتراضي 24)
+- DISCIPLINE_NOTIFY_SLA_H (افتراضي 48)
+- DISCIPLINE_REPEAT_WINDOW_D (افتراضي 30)
+- DISCIPLINE_REPEAT_THRESHOLD (افتراضي 2)
+- DISCIPLINE_AUTO_ESCALATE_SEVERITY (افتراضي true): عند بلوغ حدّ التكرار في submit تُرفع الشدة درجة واحدة (حتى 4).
+
+مثال (ملف backend/.env):
+```env
+DISCIPLINE_REVIEW_SLA_H=24
+DISCIPLINE_NOTIFY_SLA_H=48
+DISCIPLINE_REPEAT_WINDOW_D=30
+DISCIPLINE_REPEAT_THRESHOLD=2
+DISCIPLINE_AUTO_ESCALATE_SEVERITY=true
+```
+هذه القيم تنعكس تلقائيًا في:
+- حقول IncidentSerializer: review_sla_due_at/notify_sla_due_at ورايات التجاوز.
+- منطق submit للتصعيد التلقائي بناءً على التكرار ورفع الشدة تلقائيًا عند تفعيله.
+- ملخص summary لاحتساب عناصر تجاوز SLA.
+
+---
+
+## 9) لوحات مشرف الجناح – واجهات قراءة سريعة
+تمت إضافة نقطتي API قرائيتين لمراقبة الحالات دون تغييرات على قاعدة البيانات:
+
+- Kanban مبسّط (تجميـع حسب الحالة):
+```powershell
+curl -k -H "Authorization: Bearer $env:TOKEN" "https://127.0.0.1:8443/api/v1/discipline/incidents/kanban/?limit=20"
+```
+يعيد:
+- counts: عدد الحالات في كل عمود (open/under_review/closed)
+- columns: عناصر كل عمود بحد أقصى limit مرتبة تنازليًا حسب occurred_at
+
+- ملخص إشرافي (7 أو 30 يومًا):
+```powershell
+# آخر 7 أيام (الافتراضي)
+curl -k -H "Authorization: Bearer $env:TOKEN" "https://127.0.0.1:8443/api/v1/discipline/incidents/summary/?days=7"
+# آخر 30 يومًا
+curl -k -H "Authorization: Bearer $env:TOKEN" "https://127.0.0.1:8443/api/v1/discipline/incidents/summary/?days=30"
+```
+يعيد: totals, by_status, by_severity, top_violations[code,category,count], overdue{review,notify}.
+
+الصلاحيات: يتطلب حساب staff/superuser أو صلاحية discipline.access.
+
+---
+
+## 10) حقول مساعدة جديدة على بطاقة الحادثة (Read-only)
+زُوّد المُمثّل IncidentSerializer بحقوق قراءة إضافية لدعم الواجهات دون هجرات:
+- review_sla_due_at: موعد استحقاق المراجعة = submitted_at + 24h
+- notify_sla_due_at: موعد استحقاق إشعار ولي الأمر = submitted_at + 48h
+- is_overdue_review, is_overdue_notify: أعلام تجاوز الـ SLA طالما الحالة under_review
+- level_color: لون دلالي بحسب الشدة (1–4)
+
+ملاحظة: سياسة التكرار المؤدية للتصعيد التلقائي ما زالت 2 حالة لنفس الطالب ونفس المخالفة خلال 30 يومًا وتطبَّق عند submit.

@@ -60,6 +60,25 @@ export const tiles: Tile[] = [
     color: "#1976d2",
     roles: ["teacher"],
   },
+  // Discipline tiles (Teacher)
+  {
+    id: "discipline_incidents_my",
+    title: "وقائع الانضباط",
+    subtitle: "سجلاتي والإرسال",
+    to: "/discipline/incidents",
+    icon: "solar:document-bold-duotone",
+    color: "#2e86c1",
+    roles: ["teacher"],
+  },
+  {
+    id: "discipline_incident_new",
+    title: "تسجيل واقعة",
+    subtitle: "واقعة سلوكية",
+    to: "/discipline/incidents/new",
+    icon: "solar:add-square-bold-duotone",
+    color: "#27ae60",
+    roles: ["teacher"],
+  },
 
   // Subject Coordinator tiles
   {

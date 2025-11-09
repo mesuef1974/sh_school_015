@@ -22,7 +22,7 @@
 
 Param(
   [Parameter(Position=0,Mandatory=$false)]
-  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test','history:smoke')]
+  [ValidateSet('dev:setup','dev:up','dev:all','worker:start','audit:full','smoke:test','login:test','history:smoke','discipline:bootstrap-rbac')]
   [string]$Task,
 
   [switch]$List,
@@ -166,6 +166,22 @@ function Task-LoginTest {
   & pwsh -File $script @forward
 }
 
+function Task-DisciplineBootstrapRbac {
+  Write-Header 'discipline:bootstrap-rbac'
+  $manage = Join-Path $Root 'backend\manage.py'
+  if (-not (Test-Path $manage)) { Write-Error "Missing backend/manage.py"; return }
+  $args = @('manage.py','bootstrap_discipline_rbac','--with-access')
+  $cmd = "python " + ($args -join ' ')
+  if ($WhatIf) { Write-Host ("[WhatIf] {0}" -f $cmd) -ForegroundColor DarkYellow; return }
+  if (-not (Require-Confirm $cmd)) { Write-Host 'Aborted.' -ForegroundColor DarkGray; return }
+  Push-Location (Join-Path $Root 'backend')
+  try {
+    & python @('manage.py','bootstrap_discipline_rbac','--with-access')
+  } finally {
+    Pop-Location
+  }
+}
+
 function Show-List {
   Write-Header 'Available tasks'
   $rows = @(
@@ -177,6 +193,7 @@ function Show-List {
     @{Key='smoke:test';Desc='Quick HTTPS smoke: /livez, /healthz, and 401 for protected API'}
     @{Key='history:smoke';Desc='Quick HTTPS smoke for attendance history: expect 401 without token'}
     @{Key='login:test';Desc='Obtain JWT, call /api/me, trigger refresh; prints a concise auth report'}
+    @{Key='discipline:bootstrap-rbac';Desc='Create/refresh discipline role groups and permissions (idempotent)'}
   )
   $rows | ForEach-Object { Write-Host ("- {0} : {1}" -f $_.Key, $_.Desc) }
   Write-Host "Use: pwsh -File scripts/exec_hub.ps1 <task> [-WhatIf] [-Confirm]" -ForegroundColor DarkGray
@@ -200,5 +217,6 @@ switch ($Task) {
   'smoke:test'    { Task-SmokeTest }
   'history:smoke' { Task-HistorySmoke }
   'login:test'    { Task-LoginTest }
+  'discipline:bootstrap-rbac' { Task-DisciplineBootstrapRbac }
   default         { Write-Error "Unknown task: $Task"; exit 1 }
 }
