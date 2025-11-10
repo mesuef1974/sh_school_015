@@ -20,8 +20,8 @@ _HEADER_IMAGE = Path(r"D:\sh_school_015\assets\img\moraslat.png")
 
 # NOTE: Using the path provided by the user for the Tanbih template
 # Allow overriding via environment variable ABSENCE_ALERT_TEMPLATE_PATH or Django setting if provided.
-_DEFAULT_TEMPLATE = Path(r"D:\sh_school_015\DOC\نماذج الغياب\Tanbih.docx")
-FALLBACK_TEMPLATE_PATH = Path(r"D:\sh_school_015\DOC\نماذج الغياب\TanbihTEMP.dotx")
+_DEFAULT_TEMPLATE = Path(r"/DOC/repo\Tanbih.docx")
+FALLBACK_TEMPLATE_PATH = Path(r"/DOC/repo\TanbihTEMP.dotx")
 
 _env_template = os.environ.get("ABSENCE_ALERT_TEMPLATE_PATH")
 TEMPLATE_PATH = Path(_env_template) if _env_template else _DEFAULT_TEMPLATE

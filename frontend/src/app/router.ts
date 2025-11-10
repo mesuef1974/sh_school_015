@@ -8,7 +8,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/", name: "home", component: HomePage, meta: { titleAr: "الرئيسية" } },
   { path: "/login", name: "login", component: LoginPage, meta: { titleAr: "تسجيل الدخول" } },
   // Discipline routes (RTL)
-  { path: "/discipline/incidents", redirect: { name: "discipline-incidents-simple" } },
+  { path: "/discipline/incidents", name: "discipline-incidents", redirect: { name: "discipline-incidents-simple" } },
   { path: "/discipline/incidents/new", name: "discipline-incident-new", component: () => import("../features/discipline/pages/IncidentForm.vue"), meta: { requiresAuth: true, titleAr: "تسجيل واقعة" } },
   { path: "/discipline/incidents/simple", name: "discipline-incidents-simple", component: () => import("../features/discipline/pages/IncidentsSimple.vue"), meta: { requiresAuth: true, titleAr: "وقائع الانضباط (مبسطة)" } },
   // Aliases for robustness (some links/users may try alternative paths)
@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/incident/new", redirect: { name: "discipline-incident-new" } },
   { path: "/discipline/incidents/:id", name: "discipline-incident-card", component: () => import("../features/discipline/pages/IncidentCard.vue"), meta: { requiresAuth: true, titleAr: "بطاقة الواقعة" } },
   { path: "/discipline/kanban", name: "discipline-kanban", component: () => import("../features/discipline/pages/KanbanBoard.vue"), meta: { requiresAuth: true, titleAr: "لوحة الانضباط" } },
+  { path: "/discipline/violations", name: "discipline-violations", component: () => import("../features/discipline/pages/ViolationsList.vue"), meta: { requiresAuth: true, titleAr: "كتالوج المخالفات" } },
   // Backwards-compatible alias from wing tile
   { path: "/wing/incidents", name: "wing-incidents", component: () => import("../features/discipline/pages/KanbanBoard.vue"), meta: { requiresAuth: true, titleAr: "بلاغات الجناح" } },
   {

@@ -1,5 +1,10 @@
 import { api } from "../../shared/api/client";
 
+export async function listBehaviorLevels(params: any = {}) {
+  const res = await api.get("/v1/discipline/behavior-levels/", { params });
+  return res.data;
+}
+
 export async function listViolations(params: any = {}) {
   const res = await api.get("/v1/discipline/violations/", { params });
   return res.data;

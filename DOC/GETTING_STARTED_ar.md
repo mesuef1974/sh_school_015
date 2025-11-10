@@ -26,11 +26,14 @@ pwsh -File scripts\ops_run.ps1 -Task install-deps
 ملاحظات سريعة:
 - إن لم يكن Python موجودًا على PATH سيُظهر السكربت رسالة خطأ واضحة.
 - إن لم يكن Node.js/NPM مثبتًا، سيتجاوز قسم الفرونتند ويعرض تحذيرًا دون إيقاف العملية.
-- حزمة @axe-core/vue الخاصة بفحص الوصولية اختيارية في التطوير؛ لا تُثبَّت تلقائيًا لتجنّب مشاكل بعض الشبكات مع سجل npm. إن رغبت بها:
+- فحص الوصولية (axe) في التطوير اختياري، ومُفعَّل برفع العلم VITE_ENABLE_AXE=true داخل frontend/.env. لا حاجة لتثبيت حزمة إضافية؛ سيستعمل المشروع تلقائيًا axe-core من CDN في dev.
+- إن رغبت في تكامل Vue مباشر، يمكنك تثبيت الحزمة المجتمعية الاختيارية: vue-axe
 
 ```powershell
 cd frontend
-npm i -D @axe-core/vue
+npm i -D vue-axe
+# ثم فعِّل العلم في frontend/.env
+# VITE_ENABLE_AXE=true
 ```
 
 ## تشغيل فوري (مقترح)
@@ -234,21 +237,26 @@ pwsh -File scripts\ops_run.ps1 -Task help
 ```
 
 ## الوصولية أثناء التطوير (axe)
-- فحص الوصولية عبر @axe-core/vue متاح اختياريًا في بيئة التطوير فقط. لا يُضمَّن في بناء الإنتاج.
-- بشكل افتراضي لا نقوم بتثبيت الحزمة لتجنّب مشاكل بعض الشبكات مع سجل npm؛ لتفعيله يدويًا:
+- فحص الوصولية متاح اختياريًا في بيئة التطوير فقط، ولا يُضمَّن في بناء الإنتاج.
+- أسهل طريقة: فعِّل العلم التالي داخل frontend/.env (انسخه من .env.example إن لم يوجد) وسيستخدم المشروع axe-core من CDN تلقائيًا:
+  ```powershell
+  # داخل frontend/.env
+  VITE_ENABLE_AXE=true
+  # (اختياري) اجعل الفحص صارمًا ليفشل عند وجود مخالفات خطيرة:
+  VITE_AXE_STRICT=true
+  ```
+- خيار بديل (اختياري): تثبيت مكوّن Vue المجتمعي `vue-axe` لتكامل مباشر داخل Vue:
   ```powershell
   cd frontend
-  npm i -D @axe-core/vue
-  # ثم فعّل العلم التالي داخل frontend/.env
-  # (انسخه من .env.example إن لم يوجد)
-  # VITE_ENABLE_AXE=true
+  npm i -D vue-axe
+  # ثم تأكد من أن VITE_ENABLE_AXE=true
   ```
-- عند تفعيل العلم وتوفر الحزمة، وأثناء التصفّح في dev (vite)، ستظهر تحذيرات/أخطاء الوصولية في Console المتصفح مع تفاصيل ومواقع العناصر المخالفة.
+- عند التفعيل، وأثناء التصفّح في dev (Vite)، ستظهر تقارير axe في Console المتصفح مع تفاصيل ومواقع العناصر المخالفة.
 - خطوات الاستخدام:
   1) شغِّل التطوير: `pwsh -File scripts\ops_run.ps1 -Task dev-all`
   2) افتح أدوات المطوّر (F12) → Console
-  3) انتقل بين الصفحات (الرئيسية، تسجيل الدخول، صفحة جدول/جدول بيانات). ستظهر تقارير axe عند وجود مخالفات.
-- المستهدف: معالجة المخالفات الحرجة (خطيرة) بحيث لا يظهر أي تحذير axe من النوع الحاد في الصفحات الأساسية.
+  3) انتقل بين الصفحات (الرئيسية، تسجيل الدخول، الجداول). ستظهر تقارير axe عند وجود مخالفات.
+- المستهدف: معالجة المخالفات الحرجة (serious/critical) في الصفحات الأساسية.
 
 ### تحسينات واجهة للوصولية
 - أضفنا رابط "تجاوز إلى المحتوى" يظهر عند الضغط على Tab أول مرة، للانتقال مباشرة إلى `<main>`.
@@ -360,3 +368,76 @@ npm run e2e
 ```powershell
 pwsh -File scripts\ops_run.ps1 -Task verify -StartBackend
 ```
+
+
+## كيف أستخدم «المانجر» (manage.py)؟
+يوضح هذا القسم أهم أوامر Django لإدارة قاعدة البيانات وتحميل كتالوج المخالفات من ملف JSON، مع أوامر جاهزة على ويندوز.
+
+- المتطلبات السريعة:
+  - فعِّل البيئة الافتراضية (إن وُجدت):
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    ```
+  - اضبط PostgreSQL في backend/.env (مثال):
+    ```env
+    PG_DB=sh_school
+    PG_USER=postgres
+    PG_PASSWORD=postgres
+    PG_HOST=127.0.0.1
+    PG_PORT=5432
+    ```
+    لا توجد قاعدة محلية؟ شغّل قاعدة جاهزة عبر Docker:
+    ```powershell
+    scripts\db_up.ps1
+    ```
+
+- تطبيق الهجرات (إنشاء الجداول):
+  ```powershell
+  cd backend
+  python manage.py migrate
+  ```
+
+- إنشاء مستخدم إداري للدخول للوحة المشرف:
+  ```powershell
+  python manage.py createsuperuser
+  ```
+
+- تعبئة كتالوج المخالفات تلقائيًا عند الحاجة (ينفّذ migrate ويتحقق من الاتصال ويحمّل الملف):
+  ```powershell
+  # من مجلد backend
+  python manage.py ensure_discipline_data --file "D:\\sh_school_015\\DOC\\repo\\violations_detailed.json" --purge
+  ```
+  ملاحظات:
+  - ‎--purge لإعادة المزامنة النظيفة (حذف وإعادة تحميل).
+  - إذا لم تحدد ‎--file سيستخدم المسار الافتراضي داخل المشروع.
+
+- تحميل/تحديث الكتالوج مباشرة (Upsert داخل معاملة):
+  ```powershell
+  python manage.py load_discipline_catalog --file "D:\\sh_school_015\\DOC\\repo\\violations_detailed.json" --purge
+  ```
+
+- التحقق من الامتلاء:
+  - لوحة الإدارة:
+    - https://127.0.0.1:8443/admin/discipline/behaviorlevel/
+    - https://127.0.0.1:8443/admin/discipline/incident/
+  - واجهات API:
+    - https://127.0.0.1:8443/api/v1/discipline/behavior-levels/
+    - https://127.0.0.1:8443/api/v1/discipline/violations/?level=1
+
+- اختصار عبر سكربتات ويندوز (من جذر المشروع):
+  ```powershell
+  scripts\ensure_discipline_data.ps1 -File "D:\\sh_school_015\\DOC\\repo\\violations_detailed.json" -Purge
+  # أو
+  scripts\load_discipline_catalog.ps1 -File "D:\\sh_school_015\\DOC\\repo\\violations_detailed.json" -Purge
+  ```
+
+- استكشاف الأخطاء الشائعة:
+  - فشل الاتصال بقاعدة البيانات (password authentication failed):
+    - تأكد من backend/.env وفق القيم الصحيحة أو شغّل scripts\db_up.ps1.
+    - أعد تشغيل الأمر وسترى تشخيصًا مبكرًا باسم قاعدة البيانات والمضيف والمنفذ.
+  - مسار الملف يحوي حروفًا عربية: مرّره صراحة كما في الأمثلة أعلاه.
+  - لا ترى الصفحة في الواجهة؟ شغّل البيئة المتكاملة:
+    ```powershell
+    scripts\dev_all.ps1
+    # ثم افتح: https://127.0.0.1:8443/discipline/violations
+    ```

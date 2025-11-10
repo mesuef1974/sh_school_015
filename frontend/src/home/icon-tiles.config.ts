@@ -79,6 +79,16 @@ export const tiles: Tile[] = [
     color: "#27ae60",
     roles: ["teacher"],
   },
+  {
+    id: "discipline_catalog",
+    title: "كتالوج المخالفات",
+    subtitle: "المستويات والإجراءات والعقوبات",
+    to: "/discipline/violations",
+    icon: "solar:shield-warning-bold-duotone",
+    color: "#c0392b",
+    // Show only to staff/superusers or users with discipline.access permission
+    permissions: ["discipline.access"],
+  },
 
   // Subject Coordinator tiles
   {

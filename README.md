@@ -37,6 +37,7 @@
 - قائمة مهام متسلسلة (MD): [DOC/خطة_تنفيذ_متسلسلة.md](DOC/خطة_تنفيذ_متسلسلة.md)
 - سكربتات التشغيل السريع: scripts/dev_setup.ps1, scripts/dev_up.ps1, scripts/dev_all.ps1
 - دليل البدء بالعربية: [DOC/GETTING_STARTED_ar.md](DOC/GETTING_STARTED_ar.md)
+- دليل إعداد قاعدة البيانات (AR): [docs/DB_SETUP_AR.md](docs/DB_SETUP_AR.md)
 
 ## ‏✨ الميزات الرئيسية
 

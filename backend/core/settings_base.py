@@ -13,8 +13,9 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from .env in backend directory
-load_dotenv(os.path.join(BASE_DIR, ".env"))
+# Load environment variables from .env in backend directory (allow opting out)
+if os.getenv("DJANGO_READ_DOTENV", "1").lower() in {"1", "true", "yes", "on"}:
+    load_dotenv(os.path.join(BASE_DIR, ".env"))
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-change-me")
@@ -107,16 +108,95 @@ if _SENTRY_DSN:
         pass
 
 # Database
-DATABASES = {
-    "default": {
+# Support DATABASE_URL, or fall back to PG_* variables, then DB_* variables, then sane local defaults.
+from urllib.parse import urlparse
+
+
+def _db_from_env() -> dict:
+    """
+    Build DATABASES["default"] from environment variables.
+    Priority:
+      1) DATABASE_URL (supports postgres[ql] and sqlite schemes)
+      2) PG_* or DB_* variables (Postgres)
+      3) Sensible defaults: in DEBUG -> SQLite (backend/db.sqlite3), else Postgres.
+    """
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url:
+        u = urlparse(url)
+        scheme = (u.scheme or "").lower()
+        if scheme in {"sqlite", "sqlite3"}:
+            # Examples:
+            #   sqlite:///:memory:
+            #   sqlite:///relative/path.db
+            #   sqlite:////absolute/path.db
+            path = u.path or ""
+            if path in {"", "/"}:
+                name = ":memory:"
+            else:
+                # urlparse adds a leading '/'; remove only one for relative paths
+                if path.startswith("///"):
+                    # sqlite:////C:/path -> urlparse path '///C:/path'
+                    name = path.lstrip("/")
+                else:
+                    name = path[1:] if path.startswith("/") else path
+            return {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": name,
+            }
+        # Treat any other/unknown scheme as Postgres-compatible
+        engine = "django.db.backends.postgresql"
+        name = u.path.lstrip("/") or os.getenv("DB_NAME") or os.getenv("PG_DB") or "sh_school"
+        user = u.username or os.getenv("DB_USER") or os.getenv("PG_USER") or "postgres"
+        password = u.password or os.getenv("DB_PASSWORD") or os.getenv("PG_PASSWORD") or "postgres"
+        host = u.hostname or os.getenv("DB_HOST") or os.getenv("PG_HOST") or "127.0.0.1"
+        port_val = u.port or os.getenv("DB_PORT") or os.getenv("PG_PORT") or "5432"
+        port = str(port_val)
+        return {
+            "ENGINE": engine,
+            "NAME": name,
+            "USER": user,
+            "PASSWORD": password,
+            "HOST": host,
+            "PORT": port,
+        }
+
+    # No DATABASE_URL -> use PG_* then DB_* if provided; otherwise default
+    pg_db = os.getenv("PG_DB") or os.getenv("DB_NAME")
+    pg_user = os.getenv("PG_USER") or os.getenv("DB_USER")
+    pg_password = os.getenv("PG_PASSWORD") or os.getenv("DB_PASSWORD")
+    pg_host = os.getenv("PG_HOST") or os.getenv("DB_HOST")
+    pg_port = os.getenv("PG_PORT") or os.getenv("DB_PORT")
+
+    if any([pg_db, pg_user, pg_password, pg_host, pg_port]):
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": pg_db or "sh_school",
+            "USER": pg_user or "postgres",
+            "PASSWORD": pg_password or "postgres",
+            "HOST": pg_host or "127.0.0.1",
+            "PORT": str(pg_port or "5432"),
+        }
+
+    # Sensible default: use PostgreSQL unless explicitly overridden via DJANGO_DEFAULT_DB or DATABASE_URL.
+    default_engine = os.getenv("DJANGO_DEFAULT_DB", "postgres").lower()
+    if default_engine in {"sqlite", "sqlite3"}:
+        name = os.getenv("SQLITE_NAME") or str(BASE_DIR / "db.sqlite3")
+        return {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": name,
+        }
+    # Default to Postgres
+    return {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("PG_DB", "sh_school"),
-        "USER": os.getenv("PG_USER", "postgres"),
-        "PASSWORD": os.getenv("PG_PASSWORD", "postgres"),
-        "HOST": os.getenv("PG_HOST", "127.0.0.1"),
-        "PORT": os.getenv("PG_PORT", "5432"),
+        "NAME": "sh_school",
+        "USER": "postgres",
+        "PASSWORD": "postgres",
+        "HOST": "127.0.0.1",
+        "PORT": "5432",
     }
-}
+
+
+DATABASES = {"default": _db_from_env()}
 
 
 # Password validation
@@ -285,4 +365,9 @@ DISCIPLINE_AUTO_ESCALATE_SEVERITY = os.getenv("DISCIPLINE_AUTO_ESCALATE_SEVERITY
 # In some imported dev databases, the user id that created incidents may differ from the
 # current user's id although the username matches. Enable a safe dev-mode fallback to
 # match "my incidents" by username as well.
-DISCIPLINE_MATCH_MINE_BY_USERNAME = os.getenv("DISCIPLINE_MATCH_MINE_BY_USERNAME", str(DEBUG).lower()).lower() in {"1","true","yes","on"}
+DISCIPLINE_MATCH_MINE_BY_USERNAME = os.getenv("DISCIPLINE_MATCH_MINE_BY_USERNAME", str(DEBUG).lower()).lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}

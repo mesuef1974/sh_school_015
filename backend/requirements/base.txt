@@ -1,0 +1,9 @@
+django==4.2.7
+djangorestframework==3.14.0
+djangorestframework-simplejwt
+docxtpl==0.20.1
+django-rq
+django-extensions
+psycopg2-binary==2.9.9
+openpyxl==3.1.2
+Pillow

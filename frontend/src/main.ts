@@ -259,15 +259,25 @@ try {
 } catch {}
 
 // Development-only accessibility checks (axe) — initialize before mount
-// Optional: enable by setting VITE_ENABLE_AXE=true and installing @axe-core/vue manually
+// Optional: enable by setting VITE_ENABLE_AXE=true. No local npm install required; a CDN fallback is built-in.
 if (import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_AXE).toLowerCase() === "true") {
   try {
-    // Prevent Vite from trying to pre-resolve this optional dependency when it's not installed
-    const spec = "@axe-core/vue";
-    // @ts-ignore
-    const { default: VueAxe } = await import(/* @vite-ignore */ spec);
-    // @ts-ignore - plugin typing may not be available
-    app.use(VueAxe, { config: { reporter: "v2" } });
+    // Try optional Vue integration packages first (not installed by default)
+    // We attempt 'vue-axe' (community plugin) then '@axe-core/vue' (reserved/non-existent) for forward-compat.
+    let VueAxe: any | null = null;
+    try {
+      // @ts-ignore
+      VueAxe = (await import(/* @vite-ignore */ "vue-axe")).default;
+    } catch {
+      // Skipping fallback to '@axe-core/vue' to avoid Vite resolution errors when the package is not installed.
+      // If 'vue-axe' is unavailable, we will use the CDN fallback for axe-core below.
+    }
+    if (VueAxe) {
+      // @ts-ignore - plugin typing may not be available
+      app.use(VueAxe, { config: { reporter: "v2" } });
+    } else {
+      throw new Error("no-vue-axe-plugin");
+    }
     // You can open the browser console to see violations while navigating in dev
   } catch (e) {
     // Fallback path: load axe-core directly from a public CDN (dev-only) and run checks
@@ -320,7 +330,7 @@ if (import.meta.env.DEV && String(import.meta.env.VITE_ENABLE_AXE).toLowerCase()
       router.afterEach(() => setTimeout(runAxe, 0));
     } catch (cdnErr) {
       console.warn(
-        "[@axe-core/vue] not installed and CDN fallback failed (dev-only, optional):",
+        "[axe] optional dev a11y checks: plugin not installed and CDN fallback failed:",
         cdnErr
       );
     }

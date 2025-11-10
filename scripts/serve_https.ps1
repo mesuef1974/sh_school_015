@@ -249,8 +249,80 @@ except Exception as e:
   }
 }
 
+function Get-DjangoDbErrorSummary {
+  try {
+    $BackendPath = Join-Path $Root 'backend'
+    $BackendPathEsc = ($BackendPath -replace '\\','\\')
+    $code = @"
+import os, sys, json
+backend_path = r'$BackendPathEsc'
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+os.environ.setdefault('DJANGO_SETTINGS_MODULE','core.settings')
+try:
+    import django
+    django.setup()
+    from django.conf import settings
+    from django.db import connection
+    db = settings.DATABASES.get('default', {})
+    db_print = dict(db)
+    if 'PASSWORD' in db_print and db_print['PASSWORD']:
+        db_print['PASSWORD'] = '(set)'
+    print('DJANGO_DB=', json.dumps(db_print, ensure_ascii=False))
+    with connection.cursor() as c:
+        c.execute('SELECT 1')
+        c.fetchone()
+    print('OK')
+    raise SystemExit(0)
+except Exception as e:
+    et = type(e)
+    print(f"{et.__module__}.{et.__name__}: {e}")
+    raise SystemExit(1)
+"@
+    $tmp = New-TemporaryFile
+    Set-Content -Path $tmp -Value $code -Encoding UTF8
+    $output = & python $tmp 2>&1
+    $exit = $LASTEXITCODE
+    Remove-Item $tmp -ErrorAction SilentlyContinue
+    if ($exit -eq 0) { return $null }
+    foreach ($line in ($output -split "`r?`n")) { if ($line.Trim()) { return $line.Trim() } }
+    return $null
+  } catch { return $null }
+}
+
 # ------------- Preflight -------------
 $DotEnv = Read-DotEnv -Path $EnvFile
+
+# Align Django DB settings with backend/.env by exporting DATABASE_URL if not already set
+try {
+  if (-not $Env:DATABASE_URL -or $Env:DATABASE_URL.Trim() -eq '') {
+    function ConvertFrom-QuotedValue([string]$s){ if (-not $s){return $s}; $t=$s.Trim(); if($t.Length -ge 2){$f=$t[0];$l=$t[$t.Length-1]; if(($f -eq '"' -and $l -eq '"') -or ($f -eq "'" -and $l -eq "'")){ return $t.Substring(1,$t.Length-2)} }; return $t }
+    $pgHost = $null; $pgPort = $null; $pgDb = $null; $pgUser = $null; $pgPass = $null
+    if ($DotEnv) {
+      $pgHost = if ($DotEnv['PG_HOST']) { $DotEnv['PG_HOST'] } elseif ($DotEnv['DB_HOST']) { $DotEnv['DB_HOST'] } else { $null }
+      $pgPort = if ($DotEnv['PG_PORT']) { $DotEnv['PG_PORT'] } elseif ($DotEnv['DB_PORT']) { $DotEnv['DB_PORT'] } else { $null }
+      $pgDb   = if ($DotEnv['PG_DB'])   { $DotEnv['PG_DB']   } elseif ($DotEnv['DB_NAME']) { $DotEnv['DB_NAME'] } else { $null }
+      $pgUser = if ($DotEnv['PG_USER']) { $DotEnv['PG_USER'] } elseif ($DotEnv['DB_USER']) { $DotEnv['DB_USER'] } else { $null }
+      $pgPass = if ($DotEnv['PG_PASSWORD']) { $DotEnv['PG_PASSWORD'] } elseif ($DotEnv['DB_PASSWORD']) { $DotEnv['DB_PASSWORD'] } else { $null }
+    }
+    $h = ConvertFrom-QuotedValue $pgHost; if (-not $h -or $h -eq '') { $h = '127.0.0.1' }
+    $p = ConvertFrom-QuotedValue $pgPort; if (-not $p -or $p -eq '') { $p = '5432' } else { $p = ($p -replace '[^\d]','') }; if (-not $p) { $p = '5432' }
+    $d = ConvertFrom-QuotedValue $pgDb;   if (-not $d -or $d -eq '') { $d = 'sh_school' }
+    $u = ConvertFrom-QuotedValue $pgUser; if (-not $u -or $u -eq '') { $u = 'postgres' }
+    $w = ConvertFrom-QuotedValue $pgPass; if (-not $w -or $w -eq '') { $w = 'postgres' }
+    # Prefer runtime-selected port if present (avoids conflicts when 5432 is occupied)
+    try {
+      $RuntimePortFile = Join-Path $Root 'backend\.runtime\pg_port.txt'
+      if (Test-Path -LiteralPath $RuntimePortFile) {
+        $pRt = (Get-Content -LiteralPath $RuntimePortFile -ErrorAction SilentlyContinue | Select-Object -First 1).Trim()
+        if ($pRt) { $p = ($pRt -replace '[^\d]',''); if (-not $p -or $p -eq '') { $p = '5432' } }
+      }
+    } catch { }
+    $Env:DATABASE_URL = ("postgresql://{0}:{1}@{2}:{3}/{4}" -f $u, $w, $h, $p, $d)
+    # Ensure PostgreSQL is used (remove any leftover SQLite dev flag)
+    try { Remove-Item Env:DJANGO_DEV_SQLITE -ErrorAction SilentlyContinue } catch {}
+  }
+} catch { Write-Host ("[serve_https] Warning: failed to export DATABASE_URL: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow }
 
 # Ensure DEBUG=true by default in local dev if not explicitly set
 if (-not $Env:DJANGO_DEBUG -or $Env:DJANGO_DEBUG -eq '') { $Env:DJANGO_DEBUG = 'true' }
@@ -258,8 +330,26 @@ if (-not $Env:DJANGO_DEBUG -or $Env:DJANGO_DEBUG -eq '') { $Env:DJANGO_DEBUG = '
 # Probe DB connectivity; prefer PostgreSQL but do not hard-fail in dev
 # If DB is down or misconfigured, we still start the server so /livez and static pages work,
 # and developers can bring DB up afterward. Endpoints needing DB will fail until DB is ready.
-if (-not (Test-DjangoDbConnection)) {
-  Write-Warning "PostgreSQL connection check failed. Will continue starting the dev server; ensure DB is running and PG_* settings in backend/.env are correct."
+$probeOk = (Test-DjangoDbConnection)
+if (-not $probeOk) {
+  $summary = Get-DjangoDbErrorSummary
+  Write-Warning "PostgreSQL connection check failed. Attempting to start/align local Docker Postgres ..."
+  try { & (Join-Path $Root 'scripts\db_up.ps1') } catch { Write-Host ("[serve_https] db_up.ps1 failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkGray }
+  # Retry after alignment
+  $probeOk = (Test-DjangoDbConnection)
+  if (-not $probeOk) {
+    if ($summary -and ($summary -match 'password authentication failed' -or $summary -match 'FATAL')) {
+      Write-Warning "Detected probable password mismatch with existing volume. Reinitializing Postgres volume (one-time) ..."
+      try { & (Join-Path $Root 'scripts\db_up.ps1') -ForceReinit } catch { Write-Host ("[serve_https] db_up.ps1 -ForceReinit failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkGray }
+      $probeOk = (Test-DjangoDbConnection)
+    }
+  }
+  if (-not $probeOk) {
+    Write-Warning "PostgreSQL connection still failing. Will continue starting the dev server; ensure DB is running and PG_* settings in backend/.env are correct."
+    if ($summary) { Write-Host ("Backend DB error: {0}" -f $summary) -ForegroundColor DarkGray }
+  } else {
+    Write-Host "Database connectivity OK after self-heal." -ForegroundColor DarkGray
+  }
 }
 
 Invoke-DjangoMigrateIfNeeded

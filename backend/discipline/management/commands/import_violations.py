@@ -13,15 +13,16 @@ from discipline.models import BehaviorLevel, Violation
 
 class Command(BaseCommand):
     help = (
-        "Import/update the violations catalog (BehaviorLevel + Violation) from a JSON file "
-        "such as DOC/نماذج الغياب/violations_detailed.json."
+        "[DEPRECATED] Use 'load_discipline_catalog' instead. "
+        "This legacy command imports/updates the catalog from a JSON file such as "
+        "DOC/school_DATA/violations_detailed.json."
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--file",
             dest="file",
-            help=("Path to the JSON file. Defaults to <repo_root>/DOC/نماذج الغياب/violations_detailed.json"),
+            help=("Path to the JSON file. Defaults to <repo_root>/DOC/repo/violations_detailed.json"),
         )
         parser.add_argument(
             "--dry-run",
@@ -32,7 +33,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # Determine default path relative to repo root (BASE_DIR points to backend/)
         repo_root = Path(settings.BASE_DIR).parent
-        default_path = repo_root / "DOC" / "نماذج الغياب" / "violations_detailed.json"
+        default_path = repo_root / "DOC" / "repo" / "violations_detailed.json"
         file_path = Path(options.get("file") or default_path)
 
         if not file_path.exists():
