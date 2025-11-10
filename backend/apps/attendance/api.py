@@ -2954,6 +2954,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                     tokens: list[str] = []
                     used_lessons: set[int] = set()
                     kind_counters: dict[str, int] = {}
+                    used_non_lesson: set[str] = set()
                     for s in slots_all:
                         kind = (getattr(s, "kind", "lesson") or "lesson").strip().lower()
                         if kind == "lesson":
@@ -2965,7 +2966,13 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                                 tokens.append(f"P{num}")
                                 used_lessons.add(num)
                         else:
-                            cnt = kind_counters.get(kind, 0) + 1
+                            # Normalize and ensure at most one column per non-lesson kind per day
+                            if kind == "break":
+                                kind = "recess"
+                            if kind in used_non_lesson:
+                                continue
+                            used_non_lesson.add(kind)
+                            cnt = 1
                             kind_counters[kind] = cnt
                             tok = f"{kind.upper()}-{cnt}"
                             # Save meta with Arabic label

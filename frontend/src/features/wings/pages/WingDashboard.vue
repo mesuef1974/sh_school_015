@@ -359,7 +359,7 @@ function subjectTitle(row: any): string {
 }
 import { onMounted, onBeforeUnmount, ref, computed, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { getWingMe, getWingOverview, getMe, getWingMissing } from "../../../shared/api/client";
+import { getWingMe, getWingOverview, getMe, getWingMissing, getWingTimetable } from "../../../shared/api/client";
 import DsButton from "../../../components/ui/DsButton.vue";
 import { tiles } from "../../../home/icon-tiles.config";
 import { useWingContext } from "../../../shared/composables/useWingContext";

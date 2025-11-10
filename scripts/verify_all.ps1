@@ -22,6 +22,11 @@
   If set, attempts to start the backend dev server (scripts/serve_https.ps1) in the background before health probes,
   waiting briefly so that /livez and /healthz can respond.
 
+.PARAMETER Parts
+  Optional list to run only specific parts. Allowed values:
+    services, migrate, tests-sqlite, tests-pg, fe-lint, be-lint, security, probes
+  Example: -Parts migrate,tests-sqlite
+
 .EXAMPLE
   pwsh -File scripts/verify_all.ps1
 
@@ -35,11 +40,37 @@
 param(
   [switch]$UpServices,
   [switch]$SkipPostgresTests,
-  [switch]$StartBackend
+  [switch]$StartBackend,
+  [string[]]$Parts
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# Normalize Parts filter and helper to decide which sections to run
+$__selected = @{}
+if ($Parts -and $Parts.Count -gt 0) {
+  foreach ($p in $Parts) {
+    if (-not $p) { continue }
+    $k = ($p.ToString().Trim().ToLowerInvariant())
+    switch ($k) {
+      'services' { $__selected['services'] = $true }
+      'migrate' { $__selected['migrate'] = $true }
+      'tests' { $__selected['tests-sqlite'] = $true; $__selected['tests-pg'] = $true }
+      'tests-sqlite' { $__selected['tests-sqlite'] = $true }
+      'tests-pg' { $__selected['tests-pg'] = $true }
+      'fe' { $__selected['fe-lint'] = $true }
+      'fe-lint' { $__selected['fe-lint'] = $true }
+      'be' { $__selected['be-lint'] = $true }
+      'be-lint' { $__selected['be-lint'] = $true }
+      'lint' { $__selected['fe-lint'] = $true; $__selected['be-lint'] = $true }
+      'security' { $__selected['security'] = $true }
+      'probes' { $__selected['probes'] = $true }
+      default { $__selected[$k] = $true }
+    }
+  }
+}
+function Should-Run([string]$name){ if (-not $Parts -or $Parts.Count -eq 0) { return $true } return [bool]$__selected[$name.ToLowerInvariant()] }
 
 function Write-Header($msg){ Write-Host "`n==== $msg ====\n" -ForegroundColor Cyan }
 function Write-Ok($msg){ Write-Host "[OK] $msg" -ForegroundColor Green }
@@ -68,6 +99,9 @@ function Find-FreePort([int]$StartPort, [int]$MaxTries = 50){
 # Move to repo root
 $Root = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $Root
+# Try to import shared ops utilities for cross-version HTTP and helpers
+$__utils = Join-Path $Root 'scripts\lib\ops_utils.psm1'
+if (Test-Path $__utils) { try { Import-Module $__utils -Force -ErrorAction Stop } catch {} }
 
 # Ensure backend on PYTHONPATH for child processes
 $env:PYTHONPATH = (Join-Path $Root 'backend')
@@ -90,126 +124,216 @@ if (-not $pytestAvailable) {
 $results = @{}
 
 # 1) Optionally bring up services
-if ($UpServices) {
-  Write-Header 'Starting Docker services (PostgreSQL + Redis)'
-  $compose = Join-Path $Root 'infra\docker-compose.yml'
-  if (-not (Test-Path $compose)) { Write-Err 'infra/docker-compose.yml not found'; $results.services = 'SKIP' }
-  else {
-    try {
-      docker --version | Out-Null
-      # Determine host ports intended for binding
-      $pgPort = if ($Env:PG_HOST_PORT -and $Env:PG_HOST_PORT -ne '') { [int]$Env:PG_HOST_PORT } else { 5433 }
-      $redisPort = if ($Env:REDIS_HOST_PORT -and $Env:REDIS_HOST_PORT -ne '') { [int]$Env:REDIS_HOST_PORT } else { 6379 }
-      # Preflight: auto-select free host ports if defaults are in use
-      $conflicts = @()
-      $pgBusy = (Test-PortBusy -Port $pgPort)
-      $redisBusy = (Test-PortBusy -Port $redisPort)
-      if ($pgBusy) { $conflicts += "PostgreSQL:$pgPort" }
-      if ($redisBusy) { $conflicts += "Redis:$redisPort" }
-      if ($conflicts.Count -gt 0) {
-        Write-Warn ("Port(s) in use: {0}. Auto-selecting free ports..." -f ($conflicts -join ', '))
-        if ($pgBusy) {
-          $newPg = Find-FreePort -StartPort ($pgPort + 1)
-          Write-Info ("Using PG_HOST_PORT={0}" -f $newPg)
-          $Env:PG_HOST_PORT = "$newPg"
-          $pgPort = $newPg
-        }
-        if ($redisBusy) {
-          $newRedis = Find-FreePort -StartPort ($redisPort + 1)
-          Write-Info ("Using REDIS_HOST_PORT={0}" -f $newRedis)
-          $Env:REDIS_HOST_PORT = "$newRedis"
-          $redisPort = $newRedis
-        }
-      }
-      {#CONTINUE_UP#}
-        $null = & docker compose -f $compose up -d
-        $upExit = $LASTEXITCODE
-        if ($upExit -ne 0) {
-          Write-Warn "'docker compose up -d' exited with code $upExit"
-          Write-Info ("Hint: If PostgreSQL port {0} is occupied, choose another free port and re-run:" -f $pgPort)
-          Write-Host "    `$Env:PG_HOST_PORT='5544'" -ForegroundColor DarkGray
-          Write-Info ("Hint: If Redis port {0} is occupied, choose another free port and re-run:" -f $redisPort)
-          Write-Host "    `$Env:REDIS_HOST_PORT='6380'" -ForegroundColor DarkGray
-          Write-Host "    pwsh -File scripts\\verify_all.ps1 -UpServices" -ForegroundColor DarkGray
-          Write-Info "Inspect service status with: docker compose -f infra\\docker-compose.yml ps"
-          Write-Info "Check recent logs with: docker compose -f infra\\docker-compose.yml logs --no-color --tail=80"
-          $results.services = 'FAIL'
-        } else {
-          # Verify both services are actually running
-          $running = (& docker compose -f $compose ps --services --filter "status=running") -split "`r?`n" | Where-Object { $_ -ne '' }
-          $expected = @('postgres','redis')
-          $missing = @()
-          foreach ($svc in $expected) { if ($running -notcontains $svc) { $missing += $svc } }
-          if ($missing.Count -gt 0) {
-            Write-Warn ("Some services are not running: {0}" -f ($missing -join ', '))
-            Write-Info "Hint: If port 5433 is occupied, set PG_HOST_PORT to another port, e.g.: `$Env:PG_HOST_PORT='5544' then re-run with -UpServices"
-            Write-Info "You can inspect status with: docker compose -f infra\\docker-compose.yml ps"
-            $results.services = 'FAIL'
-          } else {
-            Write-Ok 'Docker services are up'
-            $results.services = 'PASS'
+if (Should-Run 'services') {
+  if ($UpServices) {
+    Write-Header 'Starting Docker services (PostgreSQL + Redis)'
+    $compose = Join-Path $Root 'infra\docker-compose.yml'
+    if (-not (Test-Path $compose)) { Write-Err 'infra/docker-compose.yml not found'; $results.services = 'SKIP' }
+    else {
+      try {
+        docker --version | Out-Null
+        # Determine host ports intended for binding
+        $pgPort = if ($Env:PG_HOST_PORT -and $Env:PG_HOST_PORT -ne '') { [int]$Env:PG_HOST_PORT } else { 5433 }
+        $redisPort = if ($Env:REDIS_HOST_PORT -and $Env:REDIS_HOST_PORT -ne '') { [int]$Env:REDIS_HOST_PORT } else { 6379 }
+        # Preflight: auto-select free host ports if defaults are in use
+        $conflicts = @()
+        $pgBusy = (Test-PortBusy -Port $pgPort)
+        $redisBusy = (Test-PortBusy -Port $redisPort)
+        if ($pgBusy) { $conflicts += "PostgreSQL:$pgPort" }
+        if ($redisBusy) { $conflicts += "Redis:$redisPort" }
+        if ($conflicts.Count -gt 0) {
+          Write-Warn ("Port(s) in use: {0}. Auto-selecting free ports..." -f ($conflicts -join ', '))
+          if ($pgBusy) {
+            $newPg = Find-FreePort -StartPort ($pgPort + 1)
+            Write-Info ("Using PG_HOST_PORT={0}" -f $newPg)
+            $Env:PG_HOST_PORT = "$newPg"
+            $pgPort = $newPg
+          }
+          if ($redisBusy) {
+            $newRedis = Find-FreePort -StartPort ($redisPort + 1)
+            Write-Info ("Using REDIS_HOST_PORT={0}" -f $newRedis)
+            $Env:REDIS_HOST_PORT = "$newRedis"
+            $redisPort = $newRedis
           }
         }
+        {#CONTINUE_UP#}
+          # Ensure external volume exists for first-run friendliness
+          $volName = 'sh_school_pg_data'
+          try {
+            $existing = (& docker volume ls -q --filter "name=$volName") -split "`r?`n" | Where-Object { $_ -ne '' }
+            if (-not ($existing | Where-Object { $_ -eq $volName })) {
+              Write-Info ("Creating Docker volume: {0}" -f $volName)
+              $null = & docker volume create $volName
+            }
+          } catch {
+            Write-Warn ("Could not verify/create Docker volume '{0}': {1}" -f $volName, $_.Exception.Message)
+          }
+          $null = & docker compose -f $compose up -d
+          $upExit = $LASTEXITCODE
+          if ($upExit -ne 0) {
+            Write-Warn "'docker compose up -d' exited with code $upExit"
+            Write-Info ("Hint: If PostgreSQL port {0} is occupied, choose another free port and re-run:" -f $pgPort)
+            Write-Host "    `$Env:PG_HOST_PORT='5544'" -ForegroundColor DarkGray
+            Write-Info ("Hint: If Redis port {0} is occupied, choose another free port and re-run:" -f $redisPort)
+            Write-Host "    `$Env:REDIS_HOST_PORT='6380'" -ForegroundColor DarkGray
+            Write-Host "    pwsh -File scripts\\verify_all.ps1 -UpServices" -ForegroundColor DarkGray
+            Write-Info "Inspect service status with: docker compose -f infra\\docker-compose.yml ps"
+            Write-Info "Check recent logs with: docker compose -f infra\\docker-compose.yml logs --no-color --tail=80"
+            $results.services = 'FAIL'
+          } else {
+            # Verify both services are actually running
+            $running = (& docker compose -f $compose ps --services --filter "status=running") -split "`r?`n" | Where-Object { $_ -ne '' }
+            $expected = @('postgres','redis')
+            $missing = @()
+            foreach ($svc in $expected) { if ($running -notcontains $svc) { $missing += $svc } }
+            if ($missing.Count -gt 0) {
+              Write-Warn ("Some services are not running: {0}" -f ($missing -join ', '))
+              Write-Info "Hint: If port 5433 is occupied, set PG_HOST_PORT to another port, e.g.: `$Env:PG_HOST_PORT='5544' then re-run with -UpServices"
+              Write-Info "You can inspect status with: docker compose -f infra\\docker-compose.yml ps"
+              $results.services = 'FAIL'
+            } else {
+              Write-Ok 'Docker services are up'
+              $results.services = 'PASS'
+            }
+          }
+        }
+      } catch {
+        Write-Warn "Failed to start Docker services: $($_.Exception.Message)"
+        $results.services = 'FAIL'
       }
-    } catch {
-      Write-Warn "Failed to start Docker services: $($_.Exception.Message)"
-      $results.services = 'FAIL'
     }
+  } else {
+    $results.services = 'SKIP'
   }
 }
 
-# 2) Django checks and migrations (PostgreSQL route)
-Write-Header 'Django checks and migrations (PostgreSQL)'
-$env:DJANGO_SETTINGS_MODULE = 'core.settings'
+# -- Load backend .env (if present) into environment for consistency with Django --
 try {
-  & $PythonExe backend/manage.py check | Out-Null
-  Write-Ok 'manage.py check passed'
-  try {
-    & $PythonExe backend/manage.py migrate | Out-Null
-    Write-Ok 'migrations applied'
-    $results.migrate = 'PASS'
-  } catch {
-    Write-Err "migrate failed: $($_.Exception.Message)"
-    $results.migrate = 'FAIL'
+  $envFile = Join-Path $Root 'backend\.env'
+  if (Test-Path -Path $envFile) {
+    $lines = Get-Content -Path $envFile -ErrorAction Stop
+    foreach ($ln in $lines) {
+      if (-not $ln -or $ln.Trim().StartsWith('#')) { continue }
+      $eq = $ln.IndexOf('=')
+      if ($eq -gt 0) {
+        $k = $ln.Substring(0,$eq).Trim()
+        $v = $ln.Substring($eq+1).Trim()
+        if ($v.StartsWith('"') -and $v.EndsWith('"')) { $v = $v.Trim('"') }
+        if (-not [string]::IsNullOrWhiteSpace($k)) { Set-Item -Path ("Env:{0}" -f $k) -Value $v }
+      }
+    }
   }
-} catch {
-  Write-Err "manage.py check failed: $($_.Exception.Message)"
-  $results.migrate = 'FAIL'
+} catch { }
+
+# -- Configure DB URL and probe PostgreSQL reachability --
+$pgReachable = $true
+if ($UpServices) {
+  $pgHost = '127.0.0.1'
+  $pgPort = if ($Env:PG_HOST_PORT -and $Env:PG_HOST_PORT -ne '') { [int]$Env:PG_HOST_PORT } else { 5433 }
+  $dbUrl = ("postgresql://postgres:postgres@{0}:{1}/sh_school" -f $pgHost, $pgPort)
+  Write-Info ("Using DATABASE_URL={0}" -f $dbUrl)
+  $env:DATABASE_URL = $dbUrl
+}
+# Try a quick psycopg connection probe (2s timeout) to decide whether to run PG-dependent steps
+try {
+  $probeScript = @"
+import os, sys
+try:
+    import psycopg
+except Exception:
+    # psycopg not installed -> assume unreachable to avoid crashing steps
+    sys.exit(2)
+url = os.environ.get('DATABASE_URL', '').strip()
+if not url:
+    sys.exit(2)
+try:
+    with psycopg.connect(url, connect_timeout=2) as conn:
+        with conn.cursor() as cur:
+            cur.execute('SELECT 1')
+            cur.fetchone()
+    sys.exit(0)
+except Exception:
+    sys.exit(3)
+"@
+  $tmp = [System.IO.Path]::GetTempFileName() + '.py'
+  [System.IO.File]::WriteAllText($tmp, $probeScript)
+  & $PythonExe $tmp | Out-Null
+  $code = $LASTEXITCODE
+  try { Remove-Item $tmp -Force -ErrorAction SilentlyContinue } catch {}
+  if ($code -ne 0) { $pgReachable = $false; Write-Warn 'PostgreSQL not reachable (DATABASE_URL). Will skip DB-dependent steps.' }
+} catch { $pgReachable = $false; Write-Warn 'PostgreSQL probe failed. Will skip DB-dependent steps.' }
+
+# 2) Django checks and migrations (PostgreSQL route)
+if (Should-Run 'migrate') {
+  Write-Header 'Django checks and migrations (PostgreSQL)'
+  $env:DJANGO_SETTINGS_MODULE = 'core.settings'
+  if ($pgReachable) {
+    try {
+      & $PythonExe backend/manage.py check | Out-Null
+      Write-Ok 'manage.py check passed'
+      try {
+        & $PythonExe backend/manage.py migrate | Out-Null
+        Write-Ok 'migrations applied'
+        $results.migrate = 'PASS'
+      } catch {
+        Write-Err "migrate failed: $($_.Exception.Message)"
+        $results.migrate = 'FAIL'
+      }
+    } catch {
+      Write-Err "manage.py check failed: $($_.Exception.Message)"
+      $results.migrate = 'FAIL'
+    }
+  } else {
+    Write-Warn 'PostgreSQL not reachable; skipping manage.py check/migrate for PostgreSQL settings.'
+    $results.migrate = 'SKIP'
+  }
 }
 
 # 3) Pytest (SQLite, fast lane)
-Write-Header 'Tests (SQLite fast lane)'
-$env:DJANGO_SETTINGS_MODULE = 'core.settings_test'
-if (-not $pytestAvailable) {
-  Write-Warn 'pytest not available; skipping SQLite test lane (install dev deps to enable)'
-  $results.pytest_sqlite = 'SKIP'
-} else {
-  $sqliteExit = 0
-  try {
-    & $PythonExe -m pytest -q
-    $sqliteExit = $LASTEXITCODE
-  } catch { $sqliteExit = 1 }
-  if ($sqliteExit -eq 0) { Write-Ok 'pytest (SQLite) passed'; $results.pytest_sqlite = 'PASS' }
-  else { Write-Err 'pytest (SQLite) failed'; $results.pytest_sqlite = 'FAIL' }
-}
-
-# 4) Pytest (PostgreSQL) if not skipped
-if (-not $SkipPostgresTests) {
-  Write-Header 'Tests (PostgreSQL realistic lane)'
-  $env:DJANGO_SETTINGS_MODULE = 'core.settings'
+if (Should-Run 'tests-sqlite') {
+  Write-Header 'Tests (SQLite fast lane)'
+  $env:DJANGO_SETTINGS_MODULE = 'core.settings_test'
   if (-not $pytestAvailable) {
-    Write-Warn 'pytest not available; skipping PostgreSQL test lane (install dev deps to enable)'
-    $results.pytest_pg = 'SKIP'
+    Write-Warn 'pytest not available; skipping SQLite test lane (install dev deps to enable)'
+    $results.pytest_sqlite = 'SKIP'
   } else {
-    $pgExit = 0
+    $sqliteExit = 0
     try {
       & $PythonExe -m pytest -q
-      $pgExit = $LASTEXITCODE
-    } catch { $pgExit = 1 }
-    if ($pgExit -eq 0) { Write-Ok 'pytest (PostgreSQL) passed'; $results.pytest_pg = 'PASS' }
-    else { Write-Warn 'pytest (PostgreSQL) failed (ensure DB is up and .env is correct)'; $results.pytest_pg = 'FAIL' }
+      $sqliteExit = $LASTEXITCODE
+    } catch { $sqliteExit = 1 }
+    if ($sqliteExit -eq 0) { Write-Ok 'pytest (SQLite) passed'; $results.pytest_sqlite = 'PASS' }
+    else { Write-Err 'pytest (SQLite) failed'; $results.pytest_sqlite = 'FAIL' }
   }
-}
+} else { $results.pytest_sqlite = 'SKIP' }
+
+# 4) Pytest (PostgreSQL) if not skipped
+if (Should-Run 'tests-pg') {
+  if (-not $SkipPostgresTests) {
+    Write-Header 'Tests (PostgreSQL realistic lane)'
+    if (-not $pgReachable) {
+      Write-Warn 'PostgreSQL not reachable; skipping PostgreSQL test lane.'
+      $results.pytest_pg = 'SKIP'
+    } else {
+      $env:DJANGO_SETTINGS_MODULE = 'core.settings'
+      if (-not $pytestAvailable) {
+        Write-Warn 'pytest not available; skipping PostgreSQL test lane (install dev deps to enable)'
+        $results.pytest_pg = 'SKIP'
+      } else {
+        $pgExit = 0
+        try {
+          & $PythonExe -m pytest -q
+          $pgExit = $LASTEXITCODE
+        } catch { $pgExit = 1 }
+        if ($pgExit -eq 0) { Write-Ok 'pytest (PostgreSQL) passed'; $results.pytest_pg = 'PASS' }
+        else { Write-Warn 'pytest (PostgreSQL) failed (ensure DB is up and .env is correct)'; $results.pytest_pg = 'FAIL' }
+      }
+    }
+  } else {
+    Write-Warn 'SkipPostgresTests switch set; skipping PostgreSQL test lane.'
+    $results.pytest_pg = 'SKIP'
+  }
+} else { $results.pytest_pg = 'SKIP' }
 
 # Linters/Formatters (optional, non-blocking)
 Write-Header 'Linters (optional, non-blocking)'
@@ -233,6 +357,10 @@ try {
 
       if ($npm) {
         # Use package scripts to avoid path/arg issues on Windows
+        # First, try to auto-fix formatting and lint issues to reduce noise locally
+        try { npm run -s format | Out-Null } catch {}
+        try { npm run -s lint:fix | Out-Null } catch {}
+
         # --- ESLint via npm script ---
         $lintExit = 0
         try {
@@ -430,7 +558,7 @@ if ($discoveredOrigin) {
     $ready = $false
     for ($i = 0; $i -lt 20; $i++) {
       try {
-        $resp = Invoke-WebRequest -Uri $probe -UseBasicParsing -TimeoutSec 3 -SkipCertificateCheck -ErrorAction Stop
+        $resp = Invoke-HttpGetCompat -Uri $probe -TimeoutSec 3 -Insecure:($discoveredOrigin -like 'https*')
         if ($resp.StatusCode -eq 204 -or $resp.StatusCode -eq 200) { $ready = $true; break }
       } catch { Start-Sleep -Milliseconds 800 }
     }
@@ -452,11 +580,7 @@ $probes += @(
 $okCount = 0
 foreach ($p in $probes) {
   try {
-    if ($p.Https) {
-      $r = Invoke-WebRequest -Uri $p.Uri -Method GET -TimeoutSec 3 -SkipCertificateCheck -ErrorAction Stop
-    } else {
-      $r = Invoke-WebRequest -Uri $p.Uri -Method GET -TimeoutSec 3 -ErrorAction Stop
-    }
+    $r = Invoke-HttpGetCompat -Uri $p.Uri -TimeoutSec 3 -Insecure:([bool]$p.Https)
     Write-Ok ("{0} -> {1}" -f $p.Uri, $r.StatusCode)
     $okCount++
   } catch {

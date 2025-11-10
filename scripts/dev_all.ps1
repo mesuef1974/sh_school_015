@@ -27,6 +27,10 @@ Start-Process -FilePath $shellExe -ArgumentList @('-NoProfile','-NoExit','-Execu
 # Reduce fixed delay; readiness probe below will wait if needed
 Start-Sleep -Milliseconds 500
 
+# Try to import shared ops utilities
+$utils = Join-Path $Root 'scripts\lib\ops_utils.psm1'
+if (Test-Path $utils) { try { Import-Module $utils -Force -ErrorAction Stop } catch {} }
+
 # Wait for backend to be ready (best-effort) to reduce frontend proxy ECONNREFUSED
 $backendReady = $false
 # Discover selected backend origin/port written by serve_https.ps1
@@ -82,11 +86,7 @@ for ($i = 0; $i -lt $attempts; $i++) {
     $lastOrigin = $probeUri
   }
   try {
-    if ($scheme -eq 'https') {
-      $resp = Invoke-WebRequest -Uri $probeUri -Method GET -SkipCertificateCheck -TimeoutSec 3 -ErrorAction Stop
-    } else {
-      $resp = Invoke-WebRequest -Uri $probeUri -Method GET -TimeoutSec 3 -ErrorAction Stop
-    }
+    $resp = Invoke-HttpGetCompat -Uri $probeUri -TimeoutSec 3 -Insecure:($scheme -eq 'https')
     if ($resp.StatusCode -eq 204 -or $resp.StatusCode -eq 200) { $backendReady = $true; break }
   } catch {}
   Start-Sleep -Milliseconds 500

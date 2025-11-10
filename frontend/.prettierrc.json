@@ -3,5 +3,8 @@
   "singleQuote": false,
   "semi": true,
   "trailingComma": "es5",
-  "arrowParens": "always"
+  "arrowParens": "always",
+  "endOfLine": "auto",
+  "vueIndentScriptAndStyle": true,
+  "singleAttributePerLine": true
 }

@@ -600,8 +600,13 @@ def get_teacher_weekly_grid(*, staff_id: int) -> Dict[str, Any]:
                         tokens.append(tok)
                         used_lessons.add(num)
                 else:
-                    # Non-lesson: create stable token per order occurrence of this kind
-                    cnt = kind_counters.get(kind, 0) + 1
+                    # Normalize and ensure only a single column per non-lesson kind (e.g., one استراحة, واحدة للصلاة)
+                    if kind == "break":
+                        kind = "recess"
+                    # Skip duplicates of the same non-lesson kind within the same day header
+                    if kind_counters.get(kind, 0) >= 1:
+                        continue
+                    cnt = 1
                     kind_counters[kind] = cnt
                     tok = f"{kind.upper()}-{cnt}"
                     # Save meta

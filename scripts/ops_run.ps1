@@ -29,7 +29,10 @@ param(
   [ValidateSet('verify','up-services','start-backend','dev-all','stop-services','install-deps','help')]
   [string]$Task,
   [switch]$StartBackend,
-  [switch]$SkipPostgresTests
+  [switch]$SkipPostgresTests,
+  [switch]$UpServices,
+  [switch]$Dev,
+  [string[]]$Parts
 )
 
 Set-StrictMode -Version Latest
@@ -63,6 +66,8 @@ switch ($Task) {
     $args = @()
     if ($StartBackend) { $args += '-StartBackend' }
     if ($SkipPostgresTests) { $args += '-SkipPostgresTests' }
+    if ($UpServices) { $args += '-UpServices' }
+    if ($Parts -and $Parts.Count -gt 0) { $args += '-Parts'; $args += $Parts }
     & pwsh -NoProfile -File (Join-Path $Root 'scripts\verify_all.ps1') @args
     exit $LASTEXITCODE
   }
@@ -79,8 +84,20 @@ switch ($Task) {
     if ($pgBusy) { $new = Find-FreePort -StartPort ($pgPort + 1); $Env:PG_HOST_PORT = "$new"; Write-Info ("Using PG_HOST_PORT={0}" -f $new) }
     if ($redisBusy) { $new = Find-FreePort -StartPort ($redisPort + 1); $Env:REDIS_HOST_PORT = "$new"; Write-Info ("Using REDIS_HOST_PORT={0}" -f $new) }
 
-    $null = & docker compose -f $compose up -d
-    if ($LASTEXITCODE -ne 0) { Write-Err "docker compose up failed"; exit 1 }
+    # Ensure external volume required by compose exists (first run friendly)
+    $volName = 'sh_school_pg_data'
+    try {
+      $existing = (& docker volume ls -q --filter "name=$volName") -split "`r?`n" | Where-Object { $_ -ne '' }
+      if (-not ($existing | Where-Object { $_ -eq $volName })) {
+        Write-Info ("Creating Docker volume: {0}" -f $volName)
+        $null = & docker volume create $volName
+      }
+    } catch {
+      Write-Warn ("Could not verify/create Docker volume '{0}': {1}" -f $volName, $_.Exception.Message)
+    }
+
+    & docker compose -f $compose up -d
+    if ($LASTEXITCODE -ne 0) { Write-Err "docker compose up failed (check output above)."; exit 1 }
 
     $running = (& docker compose -f $compose ps --services --filter "status=running") -split "`r?`n" | Where-Object { $_ -ne '' }
     foreach ($svc in @('postgres','redis')) {
@@ -116,18 +133,29 @@ switch ($Task) {
   'install-deps' {
     $inst = Join-Path $Root 'scripts\install_deps.ps1'
     if (-not (Test-Path -Path $inst)) { Write-Err 'scripts/install_deps.ps1 not found'; exit 1 }
-    & pwsh -NoProfile -File $inst
+    $args = @()
+    if ($Dev) { $args += '-Dev' }
+    & pwsh -NoProfile -File $inst @args
     exit $LASTEXITCODE
   }
   'help' {
     Write-Host "Usage:" -ForegroundColor Cyan
-    Write-Host "  pwsh -File scripts/ops_run.ps1 -Task verify [-StartBackend] [-SkipPostgresTests]" -ForegroundColor Gray
+    Write-Host "  pwsh -File scripts/ops_run.ps1 -Task verify [-StartBackend] [-SkipPostgresTests] [-UpServices] [-Parts parts...]" -ForegroundColor Gray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task up-services" -ForegroundColor Gray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task start-backend" -ForegroundColor Gray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task dev-all" -ForegroundColor Gray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task stop-services" -ForegroundColor Gray
-    Write-Host "  pwsh -File scripts/ops_run.ps1 -Task install-deps [-Dev]" -ForegroundColor Gray
-    Write-Host ""
+    Write-Host "  pwsh -File scripts/ops_run.ps1 -Task install-deps" -ForegroundColor Gray
+    Write-Host "  # To include dev/test tools:" -ForegroundColor Gray
+    Write-Host "  pwsh -File scripts/ops_run.ps1 -Task install-deps -Dev" -ForegroundColor Gray
+    Write-Host "" 
+    Write-Host "Selective verify (-Parts):" -ForegroundColor Yellow
+    Write-Host "  Allowed parts: services, migrate, tests-sqlite, tests-pg, fe-lint, be-lint, security, probes" -ForegroundColor DarkGray
+    Write-Host "  Examples:" -ForegroundColor Yellow
+    Write-Host "    pwsh -File scripts/ops_run.ps1 -Task verify -Parts services,migrate" -ForegroundColor DarkGray
+    Write-Host "    pwsh -File scripts/ops_run.ps1 -Task verify -Parts tests-sqlite" -ForegroundColor DarkGray
+    Write-Host "    pwsh -File scripts/ops_run.ps1 -Task verify -Parts tests-pg,fe-lint,be-lint" -ForegroundColor DarkGray
+    Write-Host "" 
     Write-Host "Port conflicts? Choose free ports then re-run up-services:" -ForegroundColor Yellow
     Write-Host "  `$Env:PG_HOST_PORT='5544'; `$Env:REDIS_HOST_PORT='6380'" -ForegroundColor DarkGray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task up-services" -ForegroundColor DarkGray
