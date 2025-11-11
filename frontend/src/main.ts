@@ -28,6 +28,16 @@ import { Toaster } from "vue-sonner";
 
 const app = createApp(App);
 
+// Optional Real User Monitoring (RUM) via Web Vitals
+// Enable by setting VITE_RUM=1 at build time; safe no-op otherwise
+try {
+  // @ts-ignore
+  if (import.meta.env && String(import.meta.env.VITE_RUM || '') === '1') {
+    // Dynamic import to avoid adding to initial chunk when disabled
+    import('./shared/rum/webVitals');
+  }
+} catch {}
+
 // Centralized print manager
 import { printManager } from "./shared/print/printManager";
 // Expose as a Vue global property for easy access inside components (this.$print)

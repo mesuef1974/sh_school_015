@@ -70,6 +70,11 @@ class IncidentSerializer(serializers.ModelSerializer):
             data["violation_code"] = None
             data["violation_category"] = None
             data["violation_display"] = None
+        # Class name (الفصل) derived from student's current class
+        try:
+            data["class_name"] = getattr(getattr(getattr(instance, "student", None), "class_fk", None), "name", None)
+        except Exception:
+            data["class_name"] = None
         try:
             actions = getattr(instance, "actions_applied", None) or []
             sanctions = getattr(instance, "sanctions_applied", None) or []
@@ -101,6 +106,15 @@ class IncidentSerializer(serializers.ModelSerializer):
             data["notify_sla_due_at"] = None
             data["is_overdue_review"] = False
             data["is_overdue_notify"] = False
+        # Time-only field for convenience (HH:MM)
+        try:
+            occ = getattr(instance, "occurred_at", None)
+            if occ:
+                data["occurred_time"] = occ.strftime("%H:%M")
+            else:
+                data["occurred_time"] = None
+        except Exception:
+            data["occurred_time"] = None
         # Severity color
         try:
             sev = int(getattr(instance, "severity", 1) or 1)

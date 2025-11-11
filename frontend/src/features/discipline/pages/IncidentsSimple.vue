@@ -23,6 +23,8 @@
             <thead class="table-light">
               <tr>
                 <th>التاريخ</th>
+                <th>التوقيت</th>
+                <th>الفصل</th>
                 <th>المخالفة</th>
                 <th>الطالب</th>
                 <th>الشدة</th>
@@ -31,10 +33,12 @@
             </thead>
             <tbody>
               <tr v-if="!loading && items.length === 0 && !error">
-                <td colspan="5" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
+                <td colspan="7" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
               </tr>
               <tr v-for="it in items" :key="it.id">
                 <td>{{ fmtDate(it.occurred_at) }}</td>
+                <td>{{ it.occurred_time || fmtTime(it.occurred_at) }}</td>
+                <td>{{ it.class_name || '—' }}</td>
                 <td>{{ it.violation_display || it.violation?.code || '—' }}</td>
                 <td>{{ it.student_name || ('#'+it.student) }}</td>
                 <td><span class="badge bg-secondary">{{ it.severity ?? '—' }}</span></td>

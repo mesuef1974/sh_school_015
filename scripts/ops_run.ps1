@@ -148,14 +148,14 @@ switch ($Task) {
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task install-deps" -ForegroundColor Gray
     Write-Host "  # To include dev/test tools:" -ForegroundColor Gray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task install-deps -Dev" -ForegroundColor Gray
-    Write-Host "" 
+    Write-Host ""
     Write-Host "Selective verify (-Parts):" -ForegroundColor Yellow
     Write-Host "  Allowed parts: services, migrate, tests-sqlite, tests-pg, fe-lint, be-lint, security, probes" -ForegroundColor DarkGray
     Write-Host "  Examples:" -ForegroundColor Yellow
     Write-Host "    pwsh -File scripts/ops_run.ps1 -Task verify -Parts services,migrate" -ForegroundColor DarkGray
     Write-Host "    pwsh -File scripts/ops_run.ps1 -Task verify -Parts tests-sqlite" -ForegroundColor DarkGray
     Write-Host "    pwsh -File scripts/ops_run.ps1 -Task verify -Parts tests-pg,fe-lint,be-lint" -ForegroundColor DarkGray
-    Write-Host "" 
+    Write-Host ""
     Write-Host "Port conflicts? Choose free ports then re-run up-services:" -ForegroundColor Yellow
     Write-Host "  `$Env:PG_HOST_PORT='5544'; `$Env:REDIS_HOST_PORT='6380'" -ForegroundColor DarkGray
     Write-Host "  pwsh -File scripts/ops_run.ps1 -Task up-services" -ForegroundColor DarkGray

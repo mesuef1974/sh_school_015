@@ -3271,10 +3271,13 @@ class WingSupervisorViewSet(viewsets.ViewSet):
                                 tmp_columns.append(f"P{num}")
                                 used_lessons.add(num)
                         else:
+                            # Normalize aliases and prevent duplicates per non-lesson kind
+                            if kind == "break":
+                                kind = "recess"
                             if kind in used_non_lesson_kinds:
                                 continue
                             used_non_lesson_kinds.add(kind)
-                            cnt = kind_counters.get(kind, 0) + 1
+                            cnt = 1
                             kind_counters[kind] = cnt
                             tok = f"{kind.upper()}-{cnt}"
                             tmp_columns.append(tok)
