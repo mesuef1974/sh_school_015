@@ -259,12 +259,20 @@ if ($hasChanges) {
         if ($BypassHooksOnFailure -or $autoBypass) {
           Write-Step "Retrying commit without hooks (--no-verify) due to hook failure"
           $commitArgs += '--no-verify'
+          # Hooks like black/ruff may have modified files; re-stage before retrying
+          git add -A | Out-Null
           $gitCommitOutput2 = & git @commitArgs 2>&1
           $commitExit2 = $LASTEXITCODE
           if ($commitExit2 -ne 0) {
-            Write-Warn "Retry without hooks also failed. Git output:"
-            Write-Host ($gitCommitOutput2 | Out-String) -ForegroundColor DarkGray
-            throw "git commit failed with exit code $commitExit2"
+            $out2 = ($gitCommitOutput2 | Out-String)
+            # If there is nothing to commit after hooks formatted files, proceed
+            if ($out2 -match '(?i)nothing to commit' -or $out2 -match '(?i)nothing added to commit') {
+              Write-Info "No changes to commit after hooks; continuing."
+            } else {
+              Write-Warn "Retry without hooks also failed. Git output:"
+              Write-Host $out2 -ForegroundColor DarkGray
+              throw "git commit failed with exit code $commitExit2"
+            }
           }
         } else {
           $resp = Read-Host "Commit hooks appear to have failed. Retry without hooks (--no-verify)? [y/N]"
