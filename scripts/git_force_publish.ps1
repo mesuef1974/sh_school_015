@@ -488,7 +488,7 @@ if ($DryRun) {
               $gitOutput2 = & git @pushArgs 2>&1
               $exit2 = $LASTEXITCODE
               if ($exit2 -ne 0) {
-                Write-Warn "Retry over HTTPS failed. Git output:" 
+                Write-Warn "Retry over HTTPS failed. Git output:"
                 Write-Host ($gitOutput2 | Out-String) -ForegroundColor DarkGray
                 throw "git push failed with exit code $exit2"
               } else {
