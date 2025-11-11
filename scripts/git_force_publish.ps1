@@ -279,12 +279,19 @@ if ($hasChanges) {
           if ($resp -match '^(?i:y(?:es)?)$') {
             Write-Step "Retrying commit without hooks (--no-verify) per user confirmation"
             $commitArgs += '--no-verify'
+            # Hooks may have changed files; re-stage before retrying
+            git add -A | Out-Null
             $gitCommitOutput2 = & git @commitArgs 2>&1
             $commitExit2 = $LASTEXITCODE
             if ($commitExit2 -ne 0) {
-              Write-Warn "Retry without hooks also failed. Git output:"
-              Write-Host ($gitCommitOutput2 | Out-String) -ForegroundColor DarkGray
-              throw "git commit failed with exit code $commitExit2"
+              $out2 = ($gitCommitOutput2 | Out-String)
+              if ($out2 -match '(?i)nothing to commit' -or $out2 -match '(?i)nothing added to commit') {
+                Write-Info "No changes to commit after hooks; continuing."
+              } else {
+                Write-Warn "Retry without hooks also failed. Git output:"
+                Write-Host $out2 -ForegroundColor DarkGray
+                throw "git commit failed with exit code $commitExit2"
+              }
             }
           } else {
             Write-Host "[HINT] If this is caused by a failing hook, you can re-run with -BypassHooksOnFailure or -SkipHooks to proceed without hooks." -ForegroundColor Yellow
@@ -292,8 +299,14 @@ if ($hasChanges) {
           }
         }
       } else {
-        Write-Host "[HINT] If this is caused by a failing hook, you can re-run with -BypassHooksOnFailure or -SkipHooks to proceed without hooks." -ForegroundColor Yellow
-        throw "git commit failed with exit code $commitExit"
+        # If commit failed but there is actually nothing to commit, proceed.
+        $out1 = ($gitCommitOutput | Out-String)
+        if ($out1 -match '(?i)nothing to commit' -or $out1 -match '(?i)nothing added to commit') {
+          Write-Info "No changes to commit; continuing."
+        } else {
+          Write-Host "[HINT] If this is caused by a failing hook, you can re-run with -BypassHooksOnFailure or -SkipHooks to proceed without hooks." -ForegroundColor Yellow
+          throw "git commit failed with exit code $commitExit"
+        }
       }
     }
   }
@@ -482,9 +495,7 @@ if ($DryRun) {
       } else {
         throw "git push failed with exit code $exit"
       }
-    } else {
-      $isSshPublicKeyDenied = ($outText -match 'Permission denied \(publickey\)')
-      if ($isSshPublicKeyDenied -and $resolvedRemote -match '^git@' ) {
+    } elseif ( ($outText -match 'Permission denied (publickey)') -and ($resolvedRemote -match '^git@') ) {
         Write-Warn "SSH authentication failed: Permission denied (publickey)."
         if ($HttpsFallback) {
           $https = Convert-SshToHttps -sshUrl $resolvedRemote
@@ -549,7 +560,7 @@ if ($DryRun) {
           }
         }
       }
-    } else {
+    else {
       # Other failure; show output for clarity then throw
       if ($outText -match 'Repository not found') {
         Write-Warn "Remote repository not found. The 'origin' URL may be incorrect or you may not have access."

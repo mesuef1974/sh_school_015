@@ -434,6 +434,16 @@ class IncidentViewSet(viewsets.ModelViewSet):
         Provides quick insight when UI shows empty lists. Enabled for DEBUG environments.
         Response: { mine_count, all_count, sample: { mine: [ids], all: [ids] } }
         """
+        # Restrict diagnostics to DEBUG or privileged users to avoid data leakage in production
+        from django.conf import settings as dj_settings
+
+        if not (
+            getattr(dj_settings, "DEBUG", False)
+            or request.user.is_staff
+            or request.user.is_superuser
+            or request.user.has_perm("discipline.access")
+        ):
+            return Response({"detail": "Not found"}, status=status.HTTP_404_NOT_FOUND)
         try:
             # Mine
             mine_qs = Incident.objects.all().filter(reporter_id=request.user.id)

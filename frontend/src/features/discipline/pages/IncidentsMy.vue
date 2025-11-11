@@ -110,7 +110,10 @@ import { tiles } from '../../../home/icon-tiles.config';
 import { listIncidents, submitIncident, getIncidentsVisible, getIncidentsMine } from '../api';
 import { useAuthStore } from '../../../app/stores/auth';
 
-const tileMeta = computed(()=> tiles.find(t=> t.to === '/discipline/incidents') || ({ title: 'وقائع المعلم', subtitle: 'سجلاتي والإرسال للمراجعة', icon: 'solar:document-text-bold-duotone', color: '#2e86c1' } as any));
+const tileMeta = computed(() =>
+  tiles.find(t => t.id === 'discipline_incidents_my') ||
+  ({ title: 'وقائع المعلم', subtitle: 'سجلاتي والإرسال للمراجعة', icon: 'solar:document-text-bold-duotone', color: '#2e86c1' } as any)
+);
 
 const auth = useAuthStore();
 const items = ref<any[]>([]);
