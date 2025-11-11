@@ -439,42 +439,46 @@ if ($DryRun) {
   $exit = $LASTEXITCODE
   if ($exit -ne 0) {
     $outText = ($gitOutput | Out-String)
-    $isSshPublicKeyDenied = ($outText -match 'Permission denied \(publickey\)')
-    if ($isSshPublicKeyDenied -and $resolvedRemote -match '^git@' ) {
-      Write-Warn "SSH authentication failed: Permission denied (publickey)."
-      if ($HttpsFallback) {
-        $https = Convert-SshToHttps -sshUrl $resolvedRemote
-        if ($https) {
-          Write-Step "Switching remote 'origin' to HTTPS ($https) and retrying push once"
-          try {
-            git remote set-url origin $https | Out-Null
-            $resolvedRemote = $https
-            $gitOutput2 = & git @pushArgs 2>&1
-            $exit2 = $LASTEXITCODE
-            if ($exit2 -ne 0) {
-              Write-Warn "Retry over HTTPS failed. Git output:" 
-              Write-Host ($gitOutput2 | Out-String) -ForegroundColor DarkGray
-              throw "git push failed with exit code $exit2"
-            } else {
-              Write-Ok "Pushed branch '$Branch' to origin (HTTPS fallback)"
-            }
-          } catch {
-            throw $_
-          }
+
+    # Handle non-fast-forward (remote is ahead) by offering pull --rebase then retry push
+    $isNonFastForward = ($outText -match '(?i)non-fast-forward' -or $outText -match '(?i)tip of your current branch is behind' -or $outText -match '(?i)Updates were rejected because the tip of your current branch is behind')
+    if ($isNonFastForward) {
+      Write-Warn "Push rejected: remote is ahead (non-fast-forward)."
+      $doRebase = $false
+      if ($env:GIT_FORCE_PUBLISH_AUTO_REBASE) {
+        $doRebase = ($env:GIT_FORCE_PUBLISH_AUTO_REBASE -match '^(?i:1|true|yes|y)$')
+      }
+      if (-not $doRebase) {
+        $ans = Read-Host "Run 'git pull --rebase origin $Branch' and retry push now? [y/N]"
+        $doRebase = ($ans -match '^(?i:y(?:es)?)$')
+      }
+      if ($doRebase) {
+        Write-Step "Pulling latest from origin/$Branch with rebase"
+        $pullOutput = & git pull --rebase origin $Branch 2>&1
+        $pullExit = $LASTEXITCODE
+        if ($pullExit -ne 0) {
+          Write-Warn "git pull --rebase failed. Git output:"
+          Write-Host ($pullOutput | Out-String) -ForegroundColor DarkGray
+          throw "git pull --rebase failed with exit code $pullExit"
+        }
+        Write-Step "Retrying push to origin/$Branch"
+        $gitOutput2 = & git @pushArgs 2>&1
+        $exit2 = $LASTEXITCODE
+        if ($exit2 -ne 0) {
+          Write-Warn "Retry push after rebase failed. Git output:"
+          Write-Host ($gitOutput2 | Out-String) -ForegroundColor DarkGray
+          throw "git push failed with exit code $exit2"
         } else {
-          Write-Warn "Could not derive HTTPS URL from SSH remote; please provide -Remote with an HTTPS URL."
-          throw "git push failed with exit code $exit"
+          Write-Ok "Pushed branch '$Branch' to origin after rebase"
         }
       } else {
-        $autoFallback = $false
-        if ($env:GIT_FORCE_PUBLISH_AUTO_HTTPS) {
-          $autoFallback = ($env:GIT_FORCE_PUBLISH_AUTO_HTTPS -match '^(?i:1|true|yes|y)$')
-        }
-        if (-not $autoFallback) {
-          $ans = Read-Host "SSH auth failed. Switch remote to HTTPS and retry push now? [y/N]"
-          $autoFallback = ($ans -match '^(?i:y(?:es)?)$')
-        }
-        if ($autoFallback) {
+        throw "git push failed with exit code $exit"
+      }
+    } else {
+      $isSshPublicKeyDenied = ($outText -match 'Permission denied \(publickey\)')
+      if ($isSshPublicKeyDenied -and $resolvedRemote -match '^git@' ) {
+        Write-Warn "SSH authentication failed: Permission denied (publickey)."
+        if ($HttpsFallback) {
           $https = Convert-SshToHttps -sshUrl $resolvedRemote
           if ($https) {
             Write-Step "Switching remote 'origin' to HTTPS ($https) and retrying push once"
@@ -484,7 +488,7 @@ if ($DryRun) {
               $gitOutput2 = & git @pushArgs 2>&1
               $exit2 = $LASTEXITCODE
               if ($exit2 -ne 0) {
-                Write-Warn "Retry over HTTPS failed. Git output:"
+                Write-Warn "Retry over HTTPS failed. Git output:" 
                 Write-Host ($gitOutput2 | Out-String) -ForegroundColor DarkGray
                 throw "git push failed with exit code $exit2"
               } else {
@@ -509,13 +513,6 @@ if ($DryRun) {
           if ($autoFallback) {
             $https = Convert-SshToHttps -sshUrl $resolvedRemote
             if ($https) {
-              if (Is-PlaceholderRemote $https) {
-                $manual = Prompt-ForRemote "Derived HTTPS remote looks like a placeholder. Enter a valid Git remote URL. Press Enter to cancel"
-                if ($manual) { $https = $manual } else {
-                  Write-Warn "No valid remote provided."
-                  throw "git push failed with exit code $exit"
-                }
-              }
               Write-Step "Switching remote 'origin' to HTTPS ($https) and retrying push once"
               try {
                 git remote set-url origin $https | Out-Null
