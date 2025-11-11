@@ -53,10 +53,36 @@ class IncidentSerializer(serializers.ModelSerializer):
         except Exception:
             data["student_name"] = None
         try:
-            # Prefer full name if available, otherwise username
+            # Use the reporter's real name from Staff table if available; otherwise use user full name.
             reporter = getattr(instance, "reporter", None)
-            full = reporter.get_full_name() if reporter and hasattr(reporter, "get_full_name") else None
-            data["reporter_name"] = full or getattr(reporter, "username", None)
+            name = None
+            if reporter:
+                # 1) Preferred: Staff.full_name linked to this user (Arabic real name used across the app)
+                try:
+                    from school.models import Staff  # type: ignore
+
+                    staff_name = (
+                        Staff.objects.filter(user=reporter)
+                        .only("full_name")
+                        .values_list("full_name", flat=True)
+                        .first()
+                    )
+                    if staff_name:
+                        name = staff_name
+                except Exception:
+                    pass
+                # 2) Fallbacks on the User object
+                if not name and hasattr(reporter, "get_full_name"):
+                    name = reporter.get_full_name() or None
+                if not name:
+                    name = getattr(reporter, "full_name", None)
+                if not name:
+                    # Compose from first/last names if available
+                    fn = getattr(reporter, "first_name", None)
+                    ln = getattr(reporter, "last_name", None)
+                    if fn or ln:
+                        name = ((fn or "").strip() + " " + (ln or "").strip()).strip() or None
+            data["reporter_name"] = name
         except Exception:
             data["reporter_name"] = None
         try:

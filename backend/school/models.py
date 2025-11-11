@@ -794,3 +794,10 @@ class AttendanceLateEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.student} – {self.date} P{self.period_number} تأخر {self.late_mmss}"
+
+
+class StudentLateSummary(Student):
+    class Meta:
+        proxy = True
+        verbose_name = "ملخص تأخيرات الطالب"
+        verbose_name_plural = "ملخصات تأخيرات الطلاب"

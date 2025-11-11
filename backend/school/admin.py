@@ -22,6 +22,7 @@ from .models import (
     SchoolHoliday,
     Staff,
     Student,
+    StudentLateSummary,
     Subject,
     TeachingAssignment,
     TemplateSlot,
@@ -29,6 +30,10 @@ from .models import (
     TimetableEntry,
     Wing,
 )
+from .admin_filters import CurrentTermFilter
+from .services.attendance import compute_late_seconds, format_mmss, format_hhmmss
+from django.db.models import Case, When, IntegerField, Value, Subquery, OuterRef, F
+from django.db.models.functions import Coalesce
 
 # Arabic day names mapping (Sun=1..Sat=7)
 DAY_NAMES_AR = {
@@ -933,11 +938,12 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
         "period_number",
         "status",
         "note",
-        "late_minutes",
-        "early_minutes",
+        "get_late_mmss",
+        "get_early_mmss",
         "locked",
         "updated_at",
     )
+    actions = ["export_lates_csv"]
 
     def day_name_ar(self, obj):
         dow = getattr(obj, "day_of_week", None) or 0
@@ -945,6 +951,7 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
 
     day_name_ar.short_description = "اليوم"
     list_filter = (
+        CurrentTermFilter,
         "date",
         "day_of_week",
         "status",
@@ -962,6 +969,101 @@ class AttendanceRecordAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("student", "classroom", "subject", "teacher", "term")
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Annotate effective_late_seconds so that ordering of the displayed MM:SS matches business rules
+        policy_minutes_sq = (
+            AttendancePolicy.objects.filter(term_id=OuterRef("term_id"))
+            .order_by("id")
+            .values("late_to_equivalent_period_minutes")[:1]
+        )
+        qs = qs.annotate(
+            policy_minutes=Coalesce(Subquery(policy_minutes_sq), Value(45)),
+            effective_late_seconds=Case(
+                When(status="runaway", then=F("policy_minutes") * Value(60)),
+                When(status="late", then=F("late_minutes") * Value(60)),
+                default=Value(0),
+                output_field=IntegerField(),
+            ),
+        )
+        return qs
+
+    def _format_mmss(self, total_seconds):
+        try:
+            s = int(total_seconds)
+        except (TypeError, ValueError):
+            return "00:00"
+        if s < 0:
+            s = 0
+        m, sec = divmod(s, 60)
+        return f"{m:02d}:{sec:02d}"
+
+    def _equiv_late_minutes_for_runaway(self, term):
+        # Fetch policy-based equivalent period duration in minutes (default 45)
+        try:
+            policy = AttendancePolicy.objects.filter(term=term).order_by("id").first()
+            if policy and getattr(policy, "late_to_equivalent_period_minutes", None):
+                return int(policy.late_to_equivalent_period_minutes)
+        except Exception:
+            pass
+        return 45
+
+    def get_late_mmss(self, obj):
+        # Use centralized service to compute late seconds with business rules
+        seconds = compute_late_seconds(obj)
+        return format_mmss(seconds)
+
+    get_late_mmss.short_description = "تأخر MM:SS"
+    get_late_mmss.admin_order_field = "effective_late_seconds"
+
+    def get_early_mmss(self, obj):
+        # early_minutes is stored as integer minutes
+        seconds = int(obj.early_minutes or 0) * 60
+        return format_mmss(seconds)
+
+    get_early_mmss.short_description = "مغادرة مبكرة MM:SS"
+    get_early_mmss.admin_order_field = "early_minutes"
+
+    @admin.action(description="تصدير التأخر/الهروب CSV")
+    def export_lates_csv(self, request, queryset):
+        import csv
+        from django.http import HttpResponse
+
+        qs = queryset.filter(status__in=["late", "runaway"]).select_related(
+            "student", "classroom", "subject", "teacher", "term"
+        )
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="attendance_lates.csv"'
+        w = csv.writer(response)
+        w.writerow(
+            [
+                "الطالب",
+                "الصف",
+                "التاريخ",
+                "الحصة",
+                "المادة",
+                "الحالة",
+                "المدة MM:SS",
+                "ملاحظة",
+            ]
+        )
+        for r in qs:
+            seconds = compute_late_seconds(r)
+            mmss = format_mmss(seconds)
+            w.writerow(
+                [
+                    getattr(r.student, "full_name", ""),
+                    getattr(r.classroom, "name", ""),
+                    r.date,
+                    r.period_number,
+                    getattr(r.subject, "name_ar", ""),
+                    dict(AttendanceRecord._meta.get_field("status").choices).get(r.status, r.status),
+                    mmss,
+                    r.note or "",
+                ]
+            )
+        return response
+
 
 @admin.register(AttendanceDaily)
 class AttendanceDailyAdmin(admin.ModelAdmin):
@@ -976,8 +1078,8 @@ class AttendanceDailyAdmin(admin.ModelAdmin):
         "absent_periods",
         "runaway_periods",
         "excused_periods",
-        "late_minutes",
-        "early_minutes",
+        "get_late_hhmmss",
+        "get_early_hhmmss",
         "daily_absent_unexcused",
         "daily_excused",
         "daily_excused_partial",
@@ -986,6 +1088,20 @@ class AttendanceDailyAdmin(admin.ModelAdmin):
     list_filter = ("date", "school_class", "wing", "term", "daily_absent_unexcused")
     search_fields = ("student__full_name", "school_class__name")
     autocomplete_fields = ("student", "school_class", "wing", "term")
+
+    def get_late_hhmmss(self, obj):
+        seconds = int(getattr(obj, "late_minutes", 0) or 0) * 60
+        return format_hhmmss(seconds)
+
+    get_late_hhmmss.short_description = "إجمالي التأخر (س:د:ث)"
+    get_late_hhmmss.admin_order_field = "late_minutes"
+
+    def get_early_hhmmss(self, obj):
+        seconds = int(getattr(obj, "early_minutes", 0) or 0) * 60
+        return format_hhmmss(seconds)
+
+    get_early_hhmmss.short_description = "إجمالي الانصراف المبكر (س:د:ث)"
+    get_early_hhmmss.admin_order_field = "early_minutes"
 
 
 @admin.register(AssessmentPackage)
@@ -1002,6 +1118,138 @@ class SchoolHolidayAdmin(admin.ModelAdmin):
     search_fields = ("title",)
 
 
+# ======= Student Late Summary (Proxy) =======
+class LateRecordsInline(admin.TabularInline):
+    model = AttendanceRecord
+    fk_name = "student"
+    extra = 0
+    can_delete = False
+    verbose_name = "تأخر/هروب"
+    verbose_name_plural = "حالات التأخر والهروب"
+    fields = (
+        "date",
+        "start_time",
+        "period_number",
+        "subject",
+        "status",
+        "late_mmss_inline",
+        "note",
+    )
+    readonly_fields = fields
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(status__in=["late", "runaway"]).select_related("subject", "term")
+
+    def _equiv_late_minutes_for_runaway(self, term):
+        try:
+            policy = AttendancePolicy.objects.filter(term=term).order_by("id").first()
+            if policy and getattr(policy, "late_to_equivalent_period_minutes", None):
+                return int(policy.late_to_equivalent_period_minutes)
+        except Exception:
+            pass
+        return 45
+
+    def _format_mmss(self, total_seconds):
+        try:
+            s = int(total_seconds)
+        except (TypeError, ValueError):
+            return "00:00"
+        if s < 0:
+            s = 0
+        m, sec = divmod(s, 60)
+        return f"{m:02d}:{sec:02d}"
+
+    def late_mmss_inline(self, obj: AttendanceRecord):
+        # Use centralized services to compute effective late seconds (includes runaway policy)
+        seconds = compute_late_seconds(obj)
+        return format_mmss(seconds)
+
+    late_mmss_inline.short_description = "المدة MM:SS"
+
+
+@admin.register(StudentLateSummary)
+class StudentLateSummaryAdmin(admin.ModelAdmin):
+    list_display = (
+        "sid",
+        "student_name_one_line",
+        "class_fk",
+        "late_incidents_count",
+        "total_late_hhmmss",
+    )
+    list_display_links = ("sid", "student_name_one_line")
+    search_fields = (
+        "sid",
+        "full_name",
+        "class_fk__name",
+    )
+    list_filter = ("class_fk",)
+    list_select_related = ("class_fk",)
+    inlines = [LateRecordsInline]
+
+    def student_name_one_line(self, obj: StudentLateSummary):
+        name = obj.full_name or ""
+        return format_html('<span style="white-space:nowrap;">{}</span>', name)
+
+    student_name_one_line.short_description = "اسم الطالب"
+
+    # cache for term policy minutes
+    _policy_cache = None
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        # Prefetch only late/runaway records with needed fields
+        from django.db.models import Prefetch
+
+        late_qs = AttendanceRecord.objects.filter(status__in=["late", "runaway"]).select_related("subject", "term")
+        qs = qs.select_related("class_fk").prefetch_related(
+            Prefetch("attendancerecord_set", queryset=late_qs, to_attr="_late_related")
+        )
+        # Warm policy cache by terms present (optional, built lazily below as well)
+        self._policy_cache = {}
+        return qs
+
+    def _equiv_minutes_for_term(self, term):
+        if term is None:
+            return 45
+        if self._policy_cache is None:
+            self._policy_cache = {}
+        tid = getattr(term, "id", None)
+        if tid in self._policy_cache:
+            return self._policy_cache[tid]
+        try:
+            policy = AttendancePolicy.objects.filter(term=term).order_by("id").first()
+            minutes = int(policy.late_to_equivalent_period_minutes) if policy else 45
+        except Exception:
+            minutes = 45
+        self._policy_cache[tid] = minutes
+        return minutes
+
+    def _total_late_seconds(self, obj: StudentLateSummary) -> int:
+        total = 0
+        items = getattr(obj, "_late_related", None) or []
+        for rec in items:
+            if rec.status == "runaway":
+                total += self._equiv_minutes_for_term(getattr(rec, "term", None)) * 60
+            else:
+                total += int(rec.late_minutes or 0) * 60
+        return total
+
+    def late_incidents_count(self, obj: StudentLateSummary):
+        return len(getattr(obj, "_late_related", []) or [])
+
+    late_incidents_count.short_description = "عدد الحالات"
+    late_incidents_count.admin_order_field = None
+
+    def total_late_hhmmss(self, obj: StudentLateSummary):
+        s = self._total_late_seconds(obj)
+        h, rem = divmod(s, 3600)
+        m, sec = divmod(rem, 60)
+        return f"{h:02d}:{m:02d}:{sec:02d}"
+
+    total_late_hhmmss.short_description = "إجمالي التأخر (س:د:ث)"
+
+
 @admin.register(ExitEvent)
 class ExitEventAdmin(admin.ModelAdmin):
     list_display = (
@@ -1013,7 +1261,7 @@ class ExitEventAdmin(admin.ModelAdmin):
         "reason",
         "started_at",
         "returned_at",
-        "duration_seconds",
+        "get_duration_mmss",
         "started_by",
         "returned_by",
     )
@@ -1036,13 +1284,13 @@ class ExitEventAdmin(admin.ModelAdmin):
         "returned_by",
         "attendance_record",
     )
-    readonly_fields = ("started_at", "duration_seconds")
+    readonly_fields = ("started_at", "duration_seconds", "get_duration_mmss")
     list_select_related = ("student", "classroom", "started_by", "returned_by")
     date_hierarchy = "date"
 
     def get_queryset(self, request):
-        # Optimize queries
         qs = super().get_queryset(request)
+        # Annotate effective_late_seconds for proper ordering of get_late_mmss across Admin (used in AttendanceRecordAdmin)
         return qs.select_related("student", "classroom", "started_by", "returned_by")
 
     # Custom display for duration in human-readable format
@@ -1054,4 +1302,20 @@ class ExitEventAdmin(admin.ModelAdmin):
             return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
         return "—"
 
-    get_duration_display.short_description = "المدة"
+    get_duration_display.short_description = "المدة (س:د:ث)"
+
+    def get_duration_mmss(self, obj):
+        s = getattr(obj, "duration_seconds", None)
+        if s is None:
+            return "00:00"
+        try:
+            s = int(s)
+        except (TypeError, ValueError):
+            return "00:00"
+        if s < 0:
+            s = 0
+        m, sec = divmod(s, 60)
+        return f"{m:02d}:{sec:02d}"
+
+    get_duration_mmss.short_description = "المدة MM:SS"
+    get_duration_mmss.admin_order_field = "duration_seconds"

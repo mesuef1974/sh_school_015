@@ -1,21 +1,7 @@
 <template>
   <section class="d-grid gap-3">
-    <DsCard
-      v-motion
-      :initial="{ opacity: 0, y: -30 }"
-      :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
-      :animate="false"
-    >
-      <div class="d-flex align-items-center gap-3 flex-wrap page-toolbar" dir="rtl">
-        <Icon
-          icon="solar:chart-2-bold-duotone"
-          class="text-4xl"
-          style="color: var(--maron-primary)"
-        />
-        <div class="flex-grow-1">
-          <div class="text-xl font-bold">لوحة الإحصائيات</div>
-          <div class="text-muted text-sm">نسب وملخصات الحضور لليوم المحدد</div>
-        </div>
+    <WingPageHeader icon="solar:chart-2-bold-duotone" title="لوحة الإحصائيات" :subtitle="'نسب وملخصات الحضور لليوم المحدد'">
+      <template #actions>
         <div class="toolbar-actions d-flex align-items-center gap-2 flex-wrap">
           <DatePickerDMY
             :id="'stats-date'"
@@ -25,7 +11,6 @@
             wrapperClass="m-0"
             @change="loadSummary"
           />
-
           <!-- Mode selector -->
           <select
             v-model="mode"
@@ -37,7 +22,6 @@
             <option v-if="isTeacher" value="teacher_subject">صفوفي (لمادة محددة)</option>
             <option v-if="isTeacher" value="class">صف محدد</option>
           </select>
-
           <!-- Subject selector -->
           <select
             v-if="mode === 'teacher_subject'"
@@ -50,7 +34,6 @@
               {{ s.name || "مادة #" + s.id }}
             </option>
           </select>
-
           <!-- Class selector -->
           <select
             v-if="mode === 'class'"
@@ -64,8 +47,8 @@
             </option>
           </select>
         </div>
-      </div>
-    </DsCard>
+      </template>
+    </WingPageHeader>
 
     <div class="row g-3">
       <div class="col-12">
@@ -287,6 +270,7 @@ import {
 } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import DatePickerDMY from "../../components/ui/DatePickerDMY.vue";
+import WingPageHeader from "../../components/ui/WingPageHeader.vue";
 
 echarts.use([
   PieChart,

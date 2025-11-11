@@ -1,28 +1,11 @@
 <template>
   <section class="d-grid gap-3 timetable-page">
-    <!-- Header Card -->
-    <DsCard
-      class="outlined-card"
-      v-motion
-      :initial="{ opacity: 0, y: -30 }"
-      :enter="{ opacity: 1, y: 0, transition: { duration: 400 } }"
-    >
-      <div class="d-flex align-items-center gap-3">
-        <Icon
-          icon="solar:calendar-bold-duotone"
-          class="text-4xl"
-          style="color: var(--color-info)"
-        />
-        <div class="flex-grow-1">
-          <div class="text-xl font-bold">جدولي الأسبوعي</div>
-          <div class="text-muted text-sm">جدول الحصص الدراسية للأسبوع الحالي</div>
-        </div>
-        <DsBadge variant="info" icon="solar:calendar-mark-bold-duotone">
-          {{ getCurrentWeek() }}
-        </DsBadge>
-        <PrintPanelTrigger />
-      </div>
-    </DsCard>
+    <!-- شريط عنوان موحّد كما في صفحات مشرف الجناح -->
+    <WingPageHeader icon="solar:calendar-bold-duotone" title="جدولي الأسبوعي" :subtitle="'جدول الحصص الدراسية للأسبوع الحالي'">
+      <template #actions>
+        <DsBadge variant="info" icon="solar:calendar-mark-bold-duotone">{{ getCurrentWeek() }}</DsBadge>
+      </template>
+    </WingPageHeader>
 
     <!-- Split cards: A) Day/Date/Time, B) Live KPIs -->
     <div class="row g-3 align-items-stretch">
@@ -948,7 +931,7 @@ import { formatDateDMY } from "../../../shared/utils/date";
 import DsCard from "../../../components/ui/DsCard.vue";
 import DsBadge from "../../../components/ui/DsBadge.vue";
 import { useTeacherPrefs } from "../../../app/stores/teacherPrefs";
-import PrintPanelTrigger from "../../../components/ui/PrintPanelTrigger.vue";
+import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 
 const loading = ref(false);
 const days = ref<

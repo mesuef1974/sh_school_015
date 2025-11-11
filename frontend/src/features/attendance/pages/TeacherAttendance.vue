@@ -1,14 +1,7 @@
 <template>
   <section class="d-grid gap-3 page-grid page-grid-wide">
-    <!-- Unified page header (outside of content cards) -->
-    <div class="d-flex align-items-center gap-2 mb-2 header-bar frame">
-      <Icon icon="solar:clipboard-check-bold-duotone" class="header-icon" />
-      <div>
-        <div class="fw-bold">تسجيل الغياب</div>
-        <div class="text-muted small">اختر الصف والتاريخ (اختياري: حصة اليوم)</div>
-      </div>
-      <span class="ms-auto"></span>
-    </div>
+    <!-- شريط عنوان موحّد كما في صفحات مشرف الجناح -->
+    <WingPageHeader icon="solar:clipboard-check-bold-duotone" title="تسجيل الغياب" :subtitle="'اختر الصف والتاريخ (اختياري: حصة اليوم)'" />
 
     <div
       v-motion
@@ -359,6 +352,7 @@ import {
 import { useToast } from "vue-toastification";
 import DsButton from "../../../components/ui/DsButton.vue";
 import DsBadge from "../../../components/ui/DsBadge.vue";
+import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 
 const toast = useToast();
 const today = new Date().toISOString().slice(0, 10);

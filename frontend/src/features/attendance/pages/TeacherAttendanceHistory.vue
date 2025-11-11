@@ -1,6 +1,8 @@
 <template>
-  <section>
-    <!-- Compact Toolbar: Title + Filters + Search in one card -->
+  <section class="d-grid gap-3">
+    <!-- شريط عنوان موحّد كما في صفحات مشرف الجناح -->
+    <WingPageHeader icon="solar:history-bold-duotone" title="سجل الغياب للمعلم" :subtitle="'عرض سجلات الغياب مع فلاتر مدمجة'" />
+    <!-- Compact Toolbar: Filters + Search in one card -->
     <DsCard
       class="mb-3 toolbar-card"
       v-motion
@@ -8,13 +10,6 @@
       :enter="{ opacity: 1, y: 0 }"
     >
       <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
-        <div class="d-flex align-items-center gap-2">
-          <Icon icon="solar:history-bold-duotone" class="text-3xl text-primary" />
-          <div>
-            <h1 class="h6 mb-0">سجل الغياب للمعلم</h1>
-            <small class="text-muted">عرض سجلات الغياب مع فلاتر مدمجة</small>
-          </div>
-        </div>
         <div class="ms-auto d-flex align-items-center gap-2 search-inline" v-if="rows.length > 0">
           <Icon icon="solar:magnifer-bold-duotone" class="text-lg" />
           <input
@@ -310,6 +305,7 @@
 </template>
 
 <script setup lang="ts">
+import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
 import DatePickerDMY from "../../../components/ui/DatePickerDMY.vue";
 import { subjectIcon } from "../../../shared/icons/subjectIcons";
 import { ref, onMounted, computed } from "vue";

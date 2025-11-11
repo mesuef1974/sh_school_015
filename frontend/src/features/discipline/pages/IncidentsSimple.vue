@@ -1,32 +1,30 @@
 <template>
   <section class="container py-3" dir="rtl">
     <div class="page-stack">
-      <header class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div>
-          <h2 class="h5 mb-1">وقائع الانضباط (واجهة مبسطة)</h2>
-          <div class="text-muted small">صفحة مبسطة تم إنشاؤها من الصفر وتستدعي البيانات من قاعدة البيانات عبر واجهة الـ API</div>
-        </div>
-        <div class="d-flex align-items-end gap-2 flex-wrap">
-          <div v-if="isPrivileged" class="d-flex align-items-center gap-1">
-            <label class="form-label mb-0 small">النطاق</label>
-            <select v-model="scope" class="form-select form-select-sm" style="width:auto" @change="onScopeChange">
-              <option value="mine">سجلاتي</option>
-              <option value="all">الكل</option>
+      <WingPageHeader icon="solar:shield-check-bold-duotone" title="وقائع الانضباط (واجهة مبسطة)" :subtitle="'صفحة مبسطة تم إنشاؤها من الصفر وتستدعي البيانات من قاعدة البيانات عبر واجهة الـ API'">
+        <template #actions>
+          <div class="d-flex align-items-end gap-2 flex-wrap">
+            <div v-if="isPrivileged" class="d-flex align-items-center gap-1">
+              <label class="form-label mb-0 small">النطاق</label>
+              <select v-model="scope" class="form-select form-select-sm" style="width:auto" @change="onScopeChange">
+                <option value="mine">سجلاتي</option>
+                <option value="all">الكل</option>
+              </select>
+            </div>
+            <div>
+              <input v-model.trim="q" @keyup.enter="reload" type="search" class="form-control form-control-sm" placeholder="بحث بالوصف/المكان/المخالفة" style="min-width:240px" />
+            </div>
+            <select v-model="status" class="form-select form-select-sm" style="width:auto" @change="reload">
+              <option value="">كل الحالات</option>
+              <option value="open">مسودة</option>
+              <option value="under_review">قيد المراجعة</option>
+              <option value="closed">مغلقة</option>
             </select>
+            <button class="btn btn-sm btn-outline-primary" :disabled="loading" @click="reload">تحديث</button>
+            <button class="btn btn-sm btn-outline-secondary" :disabled="loading || items.length===0" @click="exportCsv">تصدير CSV</button>
           </div>
-          <div>
-            <input v-model.trim="q" @keyup.enter="reload" type="search" class="form-control form-control-sm" placeholder="بحث بالوصف/المكان/المخالفة" style="min-width:240px" />
-          </div>
-          <select v-model="status" class="form-select form-select-sm" style="width:auto" @change="reload">
-            <option value="">كل الحالات</option>
-            <option value="open">مسودة</option>
-            <option value="under_review">قيد المراجعة</option>
-            <option value="closed">مغلقة</option>
-          </select>
-          <button class="btn btn-sm btn-outline-primary" :disabled="loading" @click="reload">تحديث</button>
-          <button class="btn btn-sm btn-outline-secondary" :disabled="loading || items.length===0" @click="exportCsv">تصدير CSV</button>
-        </div>
-      </header>
+        </template>
+      </WingPageHeader>
 
       <div class="card p-0 mt-3">
         <div class="table-responsive">
@@ -38,13 +36,14 @@
                 <th>الفصل</th>
                 <th>المخالفة</th>
                 <th>الطالب</th>
-                <th>الشدة</th>
+                <th>مسجل الواقعة</th>
+                <th>درجة المخالقة</th>
                 <th>الحالة</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!loading && items.length === 0 && !error">
-                <td colspan="7" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
+                <td colspan="8" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
               </tr>
               <tr v-for="it in items" :key="it.id">
                 <td>{{ fmtDate(it.occurred_at) }}</td>
@@ -52,6 +51,7 @@
                 <td>{{ it.class_name || '—' }}</td>
                 <td>{{ it.violation_display || it.violation?.code || '—' }}</td>
                 <td>{{ it.student_name || ('#'+it.student) }}</td>
+                <td>{{ it.reporter_name || '—' }}</td>
                 <td><span class="badge bg-secondary">{{ it.severity ?? '—' }}</span></td>
                 <td>
                   <span class="badge" :class="badgeFor(it.status)">{{ statusAr(it.status) }}</span>
@@ -80,6 +80,7 @@
 import { ref, computed } from 'vue';
 import { listIncidents, getIncidentsMine } from '../api';
 import { useAuthStore } from '../../../app/stores/auth';
+import WingPageHeader from '../../../components/ui/WingPageHeader.vue';
 
 const auth = useAuthStore();
 const items = ref<any[]>([]);
@@ -138,12 +139,13 @@ async function reload(){
 
 function exportCsv(){
   try{
-    const headers = ['id','occurred_at','violation','student','severity','status'];
+    const headers = ['id','occurred_at','violation','student','reporter','degree','status'];
     const rows = items.value.map((it:any)=>[
       it.id,
       it.occurred_at || '',
       (it.violation_display || it.violation?.code || ''),
       (it.student_name || it.student || ''),
+      (it.reporter_name || ''),
       (it.severity ?? ''),
       (it.status || '')
     ]);
