@@ -13,7 +13,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from ..models import Staff, TeachingAssignment, Wing
+from ..models import Staff, TeachingAssignment, Wing, ApprovalRequest
 
 
 @api_view(["GET"])
@@ -70,10 +70,31 @@ def me(request: Request):
     can_manage_timetable = bool(
         user.is_superuser or role_set.intersection({"principal", "academic_deputy", "timetable_manager"})
     )
+    # Discipline capabilities (UI gating; server enforces separately per endpoint)
+    is_principal = "principal" in role_set
+    is_vice = "academic_deputy" in role_set or "vice_principal" in role_set
+    is_d_l1 = "discipline_l1" in role_set or "homeroom" in role_set
+    is_d_l2 = "discipline_l2" in role_set
+    is_exams = "exams" in role_set or "exams_officer" in role_set
+    is_nurse = "nurse" in role_set
+    is_counselor = "counselor" in role_set
+
     caps = {
         "can_manage_timetable": can_manage_timetable,
         "can_view_general_timetable": True,  # all authenticated users may view; templates may still gate by staff
         "can_take_attendance": bool("teacher" in role_set),
+        # Discipline
+        "discipline_l1": bool(is_d_l1),
+        "discipline_l2": bool(is_d_l2 or is_principal or is_vice),
+        # Exams governance
+        "exams_manage": bool(is_exams or is_principal or is_vice),
+        # Health privacy
+        "health_can_view_masked": bool(is_counselor or is_nurse or is_principal or is_vice),
+        # سياسة صحية صارمة: فك الإخفاء للممرض فقط
+        "health_can_unmask": bool(is_nurse),
+        # Approvals (dual control)
+        "can_propose_irreversible": bool(is_d_l2 or is_exams or is_vice or is_principal),
+        "can_approve_irreversible": bool(is_vice or is_principal),
     }
 
     primary_route = pick_primary_route(role_set)
@@ -121,6 +142,130 @@ def me(request: Request):
         "history": history,
     }
     return JsonResponse(data)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@never_cache
+def create_approval_request(request: Request) -> Response:
+    """إنشاء طلب موافقة لإجراء حساس.
+
+    الحقول المتوقعة:
+    - resource_type (str)
+    - resource_id (str)
+    - action (str)
+    - irreversible (bool, اختياري)
+    - impact (str, اختياري)
+    - justification (str, اختياري)
+    - payload (JSON, اختياري)
+    """
+    user = request.user
+    body = request.data or {}
+
+    resource_type = (body.get("resource_type") or "").strip()
+    resource_id = (body.get("resource_id") or "").strip()
+    action = (body.get("action") or "").strip()
+    irreversible = bool(body.get("irreversible") or False)
+    impact = (body.get("impact") or "").strip()
+    justification = (body.get("justification") or "").strip()
+    payload = body.get("payload")
+
+    # Basic validation
+    if not resource_type or not resource_id or not action:
+        return Response({"detail": "حقول ناقصة: resource_type/resource_id/action"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Minimal role checks (authoritative enforcement should exist on resource endpoints as well)
+    roles = set(user.groups.values_list("name", flat=True))  # type: ignore
+    # Include potential Staff.role
+    try:
+        staff = Staff.objects.filter(user=user).only("role").first()
+        if staff and staff.role:
+            roles.add(staff.role)
+    except Exception:
+        pass
+    is_principal = "principal" in roles
+    is_vice = "academic_deputy" in roles or "vice_principal" in roles
+    is_d_l2 = "discipline_l2" in roles
+    is_exams = "exams" in roles or "exams_officer" in roles
+
+    if irreversible and not (is_d_l2 or is_exams or is_vice or is_principal or user.is_superuser):
+        return Response({"detail": "ليست لديك صلاحية طلب إجراء غير قابل للعكس"}, status=status.HTTP_403_FORBIDDEN)
+
+    # Idempotency/Dedupe window: تجنّب تكرار طلبات متطابقة خلال 10 دقائق
+    try:
+        from django.utils import timezone
+
+        window_minutes = 10
+        since = timezone.now() - timezone.timedelta(minutes=window_minutes)
+        existing = (
+            ApprovalRequest.objects.filter(
+                proposed_by=user,
+                resource_type=resource_type,
+                resource_id=str(resource_id),
+                action=action,
+                status="pending",
+                created_at__gte=since,
+            )
+            .order_by("-id")
+            .first()
+        )
+        if existing:
+            return Response({"id": existing.id, "status": existing.status, "detail": "duplicate_reused"})
+    except Exception:
+        # Non-blocking: continue to create
+        pass
+
+    obj = ApprovalRequest.objects.create(
+        resource_type=resource_type,
+        resource_id=str(resource_id),
+        action=action,
+        irreversible=irreversible,
+        impact=impact or ("high" if irreversible else "medium"),
+        justification=justification,
+        payload=payload if isinstance(payload, (dict, list)) else None,
+        proposed_by=user,
+    )
+    return Response({"id": obj.id, "status": obj.status}, status=status.HTTP_201_CREATED)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@never_cache
+def approve_approval_request(request: Request, id: int) -> Response:
+    """اعتماد طلب موافقة (الموافَق يظل بحاجة لتنفيذ حسب نوع المورد)."""
+    user = request.user
+    try:
+        obj = ApprovalRequest.objects.get(id=id)
+    except ApprovalRequest.DoesNotExist:
+        return Response({"detail": "العنصر غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+
+    roles = set(user.groups.values_list("name", flat=True))  # type: ignore
+    try:
+        staff = Staff.objects.filter(user=user).only("role").first()
+        if staff and staff.role:
+            roles.add(staff.role)
+    except Exception:
+        pass
+
+    is_principal = "principal" in roles
+    is_vice = "academic_deputy" in roles or "vice_principal" in roles
+    if not (is_principal or is_vice or user.is_superuser):
+        return Response({"detail": "لا تملك صلاحية الاعتماد"}, status=status.HTTP_403_FORBIDDEN)
+
+    # منع الموافقة الذاتية: نفس من قدَّم الطلب لا يستطيع اعتماده
+    if obj.proposed_by_id and obj.proposed_by_id == user.id and not user.is_superuser:
+        return Response({"detail": "لا يمكن لمقدّم الطلب اعتماده بنفسه"}, status=status.HTTP_403_FORBIDDEN)
+
+    # السماح بالاعتماد فقط من حالة pending (وليس rejected/approved/executed)
+    if obj.status != "pending":
+        return Response(
+            {"detail": "لا يمكن اعتماد هذا الطلب إلا إذا كانت حالته قيد الانتظار"}, status=status.HTTP_400_BAD_REQUEST
+        )
+
+    obj.status = "approved"
+    obj.approved_by = user
+    obj.save(update_fields=["status", "approved_by", "updated_at"])
+    return Response({"detail": "تم الاعتماد", "id": obj.id, "status": obj.status})
 
 
 @api_view(["POST"])

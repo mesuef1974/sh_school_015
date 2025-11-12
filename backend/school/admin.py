@@ -29,6 +29,7 @@ from .models import (
     Term,
     TimetableEntry,
     Wing,
+    ApprovalRequest,
 )
 from .admin_filters import CurrentTermFilter
 from .services.attendance import compute_late_seconds, format_mmss, format_hhmmss
@@ -1319,3 +1320,24 @@ class ExitEventAdmin(admin.ModelAdmin):
 
     get_duration_mmss.short_description = "المدة MM:SS"
     get_duration_mmss.admin_order_field = "duration_seconds"
+
+
+@admin.register(ApprovalRequest)
+class ApprovalRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "resource_type",
+        "resource_id",
+        "action",
+        "irreversible",
+        "impact",
+        "status",
+        "proposed_by",
+        "approved_by",
+        "executed_by",
+        "created_at",
+    )
+    list_filter = ("status", "irreversible", "impact", "resource_type")
+    search_fields = ("resource_type", "resource_id", "action", "justification")
+    autocomplete_fields = ("proposed_by", "approved_by", "executed_by")
+    readonly_fields = ("created_at", "updated_at")

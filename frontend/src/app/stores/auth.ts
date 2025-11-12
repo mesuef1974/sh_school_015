@@ -14,6 +14,14 @@ export interface UserProfile {
     can_manage_timetable?: boolean;
     can_view_general_timetable?: boolean;
     can_take_attendance?: boolean;
+    // extended
+    discipline_l1?: boolean;
+    discipline_l2?: boolean;
+    exams_manage?: boolean;
+    health_can_view_masked?: boolean;
+    health_can_unmask?: boolean;
+    can_propose_irreversible?: boolean;
+    can_approve_irreversible?: boolean;
   };
   primary_route?: string;
 }
@@ -32,6 +40,13 @@ export const useAuthStore = defineStore("auth", {
     hasRole: (state) => (role: string) => !!state.profile?.roles?.includes(role),
     hasAnyRole: (state) => (roles: string[]) =>
       roles.some((r) => state.profile?.roles?.includes(r)),
+    capabilities(state) {
+      return state.profile?.capabilities ?? {};
+    },
+    can: (state) => (key: keyof NonNullable<UserProfile['capabilities']>) => {
+      const caps = state.profile?.capabilities as any;
+      return !!(caps && caps[key]);
+    },
   },
   actions: {
     async loadProfile() {

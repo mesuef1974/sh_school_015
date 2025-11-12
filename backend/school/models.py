@@ -801,3 +801,53 @@ class StudentLateSummary(Student):
         proxy = True
         verbose_name = "ملخص تأخيرات الطالب"
         verbose_name_plural = "ملخصات تأخيرات الطلاب"
+
+
+# --- Approvals workflow (dual-control) ---
+class ApprovalRequest(models.Model):
+    """طلب موافقة لإجراء عالي الأثر/غير قابل للعكس.
+
+    الهدف: توفير طبقة حوكمة بسيطة لإسناد الموافقات المزدوجة على إجراءات حساسة
+    مثل: إلغاء نتيجة اختبار بسبب غش، حظر دائم، حذف صلب لسجل.
+    """
+
+    STATUS_CHOICES = (
+        ("pending", "قيد الانتظار"),
+        ("approved", "مقبول"),
+        ("rejected", "مرفوض"),
+        ("executed", "تم التنفيذ"),
+    )
+
+    # توصيف عام للهدف
+    resource_type = models.CharField(max_length=50, db_index=True)
+    resource_id = models.CharField(max_length=64, db_index=True)
+    action = models.CharField(max_length=50, help_text="نوع الإجراء المطلوب")
+    irreversible = models.BooleanField(default=False)
+    impact = models.CharField(max_length=20, blank=True, default="", help_text="low|medium|high|critical")
+
+    # بيانات الحالة والموافقات
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    justification = models.CharField(max_length=500, blank=True, default="")
+    payload = models.JSONField(blank=True, null=True, help_text="بيانات إضافية لازمة للتنفيذ")
+
+    proposed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="approvals_proposed")
+    approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="approvals_approved"
+    )
+    executed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="approvals_executed"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["resource_type", "resource_id"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+        verbose_name = "طلب موافقة"
+        verbose_name_plural = "طلبات الموافقة"
+
+    def __str__(self) -> str:
+        return f"[{self.status}] {self.resource_type}:{self.resource_id} -> {self.action}"

@@ -421,8 +421,35 @@ export async function getMe() {
       can_manage_timetable?: boolean;
       can_view_general_timetable?: boolean;
       can_take_attendance?: boolean;
+      // --- extended capabilities ---
+      discipline_l1?: boolean;
+      discipline_l2?: boolean;
+      exams_manage?: boolean;
+      health_can_view_masked?: boolean;
+      health_can_unmask?: boolean;
+      can_propose_irreversible?: boolean;
+      can_approve_irreversible?: boolean;
     };
   };
+}
+
+// --- Approvals API ---
+export async function createApprovalRequest(payload: {
+  resource_type: string;
+  resource_id: string | number;
+  action: string;
+  irreversible?: boolean;
+  impact?: string;
+  justification?: string;
+  payload?: any;
+}) {
+  const res = await api.post("/approvals/", payload);
+  return res.data as { id: number; status: "pending" | "approved" | "rejected" | "executed" };
+}
+
+export async function approveApprovalRequest(id: number) {
+  const res = await api.post(`/approvals/${id}/approve/`, {});
+  return res.data as { id: number; status: "approved"; detail?: string };
 }
 
 // --- Exit Events API ---
