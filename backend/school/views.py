@@ -5540,10 +5540,10 @@ def icon_svg(request, name: str):
         content, path, ver = _read_icon_file(name)
     except Http404:
         return HttpResponse(status=404)
-    # ETag from sha1 of content
+    # ETag derived from a modern non-cryptographic hash of content (not used for security)
     import hashlib as _hl
 
-    etag = '"' + _hl.sha1(content).hexdigest() + '"'
+    etag = '"' + _hl.blake2b(content, digest_size=20).hexdigest() + '"'
     inm = request.META.get("HTTP_IF_NONE_MATCH")
     if inm and inm.strip() == etag:
         return HttpResponseNotModified()

@@ -52,6 +52,20 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        def normalize_code(raw: str) -> str:
+            # Convert patterns like '1-1' -> '1-01'; keep '4-09' as-is.
+            import re
+
+            s = (raw or "").strip()
+            m = re.match(r"^(\d+)-(\d+)$", s)
+            if not m:
+                return s
+            left, right = m.group(1), m.group(2)
+            try:
+                return f"{left}-{int(right):02d}"
+            except Exception:
+                return s
+
         # Print resolved DB target for diagnostics
         default_db = getattr(settings, "DATABASES", {}).get("default", {})
         target = (
@@ -123,7 +137,7 @@ class Command(BaseCommand):
                 if not isinstance(violations, list):
                     continue
                 for v in violations:
-                    code = str(v.get("id") or "").strip()
+                    code = normalize_code(str(v.get("id") or "").strip())
                     if not code:
                         # Skip invalid entries silently
                         continue

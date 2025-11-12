@@ -16,6 +16,7 @@ Including another URLconf
 """
 
 from pathlib import Path
+from typing import Optional
 
 from django.conf import settings
 from django.db import connection
@@ -76,16 +77,15 @@ def sentry_test(request):
     """
     from django.conf import settings as dj_settings
 
-    allow = bool(getattr(dj_settings, "DEBUG", False))
-    try:
-        if hasattr(request, "user") and getattr(request.user, "is_staff", False):
-            allow = True or allow
-    except Exception:
-        pass
+    # Allow when DEBUG is true or the current user is staff
+    allow = bool(getattr(dj_settings, "DEBUG", False)) or bool(
+        getattr(getattr(request, "user", None), "is_staff", False)
+    )
+
     if not allow:
         return HttpResponse(status=403)
     try:
-        import sentry_sdk  # type: ignore
+        import sentry_sdk
 
         sentry_sdk.capture_message("Sentry test event (manual)", level="info")
         return HttpResponse("sent", status=202, content_type="text/plain")
@@ -101,6 +101,7 @@ def _export_removed(request):
 
 
 urlpatterns = [
+    path("i18n/", include("django.conf.urls.i18n")),  # enable set_language view for locale switching
     re_path(
         r"^api/v1/attendance/history-export/?$",
         _export_removed,
@@ -119,6 +120,17 @@ urlpatterns = [
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
     path("favicon.ico", favicon, name="favicon"),
     path("admin/", restricted_admin_site.urls),
+    # Friendly alias to open the admin via /portal/ (preserve query string) and support no-trailing-slash
+    path(
+        "portal/",
+        RedirectView.as_view(url="/admin/", permanent=False, query_string=True),
+        name="portal_admin",
+    ),
+    path(
+        "portal",
+        RedirectView.as_view(url="/admin/", permanent=False, query_string=True),
+        name="portal_admin_noslash",
+    ),
     # API v1 (new apps)
     path("api/v1/", include("apps.attendance.urls")),
     path("api/v1/", include("discipline.urls")),
@@ -209,13 +221,14 @@ if settings.DEBUG:
         path("api/v1/auth/logout/", api_logout, name="api_v1_auth_logout"),
     ]
     # Serve Font Awesome webfonts at /webfonts/* from the installed package during DEBUG
+    FA_WEBFONTS_DIR: Optional[Path] = None
     try:
-        import fontawesomefree as _fa  # type: ignore
+        import fontawesomefree as _fa
 
         FA_WEBFONTS_DIR = Path(_fa.__file__).resolve().parent / "static" / "fontawesomefree" / "webfonts"
     except Exception:
         FA_WEBFONTS_DIR = None
-    if "FA_WEBFONTS_DIR" in locals() and FA_WEBFONTS_DIR and FA_WEBFONTS_DIR.exists():
+    if FA_WEBFONTS_DIR and FA_WEBFONTS_DIR.exists():
         urlpatterns += [
             re_path(
                 r"^webfonts/(?P<path>.*)$",

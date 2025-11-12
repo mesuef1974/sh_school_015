@@ -152,7 +152,11 @@
               <div class="avatar" :title="'#' + (idx + 1)">{{ String(idx + 1) }}</div>
               <div class="flex-grow-1 min-w-0">
                 <div class="name-row d-flex align-items-center gap-2 text-truncate">
-                  <div class="student-name text-truncate" :title="s.full_name">
+                  <div
+                    class="student-name text-truncate clicky"
+                    :title="s.full_name"
+                    @click="openStudentIncidents(s)"
+                  >
                     {{ s.full_name }}
                     <span v-if="s.active === false" class="badge bg-secondary ms-1">غير فعال</span>
                   </div>
@@ -179,6 +183,52 @@
                 >
                   <Icon icon="solar:close-circle-bold-duotone" />
                 </button>
+                <!-- أيقونة تسجيل واقعة -->
+                <div
+                  class="dropdown"
+                  :class="{ 'show': dropdownStudentId === s.id }"
+                  :data-student-id="s.id"
+                  @mouseenter="cancelHideDropdown(s.id)"
+                  @mouseleave="scheduleHideDropdown(s.id)"
+                >
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-light text-warning ms-1"
+                    :disabled="s.active === false"
+                    :aria-label="'تسجيل واقعة ل' + s.full_name"
+                    @click="toggleViolationsDropdown(s, idx)"
+                    title="تسجيل واقعة"
+                  >
+                    <Icon icon="solar:shield-warning-bold-duotone" />
+                  </button>
+                  <div
+                    class="dropdown-menu p-2"
+                    :class="[ dropdownStudentId === s.id ? 'show' : '' ]"
+                    @mouseenter="cancelHideDropdown(s.id)"
+                    @mouseleave="scheduleHideDropdown(s.id)"
+                  >
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                      <Icon icon="solar:list-bold-duotone" />
+                      <strong>اختيار مخالفة</strong>
+                      <span class="ms-auto small text-muted" v-if="violationsLoading">جاري التحميل…</span>
+                    </div>
+                    <input v-model.trim="violationsQuery" type="search" class="form-control form-control-sm mb-2" placeholder="ابحث بالكود/التصنيف" />
+                    <div v-if="violationsError" class="alert alert-danger py-1 mb-2">{{ violationsError }}</div>
+                    <ul class="list-group list-group-flush" v-if="filteredViolations.length">
+                      <li
+                        v-for="v in filteredViolations"
+                        :key="v.id"
+                        class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-2"
+                        @click="selectViolationForStudent(s, v)"
+                        style="cursor: pointer;"
+                      >
+                        <span class="badge rounded-pill" :style="{ backgroundColor: sevColor(v.severity) }">{{ v.code }}</span>
+                        <span class="text-truncate">{{ v.category }}</span>
+                      </li>
+                    </ul>
+                    <div v-else class="text-muted small">لا نتائج.</div>
+                  </div>
+                </div>
               </div>
             </header>
 
@@ -349,10 +399,13 @@ import {
   postExitEvent,
   patchExitReturn,
 } from "../../../shared/api/client";
+import { createIncident as createDisciplineIncident, listViolations } from "../../discipline/api";
 import { useToast } from "vue-toastification";
+import { router } from "../../../app/router";
 import DsButton from "../../../components/ui/DsButton.vue";
 import DsBadge from "../../../components/ui/DsBadge.vue";
 import WingPageHeader from "../../../components/ui/WingPageHeader.vue";
+import { nextTick } from "vue";
 
 const toast = useToast();
 const today = new Date().toISOString().slice(0, 10);
@@ -472,6 +525,172 @@ function statusClassChip(s: string) {
   );
 }
 
+// ------------------------------
+// تسجيل واقعة من شاشة الحضور
+// ------------------------------
+type ViolationItem = { id: number; code: string; category: string; severity: number };
+const dropdownStudentId = ref<number | null>(null);
+// Side to open the menu toward: 'left' means open inward to the left (Bootstrap dropstart), 'right' means the opposite
+const dropdownHideTimers = reactive<Record<number, any>>({});
+const violations = ref<ViolationItem[]>([]);
+const violationsLoading = ref(false);
+const violationsError = ref("");
+const violationsQuery = ref("");
+const createdIncidentKeys = reactive(new Set<string>()); // لمنع التكرار (student|date|period|violation)
+
+function sevColor(sev?: number) {
+  const s = Number(sev || 1);
+  return s >= 4 ? "#c62828" : s === 3 ? "#fb8c00" : s === 2 ? "#f9a825" : "#2e7d32";
+}
+
+const filteredViolations = computed(() => {
+  const q = violationsQuery.value.trim();
+  if (!q) return violations.value;
+  const ql = q.toLowerCase();
+  return violations.value.filter(
+    (v) => v.code.toLowerCase().includes(ql) || (v.category || "").toLowerCase().includes(ql)
+  );
+});
+
+async function ensureViolationsLoaded() {
+  if (violations.value.length || violationsLoading.value) return;
+  violationsLoading.value = true;
+  violationsError.value = "";
+  try {
+    const data = await listViolations();
+    const results = Array.isArray(data) ? data : data?.results || [];
+    violations.value = results.map((r: any) => ({
+      id: r.id,
+      code: r.code,
+      category: r.category,
+      severity: Number(r.severity || 1),
+    }));
+  } catch (e: any) {
+    violationsError.value = e?.message || "تعذّر تحميل قائمة المخالفات";
+  } finally {
+    violationsLoading.value = false;
+  }
+}
+
+function toggleViolationsDropdown(s: any) {
+  if (s.active === false) return;
+  dropdownStudentId.value = dropdownStudentId.value === s.id ? null : s.id;
+  void ensureViolationsLoaded();
+}
+
+function scheduleHideDropdown(studentId: number) {
+  try { clearTimeout(dropdownHideTimers[studentId]); } catch {}
+  dropdownHideTimers[studentId] = setTimeout(() => {
+    if (dropdownStudentId.value === studentId) dropdownStudentId.value = null;
+  }, 2000);
+}
+
+// لم نعد نستخدم تموضع مخصص — نترك Bootstrap/CSS الافتراضي
+
+function cancelHideDropdown(studentId: number) {
+  try { clearTimeout(dropdownHideTimers[studentId]); } catch {}
+}
+
+function currentPeriodMeta() {
+  if (!periodNo.value) return null as null | {
+    period_number: number; classroom_id: number; classroom_name?: string; subject_id: number; subject_name?: string;
+  };
+  return (
+    todayPeriods.value.find((pp) => pp.period_number === periodNo.value) || null
+  );
+}
+
+function buildIncidentNarrative(s: any, v: ViolationItem) {
+  const p = currentPeriodMeta();
+  const parts: string[] = [];
+  if (p?.classroom_name || p?.classroom_id) parts.push(`الصف: ${p?.classroom_name || `#${p?.classroom_id}`}`);
+  if (p?.subject_name || p?.subject_id) parts.push(`المادة: ${p?.subject_name || `#${p?.subject_id}`}`);
+  if (p?.period_number) parts.push(`الحصة: ${p?.period_number}`);
+  parts.push(`المصدر: شاشة تسجيل الحضور`);
+  const note = (recordMap[s.id]?.note || "").toString().trim();
+  if (note) parts.push(`ملاحظة: ${note}`);
+  return `${v.code} — ${v.category} \n${parts.join(" — ")}`;
+}
+
+function makeIncidentKey(studentId: number, violationId: number) {
+  const p = currentPeriodMeta();
+  const pid = p?.period_number || 0;
+  return `${studentId}|${dateStr.value}|${pid}|${violationId}`;
+}
+
+async function createIncidentFor(studentId: number, violation: ViolationItem, sObj?: any) {
+  const key = makeIncidentKey(studentId, violation.id);
+  if (createdIncidentKeys.has(key)) return; // منع تكرار الإنشاء على نفس الحصة/اليوم/الطالب/المخالفة
+  try {
+    const occurredAt = new Date();
+    // إن غيّر المعلم التاريخ يدويًا، استخدمه مع وقت الآن
+    try {
+      const [y, m, d] = (dateStr.value || "").split("-");
+      if (y && m && d) {
+        occurredAt.setFullYear(Number(y));
+        occurredAt.setMonth(Number(m) - 1);
+        occurredAt.setDate(Number(d));
+      }
+    } catch {}
+    const payload: any = {
+      student: studentId,
+      violation: violation.id,
+      occurred_at: occurredAt.toISOString(),
+      narrative: buildIncidentNarrative(sObj || { id: studentId }, violation),
+    };
+    await createDisciplineIncident(payload);
+    createdIncidentKeys.add(key);
+    try { toast.success("تم تسجيل الواقعة بنجاح", { autoClose: 1200 }); } catch {}
+    // فتح صفحة وقائع الطالب في تبويب جديد
+    try {
+      const idStr = String(studentId);
+      const href = router.resolve({ name: "discipline-student-incidents", params: { studentId: idStr }, query: { name: sObj?.full_name || undefined } }).href;
+      window.open(href, "_blank");
+    } catch {}
+  } catch (e: any) {
+    try {
+      toast.error(e?.message || "تعذّر تسجيل الواقعة");
+    } catch {}
+  }
+}
+
+// اختيار مخالفة يدويًا من القائمة
+function selectViolationForStudent(s: any, v: ViolationItem) {
+  dropdownStudentId.value = null;
+  void createIncidentFor(s.id, v, s);
+}
+
+// فتح صفحة وقائع الطالب عند الضغط على الاسم
+function openStudentIncidents(s: any) {
+  try {
+    const idStr = String(s?.id ?? "");
+    if (!idStr) return;
+    const href = router.resolve({ name: "discipline-student-incidents", params: { studentId: idStr }, query: { name: s?.full_name || undefined } }).href;
+    window.open(href, "_blank");
+  } catch {}
+}
+
+// خريطة اختيار تلقائي لمخالفة التأخر/الهروب
+const autoViolationMap = computed(() => {
+  const out: { late?: ViolationItem; runaway?: ViolationItem } = {};
+  for (const v of violations.value) {
+    const cat = (v.category || "").toLowerCase();
+    const code = (v.code || "").toLowerCase();
+    if (!out.late && (code.includes("late") || cat.includes("تأخر") || cat.includes("متأخر"))) out.late = v;
+    if (!out.runaway && (code.includes("runaway") || cat.includes("هروب") || cat.includes("هرب"))) out.runaway = v;
+    if (out.late && out.runaway) break;
+  }
+  return out;
+});
+
+async function maybeCreateAutoIncident(s: any, st: string) {
+  if (s.active === false) return;
+  await ensureViolationsLoaded();
+  const v = st === "late" ? autoViolationMap.value.late : st === "runaway" ? autoViolationMap.value.runaway : undefined;
+  if (!v) return; // لا توجد مخالفة معرفة تلقائيًا
+  await createIncidentFor(s.id, v, s);
+}
+
 // Split students into two nearly equal columns
 const leftCount = computed(() => Math.ceil(students.value.length / 2));
 const studentsLeft = computed(() => students.value.slice(0, leftCount.value));
@@ -589,6 +808,11 @@ function onStatusChange(s: any) {
         recordMap[s.id].note = base + tag;
       }
     } catch {}
+    // إنشاء واقعة تلقائيًا لمخالفة التأخر
+    void maybeCreateAutoIncident(s, "late");
+  } else if (st === "runaway") {
+    // إنشاء واقعة تلقائيًا لمخالفة الهروب
+    void maybeCreateAutoIncident(s, "runaway");
   } else {
     // لباقي الحالات: إن كانت الملاحظة مولّدة تلقائيًا لإذن الخروج فافرغها
     const current = (recordMap[s.id].note || "").trim();
@@ -953,6 +1177,8 @@ async function submitForReview() {
 
 onBeforeUnmount(() => {
   if (tickTimer) clearInterval(tickTimer);
+  // تأكد من إزالة مستمعات القائمة المفتوحة إن وُجدت
+  try { detachGlobalDropdownListeners(); } catch {}
 });
 </script>
 
@@ -1160,6 +1386,17 @@ onBeforeUnmount(() => {
   height: 34px;
   display: grid;
   place-items: center;
+}
+
+/* انتقالات ناعمة للقائمة لتقليل الوميض */
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
 }
 .grid-toolbar .search-icon {
   position: absolute;

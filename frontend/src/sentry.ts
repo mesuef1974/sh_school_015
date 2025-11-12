@@ -8,7 +8,8 @@ export async function initSentry(app: App) {
   const dsn = import.meta.env.VITE_SENTRY_DSN as string | undefined
   if (!dsn) return
   try {
-    const Sentry = await import('@sentry/vue')
+    // Use @vite-ignore so dev server doesn’t try to resolve this optional dependency unless DSN is set
+    const Sentry = await import(/* @vite-ignore */ '@sentry/vue')
     const env = (import.meta.env.MODE || 'development') as string
     const release = (import.meta.env.VITE_RELEASE || '') as string
     const traces = parseFloat((import.meta as any).env.VITE_SENTRY_TRACES || '0') || 0

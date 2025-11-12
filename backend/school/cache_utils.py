@@ -38,7 +38,8 @@ def make_cache_key(prefix: str, *args, **kwargs) -> str:
     # Add keyword args (sorted for consistency)
     if kwargs:
         kwargs_str = json.dumps(kwargs, sort_keys=True, default=str)
-        kwargs_hash = hashlib.md5(kwargs_str.encode()).hexdigest()[:8]
+        # Use a modern, non-cryptographic hash for cache key derivation (not used for security)
+        kwargs_hash = hashlib.blake2b(kwargs_str.encode(), digest_size=16).hexdigest()[:8]
         parts.append(kwargs_hash)
 
     return ":".join(parts)
@@ -202,7 +203,15 @@ class CacheInvalidator:
     @staticmethod
     def setup():
         """Register all cache invalidation handlers"""
-        from .models import AcademicYear, AttendanceDaily, AttendanceRecord, Class, ExitEvent, Student, Term
+        from .models import (
+            AcademicYear,
+            AttendanceDaily,
+            AttendanceRecord,
+            Class,
+            ExitEvent,
+            Student,
+            Term,
+        )
 
         # Invalidate class cache when Class, Wing, or Student count changes
         invalidate_cache_for_model(Class, ["class", "student"])

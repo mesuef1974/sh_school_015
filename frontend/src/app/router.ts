@@ -11,6 +11,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/discipline/incidents", name: "discipline-incidents", redirect: { name: "discipline-incidents-simple" } },
   { path: "/discipline/incidents/new", name: "discipline-incident-new", component: () => import("../features/discipline/pages/IncidentForm.vue"), meta: { requiresAuth: true, titleAr: "تسجيل واقعة" } },
   { path: "/discipline/incidents/simple", name: "discipline-incidents-simple", component: () => import("../features/discipline/pages/IncidentsSimple.vue"), meta: { requiresAuth: true, titleAr: "وقائع الانضباط (مبسطة)" } },
+  { path: "/discipline/students/:studentId/incidents", name: "discipline-student-incidents", component: () => import("../features/discipline/pages/StudentIncidents.vue"), meta: { requiresAuth: true, titleAr: "وقائع الطالب" } },
   // Aliases for robustness (some links/users may try alternative paths)
   { path: "/discipline/incident/new", redirect: { name: "discipline-incident-new" } },
   { path: "/incident/new", redirect: { name: "discipline-incident-new" } },

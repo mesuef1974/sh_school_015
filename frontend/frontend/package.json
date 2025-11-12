@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "sh-school-frontend": "file:.."
+  }
+}

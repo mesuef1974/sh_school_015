@@ -53,6 +53,8 @@ MIDDLEWARE = [
     # Serve static files efficiently in development ASGI (and prod if desired)
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # LocaleMiddleware must be after SessionMiddleware and before CommonMiddleware
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -75,7 +77,10 @@ ROOT_URLCONF = "core.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [
+            # Project-level templates (e.g., admin overrides)
+            (BASE_DIR / "templates").as_posix(),
+        ],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -93,8 +98,8 @@ WSGI_APPLICATION = "core.wsgi.application"
 _SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
 if _SENTRY_DSN:
     try:
-        import sentry_sdk  # type: ignore
-        from sentry_sdk.integrations.django import DjangoIntegration  # type: ignore
+        import sentry_sdk
+        from sentry_sdk.integrations.django import DjangoIntegration
 
         sentry_sdk.init(
             dsn=_SENTRY_DSN,
@@ -208,7 +213,16 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = "en-us"
+# Default UI language: Arabic (RTL). English remains available via language switcher.
+LANGUAGE_CODE = "ar"
+LANGUAGES = (
+    ("ar", "Arabic"),
+    ("en", "English"),
+)
+# Custom project translation files location (for any strings we mark with gettext)
+LOCALE_PATHS = [
+    (BASE_DIR / "locale").as_posix(),
+]
 # Use local timezone for Saudi Arabia so admin and API-localized outputs reflect correct local time
 TIME_ZONE = "Asia/Riyadh"
 USE_I18N = True

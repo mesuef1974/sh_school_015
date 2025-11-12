@@ -74,3 +74,19 @@ export async function getIncidentsVisible(params: any = {}) {
   const res = await api.get("/v1/discipline/incidents/visible/", { params });
   return res.data;
 }
+
+export async function countIncidentsByStudent(params: { student?: string[]; student_ids?: string }) {
+  // DRF expects either repeated ?student=1&student=2 or a CSV via ?student_ids=1,2.
+  // Axios serializes arrays as student[]=1&student[]=2 by default, which DRF won't read with getlist('student').
+  // To be robust, convert any incoming array to a CSV under student_ids.
+  const idsArr = Array.isArray(params?.student)
+    ? (params.student as string[])
+    : (typeof params?.student_ids === 'string' && params.student_ids
+        ? params.student_ids.split(',').map((s) => s.trim()).filter(Boolean)
+        : []);
+  const csv = idsArr.length ? idsArr.join(',') : (params?.student_ids || '');
+  const finalParams: any = {};
+  if (csv) finalParams.student_ids = csv;
+  const res = await api.get("/v1/discipline/incidents/count-by-student/", { params: finalParams });
+  return res.data as Record<string, number>;
+}

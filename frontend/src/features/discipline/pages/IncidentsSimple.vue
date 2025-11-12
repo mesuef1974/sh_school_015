@@ -36,6 +36,7 @@
                 <th>الفصل</th>
                 <th>المخالفة</th>
                 <th>الطالب</th>
+                <th class="text-center">وقائع الطالب</th>
                 <th>مسجل الواقعة</th>
                 <th>درجة المخالقة</th>
                 <th>الحالة</th>
@@ -43,14 +44,30 @@
             </thead>
             <tbody>
               <tr v-if="!loading && items.length === 0 && !error">
-                <td colspan="8" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
+                <td colspan="9" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
               </tr>
-              <tr v-for="it in items" :key="it.id">
+              <tr v-for="it in displayedItems" :key="it.id">
                 <td>{{ fmtDate(it.occurred_at) }}</td>
                 <td>{{ it.occurred_time || fmtTime(it.occurred_at) }}</td>
                 <td>{{ it.class_name || '—' }}</td>
                 <td>{{ it.violation_display || it.violation?.code || '—' }}</td>
                 <td>{{ it.student_name || ('#'+it.student) }}</td>
+                <td class="text-center">
+                  <button
+                    v-if="it.student"
+                    class="btn btn-sm btn-light border"
+                    :title="'عرض جميع وقائع الطالب'"
+                    @click="openStudentIncidents(it.student, it.student_name)"
+                  >
+                    <template v-if="counts[String(it.student)] !== undefined">
+                      <span class="badge bg-primary">{{ counts[String(it.student)] }}</span>
+                    </template>
+                    <template v-else>
+                      <span class="badge bg-secondary">…</span>
+                    </template>
+                  </button>
+                  <span v-else>—</span>
+                </td>
                 <td>{{ it.reporter_name || '—' }}</td>
                 <td><span class="badge bg-secondary">{{ it.severity ?? '—' }}</span></td>
                 <td>
@@ -77,13 +94,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { listIncidents, getIncidentsMine } from '../api';
+import { ref, computed, watch } from 'vue';
+import { listIncidents, getIncidentsMine, countIncidentsByStudent } from '../api';
 import { useAuthStore } from '../../../app/stores/auth';
 import WingPageHeader from '../../../components/ui/WingPageHeader.vue';
+import { router } from '../../../app/router';
 
 const auth = useAuthStore();
 const items = ref<any[]>([]);
+const counts = ref<Record<string, number>>({});
 const loading = ref(false);
 const error = ref('');
 const lastUpdated = ref<string>('');
@@ -103,6 +122,31 @@ function onScopeChange(){ try { localStorage.setItem(SCOPE_STORAGE_KEY, scope.va
 function fmtDate(s?: string){ if(!s) return '—'; try{ const d=new Date(s); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }catch{ return s as string; } }
 function badgeFor(st: string){ return st==='closed'?'bg-secondary':(st==='under_review'?'bg-warning text-dark':'bg-info'); }
 function statusAr(st: string){ return st==='closed'?'مغلقة':(st==='under_review'?'قيد المراجعة':'مسودة'); }
+function fmtTime(s?: string){ if(!s) return '—'; try{ const d=new Date(s); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${hh}:${mm}`; }catch{ return ''; } }
+
+// Arabic plural label for "violations"
+function arCountLabel(n: number){
+  const x = Number(n||0);
+  if (x === 0) return 'مخالفات';
+  if (x === 1) return 'مخالفة';
+  if (x === 2) return 'مخالفتان';
+  if (x >= 3 && x <= 10) return 'مخالفات';
+  return 'مخالفة'; // generic for >10
+}
+
+// Show only the latest incident per student (items are already sorted DESC by backend)
+const displayedItems = computed(() => {
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const it of items.value) {
+    const sid = (it && (String(it.student||''))) || '';
+    if (!sid) { out.push(it); continue; }
+    if (seen.has(sid)) continue; // already captured a newer one
+    seen.add(sid);
+    out.push(it);
+  }
+  return out;
+});
 
 async function reload(){
   loading.value = true; error.value=''; items.value=[];
@@ -120,6 +164,8 @@ async function reload(){
                                     : await listIncidents(params, { signal: ac.signal });
     }
     items.value = Array.isArray(data) ? data : (data?.results ?? []);
+    // Fetch counts per student for currently visible items
+    await fetchStudentCounts();
     lastUpdated.value = new Date().toLocaleString();
   } catch(e:any){
     if (e?.code === 'ERR_CANCELED') {
@@ -135,6 +181,44 @@ async function reload(){
     clearTimeout(timeout);
     loading.value = false;
   }
+}
+
+async function fetchStudentCounts(){
+  try{
+    const ids = Array.from(new Set(items.value.map((it:any)=> it?.student).filter((v:any)=> typeof v==='number' || (typeof v==='string' && /^\d+$/.test(v))))).map(String);
+    if (ids.length === 0) { counts.value = {}; return; }
+    const res = await countIncidentsByStudent({ student: ids });
+    const map: Record<string, number> = { };
+    for (const id of ids) {
+      const v = (res && (res as any)[id]);
+      map[id] = typeof v === 'number' ? v : 0;
+    }
+    // If backend returned empty mapping (possible caching/perm), fallback to local tally from current items
+    const empty = Object.keys(res || {}).length === 0;
+    if (empty) {
+      for (const it of items.value) {
+        const sid = String(it?.student || '');
+        if (!sid) continue;
+        map[sid] = (map[sid] || 0) + 1;
+      }
+    }
+    counts.value = map;
+  } catch {
+    // On error, fallback to local tally so the user still sees a number
+    const map: Record<string, number> = {};
+    for (const it of items.value) {
+      const sid = String(it?.student || '');
+      if (!sid) continue;
+      map[sid] = (map[sid] || 0) + 1;
+    }
+    counts.value = map;
+  }
+}
+
+function openStudentIncidents(studentId: string|number, studentName?: string){
+  const idStr = String(studentId);
+  const route = router.resolve({ name: 'discipline-student-incidents', params: { studentId: idStr }, query: studentName? { name: studentName } : {} });
+  window.open(route.href, '_blank');
 }
 
 function exportCsv(){
