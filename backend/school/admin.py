@@ -30,11 +30,22 @@ from .models import (
     TimetableEntry,
     Wing,
     ApprovalRequest,
+    TimetableLinks,
+    SiteLinks,
 )
 from .admin_filters import CurrentTermFilter
 from .services.attendance import compute_late_seconds, format_mmss, format_hhmmss
 from django.db.models import Case, When, IntegerField, Value, Subquery, OuterRef, F
 from django.db.models.functions import Coalesce
+
+# Ensure the top-right "View site" link in Django Admin points to the main portal
+# instead of the project root. This restores the expected navigation path mentioned by the user.
+try:
+    # Use a relative path; Django will resolve against current host
+    admin.site.site_url = "/portal/"
+except Exception:
+    # Best-effort only; do not block admin if something unusual happens
+    pass
 
 # Arabic day names mapping (Sun=1..Sat=7)
 DAY_NAMES_AR = {
@@ -1341,3 +1352,165 @@ class ApprovalRequestAdmin(admin.ModelAdmin):
     search_fields = ("resource_type", "resource_id", "action", "justification")
     autocomplete_fields = ("proposed_by", "approved_by", "executed_by")
     readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(TimetableLinks)
+class TimetableLinksAdmin(admin.ModelAdmin):
+    """عنصر وهمي في لوحة الأدمن يقدّم روابط مباشرة لصفحات الجداول خارج الأدمن."""
+
+    list_display = ("id", "name", "grade", "section")
+    change_list_template = None  # لن نستخدم قالب، سنبني HTML بسيط مباشرة
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        from django.http import HttpResponse
+        from django.utils.html import escape
+        from django.urls import reverse
+
+        # روابط الصفحات التشغيلية (خارج الأدمن)
+        links = [
+            ("الجدول الأسبوعي التفاعلي للمعلمين", "/timetable/teachers/"),
+            ("الجدول العام للمعلمين — عرض مضغوط", "/timetable/teachers/compact/"),
+            ("لوحة أحمال المعلمين", "/loads/"),
+            ("مصفوفة معلّم × صف", "/loads/matrix/"),
+            ("مقارنة الأنصبة مقابل الجدول", "/loads/compare/"),
+            ("استيراد الجدول من صورة/ملف", "/timetable/import/from_image/"),
+            ("عرض صورة الجدول (إن وُجد)", "/timetable/import/source.jpg"),
+            ("عرض ملف PDF للجدول (إن وُجد)", "/timetable/import/source.pdf"),
+        ]
+
+        # رابط الرجوع للرئيسية داخل الأدمن
+        try:
+            admin_index = reverse("admin:index")
+        except Exception:
+            admin_index = "/admin/"
+
+        items_html = "\n".join(
+            f'<li><a href="{escape(url)}" target="_blank" rel="noopener">{escape(title)}</a></li>'
+            for title, url in links
+        )
+
+        html = f"""
+<!DOCTYPE html>
+<html lang=\"ar\" dir=\"rtl\">
+<head>
+  <meta charset=\"utf-8\" />
+  <title>روابط الجداول</title>
+  <style>
+    body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'Noto Sans',sans-serif; margin:20px}}
+    .card{{border:1px solid #ddd; border-radius:8px; padding:16px; max-width:860px; background:#fff}}
+    h1{{font-size:20px; margin:0 0 12px;}}
+    ul{{line-height:1.9;}}
+    a{{text-decoration:none; color:#0d6efd}}
+    a:hover{{text-decoration:underline}}
+    .back{{margin-top:12px; display:inline-block}}
+  </style>
+  </head>
+  <body>
+    <div class=\"card\">
+      <h1>روابط الجداول (خارج لوحة الأدمن)</h1>
+      <p>اختر إحدى الصفحات التالية لعرض وإدارة الجداول. سيتم فتح الرابط في تبويب جديد.</p>
+      <ul>
+        {items_html}
+      </ul>
+      <a class=\"back\" href=\"{escape(admin_index)}\">↩︎ العودة للوحة الأدمن</a>
+    </div>
+  </body>
+  </html>
+        """
+
+        return HttpResponse(html)
+
+
+@admin.register(SiteLinks)
+class SiteLinksAdmin(admin.ModelAdmin):
+    """عنصر وهمي في لوحة الأدمن يقدّم روابط مباشرة لصفحات المنصة (غير لوحة الأدمن).
+
+    الهدف: أن يتمكن المشرف من فتح الصفحات التشغيلية مثل البوابة، الانضباط، الحضور، الجداول، إلخ.
+    """
+
+    list_display = ("id", "name", "grade", "section")
+    change_list_template = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        from django.http import HttpResponse
+        from django.utils.html import escape
+        from django.urls import reverse
+
+        # روابط عامة للمنصة (واجهات Vue/Portal)
+        links = [
+            # روابط مؤكدة تعمل على الباك اند
+            ("بوابة المنصة (Portal)", "/portal/"),
+            ("تسجيل الدخول (النظام)", "/accounts/login/"),
+            # حضور
+            ("تسجيل الغياب للمعلم", "/attendance/teacher"),
+            ("سجل الغياب", "/attendance/teacher/history"),
+            ("إجراءات الحضور", "/attendance/procedures"),
+            # الجداول والأحمال
+            ("الجدول الأسبوعي التفاعلي للمعلمين", "/timetable/teachers/"),
+            ("الجدول العام للمعلمين — عرض مضغوط", "/timetable/teachers/compact/"),
+            ("لوحة أحمال المعلمين", "/loads/"),
+            ("مصفوفة معلّم × صف", "/loads/matrix/"),
+            ("مقارنة الأنصبة مقابل الجدول", "/loads/compare/"),
+            # أجنحة
+            ("لوحة الجناح", "/wing/dashboard/"),
+            ("نظرة عامة على الأجنحة", "/wings/"),
+        ]
+
+        try:
+            admin_index = reverse("admin:index")
+        except Exception:
+            admin_index = "/admin/"
+
+        items_html = "\n".join(
+            f'<li><a href="{escape(url)}" target="_blank" rel="noopener">{escape(title)}</a></li>'
+            for title, url in links
+        )
+
+        html = f"""
+<!DOCTYPE html>
+<html lang=\"ar\" dir=\"rtl\">
+<head>
+  <meta charset=\"utf-8\" />
+  <title>روابط المنصة</title>
+  <style>
+    body{{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,'Noto Sans',sans-serif; margin:20px}}
+    .card{{border:1px solid #ddd; border-radius:8px; padding:16px; max-width:860px; background:#fff}}
+    h1{{font-size:20px; margin:0 0 12px;}}
+    ul{{line-height:1.9;}}
+    a{{text-decoration:none; color:#0d6efd}}
+    a:hover{{text-decoration:underline}}
+    .back{{margin-top:12px; display:inline-block}}
+  </style>
+  </head>
+  <body>
+    <div class=\"card\">
+      <h1>روابط المنصة (خارج لوحة الأدمن)</h1>
+      <p>هذه روابط مباشرة للصفحات التشغيلية (Frontend/Vue). سيتم فتح الروابط في تبويب جديد.</p>
+      <ul>
+        {items_html}
+      </ul>
+      <a class=\"back\" href=\"{escape(admin_index)}\">↩︎ العودة للوحة الأدمن</a>
+    </div>
+  </body>
+  </html>
+        """
+
+        return HttpResponse(html)

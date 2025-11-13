@@ -803,6 +803,31 @@ class StudentLateSummary(Student):
         verbose_name_plural = "ملخصات تأخيرات الطلاب"
 
 
+# --- Admin helper proxy to expose timetable links in Django Admin ---
+class TimetableLinks(Class):
+    """Proxy model فقط لإظهار عنصر قائمة في لوحة الأدمن يفتح صفحة روابط الجداول.
+
+    لا ينشئ أي جداول جديدة (proxy=True)."""
+
+    class Meta:
+        proxy = True
+        verbose_name = "روابط الجداول"
+        verbose_name_plural = "روابط الجداول"
+
+
+# روابط عامة للمنصة (خارج لوحة الأدمن)
+class SiteLinks(Class):
+    """Proxy model لعرض روابط الصفحات التشغيلية العامة في الأدمن.
+
+    لا ينشئ جداول جديدة. الهدف توفير بوابة سريعة لفتح صفحات الواجهة (Portal/Vue).
+    """
+
+    class Meta:
+        proxy = True
+        verbose_name = "روابط المنصة"
+        verbose_name_plural = "روابط المنصة"
+
+
 # --- Approvals workflow (dual-control) ---
 class ApprovalRequest(models.Model):
     """طلب موافقة لإجراء عالي الأثر/غير قابل للعكس.

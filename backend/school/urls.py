@@ -35,6 +35,7 @@ from .views import (
     timetable_import_from_image,
     timetable_source_image,
     timetable_source_pdf,
+    spa_index,
     wing_dashboard,
     wing_detail,
     wings_overview,
@@ -120,4 +121,13 @@ urlpatterns = [
     path("wings/", wings_overview, name="wings_overview"),
     path("wings/<int:wing_id>/", wing_detail, name="wing_detail"),
     path("wing/dashboard/", wing_dashboard, name="wing_dashboard"),
+    # --- SPA fallbacks (مقيدة لمسارات محددة تحتاجها الروابط من الأدمن) ---
+    # الانضباط (تطبيق الواجهة)
+    path("discipline/", spa_index, name="spa_discipline_root"),
+    path("discipline/<path:sub>/", spa_index, name="spa_discipline_sub"),
+    # صفحات معينة مطلوبة
+    path("wing/incidents", spa_index, name="spa_wing_incidents"),
+    path("attendance/wing/monitor", spa_index, name="spa_wing_attendance_monitor"),
+    # مسار تسجيل الدخول للواجهة (مختلف عن accounts/login/ الخاص بدجانغو)
+    path("login", spa_index, name="spa_login"),
 ]

@@ -1439,6 +1439,39 @@ def timetable_source_pdf(request):
     return StreamingHttpResponse(file_iter(), content_type="application/pdf")
 
 
+# --- SPA fallback for selected frontend routes ---
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def spa_index(request, *args, **kwargs):
+    """يقدّم ملف index.html للروابط الخاصة بتطبيق الواجهة (Vue) حتى تعمل الروابط من الأدمن.
+
+    لا يُعدّ ممراً عاماً، بل مقيّد لبعض المسارات فقط عبر urls.py لتفادي الاصطدام مع مسارات Django.
+    """
+    from django.http import HttpResponse
+
+    # حدد أماكن محتملة لـ index.html
+    candidates = [
+        os.path.abspath(os.path.join(settings.BASE_DIR, "..", "frontend", "dist", "index.html")),
+        os.path.abspath(os.path.join(settings.BASE_DIR, "..", "index.html")),
+    ]
+    html = None
+    for p in candidates:
+        try:
+            if os.path.exists(p):
+                with open(p, "r", encoding="utf-8") as f:
+                    html = f.read()
+                    break
+        except Exception:
+            continue
+    if not html:
+        # Fallback بسيط إذا لم يُعثر على الملف
+        html = (
+            "<!doctype html><html lang='ar' dir='rtl'><head><meta charset='utf-8'><title>المنصة</title></head>"
+            "<body><p style='font-family:system-ui'>تعذر العثور على index.html للواجهة. تأكد من تشغيل Vite dev أو بناء الواجهة.</p></body></html>"
+        )
+    return HttpResponse(html, content_type="text/html; charset=utf-8")
+
+
 class TimetableImageImportForm(forms.Form):
     csv_text = forms.CharField(
         label="بيانات CSV (انسخ من الجدول)",
