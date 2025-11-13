@@ -13,7 +13,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from ..models import Staff, TeachingAssignment, Wing, ApprovalRequest
+from ..models import Staff, TeachingAssignment, Wing, ApprovalRequest, TaskLog
+from django.db.models import Q
 
 
 @api_view(["GET"])
@@ -225,6 +226,24 @@ def create_approval_request(request: Request) -> Response:
         payload=payload if isinstance(payload, (dict, list)) else None,
         proposed_by=user,
     )
+    # سجل مهمة لإنشاء طلب موافقة
+    try:
+        TaskLog.objects.create(
+            resource_type="approval",
+            resource_id=str(obj.id),
+            action="approval.request",
+            status="open",
+            actor=user,
+            message=f"طلب موافقة: {action}",
+            payload={
+                "resource_type": resource_type,
+                "resource_id": str(resource_id),
+                "impact": obj.impact,
+                "irreversible": obj.irreversible,
+            },
+        )
+    except Exception:
+        pass
     return Response({"id": obj.id, "status": obj.status}, status=status.HTTP_201_CREATED)
 
 
@@ -265,7 +284,190 @@ def approve_approval_request(request: Request, id: int) -> Response:
     obj.status = "approved"
     obj.approved_by = user
     obj.save(update_fields=["status", "approved_by", "updated_at"])
+    # سجل مهمة لاعتماد الطلب
+    try:
+        TaskLog.objects.create(
+            resource_type="approval",
+            resource_id=str(obj.id),
+            action="approval.approved",
+            status="done",
+            actor=user,
+            message=f"تم اعتماد طلب: {obj.action}",
+            payload={"proposed_by": getattr(obj.proposed_by, "id", None)},
+        )
+    except Exception:
+        pass
     return Response({"detail": "تم الاعتماد", "id": obj.id, "status": obj.status})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@never_cache
+def tasks_log(request: Request) -> Response:
+    """واجهة بسيطة لتسجيل مهمة/نشاط.
+
+    body:
+      resource_type, resource_id, action, status(optional), message(optional), payload(optional), assignee_id(optional), due_at(optional ISO)
+    """
+    b = request.data or {}
+    resource_type = (b.get("resource_type") or "").strip()
+    resource_id = str(b.get("resource_id") or "").strip()
+    action = (b.get("action") or "").strip()
+    status_val = (b.get("status") or "open").strip() or "open"
+    message = (b.get("message") or "").strip()
+    payload = b.get("payload") if isinstance(b.get("payload"), (dict, list)) else None
+    assignee_id = b.get("assignee_id")
+    due_at_iso = (b.get("due_at") or "").strip()
+
+    if not resource_type or not resource_id or not action:
+        return Response({"detail": "resource_type/resource_id/action مطلوبة"}, status=status.HTTP_400_BAD_REQUEST)
+
+    from django.contrib.auth.models import User as DjangoUser
+
+    assignee = None
+    if assignee_id:
+        try:
+            assignee = DjangoUser.objects.get(id=int(assignee_id))
+        except Exception:
+            assignee = None
+    due_at = None
+    if due_at_iso:
+        from django.utils.dateparse import parse_datetime
+
+        due_at = parse_datetime(due_at_iso)
+
+    obj = TaskLog.objects.create(
+        resource_type=resource_type,
+        resource_id=resource_id,
+        action=action,
+        status=status_val if status_val in {"open", "in_progress", "done", "canceled"} else "open",
+        actor=request.user,
+        assignee=assignee,
+        message=message,
+        payload=payload,
+        due_at=due_at,
+    )
+    return Response({"id": obj.id}, status=status.HTTP_201_CREATED)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@never_cache
+def tasks_list(request: Request) -> Response:
+    """قائمة المهام مع فلاتر بسيطة."""
+    qs = TaskLog.objects.all()
+    p = request.query_params
+    rt = (p.get("resource_type") or "").strip()
+    rid = (p.get("resource_id") or "").strip()
+    status_f = (p.get("status") or "").strip()
+    mine = (p.get("mine") or "").strip().lower() in {"1", "true", "yes"}
+    if rt:
+        qs = qs.filter(resource_type=rt)
+    if rid:
+        qs = qs.filter(resource_id=str(rid))
+    if status_f in {"open", "in_progress", "done", "canceled"}:
+        qs = qs.filter(status=status_f)
+    # افتراضياً، غير المشرفين يرون مهامهم فقط
+    user = request.user
+    if mine or not (user.is_staff or user.is_superuser):
+        qs = qs.filter(Q(actor=user) | Q(assignee=user))
+    qs = qs.order_by("-created_at")[:500]
+
+    data = [
+        {
+            "id": t.id,
+            "action": t.action,
+            "status": t.status,
+            "resource_type": t.resource_type,
+            "resource_id": t.resource_id,
+            "actor_id": t.actor_id,
+            "assignee_id": t.assignee_id,
+            "message": t.message,
+            "due_at": t.due_at.isoformat() if t.due_at else None,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        }
+        for t in qs
+    ]
+    return Response(data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@never_cache
+def tasks_mine(request: Request) -> Response:
+    request.GET._mutable = True  # type: ignore
+    request.GET["mine"] = "1"  # type: ignore
+    return tasks_list(request)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+@never_cache
+def task_update(request: Request, id: int) -> Response:
+    """تحديث حالة/إسناد/ملاحظة لمهمة."""
+    try:
+        t = TaskLog.objects.get(id=id)
+    except TaskLog.DoesNotExist:
+        return Response({"detail": "غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+    # السماح بالتحديث لمالك المهمة (actor/assignee) أو موظفي الإدارة
+    u = request.user
+    if not (u.is_superuser or u.is_staff or t.actor_id == u.id or t.assignee_id == u.id):
+        return Response({"detail": "صلاحية غير كافية"}, status=status.HTTP_403_FORBIDDEN)
+    b = request.data or {}
+    changed = False
+    st = (b.get("status") or "").strip()
+    if st in {"open", "in_progress", "done", "canceled"}:
+        t.status = st
+        changed = True
+    msg = b.get("message")
+    if isinstance(msg, str):
+        t.message = msg[:300]
+        changed = True
+    assignee_id = b.get("assignee_id")
+    if assignee_id is not None:
+        try:
+            from django.contrib.auth.models import User as DjangoUser
+
+            t.assignee = DjangoUser.objects.get(id=int(assignee_id))
+            changed = True
+        except Exception:
+            pass
+    if changed:
+        t.save()
+    return Response({"detail": "ok", "id": t.id, "status": t.status})
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@never_cache
+def reject_approval_request(request: Request, id: int) -> Response:
+    """رفض طلب موافقة (يظل التنفيذ بحسب نوع المورد خارج هذا النطاق)."""
+    user = request.user
+    try:
+        obj = ApprovalRequest.objects.get(id=id)
+    except ApprovalRequest.DoesNotExist:
+        return Response({"detail": "العنصر غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+
+    roles = set(user.groups.values_list("name", flat=True))  # type: ignore
+    try:
+        staff = Staff.objects.filter(user=user).only("role").first()
+        if staff and staff.role:
+            roles.add(staff.role)
+    except Exception:
+        pass
+
+    is_principal = "principal" in roles
+    is_vice = "academic_deputy" in roles or "vice_principal" in roles
+    if not (is_principal or is_vice or user.is_superuser):
+        return Response({"detail": "لا تملك صلاحية الرفض"}, status=status.HTTP_403_FORBIDDEN)
+
+    if obj.status != "pending":
+        return Response({"detail": "لا يمكن رفض هذا الطلب في حالته الحالية"}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Optional: امنع مقدم الطلب من رفضه ذاتيًا؟ سنسمح لأن الرفض إداري عادة، لكن نحافظ على نفس قاعدة عدم الاعتماد الذاتي فقط.
+    obj.status = "rejected"
+    obj.save(update_fields=["status", "updated_at"])
+    return Response({"detail": "تم الرفض", "id": obj.id, "status": obj.status})
 
 
 @api_view(["POST"])

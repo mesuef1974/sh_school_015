@@ -60,6 +60,16 @@ export async function closeIncident(id: string) {
   return res.data;
 }
 
+export async function appealIncident(id: string, payload: { reason?: string } = {}) {
+  const res = await api.post(`/v1/discipline/incidents/${id}/appeal/`, payload);
+  return res.data;
+}
+
+export async function reopenIncident(id: string, payload: { note?: string } = {}) {
+  const res = await api.post(`/v1/discipline/incidents/${id}/reopen/`, payload);
+  return res.data;
+}
+
 export async function getKanban(params: any = {}) {
   const res = await api.get("/v1/discipline/incidents/kanban/", { params });
   return res.data;
@@ -73,6 +83,28 @@ export async function getIncidentsMine(params: any = {}, opts: any = {}) {
 export async function getIncidentsVisible(params: any = {}) {
   const res = await api.get("/v1/discipline/incidents/visible/", { params });
   return res.data;
+}
+
+export async function getIncidentsSummary(params: any = {}) {
+  const res = await api.get("/v1/discipline/incidents/summary/", { params });
+  return res.data as {
+    total: number;
+    by_status: { open: number; under_review: number; closed: number };
+    by_severity: Record<string, number>;
+  };
+}
+
+export async function getIncidentsOverview(params: { days?: 7 | 30 } = {}) {
+  // نظرة عامة اختيارية للمشرفين: إجماليات وتجاوزات ومخالفات متكررة. لا تؤثر على /summary/.
+  const res = await api.get("/v1/discipline/incidents/overview/", { params });
+  return res.data as {
+    since: string;
+    totals: { all: number };
+    by_status: { open: number; under_review: number; closed: number };
+    by_severity: Record<string, number>;
+    top_violations: Array<{ code: string; category?: string | null; count: number }>;
+    overdue: { review: number; notify: number };
+  };
 }
 
 export async function countIncidentsByStudent(params: { student?: string[]; student_ids?: string }) {
@@ -89,4 +121,29 @@ export async function countIncidentsByStudent(params: { student?: string[]; stud
   if (csv) finalParams.student_ids = csv;
   const res = await api.get("/v1/discipline/incidents/count-by-student/", { params: finalParams });
   return res.data as Record<string, number>;
+}
+
+export async function getCommitteeSuggest(
+  incidentId: string,
+  params: { member_count?: number; exclude?: string } = {}
+) {
+  const res = await api.get(`/v1/discipline/incidents/${incidentId}/committee-suggest/`, { params });
+  return res.data as {
+    panel: {
+      chair: { id: number; username?: string; full_name?: string; staff_full_name?: string } | null;
+      members: Array<{ id: number; username?: string; full_name?: string; staff_full_name?: string }>;
+      recorder: { id: number; username?: string; full_name?: string; staff_full_name?: string } | null;
+    };
+    pools: { chairs: number; members: number; recorders: number };
+    algorithm: string;
+    access_caps?: {
+      can_schedule?: boolean;
+      can_decide?: boolean;
+      is_committee_member?: boolean;
+      is_staff?: boolean;
+      is_superuser?: boolean;
+    };
+    role_powers?: Record<string, string[]>;
+    candidates?: Array<{ id: number; username?: string; full_name?: string; staff_full_name?: string }>;
+  };
 }

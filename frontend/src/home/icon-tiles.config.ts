@@ -10,10 +10,31 @@ export type Tile = {
   color?: string;
   roles?: string[];
   permissions?: string[];
-  kpiKey?: "absentToday" | "presentPct" | "pendingApprovals";
+  kpiKey?: "absentToday" | "presentPct" | "pendingApprovals" | "wingIncidents";
 };
 
 export const tiles: Tile[] = [
+  // Universal
+  {
+    id: "my_powers",
+    title: "صلاحياتي ومهامي",
+    subtitle: "تعرف على دورك وما هو المطلوب منك",
+    to: "/me",
+    icon: "solar:shield-user-bold-duotone",
+    color: "#7b1fa2",
+  },
+  // Wing supervisor tiles
+  {
+    id: "wing_incidents",
+    title: "بلاغات الجناح",
+    subtitle: "لوحة الوقائع",
+    to: "/wing/incidents",
+    icon: "solar:shield-check-bold-duotone",
+    color: "#2c3e50",
+    // إتاحة البطاقة لمشرف الجناح وأيضاً للإدارات ذات الصلة عند الحاجة التشغيلية
+    roles: ["wing_supervisor", "principal", "vice_principal", "discipline_l2"],
+    kpiKey: "wingIncidents",
+  },
   // Teacher tiles
   {
     id: "teacher_timetable",
@@ -167,15 +188,6 @@ export const tiles: Tile[] = [
     to: "/wing/exits",
     icon: "solar:exit-bold-duotone",
     color: "#8e44ad",
-    roles: ["wing_supervisor"],
-  },
-  {
-    id: "wing_incidents",
-    title: "البلاغات",
-    subtitle: "انضباط ومعالجة",
-    to: "/wing/incidents",
-    icon: "solar:shield-warning-bold-duotone",
-    color: "#c0392b",
     roles: ["wing_supervisor"],
   },
   {

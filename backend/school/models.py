@@ -876,3 +876,57 @@ class ApprovalRequest(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.status}] {self.resource_type}:{self.resource_id} -> {self.action}"
+
+
+# --- Task/activity logging (تسجيل المهام) ---
+class TaskLog(models.Model):
+    """سجل مهام/أنشطة موحّد لتوثيق ما يحدث عبر النظام.
+
+    يستخدم لتسجيل مهام قابلة للتتبع على موارد مختلفة (واقعة انضباط، موافقة، حضور، إلخ).
+    """
+
+    STATUS_CHOICES = (
+        ("open", "مفتوحة"),
+        ("in_progress", "قيد التنفيذ"),
+        ("done", "منجزة"),
+        ("canceled", "ملغاة"),
+    )
+
+    # تعرّف عام للموارد المرتبطة بالحدث/المهمة
+    resource_type = models.CharField(max_length=50, db_index=True)
+    resource_id = models.CharField(max_length=64, db_index=True)
+    action = models.CharField(max_length=50, help_text="نوع المهمة/الفعل")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="open", db_index=True)
+
+    # سياق الفاعل والمُسند إليه
+    actor = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="tasklog_actor")
+    actor_role = models.CharField(max_length=50, blank=True, default="")
+    assignee = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="tasklog_assignee"
+    )
+
+    # معلومات إضافية
+    message = models.CharField(max_length=300, blank=True, default="")
+    payload = models.JSONField(null=True, blank=True)
+    due_at = models.DateTimeField(null=True, blank=True)
+
+    # ربط تتبّع
+    trace_id = models.CharField(max_length=64, blank=True, default="")
+    request_id = models.CharField(max_length=64, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["resource_type", "resource_id"], name="task_resource_idx"),
+            models.Index(fields=["assignee", "status"], name="task_assignee_status_idx"),
+            models.Index(fields=["status", "created_at"], name="task_status_created_idx"),
+            models.Index(fields=["actor", "created_at"], name="task_actor_created_idx"),
+        ]
+        ordering = ["-created_at"]
+        verbose_name = "سجل مهمة"
+        verbose_name_plural = "سجلات المهام"
+
+    def __str__(self) -> str:
+        return f"{self.action} [{self.status}] {self.resource_type}:{self.resource_id}"

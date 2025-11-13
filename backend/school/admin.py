@@ -32,6 +32,7 @@ from .models import (
     ApprovalRequest,
     TimetableLinks,
     SiteLinks,
+    TaskLog,
 )
 from .admin_filters import CurrentTermFilter
 from .services.attendance import compute_late_seconds, format_mmss, format_hhmmss
@@ -1514,3 +1515,22 @@ class SiteLinksAdmin(admin.ModelAdmin):
         """
 
         return HttpResponse(html)
+
+
+@admin.register(TaskLog)
+class TaskLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "action",
+        "status",
+        "resource_type",
+        "resource_id",
+        "actor",
+        "assignee",
+        "due_at",
+        "created_at",
+    )
+    list_filter = ("status", "resource_type", "action")
+    search_fields = ("resource_type", "resource_id", "action", "message")
+    autocomplete_fields = ("actor", "assignee")
+    readonly_fields = ("created_at", "updated_at")

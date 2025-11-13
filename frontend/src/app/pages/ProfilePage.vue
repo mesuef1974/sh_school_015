@@ -59,6 +59,44 @@
           </div>
 
           <div class="card p-3">
+            <h2 class="h6 mb-3">صلاحياتي ومهامي</h2>
+            <div v-if="auth.profile" class="mb-3">
+              <label class="form-label">القدرات الممنوحة</label>
+              <div class="d-flex flex-wrap gap-2">
+                <span
+                  v-for="(val, key) in (auth.profile.capabilities || {})"
+                  v-if="val"
+                  :key="String(key)"
+                  class="badge rounded-pill text-bg-primary"
+                >{{ labelForCap(String(key)) }}</span>
+                <span v-if="!anyCapability" class="text-muted">لا توجد قدرات خاصة</span>
+              </div>
+            </div>
+
+            <div class="mb-2"><strong>ابدأ من هنا</strong></div>
+            <div class="d-flex flex-wrap gap-2">
+              <RouterLink v-if="can('can_take_attendance')" to="/attendance/teacher" class="btn btn-outline-primary btn-sm">
+                تسجيل الغياب
+              </RouterLink>
+              <RouterLink v-if="can('discipline_l1') || can('discipline_l2')" to="/discipline/incidents/simple" class="btn btn-outline-secondary btn-sm">
+                وقائع الانضباط
+              </RouterLink>
+              <RouterLink v-if="can('discipline_l2')" to="/discipline/violations" class="btn btn-outline-secondary btn-sm">
+                كتالوج المخالفات
+              </RouterLink>
+              <RouterLink v-if="hasRole('wing_supervisor')" to="/wing/dashboard" class="btn btn-outline-success btn-sm">
+                لوحة الجناح
+              </RouterLink>
+              <RouterLink v-if="hasRole('wing_supervisor')" to="/attendance/wing/monitor" class="btn btn-outline-success btn-sm">
+                مراقبة حضور الجناح
+              </RouterLink>
+              <RouterLink v-if="can('can_approve_irreversible') || can('can_propose_irreversible')" to="/wing/approvals" class="btn btn-outline-warning btn-sm">
+                طلبات الموافقة
+              </RouterLink>
+            </div>
+          </div>
+
+          <div class="card p-3 mt-3">
             <h2 class="h6 mb-3">تغيير كلمة المرور</h2>
             <form @submit.prevent="onChangePassword" class="row g-3">
               <div class="col-12 col-md-6">
@@ -110,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useAuthStore } from "../stores/auth";
 import { changePassword, logout } from "../../shared/api/client";
 import { useRouter } from "vue-router";
@@ -134,6 +172,35 @@ onMounted(async () => {
     }
   }
 });
+
+const anyCapability = computed(() => {
+  const caps = (auth.profile?.capabilities ?? {}) as Record<string, any>;
+  return Object.keys(caps).some((k) => !!(caps as any)[k]);
+});
+
+function labelForCap(key: string) {
+  const map: Record<string, string> = {
+    can_manage_timetable: "إدارة الجداول",
+    can_view_general_timetable: "عرض الجداول العامة",
+    can_take_attendance: "تسجيل الحضور/الغياب",
+    discipline_l1: "انضباط L1 (فرز أولي)",
+    discipline_l2: "انضباط L2 (مراجعة/إجراءات)",
+    exams_manage: "إدارة الاختبارات",
+    health_can_view_masked: "عرض صحي مقنّع",
+    health_can_unmask: "فك إخفاء صحي (ممرض)",
+    can_propose_irreversible: "طلب إجراء غير قابل للعكس",
+    can_approve_irreversible: "اعتماد إجراء غير قابل للعكس",
+  };
+  return map[key] || key;
+}
+
+function can(key: keyof NonNullable<ReturnType<typeof useAuthStore>["capabilities"]>) {
+  return auth.can(key as any);
+}
+
+function hasRole(role: string) {
+  return auth.hasRole(role);
+}
 
 async function onChangePassword() {
   saving.value = true;

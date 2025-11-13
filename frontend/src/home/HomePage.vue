@@ -2,8 +2,8 @@
   <section class="d-grid gap-3 use-98vw">
     <header
       v-motion
-      :initial="{ opacity: 0, y: -50 }"
-      :enter="{ opacity: 1, y: 0, transition: { duration: 500 } }"
+      :initial="headerInitial"
+      :enter="headerEnter"
       class="auto-card frame p-3 d-flex align-items-center gap-3"
     >
       <img
@@ -17,6 +17,17 @@
       />
       <div class="fw-bold" style="white-space: nowrap">{{ salutation }}، {{ name }}</div>
       <span class="ms-auto"></span>
+      <!-- زر سريع لتفعيل/إيقاف وضع الترتيب دون إظهار شريط الأدوات الكامل -->
+      <DsButton
+        size="sm"
+        :variant="reorderMode ? 'primary' : 'outline'"
+        class="d-none d-md-inline-flex"
+        icon="solar:arrows-up-down-bold-duotone"
+        @click="toggleReorder"
+        aria-label="وضع الترتيب"
+      >
+        {{ reorderMode ? "إنهاء الترتيب" : "ترتيب" }}
+      </DsButton>
       <!-- مثال بسيط على استخدام Lottie عبر vue3-lottie: يظهر على الشاشات المتوسطة فما فوق -->
       <Vue3Lottie
         class="d-none d-md-block"
@@ -30,7 +41,8 @@
     </header>
 
     <!-- Toolbar: reorder/cut/copy/paste -->
-    <div class="auto-card frame p-2 d-flex align-items-center gap-2 flex-wrap">
+    <!-- شريط الأدوات يظهر فقط أثناء وضع الترتيب لتفادي الفراغ غير الضروري -->
+    <div v-show="reorderMode" class="auto-card frame p-2 d-flex align-items-center gap-2 flex-wrap">
       <DsButton
         size="sm"
         :variant="reorderMode ? 'primary' : 'outline'"
@@ -75,15 +87,8 @@
         v-for="(t, index) in orderedTiles"
         :key="t.__key"
         v-motion
-        :initial="{ opacity: 0, scale: 0.9 }"
-        :enter="{
-          opacity: 1,
-          scale: 1,
-          transition: {
-            delay: 100 + index * 50,
-            duration: 400,
-          },
-        }"
+        :initial="tileInitial(index)"
+        :enter="tileEnter(index)"
       >
         <div
           class="tile-wrap"
@@ -116,6 +121,7 @@ import { useRouter } from "vue-router";
 import IconTile from "../widgets/IconTile.vue";
 import DsButton from "../components/ui/DsButton.vue";
 import { tiles } from "./icon-tiles.config";
+import { getIncidentsVisible } from "../features/discipline/api";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -131,6 +137,20 @@ const hour = new Date().getHours();
 const salutation = computed(() =>
   hour < 12 ? "صباح الخير" : hour < 17 ? "نهارك سعيد" : "مساء الخير"
 );
+
+// Defensive motion configs to avoid cases حيث تبقى البلاطة غير مرئية بسبب حركة غير مكتملة
+const headerInitial = { opacity: 0, y: -50 } as any;
+const headerEnter = { opacity: 1, y: 0, transition: { duration: 500 } } as any;
+function tileInitial(index: number) {
+  return { opacity: 0, scale: 0.9 } as any;
+}
+function tileEnter(index: number) {
+  return {
+    opacity: 1,
+    scale: 1,
+    transition: { delay: 100 + index * 50, duration: 400 },
+  } as any;
+}
 
 // Visible tiles based on roles/permissions
 const roleSet = computed(() => new Set(auth.profile?.roles || []));
@@ -153,6 +173,8 @@ const dragFromIndex = ref<number | null>(null);
 const username = computed(() => auth.profile?.username || "guest");
 const STORAGE_KEY = computed(() => `homeTileOrder:${username.value}`);
 const orderIds = ref<string[]>([]);
+// عدّاد بلاغات الجناح (يستخدم للشارة على التايل)
+const wingIncidentsCount = ref<number | undefined>(undefined);
 
 function loadOrder() {
   try {
@@ -170,6 +192,26 @@ function saveOrder() {
 
 onMounted(() => {
   loadOrder();
+  // تنظيف أي معرّفات محفوظة محلياً لم تعد مرئية لتجنّب «مكان فارغ»
+  try {
+    const visibleIdsNow = new Set((visibleTiles.value || []).map((t) => t.id));
+    orderIds.value = (orderIds.value || []).filter((id) => visibleIdsNow.has(id));
+    saveOrder();
+  } catch {}
+  // في حال كان المستخدم مشرف جناح، اجلب عدد الوقائع المرئية لعرضها كشارة
+  try {
+    if (auth.hasRole && auth.hasRole("wing_supervisor")) {
+      getIncidentsVisible({ status: "open" })
+        .then((data: any) => {
+          // إن كانت واجهة DRF تُرجع قائمة بسيطة
+          const items = Array.isArray(data?.results) ? data.results : Array.isArray(data) ? data : [];
+          wingIncidentsCount.value = items.length || undefined;
+        })
+        .catch(() => {
+          wingIncidentsCount.value = undefined;
+        });
+    }
+  } catch {}
 });
 watch(visibleTiles, () => {
   /* ensure order still valid when roles change */
@@ -292,6 +334,7 @@ const kpiMap = computed(() => ({
   absentToday: (auth as any).profile?.kpis?.absentToday ?? undefined,
   presentPct: (auth as any).profile?.kpis?.presentPct ?? undefined,
   pendingApprovals: (auth as any).profile?.kpis?.pendingApprovals ?? undefined,
+  wingIncidents: wingIncidentsCount.value,
 }));
 
 // Intro overlay state (show once per session; optionally never again) — kept from previous implementation

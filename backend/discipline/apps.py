@@ -4,7 +4,8 @@ from django.apps import AppConfig
 class DisciplineConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "discipline"
-    verbose_name = "School Discipline"
+    # اسم التطبيق كما يظهر في لوحة الإدارة
+    verbose_name = "الانضباط المدرسي"
 
     def ready(self):  # pragma: no cover - import side-effects (signals)
         # Import autoload to register post_migrate hook for initial catalog load

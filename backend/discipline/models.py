@@ -11,8 +11,8 @@ class BehaviorLevel(models.Model):
     description = models.TextField(blank=True)
 
     class Meta:
-        verbose_name = "Behavior Level"
-        verbose_name_plural = "Behavior Levels"
+        verbose_name = "مستوى السلوك"
+        verbose_name_plural = "مستويات السلوك"
         ordering = ("code",)
 
     def __str__(self) -> str:  # pragma: no cover - trivial
@@ -30,8 +30,8 @@ class Violation(models.Model):
     requires_committee = models.BooleanField(default=False)
 
     class Meta:
-        verbose_name = "Violation"
-        verbose_name_plural = "Violations"
+        verbose_name = "مخالفة"
+        verbose_name_plural = "مخالفات"
         ordering = ("severity", "code")
         permissions = (("access", "Can access discipline module"),)
 
@@ -79,10 +79,22 @@ class Incident(models.Model):
     escalated_due_to_repeat = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Committee workflow (stored in backend only)
+    committee_panel = models.JSONField(
+        default=dict, blank=True, help_text="تشكيلة اللجنة المحفوظة: {chair_id, member_ids[], recorder_id}"
+    )
+    committee_scheduled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="committee_scheduled_incidents",
+    )
+    committee_scheduled_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        verbose_name = "Incident"
-        verbose_name_plural = "Incidents"
+        verbose_name = "واقعة"
+        verbose_name_plural = "وقائع"
         ordering = ("-occurred_at",)
         permissions = (
             ("incident_create", "Can create incident"),
@@ -91,7 +103,159 @@ class Incident(models.Model):
             ("incident_escalate", "Can escalate incident"),
             ("incident_notify_guardian", "Can notify guardian for incident"),
             ("incident_close", "Can close incident"),
+            # صلاحيات «اللجنة السلوكية» (مخصّصة لمسار اللجنة)
+            ("incident_committee_view", "Can view incidents for committee workflow"),
+            ("incident_committee_schedule", "Can schedule/route incident to committee"),
+            ("incident_committee_decide", "Can record committee decision for incident"),
         )
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.violation.code} @ {self.occurred_at:%Y-%m-%d}"
+
+
+class IncidentAuditLog(models.Model):
+    """Audit trail for incident lifecycle with professional-grade fields.
+
+    Records who did what, when, and how the incident changed, including client IP
+    and optional metadata for future extensibility.
+    """
+
+    ACTION_CHOICES = (
+        ("create", "Create"),
+        ("submit", "Submit"),
+        ("review", "Review"),
+        ("notify_guardian", "Notify Guardian"),
+        ("escalate", "Escalate"),
+        ("close", "Close"),
+        ("appeal", "Appeal"),
+        ("reopen", "Reopen"),
+        ("update", "Update"),
+    )
+
+    id = models.BigAutoField(primary_key=True)
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="audit_logs")
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    at = models.DateTimeField(auto_now_add=True)
+    from_status = models.CharField(max_length=16, blank=True)
+    to_status = models.CharField(max_length=16, blank=True)
+    note = models.TextField(blank=True)
+    client_ip = models.CharField(max_length=64, blank=True)
+    meta = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "سجل تدقيق الوقائع"
+        verbose_name_plural = "سجلات تدقيق الوقائع"
+        ordering = ("-at", "-id")
+        indexes = [
+            models.Index(fields=["incident", "at"], name="incident_audit_idx"),
+            models.Index(fields=["action"], name="incident_audit_action_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover - trivial
+        return f"{self.incident_id} {self.action} {self.from_status}->{self.to_status} @ {self.at:%Y-%m-%d %H:%M}"
+
+
+class IncidentCommittee(models.Model):
+    """تشكيلة لجنة السلوك المرتبطة بواقعة محددة (جدولة committee)"""
+
+    incident = models.OneToOneField(Incident, on_delete=models.CASCADE, related_name="committee")
+    chair = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="chaired_committees",
+    )
+    recorder = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recorded_committees",
+    )
+    scheduled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="scheduled_committees",
+    )
+    scheduled_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "لجنة الواقعة"
+        verbose_name_plural = "لجان الوقائع"
+        indexes = [
+            models.Index(fields=["incident"], name="committee_incident_idx"),
+            models.Index(fields=["chair"], name="committee_chair_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Committee for {self.incident_id}"
+
+
+class IncidentCommitteeMember(models.Model):
+    """أعضاء لجنة السلوك (باستثناء الرئيس)"""
+
+    committee = models.ForeignKey(IncidentCommittee, on_delete=models.CASCADE, related_name="members")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="incident_committees")
+
+    class Meta:
+        unique_together = ("committee", "user")
+        indexes = [
+            models.Index(fields=["committee"], name="committee_member_idx"),
+            models.Index(fields=["user"], name="committee_member_user_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.user_id} in {self.committee_id}"
+
+
+# ===================== لجنة دائمة (على مستوى النظام) =====================
+class StandingCommittee(models.Model):
+    """اللجنة السلوكية الدائمة على مستوى المدرسة/النظام.
+
+    ملاحظة: نبدأ بنسخة واحدة فقط (singleton منطقي)، يمكن توسيعها لاحقًا بدعم مدارس متعددة إن لزم.
+    """
+
+    chair = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="standing_committee_chair_of",
+        null=True,
+        blank=True,
+    )
+    recorder = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="standing_committee_recorder_of",
+        null=True,
+        blank=True,
+    )
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "اللجنة السلوكية الدائمة"
+        verbose_name_plural = "اللجان السلوكية الدائمة"
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"StandingCommittee #{self.id or 'new'}"
+
+
+class StandingCommitteeMember(models.Model):
+    """أعضاء اللجنة الدائمة (باستثناء الرئيس)"""
+
+    standing = models.ForeignKey(StandingCommittee, on_delete=models.CASCADE, related_name="members")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="standing_committees")
+
+    class Meta:
+        unique_together = ("standing", "user")
+        indexes = [
+            models.Index(fields=["standing"], name="standing_member_idx"),
+            models.Index(fields=["user"], name="standing_member_user_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.user_id} in standing {self.standing_id}"
