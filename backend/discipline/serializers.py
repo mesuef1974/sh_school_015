@@ -14,7 +14,20 @@ class ViolationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Violation
-        fields = "__all__"
+        # Exclude 'policy' for backward compatibility with databases that
+        # haven't added the column yet. Frontend dropdowns and listings only
+        # require these core fields.
+        fields = (
+            "id",
+            "level",
+            "code",
+            "category",
+            "description",
+            "default_actions",
+            "default_sanctions",
+            "severity",
+            "requires_committee",
+        )
 
 
 class IncidentSerializer(serializers.ModelSerializer):

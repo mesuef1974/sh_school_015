@@ -4,6 +4,76 @@
 
 ---
 
+## دورة «من → إلى» (مختصر احترافي)
+يوضّح هذا القسم دورة الحياة كاملة بأسلوب خطّي واضح — من نقطة البداية إلى النهاية — مع ذكر الهدف، الصلاحيات، نقاط الـ API، وأثر كل خطوة على البيانات وسجل التدقيق. التفاصيل الموسّعة لباقي الجوانب (النماذج، الرؤية، التشخيص… إلخ) تبقى بالأسفل.
+
+1) إنشاء الواقعة
+- الهدف: تسجيل واقعة (طالب/مخالفة/تاريخ/وصف).
+- الصلاحية: incident_create.
+- API: POST /api/v1/discipline/incidents/
+- الأثر: severity ← violation.severity، و committee_required ← violation.requires_committee، وتسجيل Audit=create.
+
+2) إرسال للمراجعة
+- الهدف: نقلها من open إلى under_review.
+- الصلاحية: incident_submit.
+- API: POST /{id}/submit/
+- الأثر: submitted_at=now()، Audit=submit.
+
+3) الاستلام/المراجعة
+- الهدف: تثبيت بدء المعالجة.
+- الصلاحية: incident_review.
+- API: POST /{id}/review/
+- الأثر: reviewed_by/at، Audit=review.
+
+4) إشعار وليّ الأمر (اختياري)
+- الهدف: توثيق الإشعار (قناة + ملاحظة).
+- الصلاحية: incident_notify_guardian.
+- API: POST /{id}/notify-guardian/ { channel, note? }
+- الأثر: يُضاف إلى actions_applied، Audit=notify_guardian.
+
+5) التصعيد (قد يفعّل اللجنة)
+- الهدف: تعليم الواقعة لتحتاج لجنة بسبب الشدة/التكرار/سياسة الكتالوج.
+- الصلاحية: incident_escalate.
+- API: POST /{id}/escalate/
+- الأثر: escalated_due_to_repeat=true (عند التكرار)، وتفعيل committee_required، Audit=escalate.
+
+6) اللجنة (عند الحاجة)
+6.1) جدولة اللجنة (تشكيلها وحفظها)
+- الصلاحية: incident_committee_schedule أو is_staff/superuser.
+- API: POST /{id}/schedule-committee/ { chair_id, member_ids[], recorder_id? } أو use_standing=1 لاستخدام «اللجنة الدائمة».
+- الأثر: حفظ committee_panel + إنشاء IncidentCommittee/IncidentCommitteeMember + ضبط committee_scheduled_by/at + Audit (meta.action=schedule_committee).
+
+6.2) قرار اللجنة
+- الصلاحية: incident_committee_decide أو is_staff/superuser.
+- API: POST /{id}/committee-decision/ { decision: approve|reject|return, note?, actions?[], sanctions?[], close_now? }
+- الأثر: Audit (meta.action=committee_decision)، ودمج الإجراءات/العقوبات، وإغلاق فوري إذا approve+close_now.
+
+7) الإغلاق
+- الصلاحية: incident_close.
+- API: POST /{id}/close/
+- الأثر: status=closed, closed_by/at، Audit=close.
+
+8) التظلّم (اختياري)
+- API: POST /{id}/appeal/ { reason? } → Audit=appeal.
+
+9) إعادة الفتح (اختياري)
+- API: POST /{id}/reopen/ { note? } → status=open، Audit=reopen.
+
+ملاحظات سريعة:
+- اللجنة لا تغيّر الحالة العامة (تظل ضمن open/under_review/closed) بل تضيف طبقة اعتماد أعلى.
+- تُفعّل committee_required عند: شدة مرتفعة (3/4) أو Violation.requires_committee أو التصعيد.
+- الأسماء تظهر دائمًا باسم الموظف الكامل Staff.full_name متى توفّر (ثم اسم المستخدم الكامل، ثم اسم المستخدم).
+
+اختبار سريع (Quick‑Start)
+1) migrate discipline → 2) إنشاء واقعة → 3) إرسال → 4) استلام → 5) (اختياري) تصعيد → 6) جدولة لجنة (أو use_standing) → 7) قرار لجنة (close_now=true للتجربة) → 8) مراجعة /summary و/overview وسجل التدقيق.
+
+معايير القبول (Acceptance)
+- انتقالات الحالة والتدقيق متسقة، و/summary يطابق الجدول عند نفس الفلاتر.
+- تظهر أسماء الموظفين كاملة.
+- use_standing يعمل ويملأ التشكيل من «اللجنة الدائمة» تلقائيًا.
+
+---
+
 #### 1) نموذج البيانات بإيجاز
 - النموذج: `discipline.Incident`
   - الحقول المهمة:
@@ -326,3 +396,46 @@
 - ما يزال بإمكان المسؤول تمرير تشكيل مخصص لواقعة بعينها؛ خيار use_standing اختياري ويُسهل إعادة استخدام التشكيل الدائم.
 - أسماء العرض ترجع «اسم الموظف» من جدول Staff إن وجد، وإلا تُستخدم أسماء المستخدم الكاملة.
 - لا توجد مجموعات RBAC خاصة باللجنة؛ الوصول محكوم بصلاحيات نموذج Incident أو is_staff/superuser.
+
+---
+
+## بعد «التصعيد» وتحويل الواقعة إلى اللجنة — ماذا بعد؟
+عند الحاجة إلى لجنة، يمرّ المسار العملي بالخطوات التالية:
+
+1) جدولة اللجنة (تشكيلها وحفظها)
+- POST `/api/v1/discipline/incidents/{incident_id}/schedule-committee/`
+  - إمّا تمرير التشكيل صراحة أو استخدام اللجنة الدائمة `?use_standing=1`.
+  - الأثر: حفظ التشكيل داخل الواقعة وفي جداول IncidentCommittee/IncidentCommitteeMember، وتسجيل أثر تدقيقي.
+
+2) انعقاد اللجنة واتخاذ القرار
+- بعد اجتماع اللجنة، سجّل القرار برمجيًا عبر نقطة جديدة:
+- POST `/api/v1/discipline/incidents/{incident_id}/committee-decision/`
+  - صلاحيات: `incident_committee_decide` أو `is_staff/superuser`.
+  - جسم الطلب (JSON):
+    ```json
+    {
+      "decision": "approve|reject|return",
+      "note": "ملاحظات القرار (اختياري)",
+      "actions": ["إجراء 1", "إجراء 2"],
+      "sanctions": ["عقوبة 1"],
+      "close_now": true
+    }
+    ```
+  - السلوك:
+    - يسجل أثر تدقيق meta.action = `committee_decision` مع تفاصيل القرار.
+    - يضيف أي إجراءات/عقوبات ممررة إلى حقول الواقعة `actions_applied/sanctions_applied`.
+    - إن كانت `decision=approve` ومع `close_now=true`، تُغلق الواقعة فورًا (ضبط `closed_by/closed_at` وتسجيل أثر إغلاق).
+  - الاستجابة: `{ ok: true, incident: IncidentFullSerializer }`.
+
+3) إشعار وليّ الأمر (إن اقتضت السياسة)
+- قد يتم إشعار وليّ الأمر بنتيجة اللجنة: `POST /api/v1/discipline/incidents/{id}/notify-guardian/` مع قناة الإشعار.
+
+4) إغلاق الواقعة (إن لم يُغلق تلقائيًا)
+- إذا لم يُستخدم `close_now` مع الموافقة، يمكن الإغلاق لاحقًا: `POST /api/v1/discipline/incidents/{id}/close/`.
+
+5) التظلّم ثم إعادة الفتح (اختياري)
+- يتيح النظام تقديم تظلّم ثم إعادة فتح وفق السياسات: `appeal` ثم `reopen`.
+
+ملاحظات تشغيلية:
+- يُفضّل استخدام `committee-candidates` للبحث عن المرشحين، أو `committee-suggest` للاقتراح الحتمي قبل الحفظ.
+- تُعاد أسماء الموظفين كاملة عبر `staff_full_name` في كل النهايات ذات الصلة.

@@ -24,7 +24,7 @@
   Configure Git LFS and track common binary types (png/jpg/pdf/xlsx/docx/pptx/zip, etc.).
 
 .PARAMETER PushTags
-  Also push tags to the remote.
+  Also push tags to the remote.y
 
 .PARAMETER DryRun
   Show what would be done without executing push/remote changes.

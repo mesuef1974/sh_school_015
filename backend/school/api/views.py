@@ -129,10 +129,15 @@ def me(request: Request):
     except Exception:
         history = None
 
+    # سياسة عرض الأسماء: نُفضِّل دائمًا اسم الموظف الكامل من Staff إن وُجد، ثم الاسم الكامل للمستخدم، ثم اسم المستخدم
+    display_name = staff_full_name or user.get_full_name() or user.username
+
     data = {
         "id": user.id,
         "username": user.username,
-        "full_name": staff_full_name or user.get_full_name() or user.username,
+        "full_name": display_name,  # إبقاء التوافق مع الفرونت اند: full_name يُعيد الاسم الأفضل عرضًا
+        "staff_full_name": staff_full_name,  # إرجاع الاسم من Staff صراحةً عند الحاجة
+        "display_name": display_name,  # مفتاح صريح لسياسة العرض الموحّدة
         "is_superuser": user.is_superuser,
         "is_staff": user.is_staff,
         "roles": sorted(roles_norm),

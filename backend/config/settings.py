@@ -29,11 +29,15 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.school",
     "apps.api",
+    # Discipline module (incident lifecycle)
+    "discipline",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # تفعيل ضبط اللغة حسب تفضيل المستخدم/الرأس HTTP
+    "django.middleware.locale.LocaleMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -74,7 +78,12 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = "en-us"
+# اجعل العربية هي اللغة الافتراضية للباك اند ولوحة الإدارة
+LANGUAGE_CODE = "ar"
+LANGUAGES = [
+    ("ar", "Arabic"),
+    ("en", "English"),
+]
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True

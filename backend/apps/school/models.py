@@ -9,6 +9,10 @@ class Grade(models.Model):
     def __str__(self):
         return self.name
 
+    class Meta:
+        verbose_name = "صف"
+        verbose_name_plural = "صفوف"
+
 
 class Subject(models.Model):
     name = models.CharField(max_length=100)
@@ -18,6 +22,10 @@ class Subject(models.Model):
 
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+    class Meta:
+        verbose_name = "مادة"
+        verbose_name_plural = "مواد"
 
 
 class Class(models.Model):
@@ -32,7 +40,8 @@ class Class(models.Model):
     )
 
     class Meta:
-        verbose_name_plural = "Classes"
+        verbose_name = "شعبة"
+        verbose_name_plural = "شُعب"
 
     def __str__(self):
         return f"{self.grade.name} - {self.name}"

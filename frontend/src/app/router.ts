@@ -18,6 +18,8 @@ const routes: RouteRecordRaw[] = [
   { path: "/discipline/incidents/:id", name: "discipline-incident-card", component: () => import("../features/discipline/pages/IncidentCard.vue"), meta: { requiresAuth: true, titleAr: "بطاقة الواقعة" } },
   { path: "/discipline/kanban", name: "discipline-kanban", component: () => import("../features/discipline/pages/KanbanBoard.vue"), meta: { requiresAuth: true, titleAr: "لوحة الانضباط" } },
   { path: "/discipline/violations", name: "discipline-violations", component: () => import("../features/discipline/pages/ViolationsList.vue"), meta: { requiresAuth: true, titleAr: "كتالوج المخالفات" } },
+  // لجنة السلوك — لوحة الرئيس
+  { path: "/discipline/committee/dashboard", name: "committee-dashboard", component: () => import("../features/discipline/pages/CommitteeDashboard.vue"), meta: { requiresAuth: true, titleAr: "لوحة رئيس لجنة السلوك" } },
   // Backwards-compatible alias from wing tile
   { path: "/wing/incidents", name: "wing-incidents", component: () => import("../features/discipline/pages/KanbanBoard.vue"), meta: { requiresAuth: true, titleAr: "بلاغات الجناح" } },
   {

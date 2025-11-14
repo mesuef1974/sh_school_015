@@ -110,6 +110,17 @@ export const tiles: Tile[] = [
     // Show only to staff/superusers or users with discipline.access permission
     permissions: ["discipline.access"],
   },
+  // Committee dashboard (رئيس لجنة السلوك)
+  {
+    id: "committee_dashboard",
+    title: "لجنة السلوك",
+    subtitle: "لوحة الرئيس",
+    to: "/discipline/committee/dashboard",
+    icon: "solar:users-group-rounded-bold-duotone",
+    color: "#0d47a1",
+    // تظهر للمشرفين والإدارة العليا افتراضيًا
+    roles: ["principal", "vice_principal", "discipline_l2"],
+  },
 
   // Subject Coordinator tiles
   {

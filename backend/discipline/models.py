@@ -28,6 +28,19 @@ class Violation(models.Model):
     default_sanctions = models.JSONField(default=list)
     severity = models.PositiveSmallIntegerField()
     requires_committee = models.BooleanField(default=False)
+    # سياسة الكتالوج (تمكين برمجي): قواعد تكرار/تصعيد/لجنة وإرشادات الإجراءات والعقوبات
+    # مخطط مقترح:
+    # {
+    #   "window_days": 365,
+    #   "committee": { "requires_on_severity_gte": 3, "after_repeats": 2 },
+    #   "escalation": { "after_repeats": 2 },
+    #   "actions_by_repeat": { "0": ["تنبيه شفهي"], "1": ["إنذار خطي"], "2": ["اتصال بولي الأمر"] },
+    #   "sanctions_by_repeat": { "2": ["حرمان من نشاط"], "3": ["إحالة للجنة"] },
+    #   "points_by_repeat": { "0": 1, "1": 3, "2": 5 }
+    # }
+    policy = models.JSONField(
+        default=dict, blank=True, help_text="سياسة إجرائية مخصّصة للمخالفة: تكرارات/تصعيد/لجنة وإرشادات الإجراءات"
+    )
 
     class Meta:
         verbose_name = "مخالفة"

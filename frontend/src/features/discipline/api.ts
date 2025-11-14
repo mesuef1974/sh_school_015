@@ -107,6 +107,32 @@ export async function getIncidentsOverview(params: { days?: 7 | 30 } = {}) {
   };
 }
 
+// لوحة «رئيس اللجنة السلوكية» — Endpoint تجميعي
+export async function getCommitteeDashboard(params: { days?: 7 | 30; from?: string; to?: string; status?: string; wing_id?: number } = {}) {
+  const res = await api.get("/v1/discipline/incidents/committee-dashboard/", { params });
+  return res.data as {
+    since: string;
+    kpis: {
+      need_committee: number;
+      need_scheduling: number;
+      scheduled_pending: number;
+      decisions_recent: { approve: number; reject: number; return: number };
+    };
+    overdue: { review: number; notify: number };
+    top_violations_30d: Array<{ code?: string; category?: string | null; count: number }>;
+    standing: {
+      chair?: { id: number; username?: string; full_name?: string; staff_full_name?: string } | null;
+      recorder?: { id: number; username?: string; full_name?: string; staff_full_name?: string } | null;
+      members: Array<{ id: number; username?: string; full_name?: string; staff_full_name?: string }|null>;
+    } | null;
+    queues: {
+      need_scheduling: Array<{ id: string; occurred_at?: string; created_at?: string; student_name?: string; violation_code?: string; status: string; severity: number }>;
+      scheduled_pending_decision: Array<{ id: string; occurred_at?: string; created_at?: string; student_name?: string; violation_code?: string; status: string; severity: number }>;
+    };
+    recent_decisions: Array<{ incident_id: string; decision?: string; at?: string; actor?: string; note?: string }>;
+  };
+}
+
 export async function countIncidentsByStudent(params: { student?: string[]; student_ids?: string }) {
   // DRF expects either repeated ?student=1&student=2 or a CSV via ?student_ids=1,2.
   // Axios serializes arrays as student[]=1&student[]=2 by default, which DRF won't read with getlist('student').

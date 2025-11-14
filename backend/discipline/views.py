@@ -30,9 +30,12 @@ class IsDisciplineRole(permissions.BasePermission):
 
 
 class ViolationViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Violation.objects.select_related("level").all()
+    # Defer 'policy' to avoid selecting a column that may not exist in
+    # older databases (backward-compat for instances without this migration).
+    queryset = Violation.objects.select_related("level").defer("policy").all()
     serializer_class = ViolationSerializer
-    permission_classes = [IsDisciplineRole]
+    # Allow any authenticated user (e.g., teachers) to load the catalog for forms
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter]
     search_fields = ["category", "description", "code"]
 
@@ -63,7 +66,8 @@ class ViolationViewSet(viewsets.ReadOnlyModelViewSet):
 class BehaviorLevelViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = BehaviorLevel.objects.all()
     serializer_class = BehaviorLevelSerializer
-    permission_classes = [IsDisciplineRole]
+    # Allow any authenticated user to read behavior levels used by the catalog
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.SearchFilter]
     search_fields = ["name", "description"]
 
@@ -89,13 +93,17 @@ class IncidentViewSet(viewsets.ModelViewSet):
         return super().get_serializer_class()
 
     def get_queryset(self):
-        qs = Incident.objects.select_related(
-            "violation",
-            "student",
-            "reporter",
-            "student__class_fk",
-            "student__class_fk__wing",
-        ).all()
+        qs = (
+            Incident.objects.select_related(
+                "violation",
+                "student",
+                "reporter",
+                "student__class_fk",
+                "student__class_fk__wing",
+            )
+            .defer("violation__policy")
+            .all()
+        )
         user = getattr(self.request, "user", None)
         if not user:
             return qs.none()
@@ -335,13 +343,27 @@ class IncidentViewSet(viewsets.ModelViewSet):
             return Response({"detail": "صلاحية غير كافية للإرسال."}, status=status.HTTP_403_FORBIDDEN)
         if not (request.user.is_staff or request.user.is_superuser):
             self._ensure_owner_or_role(request, inc)
-        # Compute repeat within 30 يوم
+        # Compute repeat within window (catalog-driven with safe fallbacks)
         from django.utils.timezone import now
         from datetime import timedelta
         from django.conf import settings as dj_settings
 
+        # Defaults from settings
         window_days = int(getattr(dj_settings, "DISCIPLINE_REPEAT_WINDOW_D", 30))
         threshold = int(getattr(dj_settings, "DISCIPLINE_REPEAT_THRESHOLD", 2))
+        try:
+            # Per-violation policy overrides
+            vpol = getattr(getattr(inc, "violation", None), "policy", None) or {}
+            if isinstance(vpol, dict):
+                # window days
+                if vpol.get("window_days") is not None:
+                    window_days = int(vpol.get("window_days") or window_days)
+                # escalation.after_repeats
+                esc = vpol.get("escalation") or {}
+                if isinstance(esc, dict) and esc.get("after_repeats") is not None:
+                    threshold = int(esc.get("after_repeats") or threshold)
+        except Exception:
+            pass
         recent = (
             Incident.objects.filter(
                 student_id=inc.student_id,
@@ -351,11 +373,30 @@ class IncidentViewSet(viewsets.ModelViewSet):
             .exclude(id=inc.id)
             .count()
         )
-        escalated = recent >= threshold  # سياسة قابلة للتهيئة
+        escalated = recent >= threshold  # سياسة قابلة للتهيئة (كتالوجية عند التوفر)
         inc.escalated_due_to_repeat = escalated
-        # escalate committee if severity >=3 or escalated
+        # Determine committee requirement (catalog-aware)
+        committee_requires = False
+        try:
+            vpol = getattr(getattr(inc, "violation", None), "policy", None) or {}
+            if isinstance(vpol, dict):
+                cpol = vpol.get("committee") or {}
+                if isinstance(cpol, dict):
+                    sev_gte = cpol.get("requires_on_severity_gte")
+                    after_rep = cpol.get("after_repeats")
+                    if isinstance(sev_gte, (int, float)) and int(getattr(inc, "severity", 1) or 1) >= int(sev_gte):
+                        committee_requires = True
+                    if isinstance(after_rep, (int, float)) and recent >= int(after_rep):
+                        committee_requires = True
+        except Exception:
+            pass
+        # Fallback generic rule
         if inc.severity >= 3 or escalated:
-            inc.committee_required = True
+            committee_requires = True or committee_requires
+        # Violation-level requires_committee forces it
+        if bool(getattr(getattr(inc, "violation", None), "requires_committee", False)):
+            committee_requires = True
+        inc.committee_required = bool(committee_requires)
         # Auto bump severity by 1 (max 4) when escalated, if enabled via settings
         from django.conf import settings as dj_settings
 
@@ -559,8 +600,22 @@ class IncidentViewSet(viewsets.ModelViewSet):
         # Escalate severity by 1 up to max 4 and mark committee if >=3
         new_sev = min(4, int(inc.severity or 1) + 1)
         inc.severity = new_sev
-        if new_sev >= 3:
-            inc.committee_required = True
+        # Catalog-aware committee requirement (fallback to sev>=3)
+        committee_requires = bool(new_sev >= 3)
+        try:
+            vpol = getattr(getattr(inc, "violation", None), "policy", None) or {}
+            if isinstance(vpol, dict):
+                cpol = vpol.get("committee") or {}
+                if isinstance(cpol, dict) and cpol.get("requires_on_severity_gte") is not None:
+                    try:
+                        req_sev = int(cpol.get("requires_on_severity_gte"))
+                        if isinstance(req_sev, int):
+                            committee_requires = bool(new_sev >= req_sev)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        inc.committee_required = bool(committee_requires)
         inc.escalated_due_to_repeat = True
         inc.save(
             update_fields=[
@@ -1232,39 +1287,63 @@ class IncidentViewSet(viewsets.ModelViewSet):
     def mine(self, request):
         """Return incidents reported by the current user only, regardless of privileges.
         Supports status and search params, ordered by most recent. Paginates if pagination is enabled.
+        Added defensive checks to avoid 500s when authentication/config differs across environments.
         """
-        from django.conf import settings as dj_settings
-        from django.db.models import Q
+        try:
+            # Require authentication explicitly (some deployments may customize DRF auth settings)
+            user = getattr(request, "user", None)
+            if not user or not getattr(user, "is_authenticated", False):
+                return Response({"detail": "Authentication required."}, status=status.HTTP_401_UNAUTHORIZED)
 
-        base_qs = Incident.objects.select_related("violation", "student", "reporter")
-        if getattr(dj_settings, "DISCIPLINE_MATCH_MINE_BY_USERNAME", False):
-            qs = base_qs.filter(
-                Q(reporter_id=request.user.id) | Q(reporter__username=getattr(request.user, "username", None))
-            )
-        else:
-            qs = base_qs.filter(reporter_id=request.user.id)
-        qs = qs.order_by("-occurred_at", "-created_at")
-        # Optional status filter
-        st = (self.request.query_params.get("status") or "").strip()
-        if st in {"open", "under_review", "closed"}:
-            qs = qs.filter(status=st)
-        # Optional search (mirror SearchFilter fields)
-        s = (self.request.query_params.get("search") or "").strip()
-        if s:
+            from django.conf import settings as dj_settings
             from django.db.models import Q
 
-            qs = qs.filter(
-                Q(narrative__icontains=s)
-                | Q(location__icontains=s)
-                | Q(violation__category__icontains=s)
-                | Q(violation__code__icontains=s)
+            # Keep select_related lightweight and resilient; student relation can be heavy/optional in some installs
+            try:
+                base_qs = Incident.objects.select_related("violation", "reporter", "student").defer("violation__policy")
+            except Exception:
+                # Fallback if resolving some relations fails in mixed app setups
+                base_qs = Incident.objects.select_related("violation", "reporter").defer("violation__policy")
+
+            if getattr(dj_settings, "DISCIPLINE_MATCH_MINE_BY_USERNAME", False):
+                qs = base_qs.filter(Q(reporter_id=user.id) | Q(reporter__username=getattr(user, "username", None)))
+            else:
+                qs = base_qs.filter(reporter_id=user.id)
+            qs = qs.order_by("-occurred_at", "-created_at")
+
+            # Optional status filter
+            st = (self.request.query_params.get("status") or "").strip()
+            if st in {"open", "under_review", "closed"}:
+                qs = qs.filter(status=st)
+
+            # Optional search (mirror SearchFilter fields)
+            s = (self.request.query_params.get("search") or "").strip()
+            if s:
+                qs = qs.filter(
+                    Q(narrative__icontains=s)
+                    | Q(location__icontains=s)
+                    | Q(violation__category__icontains=s)
+                    | Q(violation__code__icontains=s)
+                )
+
+            page = self.paginate_queryset(qs)
+            if page is not None:
+                ser = self.get_serializer(page, many=True)
+                return self.get_paginated_response(ser.data)
+            ser = self.get_serializer(qs, many=True)
+            return Response(ser.data)
+        except Exception as e:
+            # Log and return a safe error instead of generic 500
+            try:
+                logger.error(
+                    "incident.mine.failed user=%s err=%s", getattr(getattr(request, "user", None), "id", None), e
+                )
+            except Exception:
+                pass
+            return Response(
+                {"detail": "Failed to fetch your incidents.", "code": "INCIDENT_MINE_FAILED"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-        page = self.paginate_queryset(qs)
-        if page is not None:
-            ser = self.get_serializer(page, many=True)
-            return self.get_paginated_response(ser.data)
-        ser = self.get_serializer(qs, many=True)
-        return Response(ser.data)
 
     @action(detail=False, methods=["get"])  # /incidents/kanban/
     def kanban(self, request):
@@ -1371,6 +1450,277 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     }
                 )
         out["top_violations"] = top_payload
+        return Response(out)
+
+    @action(detail=False, methods=["get"], url_path="committee-dashboard")
+    def committee_dashboard(self, request):
+        """تجميع بطاقات لوحة «رئيس اللجنة السلوكية» في استجابة واحدة.
+
+        صلاحيات: incident_committee_view أو is_staff/superuser.
+
+        معلمات اختيارية:
+          - days: 7 أو 30 (افتراضي 30)
+          - from/to/status/wing_id: نفس فلاتر visible (اختياري — أفضل جلب المدى عبر days)
+        """
+        user = request.user
+        if not (
+            self._has(user, "incident_committee_view")
+            or getattr(user, "is_staff", False)
+            or getattr(user, "is_superuser", False)
+        ):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+
+        from datetime import datetime, timedelta
+        from django.utils import timezone as _tz
+        from .models import StandingCommittee
+
+        now = _tz.now()
+        try:
+            days = int(request.query_params.get("days", 30))
+        except Exception:
+            days = 30
+        if days not in (7, 30):
+            days = 30
+        since_dt = now - timedelta(days=days)
+
+        # بناء queryset أساسي مع فلاتر معقولة (committee_required فقط)
+        qs = Incident.objects.all().select_related("violation", "student")
+
+        # فلترة التاريخ وفق event_date = occurred_at.date أو created_at.date
+        from_param = request.query_params.get("from")
+        to_param = request.query_params.get("to")
+
+        def parse_date(s):
+            try:
+                return datetime.strptime(s, "%Y-%m-%d").date()
+            except Exception:
+                return None
+
+        from_date = parse_date(from_param) if from_param else (since_dt.date())
+        to_date = parse_date(to_param) if to_param else None
+
+        if from_date:
+            qs = qs.filter(
+                Q(occurred_at__date__gte=from_date) | (Q(occurred_at__isnull=True) & Q(created_at__date__gte=from_date))
+            )
+        if to_date:
+            qs = qs.filter(
+                Q(occurred_at__date__lte=to_date) | (Q(occurred_at__isnull=True) & Q(created_at__date__lte=to_date))
+            )
+
+        # فلترة الحالة (تطبيع مبسط)
+        status_param = (request.query_params.get("status") or "").strip().lower()
+        status_map = {"in_progress": "under_review", "resolved": "closed", "archived": "closed"}
+        if status_param:
+            norm = status_map.get(status_param, status_param)
+            if norm in {"open", "under_review", "closed"}:
+                qs = qs.filter(status=norm)
+
+        # فلترة الجناح إن طُلب
+        wing_id = request.query_params.get("wing_id")
+        if wing_id and str(wing_id).isdigit():
+            qs = qs.filter(student__class_fk__wing_id=int(wing_id))
+
+        # قصر اللوحة على الوقائع التي تتطلب لجنة
+        qs_committee = qs.filter(committee_required=True)
+
+        # ============ KPIs ============
+        total_need_committee = qs_committee.count()
+        need_scheduling_qs = qs_committee.filter(committee__isnull=True)
+        need_scheduling_count = need_scheduling_qs.count()
+        scheduled_qs = qs_committee.filter(committee__isnull=False)
+        # بانتظار قرار اللجنة: لا يوجد Audit بmeta.action=committee_decision
+        scheduled_pending_qs = scheduled_qs.exclude(audit_logs__meta__action="committee_decision")
+        scheduled_pending_count = scheduled_pending_qs.count()
+
+        # قرارات الأيام الأخيرة
+        recent_decisions_qs = IncidentAuditLog.objects.filter(meta__action="committee_decision", at__gte=since_dt)
+        recent_approve = recent_decisions_qs.filter(meta__decision="approve").count()
+        recent_reject = recent_decisions_qs.filter(meta__decision="reject").count()
+        recent_return = recent_decisions_qs.filter(meta__decision="return").count()
+
+        kpis = {
+            "need_committee": total_need_committee,
+            "need_scheduling": need_scheduling_count,
+            "scheduled_pending": scheduled_pending_count,
+            "decisions_recent": {
+                "approve": recent_approve,
+                "reject": recent_reject,
+                "return": recent_return,
+            },
+        }
+
+        # ============ SLA Overdue ============
+        # المراجعة والإشعار يعتمد على submitted_at ونافذتي SLA من الإعدادات
+        try:
+            from django.conf import settings as dj_settings
+
+            review_h = int(getattr(dj_settings, "DISCIPLINE_REVIEW_SLA_H", 24))
+            notify_h = int(getattr(dj_settings, "DISCIPLINE_NOTIFY_SLA_H", 48))
+        except Exception:
+            review_h, notify_h = 24, 48
+
+        overdue_review = qs_committee.filter(
+            status="under_review",
+            submitted_at__isnull=False,
+            submitted_at__lt=now - timedelta(hours=review_h),
+        ).count()
+        overdue_notify = qs_committee.filter(
+            status="under_review",
+            submitted_at__isnull=False,
+            submitted_at__lt=now - timedelta(hours=notify_h),
+        ).count()
+        overdue = {"review": overdue_review, "notify": overdue_notify}
+
+        # ============ Top violations (last 30 or days window) ============
+        recent_committee_qs = qs_committee.filter(
+            Q(occurred_at__gte=since_dt) | (Q(occurred_at__isnull=True) & Q(created_at__gte=since_dt))
+        )
+        viol_counts = (
+            recent_committee_qs.values("violation__code", "violation__category")
+            .annotate(cnt=models.Count("id"))
+            .order_by("-cnt")[:5]
+        )
+        top_violations = [
+            {
+                "code": row.get("violation__code"),
+                "category": row.get("violation__category"),
+                "count": int(row.get("cnt") or 0),
+            }
+            for row in viol_counts
+        ]
+
+        # ============ Standing committee ============
+        standing_payload = None
+        try:
+            standing = StandingCommittee.objects.order_by("id").first()
+            if standing:
+                # احضر الأعضاء
+                from .models import StandingCommitteeMember
+
+                member_ids = list(
+                    StandingCommitteeMember.objects.filter(standing=standing).values_list("user_id", flat=True)
+                )
+
+                def user_obj(uid):
+                    u = get_user_model().objects.filter(id=uid).first()
+                    if not u:
+                        return None
+                    # Staff.full_name
+                    staff_full = None
+                    try:
+                        from school.models import Staff  # type: ignore
+
+                        staff_full = (
+                            Staff.objects.filter(user_id=u.id)
+                            .only("full_name")
+                            .values_list("full_name", flat=True)
+                            .first()
+                        ) or None
+                    except Exception:
+                        pass
+                    full_name = u.get_full_name() if hasattr(u, "get_full_name") else None
+                    return {"id": u.id, "username": u.username, "full_name": full_name, "staff_full_name": staff_full}
+
+                standing_payload = {
+                    "chair": (
+                        user_obj(getattr(standing, "chair_id", None)) if getattr(standing, "chair_id", None) else None
+                    ),
+                    "recorder": (
+                        user_obj(getattr(standing, "recorder_id", None))
+                        if getattr(standing, "recorder_id", None)
+                        else None
+                    ),
+                    "members": [user_obj(uid) for uid in member_ids if uid],
+                }
+        except Exception:
+            standing_payload = None
+
+        # ============ Queues ============
+        def inc_basic_payload(i: Incident):
+            # حزمة مختصرة للعرض في قوائم الانتظار
+            try:
+                student_name = getattr(getattr(i, "student", None), "full_name", None)
+            except Exception:
+                student_name = None
+            try:
+                viol_code = getattr(getattr(i, "violation", None), "code", None)
+            except Exception:
+                viol_code = None
+            return {
+                "id": str(i.id),
+                "occurred_at": getattr(i, "occurred_at", None),
+                "created_at": getattr(i, "created_at", None),
+                "student_name": student_name,
+                "violation_code": viol_code,
+                "status": i.status,
+                "severity": i.severity,
+            }
+
+        need_sched_items = [
+            inc_basic_payload(i) for i in need_scheduling_qs.order_by("-occurred_at", "-created_at")[:5]
+        ]
+        scheduled_pending_items = [
+            inc_basic_payload(i) for i in scheduled_pending_qs.order_by("-occurred_at", "-created_at")[:5]
+        ]
+
+        queues = {
+            "need_scheduling": need_sched_items,
+            "scheduled_pending_decision": scheduled_pending_items,
+        }
+
+        # ============ Recent decisions (last 5) ============
+        recent_items = []
+        try:
+            logs = (
+                IncidentAuditLog.objects.filter(meta__action="committee_decision")
+                .select_related("incident", "actor")
+                .order_by("-at", "-id")[:5]
+            )
+            for log in logs:
+                # actor name
+                actor_name = None
+                try:
+                    actor = getattr(log, "actor", None)
+                    if actor:
+                        actor_name = actor.get_full_name() or actor.username
+                        # Staff full name first
+                        try:
+                            from school.models import Staff  # type: ignore
+
+                            staff_full = (
+                                Staff.objects.filter(user=actor)
+                                .only("full_name")
+                                .values_list("full_name", flat=True)
+                                .first()
+                            )
+                            if staff_full:
+                                actor_name = staff_full
+                        except Exception:
+                            pass
+                except Exception:
+                    actor_name = None
+                recent_items.append(
+                    {
+                        "incident_id": str(getattr(log, "incident_id", "")),
+                        "decision": (getattr(log, "meta", {}) or {}).get("decision"),
+                        "at": getattr(log, "at", None),
+                        "actor": actor_name,
+                        "note": getattr(log, "note", ""),
+                    }
+                )
+        except Exception:
+            recent_items = []
+
+        out = {
+            "since": since_dt.isoformat(),
+            "kpis": kpis,
+            "overdue": overdue,
+            "top_violations_30d": top_violations,
+            "standing": standing_payload,
+            "queues": queues,
+            "recent_decisions": recent_items,
+        }
         return Response(out)
 
     @action(
@@ -1922,6 +2272,117 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 "saved_panel": inc.committee_panel,
             }
         )
+
+    @action(detail=True, methods=["post"], url_path="committee-decision")
+    def committee_decision(self, request, pk=None):
+        """تسجيل قرار لجنة السلوك للواقعة.
+
+        المدخلات (JSON):
+          - decision: one of ["approve", "reject", "return"] (مطلوب)
+          - note: تعليق/ملاحظات القرار (اختياري)
+          - actions: قائمة إجراءات لتطبيقها (اختياري)
+          - sanctions: قائمة عقوبات لتطبيقها (اختياري)
+          - close_now: منطقية — إن كانت 1/true ومع القرار approve يتم إغلاق الواقعة فورًا (اختياري)
+
+        الضوابط:
+          - يتطلب صلاحية incident_committee_decide أو is_staff/superuser.
+
+        التأثير:
+          - يُسجل أثر تدقيق meta.action = "committee_decision" مع تفاصيل القرار.
+          - يضيف الإجراءات/العقوبات إلى حقول الواقعة إن تم تمريرها.
+          - عند close_now وقرار approve: تتحول الحالة إلى closed مع تعبئة closed_by/closed_at وتسجيل أثر إغلاق.
+        """
+        inc = self.get_object()
+        user = request.user
+        if not (
+            self._has(user, "incident_committee_decide")
+            or getattr(user, "is_staff", False)
+            or getattr(user, "is_superuser", False)
+        ):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+
+        body = request.data or {}
+        decision = str(body.get("decision") or "").strip().lower()
+        if decision not in {"approve", "reject", "return"}:
+            return Response(
+                {"detail": "قيمة decision غير صالحة. استخدم approve|reject|return."}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        note = (body.get("note") or "").strip()
+        actions = body.get("actions")
+        sanctions = body.get("sanctions")
+        close_now_flag = str(body.get("close_now") or "").strip().lower() in {"1", "true", "yes"}
+
+        # دمج الإجراءات/العقوبات إن تم تمريرها
+        updated_fields = ["updated_at"]
+        try:
+            if isinstance(actions, list):
+                current = list(getattr(inc, "actions_applied", []) or [])
+                inc.actions_applied = current + actions
+                updated_fields.append("actions_applied")
+        except Exception:
+            pass
+        try:
+            if isinstance(sanctions, list):
+                current = list(getattr(inc, "sanctions_applied", []) or [])
+                inc.sanctions_applied = current + sanctions
+                updated_fields.append("sanctions_applied")
+        except Exception:
+            pass
+
+        # عند الموافقة وإغلاق فوري
+        from django.utils import timezone as _tz
+
+        if decision == "approve" and close_now_flag:
+            try:
+                inc.status = "closed"
+                inc.closed_by = user
+                inc.closed_at = _tz.now()
+                updated_fields += ["status", "closed_by", "closed_at"]
+            except Exception:
+                pass
+
+        # احفظ التغييرات (إن وُجدت)
+        try:
+            inc.save(update_fields=list(set(updated_fields)))
+        except Exception:
+            inc.save()  # حفظ تقليدي كملاذ أخير
+
+        # سجل تدقيق لقرار اللجنة
+        try:
+            IncidentAuditLog.objects.create(
+                incident=inc,
+                action="update",
+                actor=user,
+                from_status=inc.status,
+                to_status=inc.status,
+                note=note or "قرار لجنة",
+                meta={
+                    "action": "committee_decision",
+                    "decision": decision,
+                    "close_now": close_now_flag,
+                    "actions_added": isinstance(actions, list),
+                    "sanctions_added": isinstance(sanctions, list),
+                },
+            )
+        except Exception:
+            logger.warning("incident.audit.failed action=committee_decision incident=%s", inc.id)
+
+        # إذا تم الإغلاق الآن، أضف سجل إغلاق منفصل لتحسين وضوح الأثر
+        if decision == "approve" and close_now_flag:
+            try:
+                IncidentAuditLog.objects.create(
+                    incident=inc,
+                    action="close",
+                    actor=user,
+                    from_status="under_review",
+                    to_status="closed",
+                    note="إغلاق الواقعة بناءً على قرار اللجنة",
+                )
+            except Exception:
+                logger.warning("incident.audit.failed action=close incident=%s", inc.id)
+
+        return Response({"ok": True, "incident": IncidentFullSerializer(inc).data})
 
     # ======================== اللجنة الدائمة (نقطة عامة) ========================
     @action(detail=False, methods=["get"], url_path="committee-standing")
