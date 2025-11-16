@@ -118,8 +118,32 @@ export const tiles: Tile[] = [
     to: "/discipline/committee/dashboard",
     icon: "solar:users-group-rounded-bold-duotone",
     color: "#0d47a1",
-    // تظهر للمشرفين والإدارة العليا افتراضيًا
-    roles: ["principal", "vice_principal", "discipline_l2"],
+    // تظهر للمشرفين والإدارة العليا افتراضيًا + لمشرف الجناح
+    // ملاحظة: أزلنا شرط الصلاحية العامة كي لا تظهر هذه البطاقة لأعضاء/مقرر اللجنة.
+    // سيتم ضبط ظهورها بدقّة عبر منطق خاص في HomePage بناءً على committee-caps (is_standing_chair).
+    roles: ["principal", "vice_principal", "discipline_l2", "wing_supervisor"],
+  },
+
+  // Committee member quick tile (عضو اللجنة)
+  {
+    id: "committee_member",
+    title: "عضو لجنة السلوك",
+    subtitle: "صفحة الأعضاء",
+    to: "/discipline/committee/member",
+    icon: "solar:shield-user-bold-duotone",
+    color: "#1565c0",
+    // لم نعد نعتمد على الصلاحية العامة هنا؛ سيجري إظهارها فقط لمن هو عضو دائم عبر منطق HomePage.
+  },
+
+  // Committee recorder quick tile (مقرر اللجنة)
+  {
+    id: "committee_recorder",
+    title: "مقرر لجنة السلوك",
+    subtitle: "صفحة المقرر",
+    to: "/discipline/committee/recorder",
+    icon: "solar:document-text-bold-duotone",
+    color: "#00897b",
+    // الظهور يتم ضبطه برمجيًا في HomePage وفق caps.is_standing_recorder
   },
 
   // Subject Coordinator tiles

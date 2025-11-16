@@ -8,10 +8,13 @@ from django.db import models
 from django.db.models import Count
 from .models import Violation, Incident, BehaviorLevel
 from .models import IncidentAuditLog
+from .models import IncidentAttachment
 from .serializers import ViolationSerializer, IncidentSerializer, BehaviorLevelSerializer, IncidentFullSerializer
 from django.contrib.auth import get_user_model
 import hashlib
 from django.db.models import Q
+from django.http import FileResponse, HttpResponse
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +300,23 @@ class IncidentViewSet(viewsets.ModelViewSet):
             self._audit(obj, "create", note="incident created")
         except Exception:
             pass
+        # Important: prevent a post-save lazy load of Violation that would SELECT all columns
+        # (including the optional 'policy' column that may not exist in older databases) when
+        # the serializer builds the representation. Populate the relation cache with a
+        # safely-loaded Violation instance that defers 'policy'.
+        try:
+            if getattr(obj, "violation_id", None):
+                safe_v = (
+                    Violation.objects.only("id", "code", "category", "severity", "requires_committee")
+                    .defer("policy")
+                    .get(id=obj.violation_id)
+                )
+                # Populate Django relation cache so serializer uses this instance without re-querying
+                setattr(obj, "violation", safe_v)
+        except Exception:
+            # If this optimization fails, we still return success; other guards elsewhere
+            # (serializer and query defers) should minimize risk, and worst-case we fall back.
+            pass
 
     # --- Professional audit helpers ---
     def _get_client_ip(self, request):
@@ -429,7 +449,129 @@ class IncidentViewSet(viewsets.ModelViewSet):
             )
         except Exception:
             pass
+
+        # Auto-schedule to Standing Committee when required and not yet scheduled
+        try:
+            if inc.committee_required and not getattr(inc, "committee_scheduled_at", None):
+                self._schedule_committee_from_standing(inc, request.user)
+        except Exception:
+            # Never block submit on auto-schedule failure; it can be scheduled manually later
+            if logger and logger.isEnabledFor(logging.WARNING):
+                logger.warning("incident.submit.auto_schedule.failed incident=%s", getattr(inc, "id", None))
+
         return Response(self.get_serializer(inc).data, status=status.HTTP_200_OK)
+
+    # --- Committee helpers ---
+    def _schedule_committee_from_standing(self, inc: Incident, user):
+        """Schedule the incident to the standing committee and persist records.
+        Safe to call multiple times; it will upsert the IncidentCommittee record.
+        Returns True on success, False on failure.
+        """
+        try:
+            from .models import StandingCommittee, StandingCommitteeMember
+
+            standing = StandingCommittee.objects.order_by("id").first()
+            if not (standing and getattr(standing, "chair_id", None)):
+                return False
+            chair_id = int(standing.chair_id)
+            member_ids = [
+                int(x.user_id) for x in StandingCommitteeMember.objects.filter(standing=standing).only("user_id")
+            ]
+            recorder_id = int(standing.recorder_id) if getattr(standing, "recorder_id", None) else None
+        except Exception:
+            return False
+
+        # Map users
+        users_map = {u.id: u for u in get_user_model().objects.filter(id__in=list(set([chair_id] + member_ids + ([recorder_id] if recorder_id else []))))}
+
+        from django.utils import timezone as _tz
+
+        inc.committee_panel = {
+            "chair_id": chair_id,
+            "member_ids": member_ids,
+            "recorder_id": recorder_id,
+        }
+        inc.committee_required = True
+        inc.committee_scheduled_by = user
+        inc.committee_scheduled_at = _tz.now()
+        try:
+            inc.save(
+                update_fields=[
+                    "committee_panel",
+                    "committee_required",
+                    "committee_scheduled_by",
+                    "committee_scheduled_at",
+                    "updated_at",
+                ]
+            )
+        except Exception:
+            return False
+
+        # Persist IncidentCommittee graph (best-effort)
+        try:
+            from .models import IncidentCommittee, IncidentCommitteeMember
+
+            committee_obj, _ = IncidentCommittee.objects.update_or_create(
+                incident=inc,
+                defaults={
+                    "chair": users_map.get(chair_id),
+                    "recorder": users_map.get(recorder_id) if recorder_id else None,
+                    "scheduled_by": user,
+                },
+            )
+            IncidentCommitteeMember.objects.filter(committee=committee_obj).delete()
+            for mid in member_ids:
+                u = users_map.get(mid)
+                if u:
+                    IncidentCommitteeMember.objects.create(committee=committee_obj, user=u)
+        except Exception:
+            if logger and logger.isEnabledFor(logging.WARNING):
+                logger.warning("committee.persist.failed incident=%s", getattr(inc, "id", None))
+
+        # Grant lightweight perms (best-effort)
+        try:
+            from django.contrib.auth.models import Permission
+
+            def _grant(u, codename: str):
+                try:
+                    perm = Permission.objects.get(codename=codename)
+                    u.user_permissions.add(perm)
+                except Exception:
+                    pass
+
+            involved_ids = set([chair_id] + member_ids + ([recorder_id] if recorder_id else []))
+            for uid in involved_ids:
+                uu = users_map.get(uid)
+                if uu:
+                    _grant(uu, "incident_committee_view")
+            for uid in [chair_id, recorder_id]:
+                if uid:
+                    uu = users_map.get(uid)
+                    if uu:
+                        _grant(uu, "incident_committee_decide")
+        except Exception:
+            if logger and logger.isEnabledFor(logging.WARNING):
+                logger.warning("committee.perms.grant.failed incident=%s", getattr(inc, "id", None))
+
+        # Audit
+        try:
+            IncidentAuditLog.objects.create(
+                incident=inc,
+                action="update",
+                actor=user,
+                from_status=inc.status,
+                to_status=inc.status,
+                note="جدولة لجنة (تلقائي)",
+                meta={
+                    "action": "schedule_committee",
+                    "auto": True,
+                    "panel": inc.committee_panel,
+                },
+            )
+        except Exception:
+            pass
+
+        return True
 
     @action(detail=True, methods=["post"])
     def review(self, request, pk=None):
@@ -625,6 +767,16 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 "updated_at",
             ]
         )
+        # Auto-schedule to Standing Committee if now required and not yet scheduled
+        try:
+            if inc.committee_required and not getattr(inc, "committee_scheduled_at", None):
+                self._schedule_committee_from_standing(inc, request.user)
+        except Exception:
+            if logger and logger.isEnabledFor(logging.WARNING):
+                logger.warning(
+                    "incident.escalate.auto_schedule.failed incident=%s",
+                    getattr(inc, "id", None),
+                )
         return Response(self.get_serializer(inc).data)
 
     @action(detail=True, methods=["post"], url_path="notify-guardian")
@@ -664,13 +816,18 @@ class IncidentViewSet(viewsets.ModelViewSet):
         الاستجابة: { total, items: [...] }
         """
         try:
-            qs = Incident.objects.select_related(
-                "violation",
-                "student",
-                "reporter",
-                "student__class_fk",
-                "student__class_fk__wing",
-            ).all()
+            qs = (
+                Incident.objects.select_related(
+                    "violation",
+                    "student",
+                    "reporter",
+                    "student__class_fk",
+                    "student__class_fk__wing",
+                )
+                # Avoid selecting optional Violation.policy column which may be missing in older DBs
+                .defer("violation__policy")
+                .all()
+            )
             user = request.user
             # استخرج نطاق الأجنحة أولاً
             # اكتشاف أجنحة المستخدم المشرف عليها بشكل مرن (يدعم مخططات مختلفة للموديل)
@@ -1484,7 +1641,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
         since_dt = now - timedelta(days=days)
 
         # بناء queryset أساسي مع فلاتر معقولة (committee_required فقط)
-        qs = Incident.objects.all().select_related("violation", "student")
+        qs = (
+            Incident.objects.all()
+            .select_related("violation", "student")
+            .defer("violation__policy")
+        )
 
         # فلترة التاريخ وفق event_date = occurred_at.date أو created_at.date
         from_param = request.query_params.get("from")
@@ -1647,6 +1808,22 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 viol_code = getattr(getattr(i, "violation", None), "code", None)
             except Exception:
                 viol_code = None
+            # ملخص سريع لآخر ما اقترحته المراجِعة (إن وُجد)
+            try:
+                acts = list(getattr(i, "actions_applied", None) or [])
+                sancs = list(getattr(i, "sanctions_applied", None) or [])
+                pa = ", ".join([str((a or {}).get("name") or "").strip() for a in acts if (a or {}).get("name")])
+                ps = ", ".join([str((s or {}).get("name") or "").strip() for s in sancs if (s or {}).get("name")])
+                if pa and ps:
+                    proposed_summary = f"إجراءات: {pa} • عقوبات: {ps}"
+                elif pa:
+                    proposed_summary = f"إجراءات: {pa}"
+                elif ps:
+                    proposed_summary = f"عقوبات: {ps}"
+                else:
+                    proposed_summary = None
+            except Exception:
+                proposed_summary = None
             return {
                 "id": str(i.id),
                 "occurred_at": getattr(i, "occurred_at", None),
@@ -1655,6 +1832,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 "violation_code": viol_code,
                 "status": i.status,
                 "severity": i.severity,
+                "proposed_summary": proposed_summary,
             }
 
         need_sched_items = [
@@ -1722,6 +1900,299 @@ class IncidentViewSet(viewsets.ModelViewSet):
             "recent_decisions": recent_items,
         }
         return Response(out)
+
+    # ===================== Attachments (Option B - minimal backend) =====================
+    @action(detail=True, methods=["get", "post"], url_path="attachments")
+    def attachments(self, request, pk=None):
+        """List or upload attachments for an incident.
+
+        GET  -> list attachments
+        POST -> upload attachment (multipart/form-data) with fields: kind, file, meta (JSON or text)
+        """
+        inc = self.get_object()
+        user = request.user
+
+        def can_view(u):
+            return (
+                self._has(u, "incident_attachment_view")
+                or self._has(u, "incident_committee_view")
+                or self._has(u, "incident_review")
+                or getattr(u, "is_staff", False)
+                or getattr(u, "is_superuser", False)
+                or getattr(inc, "reporter_id", None) == getattr(u, "id", None)
+            )
+
+        def can_upload(u):
+            return (
+                self._has(u, "incident_attachment_upload")
+                or self._has(u, "incident_review")
+                or getattr(u, "is_staff", False)
+                or getattr(u, "is_superuser", False)
+            )
+
+        if request.method.lower() == "get":
+            if not can_view(user):
+                return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+            items = [
+                {
+                    "id": a.id,
+                    "kind": a.kind,
+                    "mime": a.mime,
+                    "size": a.size,
+                    "sha256": a.sha256,
+                    "created_at": a.created_at,
+                    "created_by": getattr(a.created_by, "id", None),
+                    "meta": a.meta or {},
+                }
+                for a in IncidentAttachment.objects.filter(incident=inc).order_by("-created_at", "-id")
+            ]
+            # Audit (best-effort)
+            try:
+                IncidentAuditLog.objects.create(
+                    incident=inc,
+                    action="update",
+                    actor=user,
+                    from_status=inc.status,
+                    to_status=inc.status,
+                    note="استعراض مرفقات",
+                    meta={"action": "attachment_list"},
+                )
+            except Exception:
+                pass
+            return Response({"attachments": items})
+
+        # POST (upload)
+        if not can_upload(user):
+            return Response({"detail": "صلاحية غير كافية للرفع."}, status=status.HTTP_403_FORBIDDEN)
+
+        up = request.FILES.get("file")
+        kind = str(request.data.get("kind", "other")).strip() or "other"
+        meta_raw = request.data.get("meta")
+        meta_obj = {}
+        if meta_raw:
+            try:
+                if isinstance(meta_raw, (dict, list)):
+                    meta_obj = meta_raw  # type: ignore
+                else:
+                    meta_obj = json.loads(str(meta_raw))
+            except Exception:
+                meta_obj = {"_raw": str(meta_raw)}
+        if not up:
+            return Response({"detail": "file مطلوب"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Basic type/size checks (10 MiB)
+        max_size = 10 * 1024 * 1024
+        if getattr(up, "size", 0) > max_size:
+            return Response({"detail": "الملف أكبر من الحد المسموح (10MiB)."}, status=status.HTTP_400_BAD_REQUEST)
+        mime = getattr(up, "content_type", "") or ""
+        allowed = {"application/pdf", "image/jpeg", "image/png"}
+        if allowed and mime not in allowed:
+            return Response({"detail": "صيغة ملف غير مدعومة. المسموح: PDF, JPG, PNG."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Compute sha256
+        h = hashlib.sha256()
+        for chunk in up.chunks():
+            h.update(chunk)
+        digest = h.hexdigest()
+
+        att = IncidentAttachment.objects.create(
+            incident=inc,
+            kind=kind if kind in {k for k, _ in IncidentAttachment.KIND_CHOICES} else "other",
+            file=up,
+            mime=mime,
+            size=getattr(up, "size", 0) or 0,
+            sha256=digest,
+            created_by=user,
+            meta=meta_obj,
+        )
+
+        # Audit
+        try:
+            IncidentAuditLog.objects.create(
+                incident=inc,
+                action="update",
+                actor=user,
+                from_status=inc.status,
+                to_status=inc.status,
+                note=f"رفع مرفق ({att.kind})",
+                meta={"action": "attachment_upload", "attachment_id": att.id, "sha256": att.sha256},
+            )
+        except Exception:
+            pass
+
+        return Response(
+            {
+                "ok": True,
+                "attachment": {
+                    "id": att.id,
+                    "kind": att.kind,
+                    "mime": att.mime,
+                    "size": att.size,
+                    "sha256": att.sha256,
+                },
+            }
+        )
+
+    @action(detail=True, methods=["get"], url_path=r"attachments/(?P<att_id>[^/.]+)/download")
+    def attachment_download(self, request, pk=None, att_id: str = ""):
+        """Download an attachment file for the incident."""
+        inc = self.get_object()
+        user = request.user
+        # permission
+        if not (
+            self._has(user, "incident_attachment_view")
+            or self._has(user, "incident_committee_view")
+            or self._has(user, "incident_review")
+            or getattr(user, "is_staff", False)
+            or getattr(user, "is_superuser", False)
+            or getattr(inc, "reporter_id", None) == getattr(user, "id", None)
+        ):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+
+        att = IncidentAttachment.objects.filter(incident=inc, id=att_id).first()
+        if not att:
+            return Response({"detail": "المرفق غير موجود."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            f = att.file
+            f.open("rb")  # type: ignore
+            resp = FileResponse(f, content_type=(att.mime or "application/octet-stream"))
+            resp["Content-Disposition"] = f'inline; filename="{f.name.split('/')[-1]}"'
+        except Exception:
+            return Response({"detail": "تعذّر فتح الملف."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # Audit best-effort
+        try:
+            IncidentAuditLog.objects.create(
+                incident=inc,
+                action="update",
+                actor=user,
+                from_status=inc.status,
+                to_status=inc.status,
+                note=f"تنزيل مرفق ({att.kind})",
+                meta={"action": "attachment_download", "attachment_id": att.id},
+            )
+        except Exception:
+            pass
+        return resp
+
+    @action(detail=True, methods=["get"], url_path="pledge/preview")
+    def pledge_preview(self, request, pk=None):
+        """Return a simple HTML pledge preview for printing (Option A server-side).
+
+        Query: format=html (default) | pdf (not implemented here)
+        """
+        inc = self.get_object()
+        user = request.user
+        if not (
+            self._has(user, "incident_review")
+            or self._has(user, "incident_committee_view")
+            or getattr(user, "is_staff", False)
+            or getattr(user, "is_superuser", False)
+            or getattr(inc, "reporter_id", None) == getattr(user, "id", None)
+        ):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+
+        fmt = (request.query_params.get("format") or "html").lower()
+        if fmt != "html":
+            return Response({"detail": "صيغة غير مدعومة حالياً."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # collect minimal fields (avoid heavy joins)
+        try:
+            from .serializers import IncidentSerializer
+
+            data = IncidentSerializer(instance=inc).data
+        except Exception:
+            data = {
+                "id": str(getattr(inc, "id", "")),
+                "student_name": None,
+                "student": getattr(inc, "student_id", None),
+                "violation_code": None,
+                "occurred_at": getattr(inc, "occurred_at", None),
+                "proposed_summary": None,
+            }
+
+        short_id = str(data.get("id", ""))[:8]
+        student_name = data.get("student_name") or ("#" + str(data.get("student")))
+        occurred = data.get("occurred_at")
+        try:
+            occurred_str = (
+                "—"
+                if not occurred
+                else f"{occurred[:10]}" if isinstance(occurred, str) else occurred.strftime("%Y-%m-%d")
+            )
+        except Exception:
+            occurred_str = "—"
+        proposed = data.get("proposed_summary") or "—"
+
+        now_dt = timezone.now()
+        y = now_dt.year
+        m = f"{now_dt.month:02d}"
+        d = f"{now_dt.day:02d}"
+        doc_id = f"PLEDG-{y}{m}-{short_id}"
+
+        html = f"""
+<!DOCTYPE html>
+<html lang=\"ar\" dir=\"rtl\">\n<head>\n<meta charset=\"utf-8\" />\n<title>تعهد خطي — {student_name}</title>\n<style>
+  :root{{ --fg:#111; --muted:#666; --accent:#0d6efd; }}
+  body{{ font-family:'Segoe UI', Tahoma, Arial, sans-serif; color:var(--fg); margin:0; }}
+  header, footer{{ position:fixed; left:0; right:0; }}
+  header{{ top:0; padding:12px 24px; border-bottom:1px solid #ddd; }}
+  footer{{ bottom:0; padding:8px 24px; border-top:1px solid #ddd; color:#666; font-size:11px; }}
+  main{{ padding:120px 24px 80px; max-width:820px; margin:0 auto; }}
+  h1{{ font-size:18px; margin:0 0 12px; }}
+  .row{{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 16px; }}
+  .box{{ border:1px solid #ccc; padding:12px; border-radius:6px; }}
+  .muted{{ color:#666; font-size:12px; }}
+  .sig-grid{{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px; }}
+  .sig{{ border:1px dashed #999; min-height:72px; padding:8px; }}
+  .qr{{ width:96px; height:96px; border:1px solid #ccc; display:inline-block; background: repeating-linear-gradient(45deg,#eee 0,#eee 8px,#ddd 8px,#ddd 16px); }}
+  .meta{{ margin-top:10px; font-size:12px; color:#666; }}
+  @media print{{ @page{{ size:A4; margin:2cm; }} header,footer{{ position:fixed; }} main{{ padding:0; margin-top:40px; }} }}
+</style></head>
+<body>
+  <header>
+    <div style=\"display:flex; align-items:center; gap:12px;\">
+      <div style=\"font-weight:700;\">نظام السلوك المدرسي</div>
+      <div class=\"muted\" style=\"margin-inline-start:auto\">رقم الوثيقة: {doc_id} · تاريخ الإصدار: {y}-{m}-{d}</div>
+    </div>
+  </header>
+  <footer>سري — للاستخدام المدرسي · صفحة 1 من 1 · للتحقق امسح رمز QR</footer>
+  <main>
+    <h1>تعهد خطي بشأن التزام السلوك المدرسي</h1>
+    <div class=\"row box\" style=\"margin-bottom:12px;\">
+      <div><div class=\"muted\">الطالب</div><div>{student_name}</div></div>
+      <div><div class=\"muted\">رقم الواقعة</div><div>{short_id}</div></div>
+      <div><div class=\"muted\">التاريخ</div><div>{occurred_str}</div></div>
+      <div><div class=\"muted\">المخالفة</div><div>—</div></div>
+    </div>
+    <div class=\"box\">\n      <p>أنا الطالب/ـة المذكور أعلاه، أقرّ بأنني اطّلعت على الواقعة رقم {short_id} وأتعهد بالالتزام بقواعد السلوك والانضباط المدرسي، والتعاون مع المدرسة خلال فترة المتابعة.</p>
+      <ol><li>الالتزام التام بالقواعد وتجنب تكرار المخالفة.</li><li>التعاون مع الهيئتين التعليمية والإرشادية عند الطلب.</li><li>قبول المتابعة الدورية والامتثال للتوجيهات.</li><li>العلم بأن تكرار المخالفة قد يترتب عليه إجراءات أشد وفق اللوائح.</li></ol>
+      <div class=\"muted\">ملخص الإجراء/التوصية (إن وُجد):</div>
+      <div style=\"font-weight:600; margin-bottom:8px;\">{proposed}</div>
+      <div class=\"sig-grid\"><div class=\"sig\"><div class=\"muted\">توقيع الطالب/ـة</div></div><div class=\"sig\"><div class=\"muted\">توقيع ولي الأمر</div></div><div class=\"sig\"><div class=\"muted\">ختم المدرسة / موظف الاستلام</div></div></div>
+      <div class=\"meta\">رقم الوثيقة: {doc_id}</div>
+      <div style=\"margin-top:8px; display:flex; align-items:center; gap:12px;\"><div class=\"qr\" aria-label=\"QR placeholder\"></div><div class=\"muted\">سيتم توليد رمز QR لاحقًا ضمن إصدار PDF.</div></div>
+    </div>
+  </main>
+  <script>window.onload = function(){ setTimeout(function(){ window.print && window.print(); }, 50); };<\/script>
+</body></html>
+"""
+
+        # Audit best-effort
+        try:
+            IncidentAuditLog.objects.create(
+                incident=inc,
+                action="update",
+                actor=user,
+                from_status=inc.status,
+                to_status=inc.status,
+                note="عرض تعهد (معاينة)",
+                meta={"action": "pledge_preview", "format": fmt},
+            )
+        except Exception:
+            pass
+
+        return HttpResponse(html, content_type="text/html; charset=utf-8")
 
     @action(
         detail=False, methods=["get"], url_path="count-by-student"
@@ -2091,24 +2562,312 @@ class IncidentViewSet(viewsets.ModelViewSet):
             "limit": limit,
             "offset": offset,
         }
+        # ضم «قدرات الوصول» لتمكين الواجهة من إظهار/إخفاء البطاقات حسب الصلاحيات
+        access_caps = {
+            "can_view": True,  # وصلنا هنا بعد التحقق أعلاه
+            "can_schedule": bool(
+                self._has(user, "incident_committee_schedule")
+                or getattr(user, "is_staff", False)
+                or getattr(user, "is_superuser", False)
+            ),
+            "can_decide": bool(
+                self._has(user, "incident_committee_decide")
+                or getattr(user, "is_staff", False)
+                or getattr(user, "is_superuser", False)
+            ),
+            "is_staff": bool(getattr(user, "is_staff", False)),
+            "is_superuser": bool(getattr(user, "is_superuser", False)),
+        }
+        data["access_caps"] = access_caps
         return Response(data)
+
+    # ========== Committee: voting workflow ==========
+    def _is_committee_member(self, user, inc: Incident) -> dict:
+        """تحقق سريع من دور المستخدم ضمن لجنة الواقعة.
+        يعيد قاموسًا مبسطًا: { is_member, is_chair, is_recorder }
+
+        يعتمد على الجداول IncidentCommittee/IncidentCommitteeMember إن وُجدت
+        ويستخدم committee_panel JSON كمسار احتياطي.
+        """
+        try:
+            uid = getattr(user, "id", None)
+            if not uid:
+                return {"is_member": False, "is_chair": False, "is_recorder": False}
+            # أولاً من الجداول
+            try:
+                committee = getattr(inc, "committee", None)
+                if committee is not None:
+                    is_chair = bool(getattr(committee, "chair_id", None) == uid)
+                    is_rec = bool(getattr(committee, "recorder_id", None) == uid)
+                    try:
+                        mem_ids = set(committee.members.values_list("user_id", flat=True))
+                    except Exception:
+                        mem_ids = set()
+                    is_mem = bool(uid in mem_ids or is_chair or is_rec)
+                    return {"is_member": is_mem, "is_chair": is_chair, "is_recorder": is_rec}
+            except Exception:
+                pass
+            # مسار احتياطي: JSON panel
+            panel = getattr(inc, "committee_panel", None) or {}
+            is_chair = bool(panel.get("chair_id") == uid)
+            is_rec = bool(panel.get("recorder_id") == uid)
+            try:
+                mem_ids = set(panel.get("member_ids") or [])
+            except Exception:
+                mem_ids = set()
+            is_mem = bool(uid in mem_ids or is_chair or is_rec)
+            return {"is_member": is_mem, "is_chair": is_chair, "is_recorder": is_rec}
+        except Exception:
+            return {"is_member": False, "is_chair": False, "is_recorder": False}
+
+    def _committee_quorum_and_majority(self, inc: Incident, votes: list[dict]) -> dict:
+        """حساب النصاب والأغلبية بطريقة مبسطة: النصاب = نصف + 1 من (الأعضاء + الرئيس).
+        الأغلبية البسيطة تحدد القرار المقترح. في حالة التعادل، يُستخدم تصويت الرئيس ككاسر تعادل إن وُجد.
+        """
+        try:
+            # احسب العدد المتوقع للمصوتين
+            total_voters = 0
+            chair_id = None
+            panel = getattr(inc, "committee_panel", None) or {}
+            chair_id = panel.get("chair_id")
+            members = list(panel.get("member_ids") or [])
+            total_voters = (1 if chair_id else 0) + len(members)
+            # جرّب من الجداول إن وُجدت
+            try:
+                committee = getattr(inc, "committee", None)
+                if committee is not None:
+                    chair_id = getattr(committee, "chair_id", chair_id)
+                    total_voters = 1 + committee.members.count()
+            except Exception:
+                pass
+
+            counts = {"approve": 0, "reject": 0, "return": 0}
+            by_user: dict[int, str] = {}
+            chair_vote = None
+            for v in votes:
+                uid = int(v.get("voter_id")) if v.get("voter_id") is not None else None
+                decision = str(v.get("decision") or "").lower()
+                if decision not in counts:
+                    continue
+                # آخر تصويت للمستخدم يغلب
+                if uid is not None:
+                    by_user[uid] = decision
+                if chair_id is not None and uid == int(chair_id):
+                    chair_vote = decision
+            # أعد الاحتساب بعد إزالة التكرارات لكل مستخدم
+            for d in by_user.values():
+                counts[d] = counts.get(d, 0) + 1
+
+            quorum = max(1, (total_voters // 2) + 1) if total_voters else 0
+            participated = len(by_user)
+            quorum_met = participated >= quorum if quorum else False
+            # حدد الأغلبية
+            maj_decision = None
+            if counts:
+                # ابحث عن أعلى عدّ
+                sorted_items = sorted(counts.items(), key=lambda x: (-x[1], x[0]))
+                top = sorted_items[0]
+                # تحقق من التعادل
+                ties = [k for k, c in counts.items() if c == top[1] and c > 0]
+                if len(ties) == 1:
+                    maj_decision = top[0]
+                else:
+                    # تعادل — استخدم صوت الرئيس إن وُجد
+                    if chair_vote in {"approve", "reject", "return"}:
+                        maj_decision = chair_vote
+            return {
+                "total_voters": total_voters,
+                "participated": participated,
+                "quorum": quorum,
+                "quorum_met": quorum_met,
+                "counts": counts,
+                "majority": maj_decision,
+                "chair_vote": chair_vote,
+            }
+        except Exception:
+            return {
+                "total_voters": 0,
+                "participated": 0,
+                "quorum": 0,
+                "quorum_met": False,
+                "counts": {"approve": 0, "reject": 0, "return": 0},
+                "majority": None,
+                "chair_vote": None,
+            }
+
+    @action(detail=True, methods=["post"], url_path="committee-vote")
+    def committee_vote(self, request, pk=None):
+        """تسجيل تصويت عضو اللجنة على واقعة محددة.
+
+        body: { decision: approve|reject|return, note? }
+        الصلاحيات: يجب أن يكون المستخدم عضوًا في لجنة الواقعة (رئيس/عضو/مقرر) أو موظفًا/مديرًا.
+        يسجل أثر تدقيق IncidentAuditLog.meta = { action: "committee_vote", decision, note }.
+        """
+        inc = self.get_object()
+        user = request.user
+        role = self._is_committee_member(user, inc)
+        if not (role.get("is_member") or user.is_staff or user.is_superuser):
+            return Response({"detail": "ليست ضمن لجنتك."}, status=status.HTTP_403_FORBIDDEN)
+
+        decision = str((request.data or {}).get("decision") or "").strip().lower()
+        if decision not in {"approve", "reject", "return"}:
+            return Response({"detail": "قيمة decision غير صالحة."}, status=status.HTTP_400_BAD_REQUEST)
+        note = str((request.data or {}).get("note") or "").strip()
+
+        try:
+            IncidentAuditLog.objects.create(
+                incident=inc,
+                action="update",
+                actor=user,
+                from_status=inc.status,
+                to_status=inc.status,
+                note=note,
+                meta={"action": "committee_vote", "decision": decision, "voter_id": getattr(user, "id", None)},
+            )
+        except Exception:
+            return Response({"detail": "تعذّر تسجيل التصويت."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({"ok": True})
+
+    @action(detail=True, methods=["get"], url_path="committee-votes")
+    def committee_votes(self, request, pk=None):
+        """إرجاع ملخّص التصويت على الواقعة مع حساب النصاب والأغلبية المقترحة."""
+        inc = self.get_object()
+        votes_qs = IncidentAuditLog.objects.filter(incident=inc, meta__action="committee_vote").order_by("at")
+        votes = list(
+            votes_qs.values("actor_id", "meta").annotate(voter_id=models.F("actor_id")).values(
+                "voter_id", "meta"
+            )
+        )
+        out_votes = []
+        for v in votes:
+            meta = v.get("meta") or {}
+            out_votes.append({
+                "voter_id": v.get("voter_id"),
+                "decision": meta.get("decision"),
+            })
+        agg = self._committee_quorum_and_majority(inc, out_votes)
+        return Response({"votes": out_votes, "summary": agg})
+
+    @action(detail=False, methods=["get"], url_path="my-committee")
+    def my_committee(self, request):
+        """إرجاع الوقائع التي يكون المستخدم الحالي جزءًا من لجنتها (رئيس/عضو/مقرر).
+        تستخدم لواجهات الأعضاء/المقرر.
+        """
+        user = request.user
+        try:
+            qs = (
+                Incident.objects.select_related("violation", "student").defer("violation__policy").all()
+            )
+            uid = getattr(user, "id", None)
+            # من الجداول
+            try:
+                from .models import IncidentCommittee, IncidentCommitteeMember
+
+                ic_ids = list(
+                    IncidentCommittee.objects.filter(models.Q(chair_id=uid) | models.Q(recorder_id=uid))
+                    .values_list("incident_id", flat=True)
+                )
+                icm_ids = list(
+                    IncidentCommitteeMember.objects.filter(user_id=uid).values_list("committee__incident_id", flat=True)
+                )
+                ids = set([*ic_ids, *icm_ids])
+                qs = qs.filter(id__in=list(ids)) | qs.filter(committee_panel__member_ids__contains=[uid])
+            except Exception:
+                # مسار JSON فقط
+                qs = qs.filter(models.Q(committee_panel__chair_id=uid) | models.Q(committee_panel__recorder_id=uid) | models.Q(committee_panel__member_ids__contains=[uid]))
+            qs = qs.order_by("-occurred_at", "-created_at")
+            ser = IncidentSerializer(qs, many=True)
+            return Response(ser.data)
+        except Exception as e:
+            logger.warning("incident.my_committee.error user=%s err=%s", getattr(user, "id", None), e)
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=["get"], url_path="committee-caps")
+    def committee_caps(self, request):
+        """إرجاع قدرات الوصول لمسار اللجنة للمستخدم الحالي (لاستخدامها في الواجهة لإظهار/إخفاء البطاقات).
+
+        لا يتطلب معرّف واقعة؛ يعتمد على صلاحيات نموذج Incident وأعلام الموظف.
+        كما يحاول اكتشاف دور المستخدم في «اللجنة الدائمة» كإشارة واجهة فقط.
+        """
+        user = request.user
+        caps = {
+            "can_view": bool(
+                self._has(user, "incident_committee_view")
+                or getattr(user, "is_staff", False)
+                or getattr(user, "is_superuser", False)
+            ),
+            "can_schedule": bool(
+                self._has(user, "incident_committee_schedule")
+                or getattr(user, "is_staff", False)
+                or getattr(user, "is_superuser", False)
+            ),
+            "can_decide": bool(
+                self._has(user, "incident_committee_decide")
+                or getattr(user, "is_staff", False)
+                or getattr(user, "is_superuser", False)
+            ),
+            "is_staff": bool(getattr(user, "is_staff", False)),
+            "is_superuser": bool(getattr(user, "is_superuser", False)),
+            # إشارات «اللجنة الدائمة» اختيارية للعرض فقط
+            "is_standing_chair": False,
+            "is_standing_recorder": False,
+            "is_standing_member": False,
+        }
+        # اسمح بالعرض إن كان المستخدم عضوًا فعليًا في أي لجنة حتى لو لم تُمنح صلاحية النموذج بعد
+        try:
+            if not caps["can_view"]:
+                uid = getattr(user, "id", None)
+                if uid:
+                    try:
+                        from .models import IncidentCommittee, IncidentCommitteeMember
+
+                        is_in_committee = (
+                            IncidentCommittee.objects.filter(models.Q(chair_id=uid) | models.Q(recorder_id=uid)).exists()
+                            or IncidentCommitteeMember.objects.filter(user_id=uid).exists()
+                        )
+                    except Exception:
+                        is_in_committee = False
+                    if not is_in_committee:
+                        # فحص مسار JSON القديم كخيار أخير
+                        try:
+                            is_in_committee = Incident.objects.filter(
+                                models.Q(committee_panel__chair_id=uid)
+                                | models.Q(committee_panel__recorder_id=uid)
+                                | models.Q(committee_panel__member_ids__contains=[uid])
+                            ).exists()
+                        except Exception:
+                            is_in_committee = False
+                    if is_in_committee:
+                        caps["can_view"] = True
+        except Exception:
+            pass
+        try:
+            from .models import StandingCommittee, StandingCommitteeMember
+
+            sc = StandingCommittee.objects.order_by("id").first()
+            if sc is not None:
+                if getattr(sc, "chair_id", None) == getattr(user, "id", None):
+                    caps["is_standing_chair"] = True
+                if getattr(sc, "recorder_id", None) == getattr(user, "id", None):
+                    caps["is_standing_recorder"] = True
+                try:
+                    caps["is_standing_member"] = StandingCommitteeMember.objects.filter(
+                        standing=sc, user_id=getattr(user, "id", None)
+                    ).exists()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return Response({"access_caps": caps})
 
     @action(detail=True, methods=["post"], url_path="schedule-committee")
     def schedule_committee(self, request, pk=None):
-        """حفظ تشكيل اللجنة في الباكند (Backend-only).
+        """إحالة الواقعة إلى «اللجنة السلوكية الدائمة» حصريًا.
 
-        الطلب JSON:
-          {
-            "chair_id": 12,                // إجباري
-            "member_ids": [34, 56],        // على الأقل عضوان
-            "recorder_id": 78 | null       // اختياري
-          }
-
-        قواعد التحقق:
-          - صلاحية incident_committee_schedule أو is_staff/superuser.
-          - chair_id موجود ومختلف عن باقي الأدوار.
-          - عضوين على الأقل في member_ids، ومختلفون عن الرئيس والمقرر.
-          - جميع المعرّفات تخص موظفين (Staff لديهم User مرتبط) داخل المدرسة.
+        ملاحظة مهمة:
+        - تم التخلص بأمان من أي تشكيل مخصّص من العميل. لا تُقبل chair_id/member_ids/recorder_id.
+        - يعتمد التشكيل دائمًا على "اللجنة الدائمة" المخزنة في قاعدة البيانات.
+        - يتطلب الإذن incident_committee_schedule أو is_staff/superuser.
         """
         User = get_user_model()
         inc = self.get_object()
@@ -2119,92 +2878,33 @@ class IncidentViewSet(viewsets.ModelViewSet):
             or getattr(user, "is_superuser", False)
         ):
             return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        # تجاهل كامل لأي Body وارد — تشكيل اللجنة سيكون دائمًا من «اللجنة الدائمة»
+        body = {}
 
-        body = request.data or {}
+        # حمّل تشكيل اللجنة الدائمة حصريًا
         try:
-            chair_id = int(body.get("chair_id") or 0)
-        except Exception:
-            chair_id = 0
-        member_ids = body.get("member_ids") or []
-        try:
-            member_ids = [int(x) for x in member_ids]
-        except Exception:
-            return Response({"detail": "member_ids يجب أن تكون أرقامًا."}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            recorder_id = body.get("recorder_id")
-            recorder_id = int(recorder_id) if recorder_id not in (None, "", "null") else None
-        except Exception:
-            recorder_id = None
+            from .models import StandingCommittee, StandingCommitteeMember
 
-        # دعم استخدام "اللجنة الدائمة" تلقائياً عند الطلب أو عند غياب الجسم
-        use_standing = False
-        try:
-            # allow in body or query string
-            raw_flag = body.get("use_standing") if isinstance(body, dict) else None
-            if raw_flag in ("1", 1, True, "true", "yes"):
-                use_standing = True
+            standing = StandingCommittee.objects.order_by("id").first()
+            if not (standing and getattr(standing, "chair_id", None)):
+                return Response(
+                    {"detail": "لا توجد لجنة دائمة مهيّأة. يرجى ضبط الرئيس وعضوين على الأقل في اللجنة الدائمة."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            chair_id = int(standing.chair_id)
+            member_ids = [
+                int(x.user_id) for x in StandingCommitteeMember.objects.filter(standing=standing).only("user_id")
+            ]
+            recorder_id = int(standing.recorder_id) if getattr(standing, "recorder_id", None) else None
         except Exception:
-            pass
-        if not use_standing:
-            qflag = (request.query_params.get("use_standing") or "").strip().lower()
-            if qflag in ("1", "true", "yes"):
-                use_standing = True
-
-        if use_standing and (chair_id <= 0 or len(member_ids) < 2):
-            # حمّل التشكيل الدائم إذا لم تُمرَّر تشكيلة كاملة
-            try:
-                from .models import StandingCommittee, StandingCommitteeMember
-
-                standing = StandingCommittee.objects.order_by("id").first()
-                if standing and getattr(standing, "chair_id", None):
-                    chair_id = chair_id or int(standing.chair_id)
-                    # الأعضاء من جدول الدائم
-                    member_ids = member_ids or [
-                        int(x.user_id)
-                        for x in StandingCommitteeMember.objects.filter(standing=standing).only("user_id")
-                    ]
-                    # المقرر من جدول الدائم (اختياري)
-                    recorder_id = recorder_id or (
-                        int(standing.recorder_id) if getattr(standing, "recorder_id", None) else None
-                    )
-            except Exception:
-                pass
-
-        if chair_id <= 0:
             return Response(
-                {"detail": "chair_id مطلوب (إما مُمرّر أو من اللجنة الدائمة)."}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if len(member_ids) < 2:
-            return Response(
-                {"detail": "يجب اختيار عضوين على الأقل (إما مُمرّرين أو من اللجنة الدائمة)."},
+                {"detail": "فشل تحميل اللجنة الدائمة. يرجى التحقق من الإعدادات."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Distinctness
-        all_ids = [chair_id] + member_ids + ([recorder_id] if recorder_id else [])
-        if len(set([x for x in all_ids if x])) != len([x for x in all_ids if x]):
-            return Response({"detail": "لا يجوز تكرار الشخص بين الأدوار."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # تحقّق من وجود المستخدمين وأنهم موظفون (مرتبطون بسجل Staff)
+        # خريطة المستخدمين للتحPersist في جداول IncidentCommittee
         needed_ids = set([chair_id] + member_ids + ([recorder_id] if recorder_id else []))
         users_map = {u.id: u for u in get_user_model().objects.filter(id__in=list(needed_ids))}
-        if len(users_map) != len(needed_ids):
-            return Response({"detail": "معرّفات مستخدمين غير صالحة."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # يجب أن يكونوا موظفين
-        try:
-            from django.apps import apps as _apps
-
-            Staff = _apps.get_model("school", "Staff")
-            staff_user_ids = set(Staff.objects.exclude(user__isnull=True).values_list("user_id", flat=True))
-            not_staff = [uid for uid in needed_ids if uid not in staff_user_ids]
-            if not_staff:
-                return Response(
-                    {"detail": f"المستخدمون التاليون ليسوا موظفين في المدرسة: {not_staff}"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-        except Exception:
-            pass
 
         # Persist
         from django.utils import timezone as _tz
@@ -2246,6 +2946,43 @@ class IncidentViewSet(viewsets.ModelViewSet):
         except Exception:
             logger.warning("committee.persist.failed incident=%s", inc.id)
 
+        # منح صلاحيات مسار اللجنة تلقائيًا (RBAC خفيف):
+        # - جميع المشاركين (الرئيس/الأعضاء/المقرر) → incident_committee_view
+        # - الرئيس والمقرر → incident_committee_decide
+        try:
+            from django.contrib.auth.models import Permission
+
+            def _grant(u, codename: str):
+                try:
+                    perm = Permission.objects.get(codename=codename)
+                    u.user_permissions.add(perm)
+                except Exception:
+                    # في بعض البيئات قد يختلف ContentType أو لم تُنشأ الأذونات بعد
+                    pass
+
+            involved_ids = set([chair_id] + member_ids + ([recorder_id] if recorder_id else []))
+            for uid in involved_ids:
+                try:
+                    uu = users_map.get(uid)
+                    if not uu:
+                        continue
+                    _grant(uu, "incident_committee_view")
+                except Exception:
+                    pass
+            # رئيس + مقرر يملكان حق اعتماد قرار اللجنة
+            for uid in [chair_id, recorder_id]:
+                if not uid:
+                    continue
+                try:
+                    uu = users_map.get(uid)
+                    if not uu:
+                        continue
+                    _grant(uu, "incident_committee_decide")
+                except Exception:
+                    pass
+        except Exception:
+            logger.warning("committee.perms.grant.failed incident=%s", inc.id)
+
         # Audit log
         try:
             IncidentAuditLog.objects.create(
@@ -2260,6 +2997,10 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     "chair_id": chair_id,
                     "member_ids": member_ids,
                     "recorder_id": recorder_id,
+                    "granted_perms": {
+                        "view": list(set([chair_id] + member_ids + ([recorder_id] if recorder_id else []))),
+                        "decide": [x for x in [chair_id, recorder_id] if x],
+                    },
                 },
             )
         except Exception:
@@ -2367,6 +3108,39 @@ class IncidentViewSet(viewsets.ModelViewSet):
             )
         except Exception:
             logger.warning("incident.audit.failed action=committee_decision incident=%s", inc.id)
+
+        # إرسال القرار إلى رئيس اللجنة وأعضائها لاتخاذ القرار (تسجيل إشعار بسيط عبر سجل التدقيق)
+        try:
+            panel = getattr(inc, "committee_panel", None) or {}
+            chair_id = panel.get("chair_id")
+            member_ids = list(panel.get("member_ids") or [])
+            recorder_id = panel.get("recorder_id")
+            recipients = []
+            # أرسل إلى الرئيس + الأعضاء فقط (استثناء المقرر إن كان منفذ الطلب)
+            for uid in ([chair_id] if chair_id else []) + member_ids:
+                try:
+                    if uid and int(uid) != int(getattr(user, "id", 0)):
+                        recipients.append(int(uid))
+                except Exception:
+                    continue
+            if recipients:
+                IncidentAuditLog.objects.create(
+                    incident=inc,
+                    action="notify",
+                    actor=user,
+                    from_status=inc.status,
+                    to_status=inc.status,
+                    note="إشعار اللجنة بقرار المقرّر",
+                    meta={
+                        "action": "notify_committee_panel",
+                        "reason": "committee_decision_recorded",
+                        "decision": decision,
+                        "notified_to": recipients,
+                        "excluded_recorder": bool(recorder_id == getattr(user, "id", None)),
+                    },
+                )
+        except Exception:
+            logger.warning("incident.notify.committee.failed incident=%s", inc.id)
 
         # إذا تم الإغلاق الآن، أضف سجل إغلاق منفصل لتحسين وضوح الأثر
         if decision == "approve" and close_now_flag:

@@ -139,9 +139,23 @@ const schoolNameSrc = `/assets/img/school_name.png?v=${SCHOOL_ASSETS_VERSION}`;
 const auth = useAuthStore();
 const hasRole = (r: string) => auth.roles.includes(r);
 const isSuper = computed(() => !!auth.profile?.is_superuser);
-const isTeacher = computed(() => auth.roles.includes("teacher"));
-// Backward-compat flag used in templates; treat any user with 'teacher' role as assigned teacher by default.
-const isAssignedTeacher = computed(() => auth.roles.includes("teacher"));
+const isTeacher = computed(() => {
+  const roles = auth.profile?.roles || auth.roles || [];
+  return (
+    roles.includes("teacher") ||
+    roles.includes("subject_coordinator") ||
+    !!auth.profile?.hasTeachingAssignments
+  );
+});
+// Backward-compat flag used in templates; treat coordinator and users with teaching assignments as well.
+const isAssignedTeacher = computed(() => {
+  const roles = auth.profile?.roles || auth.roles || [];
+  return (
+    roles.includes("teacher") ||
+    roles.includes("subject_coordinator") ||
+    !!auth.profile?.hasTeachingAssignments
+  );
+});
 const isHome = computed(() => route.name === "home");
 const isLogin = computed(() => route.name === "login");
 const hideSchoolName = computed(() => route.path?.startsWith("/supervisor"));

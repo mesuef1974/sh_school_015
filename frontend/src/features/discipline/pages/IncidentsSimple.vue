@@ -38,13 +38,15 @@
                 <th>الطالب</th>
                 <th class="text-center">وقائع الطالب</th>
                 <th>مسجل الواقعة</th>
-                <th>درجة المخالقة</th>
+                <th>درجة المخالفة</th>
                 <th>الحالة</th>
+                <th class="text-center">الإجراءات</th>
+                <th class="text-center">العقوبات</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!loading && items.length === 0 && !error">
-                <td colspan="9" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
+                <td colspan="11" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
               </tr>
               <tr v-for="it in displayedItems" :key="it.id">
                 <td>{{ fmtDate(it.occurred_at) }}</td>
@@ -69,9 +71,33 @@
                   <span v-else>—</span>
                 </td>
                 <td>{{ it.reporter_name || '—' }}</td>
-                <td><span class="badge bg-secondary">{{ it.severity ?? '—' }}</span></td>
+                <td>
+                  <span class="badge" :class="sevClass(it.severity)" :title="'الشدة'">
+                    {{ it.severity ?? '—' }}
+                  </span>
+                </td>
                 <td>
                   <span class="badge" :class="badgeFor(it.status)">{{ statusAr(it.status) }}</span>
+                </td>
+                <td class="text-center">
+                  <button
+                    class="btn btn-sm btn-light border"
+                    :disabled="(it.actions_count||0) === 0"
+                    :title="actionsTitle(it)"
+                    @click="openDetails(it, 'actions')"
+                  >
+                    <span class="badge" :class="(it.actions_count||0)>0? 'bg-success' : 'bg-secondary'">{{ ((it.actions_count ?? (it.actions_applied?.length ?? 0)) ?? 0) }}</span>
+                  </button>
+                </td>
+                <td class="text-center">
+                  <button
+                    class="btn btn-sm btn-light border"
+                    :disabled="(it.sanctions_count||0) === 0"
+                    :title="sanctionsTitle(it)"
+                    @click="openDetails(it, 'sanctions')"
+                  >
+                    <span class="badge" :class="(it.sanctions_count||0)>0? 'bg-danger' : 'bg-secondary'">{{ ((it.sanctions_count ?? (it.sanctions_applied?.length ?? 0)) ?? 0) }}</span>
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -86,6 +112,34 @@
           <div>
             عدد السجلات: {{ items.length }}
             <span class="ms-2">حجم الصفحة: {{ pageSize }}</span>
+          </div>
+        </div>
+      </div>
+      <!-- تفاصيل الإجراءات/العقوبات -->
+      <div v-if="details.visible" class="modal-backdrop" @click.self="closeDetails" aria-modal="true" role="dialog">
+        <div class="modal-card">
+          <div class="modal-header d-flex align-items-center">
+            <div class="fw-bold">
+              {{ details.kind==='actions' ? 'الإجراءات المطبقة' : 'العقوبات المسجلة' }}
+            </div>
+            <button class="btn btn-sm btn-outline-secondary ms-auto" @click="closeDetails" aria-label="إغلاق">إغلاق</button>
+          </div>
+          <div class="modal-body">
+            <template v-if="currentList.length">
+              <ul class="list-group list-group-flush">
+                <li v-for="(x,idx) in currentList" :key="idx" class="list-group-item d-flex align-items-start gap-2">
+                  <span class="badge" :class="details.kind==='actions' ? 'bg-success' : 'bg-danger'">{{ idx+1 }}</span>
+                  <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ displayName(x) }}</div>
+                    <div class="small text-muted">
+                      <span v-if="displayAt(x)">بتاريخ: {{ displayAt(x) }}</span>
+                      <span v-if="x.note"> · {{ x.note }}</span>
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </template>
+            <div v-else class="text-muted">لا توجد عناصر للعرض.</div>
           </div>
         </div>
       </div>
@@ -124,6 +178,24 @@ function badgeFor(st: string){ return st==='closed'?'bg-secondary':(st==='under_
 function statusAr(st: string){ return st==='closed'?'مغلقة':(st==='under_review'?'قيد المراجعة':'مسودة'); }
 function fmtTime(s?: string){ if(!s) return '—'; try{ const d=new Date(s); const hh=String(d.getHours()).padStart(2,'0'); const mm=String(d.getMinutes()).padStart(2,'0'); return `${hh}:${mm}`; }catch{ return ''; } }
 
+// Consistent severity coloring across the app
+function sevClass(sev?: number){
+  const s = Number(sev||1);
+  return s>=4? 'bg-danger': s===3? 'bg-warning text-dark': s===2? 'bg-info text-dark': 'bg-success';
+}
+
+// Tooltip titles for counts
+function actionsTitle(it:any){
+  // Avoid mixing nullish coalescing with logical OR — use nullish only
+  const n = Number((it?.actions_count ?? (it?.actions_applied?.length ?? 0)) ?? 0);
+  return n>0? `عدد الإجراءات المسجلة: ${n}` : 'لا إجراءات مسجلة';
+}
+function sanctionsTitle(it:any){
+  // Avoid mixing nullish coalescing with logical OR — use nullish only
+  const n = Number((it?.sanctions_count ?? (it?.sanctions_applied?.length ?? 0)) ?? 0);
+  return n>0? `عدد العقوبات المسجلة: ${n}` : 'لا عقوبات مسجلة';
+}
+
 // Arabic plural label for "violations"
 function arCountLabel(n: number){
   const x = Number(n||0);
@@ -147,6 +219,19 @@ const displayedItems = computed(() => {
   }
   return out;
 });
+
+// Modal state for showing details
+const details = ref<{ visible: boolean; kind: 'actions'|'sanctions'; item: any|null }>({ visible: false, kind: 'actions', item: null });
+const currentList = computed<any[]>(()=>{
+  const it:any = details.value.item || {};
+  return details.value.kind==='actions' ? (it.actions_applied||[]) : (it.sanctions_applied||[]);
+});
+function openDetails(item:any, kind:'actions'|'sanctions'){
+  details.value = { visible: true, kind, item };
+}
+function closeDetails(){ details.value.visible = false; details.value.item = null as any; }
+function displayAt(x:any){ try{ const s = x?.at || x?.date || x?.timestamp; if(!s) return ''; const d=new Date(s); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` } catch { return ''; } }
+function displayName(x:any){ return (x?.name || x?.action || x?.title || '—'); }
 
 async function reload(){
   loading.value = true; error.value=''; items.value=[];

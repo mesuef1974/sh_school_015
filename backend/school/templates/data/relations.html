@@ -24,6 +24,13 @@
       <iconify-icon icon="solar:refresh-bold-duotone" width="18"></iconify-icon>
       <span class="d-none d-md-inline ms-1">تحديث</span>
     </button>
+    <div class="d-flex align-items-center gap-2 ms-2" style="white-space: nowrap;">
+      <div class="form-check form-switch m-0" title="تحديث تلقائي كل دقيقة">
+        <input class="form-check-input" type="checkbox" id="auto-refresh-toggle" />
+        <label class="form-check-label small" for="auto-refresh-toggle">تحديث تلقائي</label>
+      </div>
+      <small id="last-updated" class="text-muted d-none d-md-inline" title="آخر وقت تم فيه التحديث">—</small>
+    </div>
     <div class="btn-group">
       <button id="btn-download-svg" class="btn btn-outline-secondary" type="button" data-bs-toggle="tooltip" title="تنزيل SVG">
         <iconify-icon icon="solar:file-text-bold-duotone" width="18"></iconify-icon>
@@ -674,15 +681,33 @@
   // Live Refresh from /api/data/relations
   (function(){
     const btn = document.getElementById('btn-refresh-live');
-    if (!btn) return;
+    const toggle = document.getElementById('auto-refresh-toggle');
+    const lastUpdatedEl = document.getElementById('last-updated');
+    const API_URL = '/api/data/relations';
     let loading = false;
-    btn.addEventListener('click', async () => {
-      if (loading) return;
-      loading = true; btn.disabled = true;
-      const original = btn.innerHTML;
-      btn.innerHTML = '<iconify-icon icon="solar:refresh-bold-duotone" width="18" class="spin"></iconify-icon> <span class="ms-1 d-none d-md-inline">جاري التحديث...</span>';
+    let intervalId = null;
+
+    function stampUpdated(){
+      if (!lastUpdatedEl) return;
+      const now = new Date();
       try {
-        const res = await fetch('/api/data/relations', { credentials: 'include' });
+        lastUpdatedEl.textContent = 'آخر تحديث: ' + now.toLocaleTimeString('ar', { hour12: false });
+      } catch {
+        lastUpdatedEl.textContent = 'آخر تحديث: ' + now.toLocaleTimeString();
+      }
+    }
+
+    async function refreshLive(silent=false){
+      if (loading) return false;
+      loading = true;
+      let original = '';
+      if (!silent && btn){
+        btn.disabled = true;
+        original = btn.innerHTML;
+        btn.innerHTML = '<iconify-icon icon="solar:refresh-bold-duotone" width="18" class="spin"></iconify-icon> <span class="ms-1 d-none d-md-inline">جاري التحديث...</span>';
+      }
+      try {
+        const res = await fetch(API_URL, { credentials: 'include' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         const data = await res.json();
         // Update counters
@@ -727,12 +752,54 @@
           container?.querySelectorAll('svg').forEach(el => el.remove());
           if (window.mermaid) { await window.mermaid.init(undefined, pre); }
         }
+        stampUpdated();
+        return true;
       } catch(e) {
-        alert('تعذّر التحديث الحي: ' + (e?.message || e));
+        if (!silent) alert('تعذّر التحديث الحي: ' + (e?.message || e));
+        return false;
       } finally {
-        btn.innerHTML = original; btn.disabled = false; loading = false;
+        if (!silent && btn){ btn.innerHTML = original; btn.disabled = false; }
+        loading = false;
       }
+    }
+
+    // Button trigger
+    if (btn){ btn.addEventListener('click', () => refreshLive(false)); }
+
+    // Auto-refresh toggle + interval (default 60s)
+    const LS_KEY = 'relations_auto_refresh_enabled';
+    const DEFAULT_INTERVAL_MS = 60000;
+
+    function startAuto(){
+      if (intervalId) return;
+      intervalId = setInterval(() => {
+        if (document.visibilityState === 'visible') {
+          refreshLive(true);
+        }
+      }, DEFAULT_INTERVAL_MS);
+    }
+    function stopAuto(){ if (intervalId){ clearInterval(intervalId); intervalId = null; } }
+
+    // Restore preference
+    const saved = localStorage.getItem(LS_KEY);
+    const shouldEnable = saved === null ? true : saved === '1';
+    if (toggle){ toggle.checked = shouldEnable; }
+    if (shouldEnable) { startAuto(); }
+
+    // React to visibility change (pause when hidden)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') { stopAuto(); }
+      else if (toggle?.checked) { startAuto(); }
     });
+
+    // Toggle handler
+    toggle?.addEventListener('change', () => {
+      if (toggle.checked) { localStorage.setItem(LS_KEY, '1'); startAuto(); refreshLive(true); }
+      else { localStorage.setItem(LS_KEY, '0'); stopAuto(); }
+    });
+
+    // Initial silent refresh once on load to ensure freshness
+    refreshLive(true);
   })();
 })();
 </script>

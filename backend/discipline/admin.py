@@ -127,6 +127,36 @@ class ViolationAdmin(admin.ModelAdmin):
     search_fields = ("code", "category", "description")
     autocomplete_fields = ("level",)
 
+    def get_queryset(self, request):  # pragma: no cover - admin UI only
+        # تجنّب اختيار عمود policy غير الموجود في بعض قواعد البيانات القديمة
+        qs = super().get_queryset(request)
+        try:
+            return qs.select_related("level").defer("policy")
+        except Exception:
+            return qs
+
+    def get_form(self, request, obj=None, **kwargs):  # pragma: no cover - admin UI only
+        """أقصِ حقل policy من نموذج التعديل لتفادي محاولة جلبه من قاعدة بيانات قديمة.
+
+        في قواعد بيانات لا تحتوي على عمود policy فعليًا، محاولة بناء النموذج ستجبر ORM
+        على جلب قيمة الحقل من القاعدة (SELECT policy) مما يؤدي لخطأ. نستبعد الحقل هنا.
+        """
+        try:
+            excl = set(kwargs.get("exclude") or [])
+            excl.add("policy")
+            kwargs["exclude"] = tuple(excl)
+        except Exception:
+            kwargs["exclude"] = ("policy",)
+        return super().get_form(request, obj, **kwargs)
+
+    def get_search_results(self, request, queryset, search_term):  # pragma: no cover - admin UI only
+        qs, use_distinct = super().get_search_results(request, queryset, search_term)
+        try:
+            qs = qs.defer("policy")
+        except Exception:
+            pass
+        return qs, use_distinct
+
 
 @admin.register(Incident)
 class IncidentAdmin(admin.ModelAdmin):
@@ -205,6 +235,29 @@ class IncidentAdmin(admin.ModelAdmin):
 
     committee_panel_pretty.short_description = "تشكيلة اللجنة (JSON)"
 
+    def get_queryset(self, request):  # pragma: no cover - admin UI only
+        # احمل العلاقات لتقليل الاستعلامات، وتجاوز policy في Violation لتفادي أخطاء الأعمدة المفقودة
+        qs = super().get_queryset(request)
+        try:
+            return (
+                qs.select_related("violation", "student", "reporter")
+                .defer("violation__policy")
+                .order_by("-occurred_at", "-created_at")
+            )
+        except Exception:
+            return qs
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):  # pragma: no cover - admin UI only
+        """استخدم queryset آمن لحقل المخالفة لتفادي SELECT على policy أثناء تحميل الخيارات."""
+        if db_field.name == "violation":
+            try:
+                kwargs["queryset"] = Violation.objects.only(
+                    "id", "code", "category", "severity", "requires_committee"
+                ).defer("policy")
+            except Exception:
+                pass
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 class IncidentAuditInline(admin.TabularInline):
     model = IncidentAuditLog
@@ -231,6 +284,13 @@ class IncidentAuditLogAdmin(admin.ModelAdmin):
     search_fields = ("incident__id", "actor__username", "actor__staff__full_name", "note")
     autocomplete_fields = ("incident", "actor")
 
+    def get_queryset(self, request):  # pragma: no cover - admin UI only
+        qs = super().get_queryset(request)
+        try:
+            return qs.select_related("incident", "incident__violation", "actor").defer("incident__violation__policy")
+        except Exception:
+            return qs
+
 
 @admin.register(IncidentCommittee)
 class IncidentCommitteeAdmin(admin.ModelAdmin):
@@ -244,6 +304,15 @@ class IncidentCommitteeAdmin(admin.ModelAdmin):
     )
     autocomplete_fields = ("incident", "chair", "recorder", "scheduled_by")
 
+    def get_queryset(self, request):  # pragma: no cover - admin UI only
+        qs = super().get_queryset(request)
+        try:
+            return qs.select_related("incident", "incident__violation", "chair", "recorder", "scheduled_by").defer(
+                "incident__violation__policy"
+            )
+        except Exception:
+            return qs
+
 
 @admin.register(IncidentCommitteeMember)
 class IncidentCommitteeMemberAdmin(admin.ModelAdmin):
@@ -254,6 +323,18 @@ class IncidentCommitteeMemberAdmin(admin.ModelAdmin):
         "user__staff__full_name",
     )
     autocomplete_fields = ("committee", "user")
+
+    def get_queryset(self, request):  # pragma: no cover - admin UI only
+        qs = super().get_queryset(request)
+        try:
+            return qs.select_related(
+                "committee",
+                "committee__incident",
+                "committee__incident__violation",
+                "user",
+            ).defer("committee__incident__violation__policy")
+        except Exception:
+            return qs
 
 
 @admin.register(StandingCommittee)

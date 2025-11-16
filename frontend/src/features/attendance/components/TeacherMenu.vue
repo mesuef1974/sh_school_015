@@ -48,9 +48,14 @@ import { useAuthStore } from "../../../app/stores/auth";
 
 const route = useRoute();
 const auth = useAuthStore();
-const canSeeTeacher = computed(
-  () => (auth.profile?.roles || []).includes("teacher") || !!auth.profile?.is_superuser
-);
+const canSeeTeacher = computed(() => {
+  const roles = auth.profile?.roles || [];
+  const isTeacher = roles.includes("teacher");
+  const isCoordinator = roles.includes("subject_coordinator");
+  const byAssignment = !!auth.profile?.hasTeachingAssignments;
+  const isSuper = !!auth.profile?.is_superuser;
+  return isTeacher || isCoordinator || byAssignment || isSuper;
+});
 
 function activeClass(prefix: string) {
   // Mark active if current path starts with the target prefix

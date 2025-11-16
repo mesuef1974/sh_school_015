@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>خطة المدرسة الذكية - النسخة النهائية الاحترافية</title>
+<style>
+    body {
+        font-family: 'Tahoma', sans-serif;
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(-45deg, #f9f9f9, #e6f7e6, #ffffff, #d0f0d0);
+        background-size: 400% 400%;
+        animation: gradientMove 15s ease infinite;
+        color: #333;
+    }
+    @keyframes gradientMove {
+        0% {background-position: 0% 50%;}
+        50% {background-position: 100% 50%;}
+        100% {background-position: 0% 50%;}
+    }
+    header {
+        background: linear-gradient(90deg, #800000, #a52a2a);
+        color: white;
+        text-align: center;
+        padding: 50px 20px;
+    }
+    header h1 {margin: 0; font-size: 3em;}
+    header p {font-size: 1.3em; margin-top: 10px;}
+    nav {
+        background-color: #333;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 15px;
+        padding: 10px;
+    }
+    nav a {
+        color: white;
+        text-decoration: none;
+        font-weight: bold;
+        padding: 8px 12px;
+        transition: background 0.3s;
+    }
+    nav a:hover {background-color: #800000; border-radius: 5px;}
+    section {padding: 50px 20px; max-width: 1200px; margin: auto;}
+    h2 {color: #800000; text-align: center; margin-bottom: 20px;}
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+    }
+    .card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        transition: transform 0.3s;
+        position: relative;
+    }
+    .card:hover {transform: scale(1.05);}
+    .timeline-visual {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        margin-top: 30px;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+    .timeline-step {
+        background: #fff;
+        padding: 15px;
+        border-radius: 50%;
+        width: 120px;
+        height: 120px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        font-weight: bold;
+        color: #800000;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+    .timeline-step:hover {background: #f0f0f0;}
+    .download-section {
+        text-align: center;
+        margin-top: 40px;
+    }
+    .download-btn {
+        background-color: #800000;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1em;
+    }
+    footer {
+        background-color: #333;
+        color: white;
+        text-align: center;
+        padding: 20px;
+        margin-top: 40px;
+    }
+</style>
+</head>
+<body>
+<header>
+    <h1>خطة المدرسة الذكية</h1>
+    <p>وفقًا لأعلى المعايير الدولية وأفضل الممارسات العالمية</p>
+</header>
+<nav>
+    <a href="#standards">المعايير الدولية</a>
+    <a href="#best">أفضل الممارسات</a>
+    <a href="#roadmap">خارطة الطريق</a>
+    <a href="#software">البرمجيات</a>
+    <a href="#libraries">المكتبات</a>
+    <a href="#infra">البنية التحتية</a>
+    <a href="#security">الأمان</a>
+    <a href="#training">التدريب</a>
+</nav>
+<section id="standards">
+    <h2>المعايير الدولية بالتفصيل</h2>
+    <div class="grid">
+        <div class="card"><strong>ISTE Standards:</strong><br>تمكين المتعلم، المواطنة الرقمية، التعاون العالمي، التصميم الإبداعي، بناء المعرفة.</div>
+        <div class="card"><strong>WCAG:</strong><br>قابلية الإدراك، التشغيل، الفهم، المتانة. مستويات الامتثال: A، AA، AAA.</div>
+        <div class="card"><strong>GDPR:</strong><br>حماية الخصوصية، تشفير البيانات، إدارة الهوية، الامتثال للقوانين.</div>
+        <div class="card"><strong>UNESCO AI:</strong><br>دمج الذكاء الاصطناعي بشكل أخلاقي، الشفافية، تخصيص المحتوى، التقييم التكيفي.</div>
+    </div>
+</section>
+<section id="best">
+    <h2>أفضل الممارسات العالمية</h2>
+    <div class="grid">
+        <div class="card">واجهة سهلة الاستخدام ومتجاوبة.</div>
+        <div class="card">دعم تسجيل الدخول السريع.</div>
+        <div class="card">إمكانية الوصول (Accessibility).</div>
+        <div class="card">حماية البيانات باستخدام SSL وFirewall.</div>
+        <div class="card">نسخ احتياطي دوري للبيانات.</div>
+        <div class="card">التكامل مع أدوات مثل Microsoft Teams وGoogle Classroom.</div>
+    </div>
+</section>
+<section id="roadmap">
+    <h2>خارطة الطريق الرسومية</h2>
+    <div class="timeline-visual">
+        <div class="timeline-step" onclick="alert('تفاصيل المرحلة الأولى: تجهيز الشبكات والخوادم.')">المرحلة 1</div>
+        <div class="timeline-step" onclick="alert('تفاصيل المرحلة الثانية: تطوير المنصة التعليمية.')">المرحلة 2</div>
+        <div class="timeline-step" onclick="alert('تفاصيل المرحلة الثالثة: دمج الذكاء الاصطناعي.')">المرحلة 3</div>
+        <div class="timeline-step" onclick="alert('تفاصيل المرحلة الرابعة: التدريب والدعم.')">المرحلة 4</div>
+    </div>
+</section>
+<section id="software">
+    <h2>البرمجيات المطلوبة</h2>
+    <div class="grid">
+        <div class="card">Django (Back-end)</div>
+        <div class="card">Vue 3 + Vite (Front-end)</div>
+        <div class="card">PostgreSQL (قاعدة بيانات)</div>
+        <div class="card">Docker + Docker Compose</div>
+    </div>
+</section>
+<section id="libraries">
+    <h2>المكتبات والأدوات</h2>
+    <div class="grid">
+        <div class="card">TailwindCSS أو Bootstrap</div>
+        <div class="card">Animate.css للرسوم المتحركة</div>
+        <div class="card">Font Awesome للأيقونات</div>
+        <div class="card">Chart.js أو ECharts للرسوم البيانية</div>
+    </div>
+</section>
+<section id="infra">
+    <h2>البنية التحتية</h2>
+    <div class="grid">
+        <div class="card">خوادم سحابية (Oracle Cloud / AWS)</div>
+        <div class="card">شبكة Wi-Fi قوية</div>
+        <div class="card">أجهزة حديثة للفصول</div>
+    </div>
+</section>
+<section id="security">
+    <h2>الأمان وحماية البيانات</h2>
+    <div class="grid">
+        <div class="card">SSL Certificates</div>
+        <div class="card">جدار حماية (Firewall)</div>
+        <div class="card">تشفير البيانات في PostgreSQL</div>
+    </div>
+</section>
+<section id="training">
+    <h2>التدريب والدعم</h2>
+    <div class="grid">
+        <div class="card">أدلة PDF بالعربية</div>
+        <div class="card">ورش عمل للمعلمين</div>
+        <div class="card">فيديوهات تعليمية قصيرة</div>
+    </div>
+</section>
+<div class="download-section">
+    <h2>تحميل الأدلة والملفات</h2>
+    <button class="download-btn" onclick="alert('سيتم إضافة روابط التحميل لاحقًا.')">تحميل الملفات</button>
+</div>
+<footer>
+    &copy; 2025 مدرسة الشحانية الإعدادية الثانوية - جميع الحقوق محفوظة
+</footer>
+</body>
+</html>

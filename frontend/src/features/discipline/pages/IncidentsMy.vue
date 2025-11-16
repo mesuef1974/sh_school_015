@@ -58,7 +58,7 @@
               <th>الحالة</th>
               <th>إجراءات/عقوبات</th>
               <th>المُبلّغ</th>
-              <th style="width:160px">عمليات</th>
+              <th style="width:200px">عمليات</th>
             </tr>
           </thead>
           <tbody>
@@ -89,7 +89,10 @@
               </td>
               <td>{{ it.reporter_name || '—' }}</td>
               <td>
-                <button class="btn btn-sm btn-outline-success" v-if="it.status==='open'" :disabled="busyId===it.id" @click="send(it.id)">إرسال للمراجعة</button>
+                <div class="d-flex align-items-center gap-1">
+                  <RouterLink class="btn btn-sm btn-outline-secondary" :to="{ name: 'discipline-incident-card', params: { id: it.id } }" title="فتح بطاقة الواقعة">بطاقة</RouterLink>
+                  <button class="btn btn-sm btn-outline-success" v-if="it.status==='open'" :disabled="busyId===it.id" @click="send(it.id)">إرسال للمراجعة</button>
+                </div>
               </td>
             </tr>
           </tbody>

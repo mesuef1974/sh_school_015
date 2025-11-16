@@ -20,6 +20,10 @@ const routes: RouteRecordRaw[] = [
   { path: "/discipline/violations", name: "discipline-violations", component: () => import("../features/discipline/pages/ViolationsList.vue"), meta: { requiresAuth: true, titleAr: "كتالوج المخالفات" } },
   // لجنة السلوك — لوحة الرئيس
   { path: "/discipline/committee/dashboard", name: "committee-dashboard", component: () => import("../features/discipline/pages/CommitteeDashboard.vue"), meta: { requiresAuth: true, titleAr: "لوحة رئيس لجنة السلوك" } },
+  // لجنة السلوك — لوحة العضو
+  { path: "/discipline/committee/member", name: "committee-member", component: () => import("../features/discipline/pages/CommitteeMember.vue"), meta: { requiresAuth: true, titleAr: "لوحة عضو لجنة السلوك" } },
+  // لجنة السلوك — لوحة المقرر
+  { path: "/discipline/committee/recorder", name: "committee-recorder", component: () => import("../features/discipline/pages/CommitteeRecorder.vue"), meta: { requiresAuth: true, titleAr: "لوحة مقرر لجنة السلوك" } },
   // Backwards-compatible alias from wing tile
   { path: "/wing/incidents", name: "wing-incidents", component: () => import("../features/discipline/pages/KanbanBoard.vue"), meta: { requiresAuth: true, titleAr: "بلاغات الجناح" } },
   {
@@ -236,9 +240,12 @@ router.beforeEach(async (to) => {
       // Additionally, if 'teacher' is required, allow users who have teaching assignments
       const hasRoleMatch = auth.roles.some((r) => required.includes(r));
       const isSuper = !!auth.profile?.is_superuser;
-      const isTeacherByAssignment =
-        required.includes("teacher") && !!auth.profile?.hasTeachingAssignments;
-      const hasAny = hasRoleMatch || isSuper || isTeacherByAssignment;
+      // Treat subject coordinator as a full teacher for routing purposes
+      const isSubjectCoordinator = auth.roles.includes("subject_coordinator");
+      const wantsTeacher = required.includes("teacher");
+      const isTeacherByAssignment = wantsTeacher && !!auth.profile?.hasTeachingAssignments;
+      const isTeacherByCoordinator = wantsTeacher && isSubjectCoordinator;
+      const hasAny = hasRoleMatch || isSuper || isTeacherByAssignment || isTeacherByCoordinator;
       if (!hasAny) {
         // Soft-allow Wing dashboard route to render diagnostic UI even if role mapping is inconsistent.
         // Server-side APIs remain protected, so this does not grant data access.

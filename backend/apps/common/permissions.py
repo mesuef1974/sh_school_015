@@ -117,7 +117,23 @@ class IsInRole(BasePermission):
 
 
 class IsTeacher(IsInRole):
-    roles = ("teacher",)
+    # Treat subject coordinator as a full teacher for access purposes
+    roles = ("teacher", "subject_coordinator")
+
+    def has_permission(self, request, view) -> bool:  # type: ignore[override]
+        # First, apply role-based logic (includes superuser via base class)
+        if super().has_permission(request, view):
+            return True
+        # Backend alignment with frontend: accept users who have teaching assignments
+        try:
+            if TeachingAssignment is not None and Staff is not None:
+                st = Staff.objects.filter(user_id=request.user.id).only("id").first()
+                if st and TeachingAssignment.objects.filter(teacher_id=st.id).exists():
+                    return True
+        except Exception:
+            # Fail-closed to base behavior if lookup fails
+            pass
+        return False
 
 
 class IsWingSupervisor(IsInRole):

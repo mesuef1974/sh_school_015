@@ -31,6 +31,16 @@ class ViolationSerializer(serializers.ModelSerializer):
 
 
 class IncidentSerializer(serializers.ModelSerializer):
+    # ملاحظة تقنية مهمة:
+    # أثناء التحقق من صحة البيانات (validation) يقوم DRF بحل حقل ForeignKey
+    # عبر queryset الحقل. إن كان queryset يسحب كل أعمدة Violation فستحاول
+    # قاعدة البيانات إرجاع العمود الاختياري "policy" غير الموجود في بعض
+    # قواعد البيانات القديمة، ما يؤدي إلى خطأ 500 عند الحفظ.
+    # لذلك نستخدم queryset مُقيَّد بـ only() ويؤجّل policy لتفادي هذا الخطأ.
+    violation = serializers.PrimaryKeyRelatedField(
+        queryset=Violation.objects.only("id", "severity", "requires_committee").defer("policy")
+    )
+
     class Meta:
         model = Incident
         fields = "__all__"
@@ -38,6 +48,9 @@ class IncidentSerializer(serializers.ModelSerializer):
             "reporter",
             "severity",
             "committee_required",
+            # مُسجَّلة تلقائيًا عند جدولة اللجنة عبر endpoint مخصص
+            "committee_scheduled_by",
+            "committee_scheduled_at",
             "submitted_at",
             "reviewed_by",
             "reviewed_at",
@@ -137,6 +150,30 @@ class IncidentSerializer(serializers.ModelSerializer):
             data["closed_by_name"] = c_name
         except Exception:
             data["closed_by_name"] = None
+        # اسم من قام بجدولة اللجنة (إن وُجد)
+        try:
+            scheduler = getattr(instance, "committee_scheduled_by", None)
+            s_name = None
+            if scheduler:
+                try:
+                    from school.models import Staff  # type: ignore
+
+                    s_name = (
+                        Staff.objects.filter(user=scheduler)
+                        .only("full_name")
+                        .values_list("full_name", flat=True)
+                        .first()
+                    ) or None
+                except Exception:
+                    s_name = None
+                if not s_name and hasattr(scheduler, "get_full_name"):
+                    s_name = scheduler.get_full_name() or None
+            data["committee_scheduled_by_name"] = s_name
+            # ممرّر كما هو من النموذج: committee_scheduled_at (قد يكون null)
+            data["committee_scheduled_at"] = getattr(instance, "committee_scheduled_at", None)
+        except Exception:
+            data["committee_scheduled_by_name"] = None
+            data["committee_scheduled_at"] = None
         try:
             viol = getattr(instance, "violation", None)
             code = getattr(viol, "code", None)
@@ -200,6 +237,65 @@ class IncidentSerializer(serializers.ModelSerializer):
             data["level_color"] = color
         except Exception:
             data["level_color"] = "#2e7d32"
+        # Context needed by لجنة السلوك (صفحة العضو): عدد مرات تكرار نفس المخالفة ضمن نافذة زمنية + دلالات نصية
+        try:
+            # نافذة التكرار بحسب الإعدادات العامة أو سياسة المخالفة إن توفرت
+            from django.conf import settings as dj_settings
+
+            window_days = int(getattr(dj_settings, "DISCIPLINE_REPEAT_WINDOW_D", 30))
+            try:
+                vpol = getattr(getattr(instance, "violation", None), "policy", None) or {}
+                if isinstance(vpol, dict) and vpol.get("window_days") is not None:
+                    window_days = int(vpol.get("window_days") or window_days)
+            except Exception:
+                pass
+            from django.utils.timezone import now
+            from datetime import timedelta
+
+            repeat_qs = Incident.objects.filter(
+                student_id=getattr(instance, "student_id", None),
+                violation_id=getattr(instance, "violation_id", None),
+                occurred_at__gte=now() - timedelta(days=window_days),
+            ).exclude(id=getattr(instance, "id", None))
+            data["repeat_count_in_window"] = int(repeat_qs.count())
+            data["repeat_window_days"] = int(window_days)
+        except Exception:
+            data["repeat_count_in_window"] = 0
+            data["repeat_window_days"] = int(30)
+        # دلالات نصية مساعدة للواجهة
+        try:
+            sev = int(getattr(instance, "severity", 1) or 1)
+            data["severity_label"] = {
+                1: "مستوى 1 (بسيطة)",
+                2: "مستوى 2 (متوسطة)",
+                3: "مستوى 3 (عالية)",
+                4: "مستوى 4 (جسيمة)",
+            }.get(sev, f"مستوى {sev}")
+        except Exception:
+            data["severity_label"] = None
+        # إظهار ملخص "الإجراء/العقوبة المقترحة" حتى مع التمثيل الأساسي (ليس فقط الكامل)
+        # لاحتياج الواجهة لطباعته ضمن خيار A دون طلب full=1
+        try:
+            acts = list(getattr(instance, "actions_applied", None) or [])
+            sancs = list(getattr(instance, "sanctions_applied", None) or [])
+            data["proposed_actions"] = [str((a or {}).get("name") or "").strip() for a in acts if (a or {}).get("name")]
+            data["proposed_sanctions"] = [
+                str((s or {}).get("name") or "").strip() for s in sancs if (s or {}).get("name")
+            ]
+            pa = ", ".join(data["proposed_actions"]) if data.get("proposed_actions") else ""
+            ps = ", ".join(data["proposed_sanctions"]) if data.get("proposed_sanctions") else ""
+            if pa and ps:
+                data["proposed_summary"] = f"إجراءات: {pa} • عقوبات: {ps}"
+            elif pa:
+                data["proposed_summary"] = f"إجراءات: {pa}"
+            elif ps:
+                data["proposed_summary"] = f"عقوبات: {ps}"
+            else:
+                data["proposed_summary"] = None
+        except Exception:
+            data["proposed_actions"] = []
+            data["proposed_sanctions"] = []
+            data["proposed_summary"] = None
         return data
 
 
@@ -305,6 +401,29 @@ class IncidentFullSerializer(IncidentSerializer):
             base["committee_panel_obj"] = self.get_committee_panel_obj(instance)
         except Exception:
             base["committee_panel_obj"] = None
+        # ملخص «الإجراء/القرار المقترح من المراجِع/المقرِّرة» لإظهاره لأعضاء اللجنة
+        try:
+            acts = list(getattr(instance, "actions_applied", None) or [])
+            sancs = list(getattr(instance, "sanctions_applied", None) or [])
+            base["proposed_actions"] = [str((a or {}).get("name") or "").strip() for a in acts if (a or {}).get("name")]
+            base["proposed_sanctions"] = [
+                str((s or {}).get("name") or "").strip() for s in sancs if (s or {}).get("name")
+            ]
+            # اصنع ملخصًا قصيرًا قابلًا للعرض
+            pa = ", ".join(base["proposed_actions"]) if base.get("proposed_actions") else ""
+            ps = ", ".join(base["proposed_sanctions"]) if base.get("proposed_sanctions") else ""
+            if pa and ps:
+                base["proposed_summary"] = f"إجراءات: {pa} • عقوبات: {ps}"
+            elif pa:
+                base["proposed_summary"] = f"إجراءات: {pa}"
+            elif ps:
+                base["proposed_summary"] = f"عقوبات: {ps}"
+            else:
+                base["proposed_summary"] = None
+        except Exception:
+            base["proposed_actions"] = []
+            base["proposed_sanctions"] = []
+            base["proposed_summary"] = None
         # أضف كائنات المراجع والمغلق مع اسم الموظف إن وُجد
         try:
             reviewer = getattr(instance, "reviewed_by", None)

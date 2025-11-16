@@ -20,6 +20,12 @@ export async function getIncident(id: string) {
   return res.data;
 }
 
+// تمثيل كامل للواقعة (يتضمن Violation.policy وحقولًا موسّعة)
+export async function getIncidentFull(id: string, params: any = {}) {
+  const res = await api.get(`/v1/discipline/incidents/${id}/`, { params: { full: '1', ...(params || {}) } });
+  return res.data;
+}
+
 export async function createIncident(payload: any) {
   const res = await api.post("/v1/discipline/incidents/", payload);
   return res.data;
@@ -127,10 +133,55 @@ export async function getCommitteeDashboard(params: { days?: 7 | 30; from?: stri
     } | null;
     queues: {
       need_scheduling: Array<{ id: string; occurred_at?: string; created_at?: string; student_name?: string; violation_code?: string; status: string; severity: number }>;
-      scheduled_pending_decision: Array<{ id: string; occurred_at?: string; created_at?: string; student_name?: string; violation_code?: string; status: string; severity: number }>;
+      scheduled_pending_decision: Array<{ id: string; occurred_at?: string; created_at?: string; student_name?: string; violation_code?: string; status: string; severity: number; proposed_summary?: string|null }>;
     };
     recent_decisions: Array<{ incident_id: string; decision?: string; at?: string; actor?: string; note?: string }>;
+    access_caps?: {
+      can_view: boolean;
+      can_schedule: boolean;
+      can_decide: boolean;
+      is_staff: boolean;
+      is_superuser: boolean;
+    };
   };
+}
+
+// التصويت في اللجنة
+export async function postCommitteeVote(incidentId: string, payload: { decision: 'approve'|'reject'|'return'; note?: string }) {
+  const res = await api.post(`/v1/discipline/incidents/${incidentId}/committee-vote/`, payload);
+  return res.data as { ok: boolean };
+}
+
+export async function getCommitteeVotes(incidentId: string) {
+  const res = await api.get(`/v1/discipline/incidents/${incidentId}/committee-votes/`);
+  return res.data as {
+    votes: Array<{ voter_id: number; decision: 'approve'|'reject'|'return' }>
+    summary: {
+      total_voters: number; participated: number; quorum: number; quorum_met: boolean;
+      counts: Record<'approve'|'reject'|'return', number>; majority: 'approve'|'reject'|'return'|null;
+      chair_vote?: 'approve'|'reject'|'return'|null;
+    }
+  };
+}
+
+export async function getMyCommittee() {
+  const res = await api.get(`/v1/discipline/incidents/my-committee/`);
+  return res.data as any[];
+}
+
+// قدرات الوصول لمسار اللجنة (استخدامها لإظهار/إخفاء البطاقات حسب الصلاحيات)
+export async function getCommitteeCaps() {
+  const res = await api.get(`/v1/discipline/incidents/committee-caps/`);
+  return res.data as { access_caps: {
+    can_view: boolean;
+    can_schedule: boolean;
+    can_decide: boolean;
+    is_staff: boolean;
+    is_superuser: boolean;
+    is_standing_chair?: boolean;
+    is_standing_recorder?: boolean;
+    is_standing_member?: boolean;
+  }};
 }
 
 export async function countIncidentsByStudent(params: { student?: string[]; student_ids?: string }) {
@@ -172,4 +223,31 @@ export async function getCommitteeSuggest(
     role_powers?: Record<string, string[]>;
     candidates?: Array<{ id: number; username?: string; full_name?: string; staff_full_name?: string }>;
   };
+}
+
+// جدولة لجنة الواقعة:
+// - يمكن إرسال الطلب بدون Body وسيستخدم الخادم «اللجنة الدائمة» تلقائيًا عند عدم تزويد تشكيل كامل.
+// - body (اختياري) يدعم chair_id, member_ids[], recorder_id لاستبدال/استكمال التشكيل الافتراضي.
+// - يمكن تمرير use_standing=1 كـ query لاستخدام «اللجنة الدائمة» صراحةً.
+export async function scheduleCommittee(
+  incidentId: string,
+  payload: { chair_id?: number; member_ids?: number[]; recorder_id?: number | null; use_standing?: boolean } = {}
+) {
+  const params: any = {};
+  if (typeof payload.use_standing !== 'undefined') {
+    params.use_standing = payload.use_standing ? '1' : '0';
+  }
+  const body: any = { ...payload };
+  delete body.use_standing;
+  const res = await api.post(`/v1/discipline/incidents/${incidentId}/schedule-committee/`, body, { params });
+  return res.data;
+}
+
+// قرار اللجنة مع دمج اختياري للإجراءات/العقوبات وإغلاق فوري عند الموافقة
+export async function postCommitteeDecision(
+  incidentId: string,
+  payload: { decision: 'approve'|'reject'|'return'; note?: string; actions?: any[]; sanctions?: any[]; close_now?: boolean }
+) {
+  const res = await api.post(`/v1/discipline/incidents/${incidentId}/committee-decision/`, payload);
+  return res.data;
 }

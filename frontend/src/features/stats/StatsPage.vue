@@ -284,7 +284,14 @@ echarts.use([
 
 const auth = useAuthStore();
 const isSuper = computed(() => !!auth.profile?.is_superuser);
-const isTeacher = computed(() => (auth.profile?.roles || []).includes("teacher"));
+const isTeacher = computed(() => {
+  const roles = auth.profile?.roles || [];
+  return (
+    roles.includes("teacher") ||
+    roles.includes("subject_coordinator") ||
+    !!auth.profile?.hasTeachingAssignments
+  );
+});
 
 const dateStr = ref(new Date().toISOString().slice(0, 10));
 const loading = ref(false);

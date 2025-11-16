@@ -121,7 +121,7 @@ import { useRouter } from "vue-router";
 import IconTile from "../widgets/IconTile.vue";
 import DsButton from "../components/ui/DsButton.vue";
 import { tiles } from "./icon-tiles.config";
-import { getIncidentsVisible } from "../features/discipline/api";
+import { getIncidentsVisible, getCommitteeCaps } from "../features/discipline/api";
 
 const router = useRouter();
 const auth = useAuthStore();
@@ -152,12 +152,47 @@ function tileEnter(index: number) {
   } as any;
 }
 
-// Visible tiles based on roles/permissions
+// Visible tiles based on roles/permissions + committee caps (كرسي/عضو/مقرر)
 const roleSet = computed(() => new Set(auth.profile?.roles || []));
 const permSet = computed(() => new Set(auth.profile?.permissions || []));
+const committeeCaps = ref<{
+  is_standing_chair?: boolean;
+  is_standing_member?: boolean;
+  is_standing_recorder?: boolean;
+  is_superuser?: boolean;
+} | null>(null);
+
 const canSee = (t: any) => {
-  const okRole = !t.roles?.length || t.roles.some((r: string) => roleSet.value.has(r));
-  const okPerm = !t.permissions?.length || t.permissions.some((p: string) => permSet.value.has(p));
+  // قواعد خاصة ببطاقات مسار اللجنة لضمان عدم اختلاط الأدوار:
+  const isChair = !!committeeCaps.value?.is_standing_chair;
+  const isMember = !!committeeCaps.value?.is_standing_member;
+  const isRecorder = !!committeeCaps.value?.is_standing_recorder;
+  const superUser = !!auth.profile?.is_superuser;
+
+  if (t.id === 'committee_dashboard') {
+    // تظهر للرئيس الدائم، أو للأدوار الإدارية العليا المحددة، أو للسوبر يوزر
+    const seniorRole = roleSet.value.has('principal') || roleSet.value.has('vice_principal') || roleSet.value.has('discipline_l2') || roleSet.value.has('wing_supervisor');
+    return isChair || seniorRole || superUser;
+  }
+  if (t.id === 'committee_member') {
+    // تظهر فقط للعضو الدائم، وتُخفى للرئيس/المقرر حتى لو كانوا أعضاء أيضًا
+    return isMember && !isChair && !isRecorder;
+  }
+  if (t.id === 'committee_recorder') {
+    return isRecorder;
+  }
+
+  const hasRoles = Array.isArray(t.roles) && t.roles.length > 0;
+  const hasPerms = Array.isArray(t.permissions) && t.permissions.length > 0;
+  // Instructor equivalence: المنسق يعتبر معلماً كاملاً + من لديه جداول تدريس
+  const wantsTeacher = hasRoles && t.roles.includes('teacher');
+  const teacherEquivalent = roleSet.value.has('teacher') || roleSet.value.has('subject_coordinator') || !!auth.profile?.hasTeachingAssignments;
+  const okRoleBase = !hasRoles || t.roles.some((r: string) => roleSet.value.has(r));
+  const okRole = wantsTeacher ? teacherEquivalent : okRoleBase;
+  const okPerm = !hasPerms || t.permissions.some((p: string) => permSet.value.has(p));
+  // سياسة إظهار أكثر مرونة: إن وُجدت أدوار وصلاحيات معًا، نسمح بالظهور إذا تحقق أحدهما (OR)
+  if (hasRoles && hasPerms) return okRole || okPerm;
+  // وإلا نستخدم القاعدة الافتراضية
   return okRole && okPerm;
 };
 const isDevMesuef = computed(() => (auth.profile?.username || "").toLowerCase() === "mesuef");
@@ -192,6 +227,10 @@ function saveOrder() {
 
 onMounted(() => {
   loadOrder();
+  // اجلب قدرات اللجنة لضبط بطاقات (الرئيس/العضو/المقرر)
+  getCommitteeCaps()
+    .then((res:any) => { committeeCaps.value = res?.access_caps || null; })
+    .catch(() => { committeeCaps.value = committeeCaps.value || null; });
   // تنظيف أي معرّفات محفوظة محلياً لم تعد مرئية لتجنّب «مكان فارغ»
   try {
     const visibleIdsNow = new Set((visibleTiles.value || []).map((t) => t.id));

@@ -174,56 +174,6 @@
     </div>
   </section>
 
-  <!-- نافذة منبثقة لاختيار تشكيلة اللجنة -->
-  <div v-if="committeeModal.open" class="modal-backdrop" role="dialog" aria-modal="true">
-    <div class="modal-card" dir="rtl">
-      <div class="modal-header d-flex align-items-center">
-        <h6 class="mb-0">تشكيل اللجنة للواقعة {{ committeeModal.incidentId }}</h6>
-        <button class="btn-close" @click="closeCommittee" aria-label="إغلاق">×</button>
-      </div>
-      <div class="modal-body">
-        <div v-if="committeeModal.loading" class="text-muted">جاري تحميل المرشحين والاقتراح ...</div>
-        <div v-else-if="committeeModal.error" class="alert alert-warning py-1 px-2">{{ committeeModal.error }}</div>
-        <div v-else>
-          <div class="row g-3">
-            <div class="col-12">
-              <label class="form-label">بحث عن اسم موظف</label>
-              <input type="search" class="form-control" v-model.trim="committeeModal.query" placeholder="اكتب للبحث" />
-            </div>
-            <div class="col-md-6 col-12">
-              <label class="form-label">مدير اللجنة (الرئيس)</label>
-              <select class="form-select" v-model.number="committeeModal.selection.chairId">
-                <option v-for="u in committeeFiltered" :key="u.id" :value="u.id">{{ bestName(u) }} ({{ u.id }})</option>
-              </select>
-              <small class="text-muted">يمتلك صلاحيات: جدولة واعتماد القرار.</small>
-            </div>
-            <div class="col-md-6 col-12">
-              <label class="form-label">مقرر اللجنة</label>
-              <select class="form-select" v-model.number="committeeModal.selection.recorderId">
-                <option :value="0">— لا يوجد —</option>
-                <option v-for="u in committeeFiltered" :key="'r'+u.id" :value="u.id">{{ bestName(u) }} ({{ u.id }})</option>
-              </select>
-              <small class="text-muted">مسؤول تدوين محضر الجلسة.</small>
-            </div>
-            <div class="col-12">
-              <label class="form-label">أعضاء اللجنة (يمكن اختيار أكثر من عضو)</label>
-              <select class="form-select" multiple size="6" v-model="committeeModal.selection.memberIdsStr">
-                <option v-for="u in committeeFiltered" :key="'m'+u.id" :value="String(u.id)">{{ bestName(u) }} ({{ u.id }})</option>
-              </select>
-              <small class="text-muted">الحد الأدنى المقترح: عضوان على الأقل.</small>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer d-flex align-items-center">
-        <div class="small text-danger" v-if="committeeValidationMsg">{{ committeeValidationMsg }}</div>
-        <div class="ms-auto d-flex gap-2">
-          <button class="btn btn-secondary" @click="closeCommittee">إلغاء</button>
-          <button class="btn btn-primary" :disabled="!!committeeValidationMsg || committeeModal.loading" @click="confirmCommittee">تأكيد الاختيار</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
 </template>
 
@@ -234,7 +184,7 @@ import { tiles } from "../../../home/icon-tiles.config";
 const tileMeta = computed(() => tiles.find((t) => t.to === "/wing/incidents") || { title: "وقائع الجناح", icon: "solar:shield-warning-bold-duotone", color: "#c0392b" });
 import { useWingContext } from "../../../shared/composables/useWingContext";
 const { selectedWingId } = useWingContext();
-import { getIncidentsVisible, submitIncident, reviewIncident, addIncidentAction, addIncidentSanction, escalateIncident, notifyGuardian, closeIncident, appealIncident, reopenIncident, countIncidentsByStudent, getIncidentsSummary, getCommitteeSuggest } from "../../discipline/api";
+import { getIncidentsVisible, submitIncident, reviewIncident, addIncidentAction, addIncidentSanction, escalateIncident, notifyGuardian, closeIncident, appealIncident, reopenIncident, countIncidentsByStudent, getIncidentsSummary } from "../../discipline/api";
 import { useToast } from "vue-toastification";
 const toast = useToast();
 
@@ -501,91 +451,7 @@ async function onReopen(it:any){
   finally{ setBusy(it.id, false); }
 }
 
-// ------------------- تشكيل اللجنة (قوائم منسدلة) -------------------
-type CommitteeUser = { id: number; username?: string; full_name?: string; staff_full_name?: string };
-const committeeModal = ref({
-  open: false,
-  incidentId: '' as string,
-  loading: false,
-  error: '' as string,
-  candidates: [] as CommitteeUser[],
-  query: '' as string,
-  selection: {
-    chairId: 0,
-    memberIdsStr: [] as string[], // نستخدم سلاسل لتعمل مع v-model الخاص بـ multiple
-    recorderId: 0,
-  },
-});
-
-const committeeFiltered = computed(() => {
-  const q = (committeeModal.value.query || '').trim().toLowerCase();
-  let list = committeeModal.value.candidates || [];
-  if (!q) return list;
-  return list.filter((u) => {
-    const name = String(u.staff_full_name || u.full_name || u.username || '').toLowerCase();
-    return name.includes(q) || String(u.id).includes(q);
-  });
-});
-
-function bestName(u: CommitteeUser): string {
-  return String(u.staff_full_name || u.full_name || u.username || '').trim() || `#${u.id}`;
-}
-
-const committeeValidationMsg = computed(() => {
-  const sel = committeeModal.value.selection;
-  const chair = sel.chairId;
-  const recorder = sel.recorderId;
-  const members = (sel.memberIdsStr || []).map((s) => Number(s));
-  if (members.length < 2) return 'يجب اختيار عضوين على الأقل.';
-  // منع التكرار بين الأدوار
-  const set = new Set<number>(members);
-  if (chair && set.has(chair)) return 'لا يمكن أن يكون الرئيس ضمن الأعضاء.';
-  if (recorder && set.has(recorder)) return 'لا يمكن أن يكون المقرر ضمن الأعضاء.';
-  if (chair && recorder && chair === recorder) return 'لا يمكن أن يكون الرئيس هو نفسه المقرر.';
-  return '';
-});
-
-async function openCommittee(it:any){
-  committeeModal.value.open = true;
-  committeeModal.value.incidentId = it.id;
-  committeeModal.value.loading = true;
-  committeeModal.value.error = '';
-  committeeModal.value.candidates = [];
-  committeeModal.value.query = '';
-  committeeModal.value.selection = { chairId: 0, memberIdsStr: [], recorderId: 0 };
-  try{
-    const res = await getCommitteeSuggest(it.id, { member_count: 2 });
-    const cands = Array.isArray((res as any)?.candidates) ? (res as any).candidates : [];
-    committeeModal.value.candidates = cands as CommitteeUser[];
-    // تعبئة مبدئية من المقترح
-    const panel = (res as any)?.panel || {};
-    if (panel?.chair?.id) committeeModal.value.selection.chairId = Number(panel.chair.id);
-    if (Array.isArray(panel?.members)) committeeModal.value.selection.memberIdsStr = panel.members.map((m:any)=> String(m.id));
-    if (panel?.recorder?.id) committeeModal.value.selection.recorderId = Number(panel.recorder.id);
-  }catch(e:any){
-    committeeModal.value.error = e?.message || 'تعذّر تحميل الاقتراح.';
-  }finally{
-    committeeModal.value.loading = false;
-  }
-}
-
-function closeCommittee(){
-  committeeModal.value.open = false;
-}
-
-function confirmCommittee(){
-  if (committeeValidationMsg.value) return;
-  const sel = committeeModal.value.selection;
-  const payload = {
-    chair_id: sel.chairId || null,
-    member_ids: (sel.memberIdsStr || []).map((s)=> Number(s)),
-    recorder_id: sel.recorderId || null,
-  };
-  // لا يوجد حفظ backend حتى الآن؛ نعرض تأكيدًا ونغلق.
-  toast.success('تم اختيار تشكيل اللجنة (غير محفوظ — للعرض فقط).');
-  console.debug('Committee selection for', committeeModal.value.incidentId, payload);
-  closeCommittee();
-}
+// لا يوجد تشكيل يدوي للجنة بعد الآن — يُحال تلقائيًا إلى «اللجنة الدائمة» من الواجهات المختصة
 </script>
 
 <style scoped>
@@ -593,11 +459,5 @@ function confirmCommittee(){
 .text-success { color: #2e7d32 !important; }
 .text-danger { color: #c62828 !important; }
 .table pre { background: #fff; border: 1px solid #eee; padding: 8px; border-radius: 6px; max-height: 220px; overflow: auto; }
-/* Modal styles */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 1050; }
-.modal-card { width: min(860px, 96vw); background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
-.modal-header { padding: 12px 16px; border-bottom: 1px solid #eee; }
-.modal-body { padding: 16px; max-height: 70vh; overflow: auto; }
-.modal-footer { padding: 12px 16px; border-top: 1px solid #eee; }
-.btn-close { margin-inline-start: auto; border: none; background: transparent; font-size: 20px; line-height: 1; cursor: pointer; }
+/* أزيلت أنماط النافذة المنبثقة الخاصة بتشكيل اللجنة */
 </style>

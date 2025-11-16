@@ -123,7 +123,32 @@ class Incident(models.Model):
         )
 
     def __str__(self) -> str:  # pragma: no cover
-        return f"{self.violation.code} @ {self.occurred_at:%Y-%m-%d}"
+        """تمثيل مبسّط وآمن لا يعتمد على جلب علاقات كسولة.
+
+        ملاحظة: كان التمثيل السابق يصل إلى self.violation.code، وهذا قد يطلق
+        استعلامًا إضافيًا يجلب كل أعمدة Violation بما فيها عمود اختياري قد لا يكون
+        موجودًا في بعض قواعد البيانات القديمة (policy)، مما يسبب خطأً في لوحة الإدارة
+        عند بناء التسميات لحقول العلاقات. نتجنب هنا أي وصول لعلاقات؛ نستعمل المعرّف
+        وتاريخ الحدوث أو الإنشاء كعرض كافٍ في لوحة الإدارة.
+        """
+        try:
+            date_part = None
+            try:
+                if getattr(self, "occurred_at", None):
+                    date_part = self.occurred_at.strftime("%Y-%m-%d")
+            except Exception:
+                date_part = None
+            if not date_part:
+                try:
+                    if getattr(self, "created_at", None):
+                        date_part = self.created_at.strftime("%Y-%m-%d")
+                except Exception:
+                    date_part = None
+            date_part = date_part or "—"
+            # استخدم المعرّف المختصر لسهولة القراءة
+            return f"Incident {str(self.id)[:8]} @ {date_part}"
+        except Exception:
+            return f"Incident {getattr(self, 'id', '')}"
 
 
 class IncidentAuditLog(models.Model):
@@ -167,6 +192,50 @@ class IncidentAuditLog(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - trivial
         return f"{self.incident_id} {self.action} {self.from_status}->{self.to_status} @ {self.at:%Y-%m-%d %H:%M}"
+
+
+class IncidentAttachment(models.Model):
+    """File attachments linked to an incident (pledge, signed pledge, other).
+
+    Minimal schema to support Option B later. Provides audit-friendly fields such as
+    mime, size and sha256 for integrity checks.
+    """
+
+    KIND_CHOICES = (
+        ("pledge", "Pledge"),
+        ("pledge_signed", "Pledge (Signed)"),
+        ("other", "Other"),
+    )
+
+    id = models.BigAutoField(primary_key=True)
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="attachments")
+    kind = models.CharField(max_length=32, choices=KIND_CHOICES, default="other")
+    file = models.FileField(upload_to="incidents/%Y/%m/")
+    mime = models.CharField(max_length=64, blank=True)
+    size = models.IntegerField(default=0)
+    sha256 = models.CharField(max_length=64, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    meta = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        verbose_name = "مرفق واقعة"
+        verbose_name_plural = "مرفقات الوقائع"
+        ordering = ("-created_at", "-id")
+        indexes = [
+            models.Index(fields=["incident", "created_at"], name="inc_att_inc_dt_idx"),
+            models.Index(fields=["kind"], name="inc_att_kind_idx"),
+        ]
+        permissions = (
+            ("incident_attachment_view", "Can view incident attachments"),
+            ("incident_attachment_upload", "Can upload incident attachments"),
+        )
+
+    def __str__(self) -> str:  # pragma: no cover
+        try:
+            return f"Attachment {self.id} {self.kind} for {str(self.incident_id)[:8]}"
+        except Exception:
+            return f"Attachment {getattr(self, 'id', '')}"
 
 
 class IncidentCommittee(models.Model):
