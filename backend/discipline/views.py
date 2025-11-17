@@ -143,6 +143,86 @@ class IncidentViewSet(viewsets.ModelViewSet):
         qs = qs.order_by("-occurred_at", "-created_at")
         return qs
 
+    def retrieve(self, request, *args, **kwargs):
+        """تمكين عرض واقعة مفردة للطباعة للمعلّم مُنشئ الواقعة، ولمشرف الجناح،
+        ولأعضاء لجنة السلوك/المصرّح لهم، إضافة إلى الطاقم/المشرفين العامّين.
+
+        نستخدم فحص وصول مخصص بدلاً من الاعتماد على get_queryset المُقيِّد للّوائح.
+        """
+        pk = kwargs.get(self.lookup_field or "pk")
+        try:
+            inc: Incident = (
+                Incident.objects.select_related(
+                    "violation",
+                    "student",
+                    "reporter",
+                    "student__class_fk",
+                    "student__class_fk__wing",
+                )
+                .defer("violation__policy")
+                .get(pk=pk)
+            )
+        except Incident.DoesNotExist:
+            return Response({"detail": "غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+
+        user = request.user
+        allow = False
+        # 1) طاقم/مشرف عام/صاحب صلاحية الانضباط العامة
+        if (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("discipline.access")
+        ):
+            allow = True
+        # 2) المبلّغ نفسه
+        elif getattr(inc, "reporter_id", None) == getattr(user, "id", None):
+            allow = True
+        # 3) عضو لجنة في هذه الواقعة أو يمتلك صلاحية عرض اللجنة
+        elif self._has(user, "incident_committee_view"):
+            allow = True
+        else:
+            try:
+                if self._is_committee_member(user, inc):
+                    allow = True
+            except Exception:
+                pass
+        # 4) مشرف جناح للطالب
+        if not allow:
+            try:
+                from school.models import Staff, Wing  # type: ignore
+
+                staff_obj = Staff.objects.filter(user_id=user.id).only("id").first()
+                wing_ids: list[int] = []
+                fld_names = {f.name for f in Wing._meta.get_fields()}  # type: ignore
+                if "supervisor" in fld_names and staff_obj is not None:
+                    try:
+                        wing_ids += list(Wing.objects.filter(supervisor_id=staff_obj.id).values_list("id", flat=True))
+                    except Exception:
+                        pass
+                if "supervisor_user" in fld_names:
+                    try:
+                        wing_ids += list(Wing.objects.filter(supervisor_user_id=user.id).values_list("id", flat=True))
+                    except Exception:
+                        pass
+                if "supervisor_id" in fld_names and staff_obj is not None:
+                    try:
+                        wing_ids += list(Wing.objects.filter(supervisor_id=staff_obj.id).values_list("id", flat=True))
+                    except Exception:
+                        pass
+                wing_ids = list({int(w) for w in wing_ids})
+                inc_wing_id = getattr(getattr(inc.student, "class_fk", None), "wing_id", None)
+                if inc_wing_id and wing_ids and int(inc_wing_id) in wing_ids:
+                    allow = True
+            except Exception:
+                pass
+
+        if not allow:
+            # لأسباب أمنية نعيد 404 بدلاً من 403
+            return Response({"detail": "غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = self.get_serializer(inc)
+        return Response(serializer.data)
+
     def _has(self, user, codename: str) -> bool:
         return (
             getattr(user, "is_superuser", False)
@@ -290,8 +370,56 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         # Ensure reporter is set server-side regardless of client payload
+        # قبل الحفظ، إن أرسل العميل class_id/period_number نُقوِّم occurred_at إلى منتصف زمن الحصة لليوم المحدد
+        corrected_kwargs = {"reporter": self.request.user}
         try:
-            obj = serializer.save(reporter=self.request.user)
+            data = getattr(self.request, "data", {}) or {}
+            class_id = data.get("class_id")
+            period_no = data.get("period_number")
+            occ_raw = data.get("occurred_at")
+            if class_id and period_no and occ_raw:
+                from django.utils.dateparse import parse_datetime
+                from django.utils import timezone as _tz
+                from apps.attendance.timing import times_for_by_class  # type: ignore
+
+                occ_dt = parse_datetime(occ_raw)
+                if occ_dt is not None:
+                    occ_local = _tz.localtime(occ_dt) if _tz.is_aware(occ_dt) else occ_dt
+                    # اليوم في النظام 1..7 (الاثنين..الأحد)
+                    dow = int(occ_local.isoweekday())
+                    # خرائط الزمن حسب الصف لليوم المناسب
+                    # تعديل احتياطي لنهاية الأسبوع
+                    if dow == 6:
+                        dow_for_tt = 1
+                    elif dow == 7:
+                        dow_for_tt = 5
+                    else:
+                        dow_for_tt = dow
+                    slots = times_for_by_class(int(dow_for_tt), int(class_id)) or {}
+                    st_et = None
+                    try:
+                        st_et = slots.get(int(period_no)) if hasattr(slots, "get") else None
+                    except Exception:
+                        st_et = None
+                    if st_et and isinstance(st_et, tuple) and len(st_et) == 2:
+                        st, et = st_et
+                        try:
+                            # ابنِ وقتًا محليًا في منتصف الحصة بنفس تاريخ occurred_at
+                            from datetime import datetime as _dt
+
+                            date_part = occ_local.date()
+                            st_dt = _dt.combine(date_part, st)
+                            et_dt = _dt.combine(date_part, et)
+                            mid_ts = st_dt.timestamp() + (et_dt.timestamp() - st_dt.timestamp()) / 2.0
+                            mid_local = _dt.fromtimestamp(mid_ts, tz=occ_dt.tzinfo)
+                            corrected_kwargs["occurred_at"] = mid_local
+                        except Exception:
+                            pass
+        except Exception:
+            # في حال تعذر أي جزء من التصحيح، نواصل بالحفظ بالقيم المرسلة
+            pass
+        try:
+            obj = serializer.save(**corrected_kwargs)
         except TypeError:
             # Fallback if reporter is already bound in serializer (shouldn't happen due to read-only)
             obj = serializer.save()
@@ -299,6 +427,239 @@ class IncidentViewSet(viewsets.ModelViewSet):
         try:
             self._audit(obj, "create", note="incident created")
         except Exception:
+            pass
+        # --- تثبيت المادة داخل الواقعة بناءً على الجدول الدراسي للفصل والزمن ---
+        try:
+            from django.utils import timezone as _tz
+            from school.models import Term, TimetableEntry  # type: ignore
+            from apps.attendance.timing import times_for_by_class  # type: ignore
+
+            student = getattr(obj, "student", None)
+            cls = getattr(student, "class_fk", None)
+            occ = getattr(obj, "occurred_at", None)
+            if cls is not None and occ is not None:
+                # حدد اليوم ورقم الحصة من التوقيت الفعلي
+                occ_local = _tz.localtime(occ) if _tz.is_aware(occ) else occ
+                dow = int(occ_local.isoweekday())  # 1=Mon..7=Sun
+                # تعديل احتياطي لنهاية الأسبوع لتفادي أخطاء البيانات
+                if dow == 6:
+                    dow_for_tt = 1
+                elif dow == 7:
+                    dow_for_tt = 5
+                else:
+                    dow_for_tt = dow
+                slots = times_for_by_class(int(dow_for_tt), int(getattr(cls, "id", 0))) or {}
+                period_no = None
+                hm = occ_local.time()
+                for pno, (st, et) in slots.items() if hasattr(slots, "items") else {}.items():
+                    try:
+                        if st <= hm <= et:
+                            period_no = int(pno)
+                            break
+                    except Exception:
+                        continue
+                # جلب الفصل الدراسي الحاضر
+                term = (
+                    Term.objects.filter(start_date__lte=occ_local.date(), end_date__gte=occ_local.date())
+                    .order_by("-start_date")
+                    .first()
+                )
+                if term and period_no:
+                    entry = (
+                        TimetableEntry.objects.select_related("subject")
+                        .filter(
+                            classroom_id=int(getattr(cls, "id", 0)),
+                            day_of_week=int(dow_for_tt),
+                            period_number=int(period_no),
+                            term=term,
+                        )
+                        .first()
+                    )
+                else:
+                    entry = None
+                if entry is not None:
+                    subj = getattr(entry, "subject", None)
+                    if subj is not None:
+                        obj.subject = subj
+                        obj.subject_name_cached = getattr(subj, "name_ar", None) or getattr(subj, "name", "") or ""
+                        obj.save(update_fields=["subject", "subject_name_cached", "updated_at"])
+        except Exception:
+            # عدم حجب إنشاء الواقعة إذا تعذّر الاشتقاق
+            pass
+        # Business rule: لأول واقعة لهذا الطالب في هذه المخالفة، أضِف "تنبيه شفهي" تلقائيًا (للشدة المنخفضة ≤ 2)
+        # بحيث يثبُت الإجراء في actions_applied منذ لحظة التسجيل من قبل المعلم.
+        try:
+            # نعتبر "أول مرة" على مستوى نفس المخالفة للطالب (مدى التاريخ)
+            if getattr(obj, "severity", 0) <= 2:
+                prior = (
+                    Incident.objects.filter(student_id=obj.student_id, violation_id=obj.violation_id)
+                    .exclude(id=obj.id)
+                    .exists()
+                )
+                if not prior:
+                    arr = list(getattr(obj, "actions_applied", None) or [])
+                    arr.append(
+                        {
+                            "name": "تنبيه شفهي",
+                            "notes": "أُضيف تلقائيًا لأول واقعة ضمن هذه المخالفة.",
+                            "at": timezone.now().isoformat(),
+                            "by": getattr(getattr(self.request, "user", None), "username", None),
+                            "user_id": getattr(getattr(self.request, "user", None), "id", None),
+                            "auto": True,
+                            "source": "auto_on_first_incident",
+                        }
+                    )
+                    obj.actions_applied = arr
+                    obj.save(update_fields=["actions_applied", "updated_at"])
+                    try:
+                        self._audit(
+                            obj,
+                            "auto_oral_warning",
+                            note="تم إضافة تنبيه شفهي تلقائيًا (أول مرة لهذه المخالفة)",
+                            meta={"reason": "first_time_for_violation", "action": "تنبيه شفهي"},
+                        )
+                    except Exception:
+                        pass
+        except Exception:
+            # لا نمنع إنشاء الواقعة إن فشل هذا المسار لأي سبب
+            if logger and logger.isEnabledFor(logging.DEBUG):
+                logger.debug("incident.create.auto_oral_warning_skipped id=%s", getattr(obj, "id", None))
+        # --- سياسة التصعيد حسب تكرار نفس المخالفة في نفس المادة ضمن نفس الصف ---
+        try:
+            subj_id = getattr(obj, "subject_id", None)
+            # الصف الذي ينتمي إليه الطالب وقت تسجيل الواقعة
+            class_id = getattr(getattr(getattr(obj, "student", None), "class_fk", None), "id", None)
+            # احسب عدد الوقائع السابقة لنفس الطالب+المخالفة+المادة داخل الفصل
+            prior_qs = Incident.objects.filter(
+                student_id=obj.student_id,
+                violation_id=obj.violation_id,
+                subject_id=subj_id,
+            ).exclude(id=obj.id)
+            # قصر العد على نفس الصف
+            if class_id:
+                prior_qs = prior_qs.filter(student__class_fk_id=int(class_id))
+            repeat_prior = int(prior_qs.count())
+            # قراءة سياسة الكتالوج من المخالفة
+            vpol = {}
+            try:
+                vpol = getattr(obj.violation, "policy", None) or {}
+            except Exception:
+                vpol = {}
+            actions_by_repeat = (vpol or {}).get("actions_by_repeat") or {}
+            sanctions_by_repeat = (vpol or {}).get("sanctions_by_repeat") or {}
+            committee_pol = (vpol or {}).get("committee") or {}
+
+            # نسمح بالمفتاح وفق فهارس مختلفة: prior_count أو occurrence_number
+            keys_to_try = [str(repeat_prior), str(repeat_prior + 1)]
+            auto_added = False
+            now_iso = timezone.now().isoformat()
+            actor_username = getattr(getattr(self.request, "user", None), "username", None)
+            actor_id = getattr(getattr(self.request, "user", None), "id", None)
+            # إجراءات تلقائية
+            try:
+                acts = list(getattr(obj, "actions_applied", None) or [])
+                picked = None
+                for k in keys_to_try:
+                    if k in actions_by_repeat:
+                        picked = actions_by_repeat.get(k)
+                        break
+                if picked:
+                    for nm in picked if isinstance(picked, (list, tuple)) else [picked]:
+                        nm_s = str(nm).strip()
+                        if not nm_s:
+                            continue
+                        acts.append(
+                            {
+                                "name": nm_s,
+                                "at": now_iso,
+                                "by": actor_username,
+                                "user_id": actor_id,
+                                "auto": True,
+                                "source": "auto_repeat_same_subject",
+                                "notes": f"تكرار لنفس المادة داخل الصف (سابقًا: {repeat_prior})",
+                            }
+                        )
+                        auto_added = True
+                if auto_added:
+                    obj.actions_applied = acts
+                    obj.escalated_due_to_repeat = True
+                    obj.save(update_fields=["actions_applied", "escalated_due_to_repeat", "updated_at"])
+            except Exception:
+                pass
+            # عقوبات تلقائية
+            try:
+                sancs = list(getattr(obj, "sanctions_applied", None) or [])
+                picked = None
+                for k in keys_to_try:
+                    if k in sanctions_by_repeat:
+                        picked = sanctions_by_repeat.get(k)
+                        break
+                if picked:
+                    for nm in picked if isinstance(picked, (list, tuple)) else [picked]:
+                        nm_s = str(nm).strip()
+                        if not nm_s:
+                            continue
+                        sancs.append(
+                            {
+                                "name": nm_s,
+                                "at": now_iso,
+                                "by": actor_username,
+                                "user_id": actor_id,
+                                "auto": True,
+                                "source": "auto_repeat_same_subject",
+                                "notes": f"تكرار لنفس المادة داخل الصف (سابقًا: {repeat_prior})",
+                            }
+                        )
+                        auto_added = True
+                # لجنة حسب السياسة
+                try:
+                    after_repeats = committee_pol.get("after_repeats") if isinstance(committee_pol, dict) else None
+                    if after_repeats is not None:
+                        try:
+                            thresh = int(after_repeats)
+                            # إذا كان عدد مرات الحدوث الحالية (prior+1) >= العتبة، فعّل اللجنة
+                            if (repeat_prior + 1) >= thresh:
+                                obj.committee_required = True
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+                if auto_added:
+                    obj.sanctions_applied = sancs
+                    obj.escalated_due_to_repeat = True
+                    obj.save(
+                        update_fields=[
+                            "sanctions_applied",
+                            "committee_required",
+                            "escalated_due_to_repeat",
+                            "updated_at",
+                        ]
+                    )
+            except Exception:
+                pass
+            # سجل التدقيق
+            try:
+                class_label = None
+                try:
+                    class_label = getattr(getattr(getattr(obj, "student", None), "class_fk", None), "name", None)
+                except Exception:
+                    class_label = None
+                self._audit(
+                    obj,
+                    "auto_escalation_repeat_subject",
+                    note="تصعيد تلقائي بناءً على تكرار نفس المخالفة في نفس المادة ضمن الصف",
+                    meta={
+                        "repeat_prior": repeat_prior,
+                        "class_label": class_label,
+                        "subject_id": subj_id,
+                        "subject_name": getattr(obj, "subject_name_cached", ""),
+                        "violation_id": getattr(obj, "violation_id", None),
+                    },
+                )
+            except Exception:
+                pass
+        except Exception:
+            # لا نحجب العملية لأي خطأ في سياسة التكرار
             pass
         # Important: prevent a post-save lazy load of Violation that would SELECT all columns
         # (including the optional 'policy' column that may not exist in older databases) when
@@ -482,7 +843,12 @@ class IncidentViewSet(viewsets.ModelViewSet):
             return False
 
         # Map users
-        users_map = {u.id: u for u in get_user_model().objects.filter(id__in=list(set([chair_id] + member_ids + ([recorder_id] if recorder_id else []))))}
+        users_map = {
+            u.id: u
+            for u in get_user_model().objects.filter(
+                id__in=list(set([chair_id] + member_ids + ([recorder_id] if recorder_id else [])))
+            )
+        }
 
         from django.utils import timezone as _tz
 
@@ -1641,11 +2007,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
         since_dt = now - timedelta(days=days)
 
         # بناء queryset أساسي مع فلاتر معقولة (committee_required فقط)
-        qs = (
-            Incident.objects.all()
-            .select_related("violation", "student")
-            .defer("violation__policy")
-        )
+        qs = Incident.objects.all().select_related("violation", "student").defer("violation__policy")
 
         # فلترة التاريخ وفق event_date = occurred_at.date أو created_at.date
         from_param = request.query_params.get("from")
@@ -1987,7 +2349,9 @@ class IncidentViewSet(viewsets.ModelViewSet):
         mime = getattr(up, "content_type", "") or ""
         allowed = {"application/pdf", "image/jpeg", "image/png"}
         if allowed and mime not in allowed:
-            return Response({"detail": "صيغة ملف غير مدعومة. المسموح: PDF, JPG, PNG."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "صيغة ملف غير مدعومة. المسموح: PDF, JPG, PNG."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Compute sha256
         h = hashlib.sha256()
@@ -2118,7 +2482,9 @@ class IncidentViewSet(viewsets.ModelViewSet):
             occurred_str = (
                 "—"
                 if not occurred
-                else f"{occurred[:10]}" if isinstance(occurred, str) else occurred.strftime("%Y-%m-%d")
+                else f"{occurred[:10]}"
+                if isinstance(occurred, str)
+                else occurred.strftime("%Y-%m-%d")
             )
         except Exception:
             occurred_str = "—"
@@ -2132,50 +2498,101 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         html = f"""
 <!DOCTYPE html>
-<html lang=\"ar\" dir=\"rtl\">\n<head>\n<meta charset=\"utf-8\" />\n<title>تعهد خطي — {student_name}</title>\n<style>
-  :root{{ --fg:#111; --muted:#666; --accent:#0d6efd; }}
-  body{{ font-family:'Segoe UI', Tahoma, Arial, sans-serif; color:var(--fg); margin:0; }}
-  header, footer{{ position:fixed; left:0; right:0; }}
-  header{{ top:0; padding:12px 24px; border-bottom:1px solid #ddd; }}
-  footer{{ bottom:0; padding:8px 24px; border-top:1px solid #ddd; color:#666; font-size:11px; }}
-  main{{ padding:120px 24px 80px; max-width:820px; margin:0 auto; }}
-  h1{{ font-size:18px; margin:0 0 12px; }}
-  .row{{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 16px; }}
-  .box{{ border:1px solid #ccc; padding:12px; border-radius:6px; }}
-  .muted{{ color:#666; font-size:12px; }}
-  .sig-grid{{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:16px; }}
-  .sig{{ border:1px dashed #999; min-height:72px; padding:8px; }}
-  .qr{{ width:96px; height:96px; border:1px solid #ccc; display:inline-block; background: repeating-linear-gradient(45deg,#eee 0,#eee 8px,#ddd 8px,#ddd 16px); }}
-  .meta{{ margin-top:10px; font-size:12px; color:#666; }}
-  @media print{{ @page{{ size:A4; margin:2cm; }} header,footer{{ position:fixed; }} main{{ padding:0; margin-top:40px; }} }}
-</style></head>
+<html lang=\"ar\" dir=\"rtl\">
+<head>
+  <meta charset=\"utf-8\" />
+  <title>تعهد خطي — {student_name}</title>
+  <style>
+    @media print {{ @page {{ size: A4; margin: 2cm; }} }}
+    body {{ font-family: 'Cairo','Segoe UI', Tahoma, Arial, sans-serif; color:#111; margin:0; }}
+    .content-wrap{{ padding: 1rem 0 2rem; }}
+    .doc-meta{{font-size:12px;color:#666}}
+    .navbar-maronia{{ position:fixed; top:0; left:0; right:0; z-index:10; }}
+    .navbar-maronia nav{{ background: linear-gradient(180deg,#8b1e24 0%, #6d141a 45%, #8b1e24 100%); color:#f9d39b; }}
+    .navbar-maronia .brand-images img{{ height:44px; width:auto; display:block }}
+    .page-footer{{ position:fixed; bottom:0; left:0; right:0; }}
+    .page-footer .container{{ background:#7a1f2a; color:#caa86a; }}
+    .page-main{{ margin-top:64px; margin-bottom:56px; }}
+    .container{{ max-width: 1024px; margin-inline:auto; padding-inline: 12px; }}
+    .py-2{{ padding-block: .5rem; }}
+    .py-3{{ padding-block: .75rem; }}
+    .d-flex{{ display:flex; }}
+    .align-items-center{{ align-items:center; }}
+    .gap-3{{ gap:.75rem; }}
+    .small{{ font-size: 12px; }}
+    .text-center{{ text-align:center; }}
+    .w-100{{ width:100%; }}
+    .flex-fill{{ flex:1 1 auto; }}
+    /* Utilities for document body */
+    .row{{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }}
+    .box{{ border:1px solid #ccc; padding:12px; border-radius:6px; }}
+    .muted{{ color:#666; font-size:12px; }}
+    .sig-grid{{ display:grid; grid-template-columns: repeat(3,1fr); gap:12px; margin-top:16px; }}
+    .sig{{ border:1px dashed #999; min-height:72px; padding:8px; }}
+    .sig .line{{ display:block; margin-top:6px; border-top:1px solid #bbb; height:0; }}
+    .qr{{ width:96px; height:96px; border:1px solid #ccc; display:inline-block; background: repeating-linear-gradient(45deg,#eee 0,#eee 8px,#ddd 8px,#ddd 16px); }}
+  </style>
+</head>
 <body>
-  <header>
-    <div style=\"display:flex; align-items:center; gap:12px;\">
-      <div style=\"font-weight:700;\">نظام السلوك المدرسي</div>
-      <div class=\"muted\" style=\"margin-inline-start:auto\">رقم الوثيقة: {doc_id} · تاريخ الإصدار: {y}-{m}-{d}</div>
-    </div>
-  </header>
-  <footer>سري — للاستخدام المدرسي · صفحة 1 من 1 · للتحقق امسح رمز QR</footer>
-  <main>
-    <h1>تعهد خطي بشأن التزام السلوك المدرسي</h1>
-    <div class=\"row box\" style=\"margin-bottom:12px;\">
-      <div><div class=\"muted\">الطالب</div><div>{student_name}</div></div>
-      <div><div class=\"muted\">رقم الواقعة</div><div>{short_id}</div></div>
-      <div><div class=\"muted\">التاريخ</div><div>{occurred_str}</div></div>
-      <div><div class=\"muted\">المخالفة</div><div>—</div></div>
-    </div>
-    <div class=\"box\">\n      <p>أنا الطالب/ـة المذكور أعلاه، أقرّ بأنني اطّلعت على الواقعة رقم {short_id} وأتعهد بالالتزام بقواعد السلوك والانضباط المدرسي، والتعاون مع المدرسة خلال فترة المتابعة.</p>
-      <ol><li>الالتزام التام بالقواعد وتجنب تكرار المخالفة.</li><li>التعاون مع الهيئتين التعليمية والإرشادية عند الطلب.</li><li>قبول المتابعة الدورية والامتثال للتوجيهات.</li><li>العلم بأن تكرار المخالفة قد يترتب عليه إجراءات أشد وفق اللوائح.</li></ol>
-      <div class=\"muted\">ملخص الإجراء/التوصية (إن وُجد):</div>
-      <div style=\"font-weight:600; margin-bottom:8px;\">{proposed}</div>
-      <div class=\"sig-grid\"><div class=\"sig\"><div class=\"muted\">توقيع الطالب/ـة</div></div><div class=\"sig\"><div class=\"muted\">توقيع ولي الأمر</div></div><div class=\"sig\"><div class=\"muted\">ختم المدرسة / موظف الاستلام</div></div></div>
-      <div class=\"meta\">رقم الوثيقة: {doc_id}</div>
-      <div style=\"margin-top:8px; display:flex; align-items:center; gap:12px;\"><div class=\"qr\" aria-label=\"QR placeholder\"></div><div class=\"muted\">سيتم توليد رمز QR لاحقًا ضمن إصدار PDF.</div></div>
-    </div>
-  </main>
-  <script>window.onload = function(){ setTimeout(function(){ window.print && window.print(); }, 50); };<\/script>
-</body></html>
+  <div class=\"page-container\">
+    <header class=\"navbar-maronia\">
+      <nav class=\"container d-flex align-items-center gap-3 py-2\" role=\"navigation\" aria-label=\"التنقل الرئيسي\">
+        <div class=\"brand-images d-flex align-items-center\">
+          <img src=\"/assets/img/logo.png?v=20251027-02\" alt=\"شعار\" />
+        </div>
+        <span class=\"flex-fill\"></span>
+      </nav>
+    </header>
+    <main class=\"page-main container content-wrap\">
+      <h1>تعهد خطي بشأن التزام السلوك المدرسي</h1>
+      <div class=\"row box\" style=\"margin-bottom:12px;\">
+        <div><div class=\"muted\">الطالب</div><div>{student_name}</div></div>
+        <div><div class=\"muted\">رقم الواقعة</div><div>{short_id}</div></div>
+        <div><div class=\"muted\">التاريخ</div><div>{occurred_str}</div></div>
+        <div><div class=\"muted\">المخالفة</div><div>{data.get('violation_display') or data.get('violation_code') or '—'}</div></div>
+        <div><div class=\"muted\">المكان</div><div>{data.get('location') or '—'}</div></div>
+        <div><div class=\"muted\">الشدة</div><div>{data.get('severity') or '—'}</div></div>
+      </div>
+      <div class=\"box\">
+        <div class=\"title\">نص التعهد</div>
+        <p>
+          أنا الطالب المذكور أعلاه، أقرّ بأنني اطّلعت على الواقعة رقم {short_id}
+          المتعلقة بالمخالفة المبينة، وأتعهد بما يلي:
+        </p>
+        <ol>
+          <li>الالتزام التام بقواعد السلوك والانضباط المدرسي، وتجنّب تكرار المخالفة.</li>
+          <li>التعاون مع الهيئتين التعليمية والإرشادية، وحضور الجلسات أو الأنشطة العلاجية عند الطلب.</li>
+          <li>قبول المتابعة الدورية خلال مدة زمنية مناسبة والامتثال للتوجيهات الصادرة.</li>
+          <li>العلم بأن تكرار المخالفة قد يترتب عليه إجراءات أشد وفق لائحة السلوك والمواظبة.</li>
+        </ol>
+        <div class=\"title\" style=\"margin-top:10px;\">تعهد ولي الأمر</div>
+        <p>
+          أنا ولي أمر الطالب المذكور، أتعهد بمتابعة ابني، والتعاون مع المدرسة،
+          وحضور الاجتماعات عند الاستدعاء، وإعلام المدرسة بأي ظروف قد تؤثر على السلوك.
+        </p>
+        <div class=\"muted\">ملخص الإجراء/التوصية (إن وُجد):</div>
+        <div style=\"font-weight:600; margin-bottom:8px;\">{proposed}</div>
+        <div class=\"sig-grid\">
+          <div class=\"sig\"><div class=\"muted\">توقيع الطالب</div><span class=\"line\"></span><div class=\"muted\">الاسم الثلاثي: ____________ · التاريخ: ____/____/______</div></div>
+          <div class=\"sig\"><div class=\"muted\">توقيع ولي الأمر</div><span class=\"line\"></span><div class=\"muted\">الاسم: ________________ · الهوية: ____________ · التاريخ: ____/____/______</div></div>
+          <div class=\"sig\"><div class=\"muted\">ختم المدرسة / موظف الاستلام</div><span class=\"line\"></span><div class=\"muted\">الاسم: ________________ · التاريخ: ____/____/______</div></div>
+        </div>
+        <div class=\"doc-meta\">رقم الوثيقة: {doc_id} · قالب الطباعة: v1.0 · تاريخ الإصدار: {y}-{m}-{d}</div>
+        <div style=\"margin-top:8px; display:flex; align-items:center; gap:12px;\">
+          <div class=\"qr\" aria-label=\"QR placeholder\"></div>
+          <div class=\"muted\">للاطّلاع والتحقق لاحقًا سيُدرج رمز QR ضمن نسخة PDF الموحّدة.</div>
+        </div>
+      </div>
+    </main>
+    <footer class=\"page-footer py-3\">
+      <div class=\"container d-flex justify-content-between small\">
+        <span class=\"text-center w-100\">©2025 - جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية بنين - تطوير( المعلم/ سفيان مسيف s.mesyef0904@education.qa )</span>
+      </div>
+    </footer>
+  </div>
+  <script>window.onload = function(){{ setTimeout(function(){{ try{{ window.focus(); }}catch(e){{}} if (window.print) window.print(); }}, 120); }}; window.onafterprint = function(){{ setTimeout(function(){{ try{{ window.close(); }}catch(e){{}} }}, 200); }};<\/script>
+</body>
+</html>
 """
 
         # Audit best-effort
@@ -2734,17 +3151,17 @@ class IncidentViewSet(viewsets.ModelViewSet):
         inc = self.get_object()
         votes_qs = IncidentAuditLog.objects.filter(incident=inc, meta__action="committee_vote").order_by("at")
         votes = list(
-            votes_qs.values("actor_id", "meta").annotate(voter_id=models.F("actor_id")).values(
-                "voter_id", "meta"
-            )
+            votes_qs.values("actor_id", "meta").annotate(voter_id=models.F("actor_id")).values("voter_id", "meta")
         )
         out_votes = []
         for v in votes:
             meta = v.get("meta") or {}
-            out_votes.append({
-                "voter_id": v.get("voter_id"),
-                "decision": meta.get("decision"),
-            })
+            out_votes.append(
+                {
+                    "voter_id": v.get("voter_id"),
+                    "decision": meta.get("decision"),
+                }
+            )
         agg = self._committee_quorum_and_majority(inc, out_votes)
         return Response({"votes": out_votes, "summary": agg})
 
@@ -2755,17 +3172,16 @@ class IncidentViewSet(viewsets.ModelViewSet):
         """
         user = request.user
         try:
-            qs = (
-                Incident.objects.select_related("violation", "student").defer("violation__policy").all()
-            )
+            qs = Incident.objects.select_related("violation", "student").defer("violation__policy").all()
             uid = getattr(user, "id", None)
             # من الجداول
             try:
                 from .models import IncidentCommittee, IncidentCommitteeMember
 
                 ic_ids = list(
-                    IncidentCommittee.objects.filter(models.Q(chair_id=uid) | models.Q(recorder_id=uid))
-                    .values_list("incident_id", flat=True)
+                    IncidentCommittee.objects.filter(models.Q(chair_id=uid) | models.Q(recorder_id=uid)).values_list(
+                        "incident_id", flat=True
+                    )
                 )
                 icm_ids = list(
                     IncidentCommitteeMember.objects.filter(user_id=uid).values_list("committee__incident_id", flat=True)
@@ -2774,7 +3190,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(id__in=list(ids)) | qs.filter(committee_panel__member_ids__contains=[uid])
             except Exception:
                 # مسار JSON فقط
-                qs = qs.filter(models.Q(committee_panel__chair_id=uid) | models.Q(committee_panel__recorder_id=uid) | models.Q(committee_panel__member_ids__contains=[uid]))
+                qs = qs.filter(
+                    models.Q(committee_panel__chair_id=uid)
+                    | models.Q(committee_panel__recorder_id=uid)
+                    | models.Q(committee_panel__member_ids__contains=[uid])
+                )
             qs = qs.order_by("-occurred_at", "-created_at")
             ser = IncidentSerializer(qs, many=True)
             return Response(ser.data)
@@ -2822,7 +3242,9 @@ class IncidentViewSet(viewsets.ModelViewSet):
                         from .models import IncidentCommittee, IncidentCommitteeMember
 
                         is_in_committee = (
-                            IncidentCommittee.objects.filter(models.Q(chair_id=uid) | models.Q(recorder_id=uid)).exists()
+                            IncidentCommittee.objects.filter(
+                                models.Q(chair_id=uid) | models.Q(recorder_id=uid)
+                            ).exists()
                             or IncidentCommitteeMember.objects.filter(user_id=uid).exists()
                         )
                     except Exception:

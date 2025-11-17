@@ -10,22 +10,15 @@
             <button v-if="it && it.status!=='closed'" class="btn btn-outline-warning" :disabled="busy" @click="onEscalate">تصعيد</button>
             <button v-if="it && it.status==='under_review'" class="btn btn-outline-info" :disabled="busy" @click="onNotify">إشعار ولي الأمر</button>
             <button v-if="it && it.status!=='closed'" class="btn btn-outline-secondary" :disabled="busy" @click="onClose">إغلاق</button>
-            <!-- طباعة تنبيه شفهي (لمسجّل الواقعة؛ نظهره عامة عند الشدة 1 طالما غير مغلقة) -->
-            <button v-if="it && it.status!=='closed' && Number(it.severity||0) <= 1" class="btn btn-outline-dark" :disabled="busy || loading" @click="printOralWarning">طباعة تنبيه شفهي</button>
-            <button v-if="it && it.status!=='closed'" class="btn btn-outline-dark" :disabled="busy || loading" @click="printPledge">طباعة التعهد</button>
-            <!-- طباعة إجراءات/عقوبات اللجنة عند وجود عناصر -->
-            <button
-              v-if="it && it.status!=='closed' && it.committee_required && (Array.isArray(it.actions_applied) ? it.actions_applied.length>0 : false)"
-              class="btn btn-outline-primary"
-              :disabled="busy || loading"
-              @click="printCommitteeActions"
-            >طباعة إجراءات اللجنة</button>
-            <button
-              v-if="it && it.status!=='closed' && it.committee_required && (Array.isArray(it.sanctions_applied) ? it.sanctions_applied.length>0 : false)"
-              class="btn btn-outline-warning"
-              :disabled="busy || loading"
-              @click="printCommitteeSanctions"
-            >طباعة عقوبات اللجنة</button>
+            <!-- مركز الطباعة الموحد -->
+            <RouterLink v-if="it" class="btn btn-outline-dark" :to="{ name: 'discipline-incident-print', params: { id: it.id } }">مركز الطباعة</RouterLink>
+            <!-- اختصار مباشر لطباعة التنبيه الشفهي عند الشدة 1 -->
+            <RouterLink
+              v-if="it && Number(it.severity||0) <= 1"
+              class="btn btn-outline-dark"
+              :to="{ name: 'discipline-incident-print', params: { id: it.id }, query: { section: 'oral' } }"
+              title="فتح صفحة الطباعة على التنبيه الشفهي"
+            >تنبيه شفهي</RouterLink>
             <button class="btn btn-outline-dark" :disabled="loading" @click="reload">تحديث</button>
           </div>
         </template>
@@ -163,6 +156,7 @@ import { useRoute } from 'vue-router';
 import WingPageHeader from '../../../components/ui/WingPageHeader.vue';
 import { tiles } from '../../../home/icon-tiles.config';
 import { getIncident, submitIncident, reviewIncident, addIncidentAction, addIncidentSanction, escalateIncident, notifyGuardian, closeIncident } from '../api';
+import { openPrintWindowEnhanced, writeAndPrint, blobPrintSameTab } from '../../../shared/print/util';
 
 const route = useRoute();
 const id = computed(()=> String(route.params.id || ''));
@@ -197,8 +191,40 @@ async function onClose(){ await run(async()=> await closeIncident(id.value)); }
 async function onAddAction(){ await run(async()=> await addIncidentAction(id.value, { name: actionName.value, notes: actionNotes.value })); actionName.value=''; actionNotes.value=''; }
 async function onAddSanction(){ await run(async()=> await addIncidentSanction(id.value, { name: sanctionName.value, notes: sanctionNotes.value })); sanctionName.value=''; sanctionNotes.value=''; }
 
-// خيار A: طباعة تعهد خطي HTML من الواجهة
-async function printPledge(){
+function buildPlatformShell(base: string){
+  const logo = `${base}/assets/img/logo.png?v=20251027-02`;
+  const headLinks = `
+  <style>
+    @media print { @page { size: A4; margin: 2cm; } }
+    body { font-family: 'Cairo','Segoe UI',Tahoma,Arial,sans-serif; color:#111; }
+    .content-wrap{ padding: 1rem 0 2rem; }
+    .doc-meta{font-size:12px;color:#666}
+    .navbar-maronia{ position:fixed; top:0; left:0; right:0; z-index:10; }
+    .navbar-maronia nav{ background: linear-gradient(180deg,#8b1e24 0%, #6d141a 45%, #8b1e24 100%); color:#f9d39b; }
+    .navbar-maronia .brand-images img{ height:44px; width:auto; display:block }
+    .page-footer{ position:fixed; bottom:0; left:0; right:0; }
+    .page-footer .container{ background:#7a1f2a; color:#caa86a; }
+    .page-main{ margin-top:64px; margin-bottom:56px; }
+    .container{ max-width: 1024px; margin-inline:auto; padding-inline: 12px; }
+    .py-2{ padding-block: .5rem; }
+    .py-3{ padding-block: .75rem; }
+    .d-flex{ display:flex; }
+    .align-items-center{ align-items:center; }
+    .gap-3{ gap:.75rem; }
+    .small{ font-size: 12px; }
+    .text-center{ text-align:center; }
+    .w-100{ width:100%; }
+    .flex-fill{ flex:1 1 auto; }
+  </style>`;
+  const header = `
+  <header class=\"navbar-maronia\">\n    <nav class=\"container d-flex align-items-center gap-3 py-2\" role=\"navigation\" aria-label=\"التنقل الرئيسي\">\n      <div class=\"brand-images d-flex align-items-center\">\n        <img src=\"${logo}\" alt=\"شعار\" />\n      </div>\n      <span class=\"flex-fill\"></span>\n    </nav>\n  </header>`;
+  const footer = `
+  <footer class=\"page-footer py-3\">\n    <div class=\"container d-flex justify-content-between small\">\n      <span class=\"text-center w-100\">©2025 - جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية بنين - تطوير( المعلم/ سفيان مسيف s.mesyef0904@education.qa )</span>\n    </div>\n  </footer>`;
+  return { headLinks, header, footer };
+}
+
+// خيار A: طباعة تعهد خطي HTML من الواجهة (نسختان: الطالب وولي الأمر)
+async function printPledgeStudent(){
   if(!it.value) return;
   try{
     const data = it.value as any;
@@ -212,46 +238,18 @@ async function printPledge(){
     const studentName = data.student_name || `#${data.student}`;
     const viol = data.violation_display || data.violation_code || '—';
     const occurred = fmtDate(data.occurred_at);
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
     const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <title>تعهد خطي — ${studentName}</title>
-  <style>
-    :root{ --fg:#111; --muted:#666; --accent:#0d6efd; }
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color:var(--fg); margin:0; }
-    header, footer{ position: fixed; left: 0; right: 0; }
-    header{ top: 0; padding: 12px 24px; border-bottom: 1px solid #ddd; }
-    footer{ bottom: 0; padding: 8px 24px; border-top: 1px solid #ddd; color: var(--muted); font-size: 11px; }
-    main{ padding: 120px 24px 80px; max-width: 820px; margin: 0 auto; }
-    h1{ font-size: 18px; margin: 0 0 12px; }
-    .row{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }
-    .box{ border: 1px solid #ccc; padding: 12px; border-radius: 6px; }
-    .muted{ color: var(--muted); font-size: 12px; }
-    .sig-grid{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
-    .sig{ border: 1px dashed #999; min-height: 72px; padding: 8px; }
-    .qr{ width: 96px; height: 96px; border: 1px solid #ccc; display: inline-block; background:
-      repeating-linear-gradient(45deg,#eee 0,#eee 8px,#ddd 8px,#ddd 16px); }
-    .meta{ margin-top: 10px; font-size: 12px; color: var(--muted); }
-    @media print {
-      @page { size: A4; margin: 2cm; }
-      header, footer { position: fixed; }
-      main{ padding: 0; margin-top: 40px; }
-      .no-print{ display: none !important; }
-    }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div class="muted" style="margin-inline-start:auto">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>
-      سري — للاستخدام المدرسي · صفحة 1 من 1 · للتحقق امسح رمز QR
-    </footer>
-    <main>
+    <div class="page-container">${shell.header}
+    <main class="page-main container content-wrap">
       <h1>تعهد خطي بشأن التزام السلوك المدرسي</h1>
       <div class="row box" style="margin-bottom:12px;">
         <div><div class="muted">الطالب</div><div>${studentName}</div></div>
@@ -260,7 +258,7 @@ async function printPledge(){
         <div><div class="muted">المخالفة</div><div>${viol}</div></div>
       </div>
       <div class="box">
-        <p>أنا الطالب/ـة المذكور أعلاه، أقرّ بأنني اطّلعت على الواقعة رقم ${shortId} وأتعهد بالالتزام بقواعد السلوك والانضباط المدرسي، والتعاون مع المدرسة خلال فترة المتابعة.</p>
+        <p>أنا الطالب المذكور أعلاه، أقرّ بأنني اطّلعت على الواقعة رقم ${shortId} وأتعهد بالالتزام بقواعد السلوك والانضباط المدرسي، والتعاون مع المدرسة خلال فترة المتابعة.</p>
         <ol>
           <li>الالتزام التام بالقواعد وتجنب تكرار المخالفة.</li>
           <li>التعاون مع الهيئتين التعليمية والإرشادية عند الطلب.</li>
@@ -270,25 +268,28 @@ async function printPledge(){
         <div class="muted">ملخص الإجراء/التوصية (إن وُجد):</div>
         <div style="font-weight:600; margin-bottom:8px;">${proposed}</div>
         <div class="sig-grid">
-          <div class="sig"><div class="muted">توقيع الطالب/ـة</div></div>
-          <div class="sig"><div class="muted">توقيع ولي الأمر</div></div>
-          <div class="sig"><div class="muted">ختم المدرسة / موظف الاستلام</div></div>
+          <div class="sig"><div class="muted">توقيع الطالب</div><span class="line"></span><div class="muted">الاسم الثلاثي: ____________ · التاريخ: ____/____/______</div></div>
+          <div class="sig"><div class="muted">توقيع ولي الأمر</div><span class="line"></span><div class="muted">الاسم: ________________ · الهوية: ____________ · التاريخ: ____/____/______</div></div>
+          <div class="sig"><div class="muted">ختم المدرسة / موظف الاستلام</div><span class="line"></span><div class="muted">الاسم: ________________ · التاريخ: ____/____/______</div></div>
         </div>
-        <div class="meta">رقم الوثيقة: ${docId}</div>
+        <div class="doc-meta">رقم الوثيقة: ${docId} · قالب الطباعة: v1.0 · تاريخ الإصدار: ${y}-${m}-${d}</div>
         <div style="margin-top:8px; display:flex; align-items:center; gap:12px;">
           <div class="qr" aria-label="QR placeholder"></div>
           <div class="muted">سيتم توليد رمز QR في الإصدار القادم (خيار B). حالياً يُستخدم رقم الوثيقة للتحقق الداخلي.</div>
         </div>
       </div>
-    </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    </main>${shell.footer}</div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if(window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer');
-    if(!w){ throw new Error('تعذّر فتح نافذة الطباعة — الرجاء السماح بالنوافذ المنبثقة.'); }
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
+    let w = openPrintWindowEnhanced();
+    if(!w){
+      // مسار احتياطي تلقائي: افتح معاينة الخادم في نفس التبويب بدون حوار
+      const base2 = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+      window.location.assign(`${base2}/api/v1/discipline/incidents/${data.id}/pledge/preview/?format=html`);
+      return;
+    }
+    writeAndPrint(w, html);
     // سجّل أثر الطباعة كإجراء
     await run(async()=> await addIncidentAction(id.value, { name: 'تعهد خطي (طباعة)', notes: 'طُبع التعهد وسُلّم للموقّعين. رقم الوثيقة: '+docId }));
   }catch(e:any){
@@ -296,7 +297,65 @@ async function printPledge(){
   }
 }
 
-// خيار A: طباعة «تنبيه شفهي» من الواجهة
+async function printPledgeGuardian(){
+  if(!it.value) return;
+  try{
+    const data = it.value as any;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth()+1).padStart(2,'0');
+    const d = String(now.getDate()).padStart(2,'0');
+    const shortId = String(data.id || '').slice(0,8);
+    const docId = `PLEDG-${y}${m}-${shortId}`;
+    const studentName = data.student_name || `#${data.student}`;
+    const viol = data.violation_display || data.violation_code || '—';
+    const occurred = fmtDate(data.occurred_at);
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
+    const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>تعهد ولي الأمر — ${studentName}</title>
+  ${shell.headLinks}
+  </head>
+  <body>
+    <div class="page-container">${shell.header}
+    <main class="page-main container content-wrap">
+      <h1>تعهد ولي الأمر بشأن متابعة السلوك</h1>
+      <div class="row box" style="margin-bottom:12px;">
+        <div><div class="muted">الطالب</div><div>${studentName}</div></div>
+        <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+        <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+        <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+      </div>
+      <div class="box">
+        <p>أنا ولي أمر الطالب المذكور أعلاه، اطّلعت على تفاصيل الواقعة المشار إليها، وأتعهد بالتالي:</p>
+        <ol>
+          <li>متابعة سلوك ابني والتعاون مع المدرسة.</li>
+          <li>حضور الاجتماعات عند الاستدعاء والاستجابة للتواصل.</li>
+          <li>إبلاغ المدرسة بأي ظروف قد تؤثر على السلوك.</li>
+          <li>تفهم تبعات تكرار المخالفة وفق اللوائح.</li>
+        </ol>
+        <div class="sig-grid">
+          <div class="sig"><div class="muted">توقيع ولي الأمر</div><span class="line"></span><div class="muted">الاسم: ________________ · الهوية: ____________ · التاريخ: ____/____/______</div></div>
+          <div class="sig"><div class="muted">بيانات التواصل</div><span class="line"></span><div class="muted">الهاتف: ____________ · البريد: __________________</div></div>
+          <div class="sig"><div class="muted">ختم المدرسة / موظف الاستلام</div><span class="line"></span><div class="muted">الاسم: ________________ · التاريخ: ____/____/______</div></div>
+        </div>
+        <div class="doc-meta">رقم الوثيقة: ${docId} · قالب الطباعة: v1.0 · تاريخ الإصدار: ${y}-${m}-${d}</div>
+      </div>
+    </main>${shell.footer}</div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if(window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
+  </body>
+</html>`;
+    let w = openPrintWindowEnhanced();
+    if(!w){ blobPrintSameTab(html); return; }
+    writeAndPrint(w, html);
+    await run(async()=> await addIncidentAction(id.value, { name: 'تعهد ولي الأمر (طباعة)', notes: 'رقم الوثيقة: '+docId }));
+  }catch(e:any){ msg.value = e?.message || 'فشل في إنشاء تعهد ولي الأمر للطباعة'; }
+}
+
+// خيار A: طباعة «تنبيه شفهي» (نافذة مبكرة + بديل نفس التبويب)
 async function printOralWarning(){
   if(!it.value) return;
   try{
@@ -310,65 +369,52 @@ async function printOralWarning(){
     const studentName = data.student_name || `#${data.student}`;
     const viol = data.violation_display || data.violation_code || '—';
     const occurred = fmtDate(data.occurred_at);
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
     const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <title>تنبيه شفهي — ${studentName}</title>
-  <style>
-    :root{ --fg:#111; --muted:#666; }
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color:var(--fg); margin:0; }
-    header, footer{ position: fixed; left: 0; right: 0; }
-    header{ top: 0; padding: 12px 24px; border-bottom: 1px solid #ddd; }
-    footer{ bottom: 0; padding: 8px 24px; border-top: 1px solid #ddd; color: var(--muted); font-size: 11px; }
-    main{ padding: 100px 24px 80px; max-width: 820px; margin: 0 auto; }
-    h1{ font-size: 18px; margin: 0 0 12px; }
-    .row{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }
-    .box{ border: 1px solid #ccc; padding: 12px; border-radius: 6px; }
-    .muted{ color: var(--muted); font-size: 12px; }
-    .sig{ border: 1px dashed #999; min-height: 64px; padding: 8px; margin-top: 12px; }
-    @media print { @page { size: A4; margin: 2cm; } header, footer { position: fixed; } main{ padding: 0; margin-top: 40px; } }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div class="muted" style="margin-inline-start:auto">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>
-      سري — للاستخدام المدرسي · صفحة 1 من 1
-    </footer>
-    <main>
-      <h1>تنبيه شفهي للطالب/ـة</h1>
-      <div class="row box" style="margin-bottom:12px;">
-        <div><div class="muted">الطالب</div><div>${studentName}</div></div>
-        <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
-        <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
-        <div><div class="muted">المخالفة</div><div>${viol}</div></div>
-      </div>
-      <div class="box">
-        <p>تم توجيه <strong>تنبيه شفهي</strong> للطالب/ـة المذكور أعلاه بخصوص الواقعة المشار إليها، مع التأكيد على الالتزام بقواعد السلوك والانضباط وعدم تكرار المخالفة.</p>
-        <ul>
-          <li>فهم أثر المخالفة على البيئة التعليمية.</li>
-          <li>التعهّد بالالتزام مستقبلاً والتعاون مع المعنيين.</li>
-        </ul>
-        <div class="muted">ملاحظات المبلّغ/المراجع (اختياري): _______________________________</div>
-        <div class="sig"><div class="muted">توقيع الموظف</div></div>
-      </div>
-    </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    <div class="page-container">${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>تنبيه شفهي للطالب/ـة</h1>
+        <div class="row box" style="margin-bottom:12px;">
+          <div><div class="muted">الطالب</div><div>${studentName}</div></div>
+          <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+          <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+          <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+        </div>
+        <div class="box">
+          <p>تم توجيه <strong>تنبيه شفهي</strong> للطالب/ـة المذكور أعلاه بخصوص الواقعة المشار إليها، مع التأكيد على الالتزام بقواعد السلوك والانضباط وعدم تكرار المخالفة.</p>
+          <ul>
+            <li>فهم أثر المخالفة على البيئة التعليمية.</li>
+            <li>التعهّد بالالتزام مستقبلاً والتعاون مع المعنيين.</li>
+          </ul>
+          <div class="muted">ملاحظات المبلّغ/المراجع (اختياري): _______________________________</div>
+          <div class="sig"><div class="muted">توقيع الموظف</div></div>
+        </div>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if(window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer');
-    if(!w){ throw new Error('تعذّر فتح نافذة الطباعة — الرجاء السماح بالنوافذ المنبثقة.'); }
-    w.document.open(); w.document.write(html); w.document.close();
+    let w = openPrintWindowEnhanced();
+    if(!w){
+      // مسار بديل: الطباعة في نفس التبويب
+      blobPrintSameTab(html);
+      return;
+    }
+    writeAndPrint(w, html);
     await run(async()=> await addIncidentAction(id.value, { name: 'تنبيه شفهي (طباعة)', notes: 'رقم الوثيقة: '+docId }));
   }catch(e:any){ msg.value = e?.message || 'فشل في إنشاء تنبيه شفهي للطباعة'; }
 }
 
-// خيار A: طباعة ملخّص «إجراءات اللجنة»
+// خيار A: طباعة ملخّص «إجراءات اللجنة» (نافذة مبكرة + بديل نفس التبويب)
 async function printCommitteeActions(){
   if(!it.value) return;
   try{
@@ -382,51 +428,38 @@ async function printCommitteeActions(){
     const studentName = data.student_name || `#${data.student}`;
     const items: any[] = Array.isArray(data.actions_applied)? data.actions_applied : [];
     const rows = items.map((a,idx)=> `<tr><td>${idx+1}</td><td>${(a?.name||'').toString()}</td><td>${(a?.notes||'').toString()}</td><td>${a?.at? new Date(a.at).toLocaleString(): ''}</td></tr>`).join('');
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
     const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <title>إجراءات اللجنة — ${studentName}</title>
-  <style>
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin:0; }
-    header, footer{ position: fixed; left:0; right:0; }
-    header{ top:0; padding:12px 24px; border-bottom:1px solid #ddd; }
-    footer{ bottom:0; padding:8px 24px; border-top:1px solid #ddd; color:#666; font-size:11px; }
-    main{ padding: 90px 24px 70px; max-width: 900px; margin:0 auto; }
-    table{ width:100%; border-collapse: collapse; }
-    th,td{ border:1px solid #ccc; padding:6px 8px; font-size: 13px; }
-    th{ background:#f8f9fa; }
-    h1{ font-size: 18px; margin: 0 0 10px; }
-    @media print{ @page{ size:A4; margin:2cm; } header,footer{ position: fixed; } }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div style="margin-inline-start:auto; color:#666;">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>سري — للاستخدام المدرسي</footer>
-    <main>
-      <h1>إجراءات اللجنة المعتمدة/المقترحة</h1>
-      <div style="margin-bottom:8px; color:#555;">الطالب: <strong>${studentName}</strong> · الواقعة: ${shortId}</div>
-      <table>
-        <thead><tr><th>#</th><th>الإجراء</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد إجراءات —</td></tr>'}</tbody>
-      </table>
-    </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    <div class="page-container">${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>إجراءات اللجنة المعتمدة/المقترحة</h1>
+        <div class="box" style="margin-bottom:8px; color:#555;">الطالب: <strong>${studentName}</strong> · الواقعة: ${shortId}</div>
+        <table>
+          <thead><tr><th>#</th><th>الإجراء</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد إجراءات —</td></tr>'}</tbody>
+        </table>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if(window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer');
-    if(!w){ throw new Error('تعذّر فتح نافذة الطباعة — الرجاء السماح بالنوافذ المنبثقة.'); }
-    w.document.open(); w.document.write(html); w.document.close();
+    let w = openPrintWindowEnhanced();
+    if(!w){ blobPrintSameTab(html); return; }
+    writeAndPrint(w, html);
     await run(async()=> await addIncidentAction(id.value, { name: 'إجراءات اللجنة (طباعة)', notes: 'رقم الوثيقة: '+docId }));
   }catch(e:any){ msg.value = e?.message || 'فشل في إنشاء طباعة إجراءات اللجنة'; }
 }
 
-// خيار A: طباعة ملخّص «عقوبات اللجنة»
+// خيار A: طباعة ملخّص «عقوبات اللجنة» (نافذة مبكرة + بديل نفس التبويب)
 async function printCommitteeSanctions(){
   if(!it.value) return;
   try{
@@ -440,46 +473,33 @@ async function printCommitteeSanctions(){
     const studentName = data.student_name || `#${data.student}`;
     const items: any[] = Array.isArray(data.sanctions_applied)? data.sanctions_applied : [];
     const rows = items.map((a,idx)=> `<tr><td>${idx+1}</td><td>${(a?.name||'').toString()}</td><td>${(a?.notes||'').toString()}</td><td>${a?.at? new Date(a.at).toLocaleString(): ''}</td></tr>`).join('');
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
     const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <title>عقوبات اللجنة — ${studentName}</title>
-  <style>
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin:0; }
-    header, footer{ position: fixed; left:0; right:0; }
-    header{ top:0; padding:12px 24px; border-bottom:1px solid #ddd; }
-    footer{ bottom:0; padding:8px 24px; border-top:1px solid #ddd; color:#666; font-size:11px; }
-    main{ padding: 90px 24px 70px; max-width: 900px; margin:0 auto; }
-    table{ width:100%; border-collapse: collapse; }
-    th,td{ border:1px solid #ccc; padding:6px 8px; font-size: 13px; }
-    th{ background:#f8f9fa; }
-    h1{ font-size: 18px; margin: 0 0 10px; }
-    @media print{ @page{ size:A4; margin:2cm; } header,footer{ position: fixed; } }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div style="margin-inline-start:auto; color:#666;">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>سري — للاستخدام المدرسي</footer>
-    <main>
-      <h1>عقوبات اللجنة المعتمدة/المقترحة</h1>
-      <div style="margin-bottom:8px; color:#555;">الطالب: <strong>${studentName}</strong> · الواقعة: ${shortId}</div>
-      <table>
-        <thead><tr><th>#</th><th>العقوبة</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد عقوبات —</td></tr>'}</tbody>
-      </table>
-    </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    <div class="page-container">${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>عقوبات اللجنة المعتمدة/المقترحة</h1>
+        <div class="box" style="margin-bottom:8px; color:#555;">الطالب: <strong>${studentName}</strong> · الواقعة: ${shortId}</div>
+        <table>
+          <thead><tr><th>#</th><th>العقوبة</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد عقوبات —</td></tr>'}</tbody>
+        </table>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if(window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer');
-    if(!w){ throw new Error('تعذّر فتح نافذة الطباعة — الرجاء السماح بالنوافذ المنبثقة.'); }
-    w.document.open(); w.document.write(html); w.document.close();
+    let w = openPrintWindowEnhanced();
+    if(!w){ blobPrintSameTab(html); return; }
+    writeAndPrint(w, html);
     await run(async()=> await addIncidentAction(id.value, { name: 'عقوبات اللجنة (طباعة)', notes: 'رقم الوثيقة: '+docId }));
   }catch(e:any){ msg.value = e?.message || 'فشل في إنشاء طباعة عقوبات اللجنة'; }
 }

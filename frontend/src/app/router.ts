@@ -16,6 +16,7 @@ const routes: RouteRecordRaw[] = [
   { path: "/discipline/incident/new", redirect: { name: "discipline-incident-new" } },
   { path: "/incident/new", redirect: { name: "discipline-incident-new" } },
   { path: "/discipline/incidents/:id", name: "discipline-incident-card", component: () => import("../features/discipline/pages/IncidentCard.vue"), meta: { requiresAuth: true, titleAr: "بطاقة الواقعة" } },
+  { path: "/discipline/incidents/:id/print", name: "discipline-incident-print", component: () => import("../features/discipline/pages/IncidentPrintHub.vue"), meta: { requiresAuth: true, titleAr: "مركز الطباعة" } },
   { path: "/discipline/kanban", name: "discipline-kanban", component: () => import("../features/discipline/pages/KanbanBoard.vue"), meta: { requiresAuth: true, titleAr: "لوحة الانضباط" } },
   { path: "/discipline/violations", name: "discipline-violations", component: () => import("../features/discipline/pages/ViolationsList.vue"), meta: { requiresAuth: true, titleAr: "كتالوج المخالفات" } },
   // لجنة السلوك — لوحة الرئيس

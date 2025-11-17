@@ -180,6 +180,24 @@ function onPeriodChange(){
     // Prefill class and location from selected period
     form.value.class_id = p.classroom_id;
     if (!form.value.location){ form.value.location = p.classroom_name || ''; }
+    // If the period has times, prefill occurred_at to the midpoint of the lesson time on the selected date
+    try{
+      if (p.start_time && p.end_time && date.value){
+        const [sh, sm] = String(p.start_time).split(':').map(x=> parseInt(x,10));
+        const [eh, em] = String(p.end_time).split(':').map(x=> parseInt(x,10));
+        // Build Date objects in local time
+        const start = new Date(date.value + 'T00:00');
+        start.setHours(isFinite(sh)?sh:0, isFinite(sm)?sm:0, 0, 0);
+        const end = new Date(date.value + 'T00:00');
+        end.setHours(isFinite(eh)?eh:0, isFinite(em)?em:0, 0, 0);
+        const midMs = start.getTime() + Math.floor((end.getTime() - start.getTime())/2);
+        const mid = new Date(midMs);
+        // Normalize to input type="datetime-local" expected format (local without timezone)
+        const d = new Date(mid);
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+        form.value.occurred_at = d.toISOString().slice(0,16);
+      }
+    }catch{ /* ignore prefill errors */ }
     loadRoster();
   }
 }
@@ -202,6 +220,13 @@ async function onSubmit(){
       location: form.value.location || (classes.value.find(c=>c.id===form.value.class_id)?.name || ''),
       narrative: form.value.narrative,
     };
+    // Optionally include class/period to help backend validate and fix subject
+    if (form.value.class_id){
+      (payload as any).class_id = form.value.class_id;
+    }
+    if (selectedPeriod.value && selectedPeriod.value > 0){
+      (payload as any).period_number = selectedPeriod.value;
+    }
     await createIncident(payload);
     msg.value = 'تم الحفظ بنجاح';
     router.push({ name: 'discipline-incidents' });

@@ -12,10 +12,17 @@
       <span class="badge bg-outline-warning text-warning">عق {{ it.sanctions_count ?? 0 }}</span>
       <span v-if="it.committee_required" class="badge bg-danger">لجنة</span>
       <span v-if="it.is_overdue_review || it.is_overdue_notify" class="badge bg-danger">متجاوز SLA</span>
+      <RouterLink
+        class="btn btn-sm btn-outline-dark ms-auto"
+        :to="{ name: 'discipline-incident-print', params: { id: it.id } }"
+        title="مركز الطباعة"
+        @click.stop
+      >طباعة</RouterLink>
     </div>
   </div>
 </template>
 <script setup lang="ts">
+import { RouterLink } from 'vue-router';
 const props = defineProps<{ it: any }>();
 
 function fmtDate(s?: string){ if(!s) return '—'; try{ const d=new Date(s as string); const y=d.getFullYear(); const m=String(d.getMonth()+1).padStart(2,'0'); const dd=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${dd}`; }catch{ return s as string; } }

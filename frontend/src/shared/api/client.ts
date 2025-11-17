@@ -98,10 +98,9 @@ api.interceptors.response.use(
         }
       } catch {}
     }
-    if (status === 401 && location.pathname !== "/login") {
-      // Could not refresh → redirect to login
-      window.location.href = "/login";
-    }
+    // Do not hard-redirect to /login here; allow the caller/route guards to decide.
+    // Hard redirects on transient 401s (while backend restarts) were causing the app
+    // to bounce the user back to the login screen unexpectedly.
     // Normalize backend error envelope { error: { code, message, details } }
     const payload = err?.response?.data as any;
     const normalized = normalizeApiError(err);

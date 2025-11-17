@@ -90,6 +90,11 @@ class Incident(models.Model):
     actions_applied = models.JSONField(default=list, blank=True)
     sanctions_applied = models.JSONField(default=list, blank=True)
     escalated_due_to_repeat = models.BooleanField(default=False)
+    # تثبيت المادة لحظة إنشاء الواقعة لضمان دقة سياسة التكرار حسب المادة/الفصل
+    subject = models.ForeignKey(
+        "school.Subject", on_delete=models.SET_NULL, null=True, blank=True, related_name="incidents"
+    )
+    subject_name_cached = models.CharField(max_length=150, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     # Committee workflow (stored in backend only)

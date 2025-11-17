@@ -96,12 +96,9 @@
                 الأغلبية: {{ decisionLabel(summaries[it.id].summary.majority) }}
               </span>
             </div>
-            <!-- مفاتيح الطباعة المهنية (HTML — خيار A) -->
+            <!-- اختصار جديد: مركز الطباعة -->
             <div class="mt-2 d-flex flex-wrap gap-2">
-              <button class="btn btn-sm btn-outline-dark" @click="printPledgeById(it.id)">طباعة التعهد</button>
-              <button class="btn btn-sm btn-outline-primary" @click="printActsById(it.id)">طباعة إجراءات اللجنة</button>
-              <button class="btn btn-sm btn-outline-warning" @click="printSancById(it.id)">طباعة عقوبات اللجنة</button>
-              <button class="btn btn-sm btn-outline-secondary" @click="printOralById(it.id)" :disabled="Number(it.severity||0) > 1" title="يُتاح للوقائع البسيطة (مستوى 1)">تنبيه شفهي</button>
+              <RouterLink class="btn btn-sm btn-outline-dark" :to="{ name: 'discipline-incident-print', params: { id: it.id } }">مركز الطباعة</RouterLink>
             </div>
             <!-- وصف مختصر: تاريخ/زمن ومكان ونص الحادثة -->
             <div class="mt-2 text-muted small incident-brief">
@@ -189,9 +186,94 @@ async function vote(id: string, decision: 'approve'|'reject'|'return'){
 onMounted(()=> reload());
 
 // ======================= وظائف الطباعة (HTML — خيار A) =======================
-async function printPledgeById(incidentId: string){
+// أداة موحّدة لفتح نافذة الطباعة مع مسارات بديلة عند الحجب
+function openPrintWindowEnhanced(): Window|null {
+  // المحاولة الأساسية — الأكثر موثوقية
+  let w: Window|null = null;
+  try { w = window.open('about:blank', '_blank', 'noopener,noreferrer'); } catch {}
+  if (w) {
+    try { w.opener = null; w.focus(); } catch {}
+    try {
+      w.document.open();
+      w.document.write('<!doctype html><title>جاري التحضير للطباعة…</title><body dir="rtl" style="font-family:Segoe UI,Tahoma,Arial,sans-serif; padding:16px; color:#444;">جاري التحضير للطباعة…</body>');
+      w.document.close();
+    } catch {}
+    return w;
+  }
+  // مسار بديل: إنشاء رابط target=_blank ومحاولة النقر عليه ضمن نفس حدث المستخدم
+  try {
+    const a = document.createElement('a');
+    a.href = 'about:blank';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // قد يكون قد فُتحت نافذة، لكن لا مرجع لنا. لا يمكننا الكتابة لها برمجيًا.
+    // في هذه الحالة سنُسقط إلى المسار الخادمي الخاص بالعناصر التي تملك معاينة خادمية (التعهد).
+  } catch {}
+  return null;
+}
+function buildPlatformShell(base: string){
+  const logo = `${base}/assets/img/logo.png?v=20251027-02`;
+  const headLinks = `
+  <style>
+    /* طباعة: هوامش A4 وتثبيت الهيدر/الفوتر */
+    @media print { @page { size: A4; margin: 2cm; } }
+    body { font-family: 'Cairo','Segoe UI',Tahoma,Arial,sans-serif; color:#111; }
+    .content-wrap{ padding: 1rem 0 2rem; }
+    .doc-meta{font-size:12px;color:#666}
+    /* هيدر وفوتر بنفس شكل المنصة */
+    .navbar-maronia{ position:fixed; top:0; left:0; right:0; z-index:10; }
+    .navbar-maronia nav{ background: linear-gradient(180deg,#8b1e24 0%, #6d141a 45%, #8b1e24 100%); color:#f9d39b; }
+    .navbar-maronia .brand-images img{ height:44px; width:auto; display:block }
+    .page-footer{ position:fixed; bottom:0; left:0; right:0; }
+    .page-footer .container{ background:#7a1f2a; color:#caa86a; }
+    .container{ max-width: 1024px; margin-inline:auto; padding-inline: 12px; }
+    .py-2{ padding-block: .5rem; }
+    .py-3{ padding-block: .75rem; }
+    .d-flex{ display:flex; }
+    .align-items-center{ align-items:center; }
+    .gap-3{ gap:.75rem; }
+    .small{ font-size: 12px; }
+    .text-center{ text-align:center; }
+    .w-100{ width:100%; }
+    .flex-fill{ flex:1 1 auto; }
+  </style>`;
+  const header = `
+  <header class="navbar-maronia">
+    <nav class="container d-flex align-items-center gap-3 py-2" role="navigation" aria-label="التنقل الرئيسي">
+      <div class="brand-images d-flex align-items-center">
+        <img src="${logo}" alt="شعار" />
+      </div>
+      <span class="flex-fill"></span>
+    </nav>
+  </header>`;
+  const footer = `
+  <footer class="page-footer py-3">
+    <div class="container d-flex justify-content-between small">
+      <span class="text-center w-100">©2025 - جميع الحقوق محفوظة - مدرسة الشحانية الاعدادية الثانوية بنين - تطوير( المعلم/ سفيان مسيف s.mesyef0904@education.qa )</span>
+    </div>
+  </footer>`;
+  return { headLinks, header, footer };
+}
+
+async function printPledgeStudentById(incidentId: string){
+  // افتح النافذة فور النقر لتجنّب الحجب
+  let w = openPrintWindowEnhanced();
+  if(!w){
+    // مسار احتياطي موثوق: افتح معاينة الخادم مباشرة في نفس التبويب بدون حوارات
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    window.location.assign(`${base}/api/v1/discipline/incidents/${incidentId}/pledge/preview/?format=html`);
+    return;
+  }
   try{
+    try { w.opener = null; w.focus(); } catch {}
+
     const data:any = await getIncident(incidentId);
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
     const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
     const shortId = String(data.id || '').slice(0,8);
     const docId = `PLEDG-${y}${m}-${shortId}`;
@@ -199,81 +281,246 @@ async function printPledgeById(incidentId: string){
     const studentName = data.student_name || `#${data.student}`;
     const viol = data.violation_display || data.violation_code || '—';
     const occurred = fmtDate(data.occurred_at);
+    const location = data.location || '—';
+    const severity = Number(data.severity||0) || '—';
     const html = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <title>تعهد خطي — ${studentName}</title>
-  <style>
-    :root{ --fg:#111; --muted:#666; --accent:#0d6efd; }
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color:var(--fg); margin:0; }
-    header, footer{ position: fixed; left: 0; right: 0; }
-    header{ top: 0; padding: 12px 24px; border-bottom: 1px solid #ddd; }
-    footer{ bottom: 0; padding: 8px 24px; border-top: 1px solid #ddd; color: var(--muted); font-size: 11px; }
-    main{ padding: 120px 24px 80px; max-width: 820px; margin: 0 auto; }
-    h1{ font-size: 18px; margin: 0 0 12px; }
-    .row{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }
-    .box{ border: 1px solid #ccc; padding: 12px; border-radius: 6px; }
-    .muted{ color: var(--muted); font-size: 12px; }
-    .sig-grid{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
-    .sig{ border: 1px dashed #999; min-height: 72px; padding: 8px; }
-    .qr{ width: 96px; height: 96px; border: 1px solid #ccc; display: inline-block; background:
-      repeating-linear-gradient(45deg,#eee 0,#eee 8px,#ddd 8px,#ddd 16px); }
-    .meta{ margin-top: 10px; font-size: 12px; color: var(--muted); }
-    @media print { @page { size: A4; margin: 2cm; } header, footer { position: fixed; } main{ padding: 0; margin-top: 40px; } .no-print{ display: none !important; } }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div class="muted" style="margin-inline-start:auto">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>سري — للاستخدام المدرسي · صفحة 1 من 1 · للتحقق امسح رمز QR</footer>
-    <main>
+    <div class="page-container">
+    ${shell.header}
+    <main class="page-main container content-wrap">
       <h1>تعهد خطي بشأن التزام السلوك المدرسي</h1>
       <div class="row box" style="margin-bottom:12px;">
         <div><div class="muted">الطالب</div><div>${studentName}</div></div>
         <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
         <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
         <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+        <div><div class="muted">المكان</div><div>${location}</div></div>
+        <div><div class="muted">الشدة</div><div>${severity}</div></div>
       </div>
       <div class="box">
-        <p>أنا الطالب/ـة المذكور أعلاه، أقرّ بأنني اطّلعت على الواقعة رقم ${shortId} وأتعهد بالالتزام بقواعد السلوك والانضباط المدرسي، والتعاون مع المدرسة خلال فترة المتابعة.</p>
+        <div class="title">نص التعهد</div>
+        <p>
+          أنا الطالب المذكور أعلاه، أقرّ بأنني اطّلعت على الواقعة رقم ${shortId}
+          المتعلقة بالمخالفة المبينة، وأتعهد بما يلي:
+        </p>
         <ol>
-          <li>الالتزام التام بالقواعد وتجنب تكرار المخالفة.</li>
-          <li>التعاون مع الهيئتين التعليمية والإرشادية عند الطلب.</li>
-          <li>قبول المتابعة الدورية والامتثال للتوجيهات.</li>
-          <li>العلم بأن تكرار المخالفة قد يترتب عليه إجراءات أشد وفق اللوائح.</li>
+          <li>الالتزام التام بقواعد السلوك والانضباط المدرسي، وتجنّب تكرار المخالفة.</li>
+          <li>التعاون مع الهيئتين التعليمية والإرشادية، وحضور الجلسات أو الأنشطة العلاجية عند الطلب.</li>
+          <li>قبول المتابعة الدورية خلال مدة زمنية مناسبة والامتثال للتوجيهات الصادرة.</li>
+          <li>العلم بأن تكرار المخالفة قد يترتب عليه إجراءات أشد وفق لائحة السلوك والمواظبة.</li>
         </ol>
+        <div class="title" style="margin-top:10px;">تعهد ولي الأمر</div>
+        <p>
+          أنا ولي أمر الطالب المذكور، أتعهد بمتابعة ابني، والتعاون مع المدرسة،
+          وحضور الاجتماعات عند الاستدعاء، وإعلام المدرسة بأي ظروف قد تؤثر على السلوك.
+        </p>
         <div class="muted">ملخص الإجراء/التوصية (إن وُجد):</div>
         <div style="font-weight:600; margin-bottom:8px;">${proposed}</div>
         <div class="sig-grid">
-          <div class="sig"><div class="muted">توقيع الطالب/ـة</div></div>
-          <div class="sig"><div class="muted">توقيع ولي الأمر</div></div>
-          <div class="sig"><div class="muted">ختم المدرسة / موظف الاستلام</div></div>
+          <div class="sig">
+            <div class="muted">توقيع الطالب</div>
+            <span class="line"></span>
+            <div class="muted">الاسم الثلاثي: ____________ · التاريخ: ____/____/______</div>
+          </div>
+          <div class="sig">
+            <div class="muted">توقيع ولي الأمر</div>
+            <span class="line"></span>
+            <div class="muted">الاسم: ________________ · الهوية: ____________ · التاريخ: ____/____/______</div>
+          </div>
+          <div class="sig">
+            <div class="muted">ختم المدرسة / موظف الاستلام</div>
+            <span class="line"></span>
+            <div class="muted">الاسم: ________________ · التاريخ: ____/____/______</div>
+          </div>
         </div>
-        <div class="meta">رقم الوثيقة: ${docId}</div>
+        <div class="doc-meta">رقم الوثيقة: ${docId} · قالب الطباعة: v1.0 · تاريخ الإصدار: ${y}-${m}-${d}</div>
         <div style="margin-top:8px; display:flex; align-items:center; gap:12px;">
           <div class="qr" aria-label="QR placeholder"></div>
-          <div class="muted">سيتم توليد رمز QR في الإصدار القادم (خيار B). حالياً يُستخدم رقم الوثيقة للتحقق الداخلي.</div>
+          <div class="muted">للاطّلاع والتحقق لاحقًا سيُدرج رمز QR ضمن نسخة PDF الموحّدة.</div>
         </div>
       </div>
     </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer'); if(!w) throw new Error('تعذّر فتح نافذة الطباعة.');
     w.document.open(); w.document.write(html); w.document.close();
     try { await addIncidentAction(incidentId, { name: 'تعهد خطي (طباعة)', notes: 'رقم الوثيقة: '+docId }); } catch {}
-  }catch(e:any){ alert(e?.message || 'فشل في طباعة التعهد'); }
+  }catch(e:any){
+    try{ w.close(); }catch{}
+    alert(e?.message || 'فشل في طباعة التعهد');
+  }
+}
+
+async function printPledgeGuardianById(incidentId: string){
+  let w = openPrintWindowEnhanced();
+  // إن حُجبت النوافذ، اطبع في نفس التبويب عبر Blob
+  const data:any = await getIncident(incidentId);
+  const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+  const shell = buildPlatformShell(base);
+  const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+  const shortId = String(data.id || '').slice(0,8);
+  const docId = `PLEDG-${y}${m}-${shortId}`;
+  const studentName = data.student_name || `#${data.student}`;
+  const viol = data.violation_display || data.violation_code || '—';
+  const occurred = fmtDate(data.occurred_at);
+  const location = data.location || '—';
+  const severity = Number(data.severity||0) || '—';
+  const guardianHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>تعهد ولي الأمر — ${studentName}</title>
+  ${shell.headLinks}
+</head>
+<body>
+  <div class="page-container">
+    ${shell.header}
+    <main class="page-main container content-wrap">
+      <h1>تعهد ولي الأمر بشأن متابعة السلوك</h1>
+      <div class="row box" style="margin-bottom:12px;">
+        <div><div class="muted">الطالب</div><div>${studentName}</div></div>
+        <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+        <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+        <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+        <div><div class="muted">المكان</div><div>${location}</div></div>
+        <div><div class="muted">الشدة</div><div>${severity}</div></div>
+      </div>
+      <div class="box">
+        <p>
+          أنا ولي أمر الطالب المذكور أعلاه، اطّلعت على تفاصيل الواقعة المشار إليها،
+          وأتعهد بالتالي:
+        </p>
+        <ol>
+          <li>متابعة سلوك ابني بانتظام والتعاون مع المدرسة في أي خطة علاجية أو إرشادية.</li>
+          <li>الالتزام بحضور الاجتماعات عند الاستدعاء، والاستجابة لأي تواصل من المدرسة.</li>
+          <li>إعلام المدرسة بأي ظروف قد تؤثر على السلوك أو المتابعة.</li>
+          <li>تفهم أن تكرار المخالفة قد يترتب عليه إجراءات أشد وفق لوائح السلوك.</li>
+        </ol>
+        <div class="sig-grid">
+          <div class="sig">
+            <div class="muted">توقيع ولي الأمر</div>
+            <span class="line"></span>
+            <div class="muted">الاسم: ________________ · الهوية: ____________ · التاريخ: ____/____/______</div>
+          </div>
+          <div class="sig">
+            <div class="muted">بيانات التواصل</div>
+            <span class="line"></span>
+            <div class="muted">الهاتف: ____________ · البريد: __________________</div>
+          </div>
+          <div class="sig">
+            <div class="muted">ختم المدرسة / موظف الاستلام</div>
+            <span class="line"></span>
+            <div class="muted">الاسم: ________________ · التاريخ: ____/____/______</div>
+          </div>
+        </div>
+        <div class="doc-meta">رقم الوثيقة: ${docId} · قالب الطباعة: v1.0 · تاريخ الإصدار: ${y}-${m}-${d}</div>
+      </div>
+    </main>
+    ${shell.footer}
+  </div>
+  <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
+</body>
+</html>`;
+  if (!w){
+    const blob = new Blob([guardianHtml], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    window.location.assign(url);
+    return;
+  }
+  try{
+    w.document.open(); w.document.write(guardianHtml); w.document.close();
+    try { await addIncidentAction(incidentId, { name: 'تعهد ولي الأمر (طباعة)', notes: 'رقم الوثيقة: '+docId }); } catch {}
+  }catch(e:any){ try{ w.close(); }catch{}; alert(e?.message || 'فشل في طباعة تعهد ولي الأمر'); }
 }
 
 async function printOralById(incidentId: string){
+  // افتح النافذة مبكرًا لتجنّب الحجب
+  let w = openPrintWindowEnhanced();
+  if(!w){
+    // مسار بديل: الطباعة في نفس التبويب عند حجب النوافذ
+    try{
+      const data:any = await getIncident(incidentId);
+      if (Number(data.severity||0) > 1) {
+        alert('التنبيه الشفهي مخصص للوقائع البسيطة (مستوى 1)');
+        return;
+      }
+      const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+      const shell = buildPlatformShell(base);
+      const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+      const shortId = String(data.id || '').slice(0,8);
+      const docId = `ORAL-${y}${m}-${shortId}`;
+      const studentName = data.student_name || `#${data.student}`;
+      const viol = data.violation_display || data.violation_code || '—';
+      const occurred = fmtDate(data.occurred_at);
+      const location = data.location || '—';
+      const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>تنبيه شفهي — ${studentName}</title>
+  ${shell.headLinks}
+  </head>
+  <body>
+    <div class="page-container">${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>تنبيه شفهي للطالب/ـة</h1>
+        <div class="row box" style="margin-bottom:12px;">
+          <div><div class="muted">الطالب</div><div>${studentName}</div></div>
+          <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+          <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+          <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+          <div><div class="muted">المكان</div><div>${location}</div></div>
+        </div>
+        <div class="box">
+          <p>
+            تم توجيه <strong>تنبيه شفهي</strong> للطالب/ـة المذكور أعلاه بخصوص الواقعة المشار إليها،
+            وذلك للتأكيد على ضرورة الالتزام بقواعد السلوك والانضباط المدرسي وعدم تكرار المخالفة.
+          </p>
+          <ul>
+            <li>توضيح أثر المخالفة على البيئة التعليمية وزملاء الدراسة.</li>
+            <li>أخذ تعهّد شفهي بالالتزام مستقبلاً والتعاون مع المعنيين.</li>
+          </ul>
+          <div class="muted">ملاحظات المبلّغ/المراجع (اختياري): _______________________________</div>
+          <div class="sig">
+            <div class="muted">توقيع الموظف</div>
+            <span class="line"></span>
+            <div class="muted">الاسم: ________________ · التاريخ: ____/____/______</div>
+          </div>
+        </div>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
+  </body>
+</html>`;
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      window.location.assign(url);
+      return;
+    }catch(e:any){
+      alert(e?.message || 'تعذّر فتح أو طباعة التنبيه الشفهي. فعّل النوافذ المنبثقة أو أعد المحاولة.');
+      return;
+    }
+  }
   try{
+    try { w.opener = null; w.focus(); } catch {}
+
     const data:any = await getIncident(incidentId);
-    if (Number(data.severity||0) > 1) { alert('التنبيه الشفهي مخصص للوقائع البسيطة (مستوى 1)'); return; }
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
+    if (Number(data.severity||0) > 1) {
+      alert('التنبيه الشفهي مخصص للوقائع البسيطة (مستوى 1)');
+      try{ w.close(); }catch{}
+      return;
+    }
     const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
     const shortId = String(data.id || '').slice(0,8);
     const docId = `ORAL-${y}${m}-${shortId}`;
@@ -285,63 +532,125 @@ async function printOralById(incidentId: string){
 <head>
   <meta charset="utf-8" />
   <title>تنبيه شفهي — ${studentName}</title>
-  <style>
-    :root{ --fg:#111; --muted:#666; }
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; color:var(--fg); margin:0; }
-    header, footer{ position: fixed; left: 0; right: 0; }
-    header{ top: 0; padding: 12px 24px; border-bottom: 1px solid #ddd; }
-    footer{ bottom: 0; padding: 8px 24px; border-top: 1px solid #ddd; color: var(--muted); font-size: 11px; }
-    main{ padding: 100px 24px 80px; max-width: 820px; margin: 0 auto; }
-    h1{ font-size: 18px; margin: 0 0 12px; }
-    .row{ display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px 16px; }
-    .box{ border: 1px solid #ccc; padding: 12px; border-radius: 6px; }
-    .muted{ color: var(--muted); font-size: 12px; }
-    .sig{ border: 1px dashed #999; min-height: 64px; padding: 8px; margin-top: 12px; }
-    @media print { @page { size: A4; margin: 2cm; } header, footer { position: fixed; } main{ padding: 0; margin-top: 40px; } }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div class="muted" style="margin-inline-start:auto">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>سري — للاستخدام المدرسي · صفحة 1 من 1</footer>
-    <main>
-      <h1>تنبيه شفهي للطالب/ـة</h1>
-      <div class="row box" style="margin-bottom:12px;">
-        <div><div class="muted">الطالب</div><div>${studentName}</div></div>
-        <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
-        <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
-        <div><div class="muted">المخالفة</div><div>${viol}</div></div>
-      </div>
-      <div class="box">
-        <p>تم توجيه <strong>تنبيه شفهي</strong> للطالب/ـة المذكور أعلاه بخصوص الواقعة المشار إليها، مع التأكيد على الالتزام بقواعد السلوك والانضباط وعدم تكرار المخالفة.</p>
-        <ul>
-          <li>فهم أثر المخالفة على البيئة التعليمية.</li>
-          <li>التعهّد بالالتزام مستقبلاً والتعاون مع المعنيين.</li>
-        </ul>
-        <div class="muted">ملاحظات المبلّغ/المراجع (اختياري): _______________________________</div>
-        <div class="sig"><div class="muted">توقيع الموظف</div></div>
-      </div>
-    </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    <div class="page-container">
+      ${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>تنبيه شفهي للطالب/ـة</h1>
+        <div class="row box" style="margin-bottom:12px;">
+          <div><div class="muted">الطالب</div><div>${studentName}</div></div>
+          <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+          <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+          <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+        </div>
+        <div class="box">
+          <p>
+            تم توجيه <strong>تنبيه شفهي</strong> للطالب/ـة المذكور أعلاه بخصوص الواقعة المشار إليها،
+            وذلك للتأكيد على ضرورة الالتزام بقواعد السلوك والانضباط المدرسي وعدم تكرار المخالفة.
+          </p>
+          <ul>
+            <li>توضيح أثر المخالفة على البيئة التعليمية وزملاء الدراسة.</li>
+            <li>أخذ تعهّد شفهي بالالتزام مستقبلاً والتعاون مع المعنيين.</li>
+          </ul>
+          <div class="muted">ملاحظات المبلّغ/المراجع (اختياري): _______________________________</div>
+          <div class="sig">
+            <div class="muted">توقيع الموظف</div>
+            <span class="line"></span>
+            <div class="muted">الاسم: ________________ · التاريخ: ____/____/______</div>
+          </div>
+        </div>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer'); if(!w) throw new Error('تعذّر فتح نافذة الطباعة.');
     w.document.open(); w.document.write(html); w.document.close();
     try { await addIncidentAction(incidentId, { name: 'تنبيه شفهي (طباعة)', notes: 'رقم الوثيقة: '+docId }); } catch {}
-  }catch(e:any){ alert(e?.message || 'فشل في طباعة التنبيه الشفهي'); }
+  }catch(e:any){
+    try{ w.close(); }catch{}
+    alert(e?.message || 'فشل في طباعة التنبيه الشفهي');
+  }
 }
 
 async function printActsById(incidentId: string){
+  // افتح النافذة مبكرًا لتجنّب الحجب
+  let w = openPrintWindowEnhanced();
+  if(!w){
+    // مسار بديل: الطباعة في نفس التبويب عند حجب النوافذ
+    try{
+      const data:any = await getIncident(incidentId);
+      const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+      const shell = buildPlatformShell(base);
+      const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+      const shortId = String(data.id || '').slice(0,8);
+      const docId = `ACTS-${y}${m}-${shortId}`;
+      const studentName = data.student_name || `#${data.student}`;
+      const viol = data.violation_display || data.violation_code || '—';
+      const occurred = fmtDate(data.occurred_at);
+      const location = data.location || '—';
+      const severity = Number(data.severity||0) || '—';
+      const proposed = data.proposed_summary || '—';
+      const items: any[] = Array.isArray(data.actions_applied)? data.actions_applied : [];
+      const rows = items.map((a:any,idx:number)=> `<tr><td>${idx+1}</td><td>${(a?.name||'').toString()}</td><td>${(a?.notes||'').toString()}</td><td>${a?.at? new Date(a.at).toLocaleString(): ''}</td></tr>`).join('');
+      const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>إجراءات اللجنة — ${studentName}</title>
+  ${shell.headLinks}
+  </head>
+  <body>
+    <div class="page-container">${shell.header}
+      <main class="page-main container content_wrap">
+        <h1>إجراءات اللجنة المعتمدة/المقترحة</h1>
+        <div class="box" style="margin-bottom:8px; color:#555;">
+          <div class="row">
+            <div><div class="muted">الطالب</div><div><strong>${studentName}</strong></div></div>
+            <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+            <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+            <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+            <div><div class="muted">المكان</div><div>${location}</div></div>
+            <div><div class="muted">الشدة</div><div>${severity}</div></div>
+          </div>
+          <div class="muted" style="margin-top:6px;">الإجراء/التوصية المختصرة: <span style="font-weight:600; color:#222;">${proposed}</span></div>
+        </div>
+        <table>
+          <thead><tr><th>#</th><th>الإجراء</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد إجراءات —</td></tr>'}</tbody>
+        </table>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
+  </body>
+</html>`;
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      window.location.assign(url);
+      return;
+    }catch(e:any){
+      alert(e?.message || 'تعذّر فتح أو طباعة «إجراءات اللجنة». فعّل النوافذ المنبثقة أو أعد المحاولة.');
+      return;
+    }
+  }
   try{
+    try { w.opener = null; w.focus(); } catch {}
+
     const data:any = await getIncident(incidentId);
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
     const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
     const shortId = String(data.id || '').slice(0,8);
     const docId = `ACTS-${y}${m}-${shortId}`;
     const studentName = data.student_name || `#${data.student}`;
+    const viol = data.violation_display || data.violation_code || '—';
+    const occurred = fmtDate(data.occurred_at);
+    const location = data.location || '—';
+    const severity = Number(data.severity||0) || '—';
+    const proposed = data.proposed_summary || '—';
     const items: any[] = Array.isArray(data.actions_applied)? data.actions_applied : [];
     const rows = items.map((a:any,idx:number)=> `<tr><td>${idx+1}</td><td>${(a?.name||'').toString()}</td><td>${(a?.notes||'').toString()}</td><td>${a?.at? new Date(a.at).toLocaleString(): ''}</td></tr>`).join('');
     const html = `<!DOCTYPE html>
@@ -349,51 +658,118 @@ async function printActsById(incidentId: string){
 <head>
   <meta charset="utf-8" />
   <title>إجراءات اللجنة — ${studentName}</title>
-  <style>
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin:0; }
-    header, footer{ position: fixed; left:0; right:0; }
-    header{ top:0; padding:12px 24px; border-bottom:1px solid #ddd; }
-    footer{ bottom:0; padding:8px 24px; border-top:1px solid #ddd; color:#666; font-size:11px; }
-    main{ padding: 90px 24px 70px; max-width: 900px; margin:0 auto; }
-    table{ width:100%; border-collapse: collapse; }
-    th,td{ border:1px solid #ccc; padding:6px 8px; font-size: 13px; }
-    th{ background:#f8f9fa; }
-    h1{ font-size: 18px; margin: 0 0 10px; }
-    @media print{ @page{ size:A4; margin:2cm; } header,footer{ position: fixed; } }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div style="margin-inline-start:auto; color:#666;">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>سري — للاستخدام المدرسي</footer>
-    <main>
-      <h1>إجراءات اللجنة المعتمدة/المقترحة</h1>
-      <div style="margin-bottom:8px; color:#555;">الطالب: <strong>${studentName}</strong> · الواقعة: ${shortId}</div>
-      <table>
-        <thead><tr><th>#</th><th>الإجراء</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد إجراءات —</td></tr>'}</tbody>
-      </table>
-    </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    <div class="page-container">
+      ${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>إجراءات اللجنة المعتمدة/المقترحة</h1>
+        <div class="box" style="margin-bottom:8px; color:#555;">
+          <div class="row">
+            <div><div class="muted">الطالب</div><div><strong>${studentName}</strong></div></div>
+            <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+            <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+            <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+            <div><div class="muted">المكان</div><div>${location}</div></div>
+            <div><div class="muted">الشدة</div><div>${severity}</div></div>
+          </div>
+          <div class="muted" style="margin-top:6px;">الإجراء/التوصية المختصرة: <span style="font-weight:600; color:#222;">${proposed}</span></div>
+        </div>
+        <table>
+          <thead><tr><th>#</th><th>الإجراء</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد إجراءات —</td></tr>'}</tbody>
+        </table>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer'); if(!w) throw new Error('تعذّر فتح نافذة الطباعة.');
     w.document.open(); w.document.write(html); w.document.close();
     try { await addIncidentAction(incidentId, { name: 'إجراءات اللجنة (طباعة)', notes: 'رقم الوثيقة: '+docId }); } catch {}
-  }catch(e:any){ alert(e?.message || 'فشل في طباعة إجراءات اللجنة'); }
+  }catch(e:any){
+    try{ w.close(); }catch{}
+    alert(e?.message || 'فشل في طباعة إجراءات اللجنة');
+  }
 }
 
 async function printSancById(incidentId: string){
+  // افتح النافذة مبكرًا لتجنّب الحجب
+  let w = openPrintWindowEnhanced();
+  if(!w){
+    // مسار بديل: الطباعة في نفس التبويب عند حجب النوافذ
+    try{
+      const data:any = await getIncident(incidentId);
+      const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+      const shell = buildPlatformShell(base);
+      const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
+      const shortId = String(data.id || '').slice(0,8);
+      const docId = `SANC-${y}${m}-${shortId}`;
+      const studentName = data.student_name || `#${data.student}`;
+      const viol = data.violation_display || data.violation_code || '—';
+      const occurred = fmtDate(data.occurred_at);
+      const location = data.location || '—';
+      const severity = Number(data.severity||0) || '—';
+      const proposed = data.proposed_summary || '—';
+      const items: any[] = Array.isArray(data.sanctions_applied)? data.sanctions_applied : [];
+      const rows = items.map((a:any,idx:number)=> `<tr><td>${idx+1}</td><td>${(a?.name||'').toString()}</td><td>${(a?.notes||'').toString()}</td><td>${a?.at? new Date(a.at).toLocaleString(): ''}</td></tr>`).join('');
+      const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>عقوبات اللجنة — ${studentName}</title>
+  ${shell.headLinks}
+  </head>
+  <body>
+    <div class="page-container">${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>عقوبات اللجنة المعتمدة/المقترحة</h1>
+        <div class="box" style="margin-bottom:8px; color:#555;">
+          <div class="row">
+            <div><div class="muted">الطالب</div><div><strong>${studentName}</strong></div></div>
+            <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+            <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+            <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+            <div><div class="muted">المكان</div><div>${location}</div></div>
+            <div><div class="muted">الشدة</div><div>${severity}</div></div>
+          </div>
+          <div class="muted" style="margin-top:6px;">الإجراء/التوصية المختصرة: <span style="font-weight:600; color:#222;">${proposed}</span></div>
+        </div>
+        <table>
+          <thead><tr><th>#</th><th>العقوبة</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد عقوبات —</td></tr>'}</tbody>
+        </table>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
+  </body>
+</html>`;
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      window.location.assign(url);
+      return;
+    }catch(e:any){
+      alert(e?.message || 'تعذّر فتح أو طباعة «عقوبات اللجنة». فعّل النوافذ المنبثقة أو أعد المحاولة.');
+      return;
+    }
+  }
   try{
+    try { w.opener = null; w.focus(); } catch {}
+
     const data:any = await getIncident(incidentId);
+    const base = import.meta.env.VITE_BACKEND_ORIGIN || `https://127.0.0.1:${import.meta.env.VITE_BACKEND_PORT||8443}`;
+    const shell = buildPlatformShell(base);
     const now = new Date(); const y = now.getFullYear(); const m = String(now.getMonth()+1).padStart(2,'0'); const d = String(now.getDate()).padStart(2,'0');
     const shortId = String(data.id || '').slice(0,8);
     const docId = `SANC-${y}${m}-${shortId}`;
     const studentName = data.student_name || `#${data.student}`;
+    const viol = data.violation_display || data.violation_code || '—';
+    const occurred = fmtDate(data.occurred_at);
+    const location = data.location || '—';
+    const severity = Number(data.severity||0) || '—';
+    const proposed = data.proposed_summary || '—';
     const items: any[] = Array.isArray(data.sanctions_applied)? data.sanctions_applied : [];
     const rows = items.map((a:any,idx:number)=> `<tr><td>${idx+1}</td><td>${(a?.name||'').toString()}</td><td>${(a?.notes||'').toString()}</td><td>${a?.at? new Date(a.at).toLocaleString(): ''}</td></tr>`).join('');
     const html = `<!DOCTYPE html>
@@ -401,42 +777,51 @@ async function printSancById(incidentId: string){
 <head>
   <meta charset="utf-8" />
   <title>عقوبات اللجنة — ${studentName}</title>
-  <style>
-    body{ font-family: 'Segoe UI', Tahoma, Arial, sans-serif; margin:0; }
-    header, footer{ position: fixed; left:0; right:0; }
-    header{ top:0; padding:12px 24px; border-bottom:1px solid #ddd; }
-    footer{ bottom:0; padding:8px 24px; border-top:1px solid #ddd; color:#666; font-size:11px; }
-    main{ padding: 90px 24px 70px; max-width: 900px; margin:0 auto; }
-    table{ width:100%; border-collapse: collapse; }
-    th,td{ border:1px solid #ccc; padding:6px 8px; font-size: 13px; }
-    th{ background:#f8f9fa; }
-    h1{ font-size: 18px; margin: 0 0 10px; }
-    @media print{ @page{ size:A4; margin:2cm; } header,footer{ position: fixed; } }
-  </style>
+  ${shell.headLinks}
   </head>
   <body>
-    <header>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="font-weight:700;">نظام السلوك المدرسي</div>
-        <div style="margin-inline-start:auto; color:#666;">رقم الوثيقة: ${docId} · تاريخ الإصدار: ${y}-${m}-${d}</div>
-      </div>
-    </header>
-    <footer>سري — للاستخدام المدرسي</footer>
-    <main>
-      <h1>عقوبات اللجنة المعتمدة/المقترحة</h1>
-      <div style="margin-bottom:8px; color:#555;">الطالب: <strong>${studentName}</strong> · الواقعة: ${shortId}</div>
-      <table>
-        <thead><tr><th>#</th><th>العقوبة</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد عقوبات —</td></tr>'}</tbody>
-      </table>
-    </main>
-    <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 50); };<\/script>
+    <div class="page-container">
+      ${shell.header}
+      <main class="page-main container content-wrap">
+        <h1>عقوبات اللجنة المعتمدة/المقترحة</h1>
+        <div class="box" style="margin-bottom:8px; color:#555;">
+          <div class="row">
+            <div><div class="muted">الطالب</div><div><strong>${studentName}</strong></div></div>
+            <div><div class="muted">رقم الواقعة</div><div>${shortId}</div></div>
+            <div><div class="muted">التاريخ</div><div>${occurred}</div></div>
+            <div><div class="muted">المخالفة</div><div>${viol}</div></div>
+            <div><div class="muted">المكان</div><div>${location}</div></div>
+            <div><div class="muted">الشدة</div><div>${severity}</div></div>
+          </div>
+          <div class="muted" style="margin-top:6px;">الإجراء/التوصية المختصرة: <span style="font-weight:600; color:#222;">${proposed}</span></div>
+        </div>
+        <table>
+          <thead><tr><th>#</th><th>العقوبة</th><th>ملاحظات</th><th>التاريخ/الوقت</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center; color:#888;">— لا توجد عقوبات —</td></tr>'}</tbody>
+        </table>
+      </main>
+      ${shell.footer}
+    </div>
+    <script>window.onload = function(){ setTimeout(function(){ try{ window.focus(); }catch(e){}; if (window.print) window.print(); }, 120); }; window.onafterprint = function(){ setTimeout(function(){ try{ window.close(); }catch(e){} }, 200); };<\/script>
   </body>
 </html>`;
-    const w = window.open('', '_blank', 'noopener,noreferrer'); if(!w) throw new Error('تعذّر فتح نافذة الطباعة.');
     w.document.open(); w.document.write(html); w.document.close();
     try { await addIncidentAction(incidentId, { name: 'عقوبات اللجنة (طباعة)', notes: 'رقم الوثيقة: '+docId }); } catch {}
-  }catch(e:any){ alert(e?.message || 'فشل في طباعة عقوبات اللجنة'); }
+  }catch(e:any){
+    try{ w.close(); }catch{}
+    alert(e?.message || 'فشل في طباعة عقوبات اللجنة');
+  }
+}
+
+// أداة محلية لتنسيق التاريخ بنمط YYYY-MM-DD أو من ISO
+function fmtDate(s?: string){
+  if(!s) return '—';
+  try{
+    if (s.length === 10 && /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s as string);
+    const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const d2 = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d2}`;
+  }catch{ return '—'; }
 }
 </script>
 

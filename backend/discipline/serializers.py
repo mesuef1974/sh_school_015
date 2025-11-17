@@ -40,6 +40,9 @@ class IncidentSerializer(serializers.ModelSerializer):
     violation = serializers.PrimaryKeyRelatedField(
         queryset=Violation.objects.only("id", "severity", "requires_committee").defer("policy")
     )
+    # حقول مساعدة اختيارية من الواجهة لتسهيل ربط الواقعة بالحصة لاحقًا
+    class_id = serializers.IntegerField(required=False, allow_null=True, write_only=True)
+    period_number = serializers.IntegerField(required=False, allow_null=True, write_only=True)
 
     class Meta:
         model = Incident
@@ -59,6 +62,9 @@ class IncidentSerializer(serializers.ModelSerializer):
             "actions_applied",
             "sanctions_applied",
             "escalated_due_to_repeat",
+            # تثبيت المادة داخليًا فقط
+            "subject",
+            "subject_name_cached",
             "status",
         )
 
@@ -230,6 +236,99 @@ class IncidentSerializer(serializers.ModelSerializer):
                 data["occurred_time"] = None
         except Exception:
             data["occurred_time"] = None
+        # Derive lesson period number (1..7) and time label (HH:MM–HH:MM) if possible
+        try:
+            occ = getattr(instance, "occurred_at", None)
+            cls = getattr(getattr(getattr(instance, "student", None), "class_fk", None), "id", None)
+            if occ and cls:
+                # day_of_week: Monday=1 .. Sunday=7 in many DBs; our timing util expects 1..7
+                # Python weekday(): Monday=0..Sunday=6, convert to 1..7
+                dow = ((occ.weekday() + 1 - 0) % 7) or 7
+                try:
+                    from apps.attendance.timing import times_for_by_class  # type: ignore
+
+                    slots = times_for_by_class(int(dow), int(cls)) or {}
+                    # occ time in minutes
+                    hh = occ.hour
+                    mm = occ.minute
+                    total = hh * 60 + mm
+                    chosen_p = None
+                    chosen_label = None
+                    for pnum, (st, et) in sorted(slots.items()):
+                        try:
+                            st_min = int(st.hour) * 60 + int(st.minute)
+                            et_min = int(et.hour) * 60 + int(et.minute)
+                            if total >= st_min and total <= et_min:
+                                chosen_p = int(pnum)
+                                chosen_label = f"{str(st.hour).zfill(2)}:{str(st.minute).zfill(2)}–{str(et.hour).zfill(2)}:{str(et.minute).zfill(2)}"
+                                break
+                        except Exception:
+                            continue
+                    data["period_number"] = chosen_p
+                    data["period_time_label"] = chosen_label
+                except Exception:
+                    data["period_number"] = None
+                    data["period_time_label"] = None
+            else:
+                data["period_number"] = None
+                data["period_time_label"] = None
+        except Exception:
+            data["period_number"] = None
+            data["period_time_label"] = None
+        # Subject fixation fields: prefer FK + cached label; fallback to previous derivation from timetable
+        try:
+            subj_id = getattr(instance, "subject_id", None)
+            subj_name_cached = getattr(instance, "subject_name_cached", "") or ""
+            subj_name = None
+            if subj_id:
+                try:
+                    subj_name = (
+                        subj_name_cached
+                        or getattr(getattr(instance, "subject", None), "name_ar", None)
+                        or getattr(getattr(instance, "subject", None), "name", None)
+                    )
+                except Exception:
+                    subj_name = subj_name_cached or None
+            if not subj_id or not subj_name:
+                # Fallback to timetable-based derivation (legacy)
+                occ = getattr(instance, "occurred_at", None)
+                period_num = data.get("period_number")
+                class_id = getattr(getattr(getattr(instance, "student", None), "class_fk", None), "id", None)
+                subject_label = None
+                if occ and class_id and period_num:
+                    dow_py = int(occ.weekday())  # 0..6
+                    dow_1_7 = ((dow_py + 1 - 0) % 7) or 7  # 1..7
+                    day_for_tt = 1 if dow_1_7 == 6 else (5 if dow_1_7 == 7 else dow_1_7)
+                    try:
+                        from school.models import Term  # type: ignore
+                        from school.models import TimetableEntry  # type: ignore
+
+                        term = (
+                            Term.objects.filter(start_date__lte=occ.date(), end_date__gte=occ.date())
+                            .order_by("-start_date")
+                            .first()
+                        ) or Term.objects.order_by("-start_date").first()
+                        if term is not None:
+                            entry = (
+                                TimetableEntry.objects.select_related("subject")
+                                .filter(
+                                    classroom_id=int(class_id),
+                                    day_of_week=int(day_for_tt),
+                                    period_number=int(period_num),
+                                    term=term,
+                                )
+                                .first()
+                            )
+                            if entry is not None:
+                                subject_label = getattr(getattr(entry, "subject", None), "name_ar", None) or None
+                    except Exception:
+                        subject_label = None
+                subj_name = subj_name or subject_label
+            data["subject_id"] = subj_id
+            data["subject_name"] = subj_name
+        except Exception:
+            data["subject_id"] = None
+            data["subject_name"] = None
         # Severity color
         try:
             sev = int(getattr(instance, "severity", 1) or 1)
@@ -237,31 +336,35 @@ class IncidentSerializer(serializers.ModelSerializer):
             data["level_color"] = color
         except Exception:
             data["level_color"] = "#2e7d32"
-        # Context needed by لجنة السلوك (صفحة العضو): عدد مرات تكرار نفس المخالفة ضمن نافذة زمنية + دلالات نصية
+        # Repeat info: same classroom (الصف) + same subject — not by academic term
         try:
-            # نافذة التكرار بحسب الإعدادات العامة أو سياسة المخالفة إن توفرت
-            from django.conf import settings as dj_settings
-
-            window_days = int(getattr(dj_settings, "DISCIPLINE_REPEAT_WINDOW_D", 30))
-            try:
-                vpol = getattr(getattr(instance, "violation", None), "policy", None) or {}
-                if isinstance(vpol, dict) and vpol.get("window_days") is not None:
-                    window_days = int(vpol.get("window_days") or window_days)
-            except Exception:
-                pass
-            from django.utils.timezone import now
-            from datetime import timedelta
-
+            subj_id = getattr(instance, "subject_id", None)
+            # الصف الحالي الذي ينتمي إليه الطالب
+            class_id = getattr(getattr(getattr(instance, "student", None), "class_fk", None), "id", None)
             repeat_qs = Incident.objects.filter(
                 student_id=getattr(instance, "student_id", None),
                 violation_id=getattr(instance, "violation_id", None),
-                occurred_at__gte=now() - timedelta(days=window_days),
+                subject_id=subj_id,
             ).exclude(id=getattr(instance, "id", None))
-            data["repeat_count_in_window"] = int(repeat_qs.count())
-            data["repeat_window_days"] = int(window_days)
+            # قصر العد على الوقائع التي الطالب فيها ضمن نفس الصف
+            if class_id:
+                repeat_qs = repeat_qs.filter(student__class_fk_id=int(class_id))
+            class_label = None
+            try:
+                class_label = getattr(getattr(getattr(instance, "student", None), "class_fk", None), "name", None)
+            except Exception:
+                class_label = None
+            data["repeat_count_for_subject"] = int(repeat_qs.count())
+            # احتفظنا بالمفتاح repeat_window_term_label للتوافق الأمامي، لكنه الآن يحمل اسم الصف
+            data["repeat_window_term_label"] = class_label
+            # حافظ على التوافق مع الحقول السابقة لكن اجعلها مشتقة منه لأغراض العرض القديم
+            data["repeat_count_in_window"] = data["repeat_count_for_subject"]
+            data["repeat_window_days"] = None
         except Exception:
+            data["repeat_count_for_subject"] = 0
+            data["repeat_window_term_label"] = None
             data["repeat_count_in_window"] = 0
-            data["repeat_window_days"] = int(30)
+            data["repeat_window_days"] = None
         # دلالات نصية مساعدة للواجهة
         try:
             sev = int(getattr(instance, "severity", 1) or 1)
@@ -312,6 +415,34 @@ class IncidentFullSerializer(IncidentSerializer):
 
     def to_representation(self, instance: Incident) -> Dict[str, Any]:
         base = super().to_representation(instance)
+        # إغناء إضافي متعلق بالمادة والتكرار حسب الصف (وليس الفصل الدراسي)
+        try:
+            # اضمن تكرار نفس الحقول في التمثيل الكامل
+            if "subject_id" not in base:
+                base["subject_id"] = getattr(instance, "subject_id", None)
+            if "subject_name" not in base:
+                base["subject_name"] = getattr(instance, "subject_name_cached", None) or None
+            # repeat_count_for_subject قد يكون موجودًا من الأب؛ إن لم يوجد احسبه بشكل آمن
+            if base.get("repeat_count_for_subject") is None:
+                qs = Incident.objects.filter(
+                    student_id=getattr(instance, "student_id", None),
+                    violation_id=getattr(instance, "violation_id", None),
+                    subject_id=getattr(instance, "subject_id", None),
+                ).exclude(id=getattr(instance, "id", None))
+                # حصر العد ضمن نفس الصف الحالي للطالب
+                class_id = getattr(getattr(getattr(instance, "student", None), "class_fk", None), "id", None)
+                if class_id:
+                    qs = qs.filter(student__class_fk_id=int(class_id))
+                base["repeat_count_for_subject"] = int(qs.count())
+                # إعادة استخدام repeat_window_term_label لحمل اسم الصف للتوافق مع الواجهة
+                try:
+                    base["repeat_window_term_label"] = getattr(
+                        getattr(getattr(instance, "student", None), "class_fk", None), "name", None
+                    )
+                except Exception:
+                    base["repeat_window_term_label"] = None
+        except Exception:
+            pass
         # violation full
         try:
             base["violation_obj"] = (

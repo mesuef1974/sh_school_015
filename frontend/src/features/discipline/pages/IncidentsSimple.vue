@@ -42,11 +42,12 @@
                 <th>الحالة</th>
                 <th class="text-center">الإجراءات</th>
                 <th class="text-center">العقوبات</th>
+                <th class="text-center">الطباعة</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!loading && items.length === 0 && !error">
-                <td colspan="11" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
+                <td colspan="12" class="text-center text-muted py-4">لا توجد بيانات لعرضها</td>
               </tr>
               <tr v-for="it in displayedItems" :key="it.id">
                 <td>{{ fmtDate(it.occurred_at) }}</td>
@@ -98,6 +99,13 @@
                   >
                     <span class="badge" :class="(it.sanctions_count||0)>0? 'bg-danger' : 'bg-secondary'">{{ ((it.sanctions_count ?? (it.sanctions_applied?.length ?? 0)) ?? 0) }}</span>
                   </button>
+                </td>
+                <td class="text-center">
+                  <RouterLink
+                    class="btn btn-sm btn-outline-dark"
+                    :to="{ name: 'discipline-incident-print', params: { id: it.id } }"
+                    title="مركز الطباعة"
+                  >طباعة</RouterLink>
                 </td>
               </tr>
             </tbody>
