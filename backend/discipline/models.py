@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 
 class BehaviorLevel(models.Model):
@@ -53,10 +54,21 @@ class Violation(models.Model):
 
 
 class Incident(models.Model):
+    # توسيع حالات سير العمل لتتوافق مع الخارطة: DRAFT → SUBMITTED → REVIEW → ACTION_REQUIRED → IN_COMMITTEE → RESOLVED → CLOSED
+    # مع الحفاظ على القيم القديمة (open/under_review/closed) لأغراض التوافق الخلفي.
     STATUS_CHOICES = (
+        # قيَم قديمة (للخلفية)
         ("open", "Open"),
         ("under_review", "Under Review"),
         ("closed", "Closed"),
+        # القيَم الموسّعة
+        ("draft", "Draft"),
+        ("submitted", "Submitted"),
+        ("review", "In Review"),
+        ("action_required", "Action Required"),
+        ("in_committee", "In Committee"),
+        ("resolved", "Resolved"),
+        ("closed", "Closed"),  # مكرر عمدًا ضمن التوسعة للتوافق مع المصطلح الجديد
     )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -109,6 +121,13 @@ class Incident(models.Model):
         related_name="committee_scheduled_incidents",
     )
     committee_scheduled_at = models.DateTimeField(null=True, blank=True)
+    # إشعار ولي الأمر + SLA
+    notified_guardian_at = models.DateTimeField(null=True, blank=True)
+    guardian_notify_channel = models.CharField(max_length=16, blank=True, help_text="sms/call/email/in_app/whatsapp")
+    guardian_notify_sla_met = models.BooleanField(default=False)
+
+    # ملاحظة: لم نضف repeat_index و suggested_actions كحقول في قاعدة البيانات حرصًا على تقليل التغييرات.
+    # سيتم احتسابهما ديناميكيًا وإرجاعهما في واجهات REST عبر الـ Serializer.
 
     class Meta:
         verbose_name = "واقعة"
@@ -214,6 +233,15 @@ class IncidentAttachment(models.Model):
 
     id = models.BigAutoField(primary_key=True)
     incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="attachments")
+    # ربط اختياري مباشر بالإجراء لتوثيق المستندات الموقعة لكل إجراء
+    action = models.ForeignKey(
+        "discipline.Action",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="attachments",
+        help_text="إن كان المرفق يخص إجراء محدد فسيُربط هنا",
+    )
     kind = models.CharField(max_length=32, choices=KIND_CHOICES, default="other")
     file = models.FileField(upload_to="incidents/%Y/%m/")
     mime = models.CharField(max_length=64, blank=True)
@@ -230,6 +258,7 @@ class IncidentAttachment(models.Model):
         indexes = [
             models.Index(fields=["incident", "created_at"], name="inc_att_inc_dt_idx"),
             models.Index(fields=["kind"], name="inc_att_kind_idx"),
+            models.Index(fields=["action"], name="inc_att_action_idx"),
         ]
         permissions = (
             ("incident_attachment_view", "Can view incident attachments"),
@@ -346,3 +375,275 @@ class StandingCommitteeMember(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.user_id} in standing {self.standing_id}"
+
+
+# ===================== نماذج الحضور والأعذار (المرحلة 1 من الخارطة) =====================
+class Absence(models.Model):
+    """سجل غياب الطالب (يوم كامل أو حصة) مع حالة بعذر/بدون عذر.
+
+    ملاحظة: نبدأ بنطاق مبسّط يدعم التحويل إلى بعذر عند قبول طلب العذر.
+    """
+
+    TYPE_CHOICES = (
+        ("FULL_DAY", "Full Day"),
+        ("PERIOD", "Period"),
+    )
+    STATUS_CHOICES = (
+        ("UNEXCUSED", "Unexcused"),
+        ("EXCUSED", "Excused"),
+    )
+    SOURCE_CHOICES = (
+        ("ATTENDANCE_SYSTEM", "Attendance System"),
+        ("MANUAL", "Manual"),
+    )
+
+    student = models.ForeignKey("school.Student", on_delete=models.PROTECT, related_name="absences")
+    date = models.DateField()
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES, default="FULL_DAY")
+    period = models.PositiveSmallIntegerField(null=True, blank=True, help_text="رقم الحصة عند اختيار نوع PERIOD")
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="UNEXCUSED")
+    source = models.CharField(max_length=24, choices=SOURCE_CHOICES, default="ATTENDANCE_SYSTEM")
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "غياب"
+        verbose_name_plural = "غيابات"
+        indexes = [
+            models.Index(fields=["student", "date"], name="abs_student_date_idx"),
+            models.Index(fields=["status"], name="abs_status_idx"),
+        ]
+        # ضمان عدم التكرار بشروط: يوم كامل (بدون period) مقابل غياب بالحصة (مع period)
+        constraints = [
+            # لغياب اليوم الكامل: لكل طالب/تاريخ سجل واحد فقط من نوع FULL_DAY مع period فارغ
+            models.UniqueConstraint(
+                fields=["student", "date"],
+                condition=models.Q(type="FULL_DAY") & models.Q(period__isnull=True),
+                name="uniq_abs_full_day_per_student_date",
+            ),
+            # لغياب الحصة: لكل طالب/تاريخ/حصة سجل واحد من نوع PERIOD مع period غير فارغ
+            models.UniqueConstraint(
+                fields=["student", "date", "period"],
+                condition=models.Q(type="PERIOD") & models.Q(period__isnull=False),
+                name="uniq_abs_period_per_student_date_period",
+            ),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        p = f" P{self.period}" if self.period else ""
+        return f"Absence {self.student_id} {self.date}{p} {self.status}"
+
+
+class ExcuseRequest(models.Model):
+    """طلب تبرير غياب، يراجع من مشرف الجناح ويحوّل الغياب إلى بعذر عند القبول."""
+
+    STATUS_CHOICES = (
+        ("PENDING_JUSTIFICATION", "Pending Justification"),
+        ("UNDER_REVIEW", "Under Review"),
+        ("APPROVED_EXCUSE", "Approved"),
+        ("REJECTED_EXCUSE", "Rejected"),
+        ("NEEDS_CORRECTION", "Needs Correction"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    absences = models.ManyToManyField(Absence, related_name="excuse_requests")
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="submitted_excuses"
+    )
+    status = models.CharField(max_length=24, choices=STATUS_CHOICES, default="PENDING_JUSTIFICATION")
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_excuses",
+    )
+    decision_reason = models.TextField(blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "طلب تبرير غياب"
+        verbose_name_plural = "طلبات تبرير الغياب"
+        ordering = ("-created_at",)
+        permissions = (
+            ("can_review_excuse_requests", "Can review absence excuse requests"),
+            ("can_convert_absence_status", "Can convert absences to excused"),
+            ("can_request_attachment_corrections", "Can request attachment corrections for excuses"),
+        )
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"ExcuseRequest {str(self.id)[:8]} ({self.status})"
+
+    def approve(self, reviewer, reason: str = ""):
+        """اعتماد العذر وتحويل جميع الغيابات المرتبطة إلى بعذر (ذرّي/Idempotent)."""
+        from django.db import transaction
+
+        with transaction.atomic():
+            # Idempotent: إن كان مُعتمدًا مسبقًا، لا تعدّل إلا إن لزم السبب
+            if self.status == "APPROVED_EXCUSE":
+                return
+            self.status = "APPROVED_EXCUSE"
+            self.reviewed_by = reviewer
+            if reason:
+                self.decision_reason = reason
+            self.decided_at = timezone.now()
+            self.save(update_fields=["status", "reviewed_by", "decision_reason", "decided_at", "updated_at"])
+            # تحديث فقط الغيابات غير المبررة لتكون Idempotent
+            ids = list(self.absences.values_list("id", flat=True))
+            Absence.objects.filter(id__in=ids, status="UNEXCUSED").update(status="EXCUSED")
+            # سجل تدقيق
+            try:
+                ExcuseAuditLog.objects.create(
+                    excuse=self,
+                    actor=reviewer,
+                    action="APPROVE",
+                    reason=reason or "",
+                    snapshot={"absence_ids": ids},
+                )
+            except Exception:
+                pass
+
+    def reject(self, reviewer, reason: str = ""):
+        from django.db import transaction
+
+        with transaction.atomic():
+            if self.status == "REJECTED_EXCUSE":
+                return
+            self.status = "REJECTED_EXCUSE"
+            self.reviewed_by = reviewer
+            if reason:
+                self.decision_reason = reason
+            self.decided_at = timezone.now()
+            self.save(update_fields=["status", "reviewed_by", "decision_reason", "decided_at", "updated_at"])
+            try:
+                ExcuseAuditLog.objects.create(
+                    excuse=self,
+                    actor=reviewer,
+                    action="REJECT",
+                    reason=reason or "",
+                    snapshot={"absence_ids": list(self.absences.values_list("id", flat=True))},
+                )
+            except Exception:
+                pass
+
+
+class ExcuseAttachment(models.Model):
+    """مرفقات خاصة بطلبات الأعذار (صور/PDF)."""
+
+    CATEGORY_CHOICES = (("EXCUSE_DOC", "Excuse Document"),)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    excuse = models.ForeignKey(ExcuseRequest, on_delete=models.CASCADE, related_name="attachments")
+    category = models.CharField(max_length=16, choices=CATEGORY_CHOICES, default="EXCUSE_DOC")
+    url = models.CharField(max_length=512)
+    checksum = models.CharField(max_length=128, blank=True)
+    origin = models.CharField(max_length=16, blank=True, help_text="scan/photo/other")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="uploaded_excuse_attachments"
+    )
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "مرفق عذر"
+        verbose_name_plural = "مرفقات الأعذار"
+        indexes = [
+            models.Index(fields=["excuse"], name="excuse_att_excuse_idx"),
+            models.Index(fields=["category"], name="excuse_att_category_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"ExcuseAttachment {str(self.id)[:8]} for {str(self.excuse_id)[:8]}"
+
+
+class ExcuseAuditLog(models.Model):
+    """سجل تدقيق لقرارات ومراحل طلبات الأعذار والعمليات المرتبطة بها."""
+
+    ACTION_CHOICES = (
+        ("SUBMIT", "Submit"),
+        ("REVIEW", "Review"),
+        ("APPROVE", "Approve"),
+        ("REJECT", "Reject"),
+        ("REQUEST_CORRECTION", "Request Correction"),
+        ("ATTACHMENT_ADD", "Attachment Add"),
+    )
+
+    excuse = models.ForeignKey(ExcuseRequest, on_delete=models.CASCADE, related_name="audit_logs")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES)
+    reason = models.TextField(blank=True)
+    snapshot = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "سجل تدقيق عذر"
+        verbose_name_plural = "سجلات تدقيق الأعذار"
+        ordering = ("-created_at", "-id")
+        indexes = [
+            models.Index(fields=["excuse", "created_at"], name="excuse_audit_exc_dt_idx"),
+            models.Index(fields=["action"], name="excuse_audit_action_idx"),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"ExcuseAuditLog {self.action} for {str(getattr(self, 'excuse_id', ''))[:8]}"
+
+
+# ===================== الإجراءات (Action) — المرحلة 2 من الخارطة =====================
+class Action(models.Model):
+    """إجراء تنفيذي مرتبط بواقعة سلوكية (مهام، إنذارات، تعهدات...).
+
+    نحافظ على مخطط بسيط وقابل للتوسعة دون المساس ببقية الوحدات.
+    """
+
+    TYPE_CHOICES = (
+        ("VERBAL_NOTICE", "Verbal Notice"),
+        ("WRITTEN_NOTICE", "Written Notice"),
+        ("WRITTEN_WARNING", "Written Warning"),
+        ("BEHAVIOR_CONTRACT", "Behavior Contract"),
+        ("GUARDIAN_MEETING", "Guardian Meeting"),
+        ("COUNSELING_SESSION", "Counseling Session"),
+        ("COMMITTEE_REFERRAL", "Committee Referral"),
+        ("SUSPENSION", "Suspension"),
+        ("RESTITUTION", "Restitution"),
+        ("EXTERNAL_NOTIFICATION", "External Notification"),
+        ("CONFISCATION_RECEIPT", "Confiscation Receipt"),
+        ("OTHER", "Other"),
+    )
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="actions")
+    type = models.CharField(max_length=32, choices=TYPE_CHOICES)
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="assigned_actions"
+    )
+    due_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    requires_guardian_signature = models.BooleanField(default=False)
+    doc_required = models.BooleanField(default=False)
+    doc_received_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    meta = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "إجراء"
+        verbose_name_plural = "إجراءات"
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=["incident", "created_at"], name="act_inc_created_idx"),
+            models.Index(fields=["type"], name="act_type_idx"),
+        ]
+        permissions = (
+            ("action_complete", "Can complete actions for incidents"),
+            ("action_create", "Can create actions for incidents"),
+            ("action_view", "Can view actions for incidents"),
+        )
+
+    def __str__(self) -> str:  # pragma: no cover
+        try:
+            return f"Action {self.type} for {str(self.incident_id)[:8]}"
+        except Exception:
+            return f"Action {getattr(self, 'id', '')}"

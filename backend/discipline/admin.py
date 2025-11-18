@@ -168,8 +168,19 @@ class IncidentAdmin(admin.ModelAdmin):
         "occurred_at",
         "status",
         "committee_required",
+        # حقول إشعار وليّ الأمر لتسهيل التدقيق من الواجهة
+        "guardian_notify_channel",
+        "guardian_notify_sla_met",
+        "notified_guardian_at",
     )
-    list_filter = ("status", "severity", "committee_required")
+    list_filter = (
+        "status",
+        "severity",
+        "committee_required",
+        # فلاتر سريعة على إشعار وليّ الأمر
+        "guardian_notify_channel",
+        "guardian_notify_sla_met",
+    )
     search_fields = (
         "id",
         "narrative",
@@ -188,6 +199,10 @@ class IncidentAdmin(admin.ModelAdmin):
         "committee_scheduled_by",
         "committee_scheduled_at",
         "committee_panel_pretty",
+        # جعل حقول الإشعار للقراءة فقط من لوحة الإدارة
+        "notified_guardian_at",
+        "guardian_notify_channel",
+        "guardian_notify_sla_met",
     )
     list_select_related = ("violation", "student", "reporter")
 
@@ -220,6 +235,18 @@ class IncidentAdmin(admin.ModelAdmin):
                     "committee_panel_pretty",
                 ),
                 "description": "عرض للحقول المتعلقة باللجنة. يتم تشكيل اللجنة وحفظها عبر واجهة الويب أو واجهات API الخاصة بالباكند (schedule-committee).",
+            },
+        ),
+        (
+            "إشعار وليّ الأمر",
+            {
+                "classes": ("collapse",),
+                "fields": (
+                    "guardian_notify_channel",
+                    "guardian_notify_sla_met",
+                    "notified_guardian_at",
+                ),
+                "description": "حقول تُحدَّث تلقائيًا عبر واجهة notify-guardian وتُعرض هنا لأغراض التدقيق.",
             },
         ),
     )

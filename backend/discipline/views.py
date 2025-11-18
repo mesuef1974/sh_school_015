@@ -9,7 +9,18 @@ from django.db.models import Count
 from .models import Violation, Incident, BehaviorLevel
 from .models import IncidentAuditLog
 from .models import IncidentAttachment
-from .serializers import ViolationSerializer, IncidentSerializer, BehaviorLevelSerializer, IncidentFullSerializer
+from .serializers import (
+    ViolationSerializer,
+    IncidentSerializer,
+    BehaviorLevelSerializer,
+    IncidentFullSerializer,
+)
+from .serializers import AbsenceSerializer, ExcuseRequestSerializer, ExcuseAttachmentSerializer
+from .models import Absence, ExcuseRequest, ExcuseAttachment
+from .models import ExcuseAuditLog
+from .models import Action
+from .serializers import ActionSerializer
+from .serializers import IncidentAttachmentSerializer
 from django.contrib.auth import get_user_model
 import hashlib
 from django.db.models import Q
@@ -81,6 +92,14 @@ class IncidentViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter]
     search_fields = ["narrative", "location", "violation__category", "violation__code"]
 
+    # موحّد فحص أذونات تطبيق discipline
+    def _has(self, user, codename: str) -> bool:
+        return (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm(f"discipline.{codename}")
+        )
+
     def get_serializer_class(self):
         """عند تمرير expand=all أو full=1 تُعاد تمثيلات كاملة IncidentFullSerializer.
         الافتراضي: IncidentSerializer الخفيف.
@@ -142,6 +161,360 @@ class IncidentViewSet(viewsets.ModelViewSet):
         # Consistent ordering: most recent first
         qs = qs.order_by("-occurred_at", "-created_at")
         return qs
+
+    # ===================== Actions (Phase 2 minimal) =====================
+    def _can_complete_action(self, user) -> bool:
+        return (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("discipline.action_complete")
+        )
+
+    def _can_upload_incident_attachment(self, user) -> bool:
+        return (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("discipline.incident_attachment_upload")
+        )
+
+    def _can_view_actions(self, user) -> bool:
+        return (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("discipline.action_view")
+        )
+
+    def _can_create_action(self, user) -> bool:
+        return (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("discipline.action_create")
+        )
+
+    def _can_notify_guardian(self, user) -> bool:
+        return (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("discipline.incident_notify_guardian")
+        )
+
+    @action(detail=True, methods=["get", "post"], url_path="actions")
+    def actions_endpoint(self, request, pk=None):
+        """GET: قائمة الإجراءات المرتبطة بالواقعة.
+        POST: إنشاء إجراء جديد مرتبط بهذه الواقعة.
+        """
+        try:
+            incident = self.get_queryset().get(pk=pk)
+        except Incident.DoesNotExist:
+            return Response({"detail": "غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method.lower() == "get":
+            if not self._can_view_actions(request.user):
+                return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+            qs = incident.actions.select_related("assigned_to").all().order_by("-created_at")
+            data = ActionSerializer(qs, many=True).data
+            # استخرج الاقتراحات من تمثيل الواقعة (يعتمد compute_repeat_index/suggest_actions_for)
+            inc_data = IncidentSerializer(instance=incident, context=self.get_serializer_context()).data
+            return Response({"items": data, "suggested_actions": inc_data.get("suggested_actions", [])})
+
+        # POST create
+        if not self._can_create_action(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        payload = request.data or {}
+        ser = ActionSerializer(data={**payload, "incident": str(incident.id)})
+        ser.is_valid(raise_exception=True)
+        action_obj = Action.objects.create(
+            incident=incident,
+            type=ser.validated_data["type"],
+            assigned_to=ser.validated_data.get("assigned_to"),
+            due_at=ser.validated_data.get("due_at"),
+            requires_guardian_signature=ser.validated_data.get("requires_guardian_signature", False),
+            doc_required=ser.validated_data.get("doc_required", False),
+            notes=ser.validated_data.get("notes", ""),
+            meta=ser.validated_data.get("meta", {}),
+        )
+        # Audit log
+        try:
+            IncidentAuditLog.objects.create(
+                incident=incident,
+                action="update",
+                actor=request.user,
+                from_status=incident.status,
+                to_status=incident.status,
+                note="إنشاء إجراء للواقعة",
+                meta={"event": "action_create", "action_id": str(action_obj.id), "type": action_obj.type},
+            )
+        except Exception:
+            logger.warning("incident.audit.failed action=action_create incident=%s", incident.id)
+        out = ActionSerializer(action_obj).data
+        return Response(out, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path=r"actions/(?P<action_id>[^/.]+)/complete")
+    def action_complete(self, request, pk=None, action_id=None):
+        if not self._can_complete_action(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            incident = Incident.objects.get(pk=pk)
+        except Incident.DoesNotExist:
+            return Response({"detail": "واقعة غير موجودة"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            act = incident.actions.get(pk=action_id)
+        except Action.DoesNotExist:
+            return Response({"detail": "إجراء غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+        # أكمل
+        now = timezone.now()
+        act.completed_at = now
+        # خيار: استقبال doc_received=true لضبط doc_received_at
+        doc_received = str(request.data.get("doc_received") or "").lower() in {"1", "true", "yes"}
+        if doc_received:
+            act.doc_received_at = now
+        # ملاحظة توثيقية
+        note = str(request.data.get("notes") or "").strip()
+        if note:
+            # أضف للملاحظات الحالية بسطر جديد
+            if act.notes:
+                act.notes = f"{act.notes}\n{note}"
+            else:
+                act.notes = note
+        act.save(update_fields=["completed_at", "doc_received_at", "notes", "updated_at"])
+        # Audit log
+        try:
+            IncidentAuditLog.objects.create(
+                incident=incident,
+                action="update",
+                actor=request.user,
+                from_status=incident.status,
+                to_status=incident.status,
+                note="إتمام إجراء للواقعة",
+                meta={
+                    "event": "action_complete",
+                    "action_id": str(act.id),
+                    "doc_received": doc_received,
+                },
+            )
+        except Exception:
+            logger.warning("incident.audit.failed action=action_complete incident=%s", incident.id)
+        out = ActionSerializer(act).data
+        out["doc_pending"] = bool(act.doc_required and not act.doc_received_at)
+        return Response(out)
+
+    @action(detail=True, methods=["post"], url_path=r"actions/(?P<action_id>[^/.]+)/attachments")
+    def action_attachment_upload(self, request, pk=None, action_id=None):
+        """رفع مرفق متعلق بإجراء معيّن (مثل نسخة موقعة من إنذار/تعهّد).
+
+        يقبل Multipart form-data مع الحقل file بالإضافة إلى حقول اختيارية:
+        - kind: pledge|pledge_signed|other (الافتراضي: pledge_signed إذا كان action.requires_guardian_signature أو action.doc_required)
+        - meta: JSON كنص
+        - sha256: بصمة اختيارية، تُحتسب تلقائيًا إن لم تُرسل
+
+        عند الرفع، إذا كان الإجراء يتطلب مستندًا doc_required=True ولم يكن doc_received_at مضبوطًا،
+        فسيتم ضبطه على الآن.
+        """
+        if not self._can_upload_incident_attachment(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            incident = Incident.objects.get(pk=pk)
+        except Incident.DoesNotExist:
+            return Response({"detail": "واقعة غير موجودة"}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            act = incident.actions.get(pk=action_id)
+        except Action.DoesNotExist:
+            return Response({"detail": "إجراء غير موجود"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Validate file
+        upfile = request.FILES.get("file")
+        if not upfile:
+            return Response({"detail": "الملف (file) مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Determine kind
+        kind = (request.data.get("kind") or "").strip().lower()
+        if not kind:
+            kind = (
+                "pledge_signed"
+                if (getattr(act, "requires_guardian_signature", False) or getattr(act, "doc_required", False))
+                else "other"
+            )
+        # Normalize and validate allowed kinds
+        try:
+            allowed_kinds = {k for k, _ in IncidentAttachment.KIND_CHOICES}
+        except Exception:
+            allowed_kinds = {"pledge", "pledge_signed", "other"}
+        if kind not in allowed_kinds:
+            return Response(
+                {"detail": f"قيمة kind غير مدعومة. استخدم واحدة من: {sorted(list(allowed_kinds))}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if kind not in {"pledge", "pledge_signed", "other"}:
+            kind = "other"
+
+        # Optional meta
+        meta = {}
+        meta_raw = request.data.get("meta")
+        if isinstance(meta_raw, (dict, list)):
+            meta = meta_raw
+        elif isinstance(meta_raw, str) and meta_raw.strip():
+            try:
+                meta = json.loads(meta_raw)
+            except Exception:
+                meta = {"_raw": meta_raw}
+
+        # Compute sha256 and size
+        sha = request.data.get("sha256") or ""
+        size_val = 0
+        mime_val = getattr(upfile, "content_type", "") or ""
+        try:
+            # read into hasher without exhausting memory
+            h = hashlib.sha256()
+            for chunk in upfile.chunks():
+                size_val += len(chunk)
+                h.update(chunk)
+            # Reset file pointer for storage backend save
+            upfile.seek(0)
+            if not sha:
+                sha = h.hexdigest()
+        except Exception:
+            sha = sha or ""
+            try:
+                size_val = upfile.size
+            except Exception:
+                size_val = 0
+
+        # Ensure the uploaded file pointer is reset after hashing so storage saves full content
+        try:
+            upfile.seek(0)
+        except Exception:
+            pass
+
+        # Save IncidentAttachment
+        att = IncidentAttachment(
+            incident=incident,
+            action=act,
+            kind=kind,
+            file=upfile,
+            mime=mime_val,
+            size=size_val,
+            sha256=sha,
+            created_by=request.user,
+            meta=meta,
+        )
+        att.save()
+
+        # If doc was required on action, mark received timestamp if not set
+        if getattr(act, "doc_required", False) and not getattr(act, "doc_received_at", None):
+            act.doc_received_at = timezone.now()
+            act.save(update_fields=["doc_received_at", "updated_at"])
+
+        # Audit log for attachment upload
+        try:
+            IncidentAuditLog.objects.create(
+                incident=incident,
+                action="update",
+                actor=request.user,
+                from_status=incident.status,
+                to_status=incident.status,
+                note="رفع مرفق مرتبط بإجراء",
+                meta={
+                    "event": "action_attachment_upload",
+                    "action_id": str(act.id),
+                    "attachment_id": att.id,
+                    "kind": kind,
+                    "sha256": att.sha256,
+                },
+            )
+        except Exception:
+            logger.warning("incident.audit.failed action=action_attachment_upload incident=%s", incident.id)
+
+        data = IncidentAttachmentSerializer(att).data
+        data["doc_pending"] = bool(act.doc_required and not act.doc_received_at)
+        return Response(data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="notify-guardian")
+    def notify_guardian(self, request, pk=None):
+        """توثيق إشعار وليّ الأمر مع احتساب SLA للدرجتين 1–2.
+
+        المدخلات:
+          - channel: sms|call|email|in_app|whatsapp (مطلوب)
+          - message_preview: نص مختصر اختياري لحفظه ضمن سجل التدقيق
+
+        يتطلب صلاحية: incident_notify_guardian (أو staff/superuser).
+        """
+        if not self._can_notify_guardian(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            inc = self.get_queryset().get(pk=pk)
+        except Incident.DoesNotExist:
+            return Response({"detail": "واقعة غير موجودة"}, status=status.HTTP_404_NOT_FOUND)
+
+        body = request.data or {}
+        channel = str(body.get("channel") or "").strip().lower()
+        allowed = {"sms", "call", "email", "in_app", "whatsapp"}
+        if channel not in allowed:
+            return Response({"detail": "قناة غير مدعومة."}, status=status.HTTP_400_BAD_REQUEST)
+        msg_preview = str(body.get("message_preview") or "").strip()
+
+        # SLA: للدرجتين 1–2 فقط
+        from django.conf import settings as dj_settings
+
+        now = timezone.now()
+        baseline_dt = getattr(inc, "submitted_at", None) or getattr(inc, "occurred_at", None) or now
+        hours = int(getattr(dj_settings, "DISCIPLINE_NOTIFY_SLA_H", 24) or 24)
+        sla_met = False
+        try:
+            sev = int(getattr(inc, "severity", 0) or 0)
+        except Exception:
+            sev = 0
+        if sev in {1, 2}:
+            try:
+                delta = now - baseline_dt
+                sla_met = delta.total_seconds() <= hours * 3600
+            except Exception:
+                sla_met = False
+
+        # حدّث حقول الواقعة (Idempotent/آخر قيمة)
+        inc.notified_guardian_at = now
+        inc.guardian_notify_channel = channel
+        inc.guardian_notify_sla_met = bool(sla_met)
+        try:
+            inc.save(
+                update_fields=[
+                    "notified_guardian_at",
+                    "guardian_notify_channel",
+                    "guardian_notify_sla_met",
+                    "updated_at",
+                ]
+            )
+        except Exception:
+            inc.save()
+
+        # سجل تدقيق
+        try:
+            IncidentAuditLog.objects.create(
+                incident=inc,
+                action="notify_guardian",
+                actor=request.user,
+                from_status=inc.status,
+                to_status=inc.status,
+                note=("إشعار ولي الأمر"),
+                meta={
+                    "channel": channel,
+                    "sla_hours": hours,
+                    "sla_met": bool(sla_met),
+                    "baseline": ("submitted_at" if getattr(inc, "submitted_at", None) else "occurred_at"),
+                    "message_preview": (msg_preview[:200] if msg_preview else ""),
+                },
+            )
+        except Exception:
+            logger.warning("incident.audit.failed action=notify_guardian incident=%s", inc.id)
+
+        return Response(
+            {
+                "ok": True,
+                "notified_at": now.isoformat(),
+                "channel": channel,
+                "sla_met": bool(sla_met),
+                "baseline": ("submitted_at" if getattr(inc, "submitted_at", None) else "occurred_at"),
+            }
+        )
 
     def retrieve(self, request, *args, **kwargs):
         """تمكين عرض واقعة مفردة للطباعة للمعلّم مُنشئ الواقعة، ولمشرف الجناح،
@@ -717,8 +1090,9 @@ class IncidentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
         inc = self.get_object()
-        if inc.status != "open":
-            return Response({"detail": "لا يمكن الإرسال إلا من حالة open."}, status=status.HTTP_400_BAD_REQUEST)
+        # نقبل الإرسال من حالتي open (القديمة) و draft (الجديدة) لضمان التوافق
+        if inc.status not in ("open", "draft"):
+            return Response({"detail": "لا يمكن الإرسال إلا من حالة open/draft."}, status=status.HTTP_400_BAD_REQUEST)
         # Permission + ownership
         if not self._has(request.user, "incident_submit"):
             return Response({"detail": "صلاحية غير كافية للإرسال."}, status=status.HTTP_403_FORBIDDEN)
@@ -788,6 +1162,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 inc.severity = min(4, 1 + 1)
         inc.submitted_at = timezone.now()
         prev = inc.status
+        # نبقي under_review كقيمة متوافقة، ويمكن للواجهات الجديدة عرضها كـ review
         inc.status = "under_review"
         inc.save(
             update_fields=[
@@ -821,6 +1196,72 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 logger.warning("incident.submit.auto_schedule.failed incident=%s", getattr(inc, "id", None))
 
         return Response(self.get_serializer(inc).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="require-action")
+    def require_action(self, request, pk=None):
+        """إرجاع الواقعة لحالة تتطلب إجراء من المبلِّغ/المعني (Action Required).
+
+        تغيّر الحالة إلى action_required وتسجّل تدقيقًا. مسموح لمراجعي الانضباط فقط.
+        """
+        inc = self.get_object()
+        if not self._has(request.user, "incident_review"):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        if inc.status not in ("under_review", "review"):
+            return Response({"detail": "يمكن طلب إجراء فقط من حالة المراجعة."}, status=status.HTTP_400_BAD_REQUEST)
+        prev = inc.status
+        inc.status = "action_required"
+        inc.save(update_fields=["status", "updated_at"])
+        try:
+            self._audit(inc, "review", note="require action", from_status=prev, to_status=inc.status)
+        except Exception:
+            pass
+        return Response(self.get_serializer(inc).data)
+
+    @action(detail=True, methods=["post"], url_path="route-committee")
+    def route_committee(self, request, pk=None):
+        """تحويل الواقعة إلى مسار اللجنة (Alias ملائم لـ schedule-committee).
+
+        يحدد حالة in_committee ويستعين باللجنة الدائمة للجدولة إن لم تكن مجدولة.
+        """
+        inc = self.get_object()
+        if not self._has(request.user, "incident_committee_schedule") and not self._has(
+            request.user, "incident_escalate"
+        ):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        prev = inc.status
+        # جدولة من اللجنة الدائمة إن لم تكن موجودة
+        try:
+            if not getattr(inc, "committee_scheduled_at", None):
+                self._schedule_committee_from_standing(inc, request.user)
+        except Exception:
+            pass
+        inc.status = "in_committee"
+        inc.save(update_fields=["status", "updated_at"])
+        try:
+            self._audit(inc, "escalate", note="routed to committee", from_status=prev, to_status=inc.status)
+        except Exception:
+            pass
+        return Response(self.get_serializer(inc).data)
+
+    @action(detail=True, methods=["post"], url_path="resolve")
+    def resolve(self, request, pk=None):
+        """وضع الواقعة بحالة "منجزة/محسومة" دون إغلاق نهائي (resolved).
+
+        مفيدة بعد تنفيذ الإجراءات واعتماد القرار؛ يمكن إغلاقها لاحقًا عبر close.
+        """
+        inc = self.get_object()
+        if inc.status in ("closed", "resolved"):
+            return Response({"detail": "الحالة الحالية لا تسمح بالتسوية."}, status=status.HTTP_400_BAD_REQUEST)
+        if not (self._has(request.user, "incident_review") or self._has(request.user, "incident_committee_decide")):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        prev = inc.status
+        inc.status = "resolved"
+        inc.save(update_fields=["status", "updated_at"])
+        try:
+            self._audit(inc, "update", note="resolved", from_status=prev, to_status=inc.status)
+        except Exception:
+            pass
+        return Response(self.get_serializer(inc).data)
 
     # --- Committee helpers ---
     def _schedule_committee_from_standing(self, inc: Incident, user):
@@ -1016,10 +1457,16 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 {"detail": "لا يمكن إغلاق واقعة ذات شدة ≥ 2 دون إجراء/عقوبة."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        prev = inc.status
         inc.closed_by = request.user
         inc.closed_at = timezone.now()
         inc.status = "closed"
         inc.save(update_fields=["closed_by", "closed_at", "status", "updated_at"])
+        # Audit log (best-effort)
+        try:
+            self._audit(inc, "close", note="closed", from_status=prev, to_status=inc.status)
+        except Exception:
+            pass
         return Response(self.get_serializer(inc).data)
 
     @action(detail=True, methods=["post"], url_path="appeal")
@@ -1053,6 +1500,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
             }
         )
         inc.actions_applied = arr
+        prev = inc.status
         inc.status = "under_review"
         # عندما تعود للمراجعة، تزال closed_by/closed_at حتى تُحسم من جديد
         try:
@@ -1061,6 +1509,10 @@ class IncidentViewSet(viewsets.ModelViewSet):
         except Exception:
             pass
         inc.save(update_fields=["actions_applied", "status", "updated_at"])
+        try:
+            self._audit(inc, "appeal", note="appeal submitted", from_status=prev, to_status=inc.status)
+        except Exception:
+            pass
         return Response(self.get_serializer(inc).data)
 
     @action(detail=True, methods=["post"], url_path="reopen")
@@ -1091,6 +1543,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
             }
         )
         inc.actions_applied = arr
+        prev = inc.status
         inc.status = "under_review"
         try:
             inc.closed_by = None  # type: ignore[attr-defined]
@@ -1098,6 +1551,10 @@ class IncidentViewSet(viewsets.ModelViewSet):
         except Exception:
             pass
         inc.save(update_fields=["actions_applied", "status", "updated_at"])
+        try:
+            self._audit(inc, "reopen", note="reopened", from_status=prev, to_status=inc.status)
+        except Exception:
+            pass
         return Response(self.get_serializer(inc).data)
 
     @action(detail=True, methods=["post"])
@@ -3734,3 +4191,156 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 },
             }
         )
+
+
+# ===================== Attendance & Excuses APIs (Phase 1 minimal) =====================
+class AbsenceViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Absence.objects.select_related("student").all()
+    serializer_class = AbsenceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["notes"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        params = getattr(self.request, "query_params", {})
+        student_id = (params.get("student") or params.get("student_id") or "").strip()
+        status_f = (params.get("status") or "").strip().upper()
+        if student_id:
+            try:
+                qs = qs.filter(student_id=int(student_id))
+            except Exception:
+                pass
+        if status_f in {"EXCUSED", "UNEXCUSED"}:
+            qs = qs.filter(status=status_f)
+        return qs
+
+
+class ExcuseRequestViewSet(viewsets.ModelViewSet):
+    queryset = ExcuseRequest.objects.prefetch_related("absences", "attachments").all()
+    serializer_class = ExcuseRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        serializer.save(submitted_by=self.request.user)
+
+    def _is_admin(self, user) -> bool:
+        return getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
+
+    def _can_review(self, user) -> bool:
+        # الصلاحية النموذجية المقترحة: discipline.can_review_excuse_requests
+        return self._is_admin(user) or user.has_perm("discipline.can_review_excuse_requests")
+
+    def _can_convert(self, user) -> bool:
+        # الصلاحية النموذجية المقترحة: discipline.can_convert_absence_status
+        return self._is_admin(user) or user.has_perm("discipline.can_convert_absence_status")
+
+    def _can_request_correction(self, user) -> bool:
+        return self._is_admin(user) or user.has_perm("discipline.can_request_attachment_corrections")
+
+    @action(detail=True, methods=["post"], url_path="submit")
+    def submit(self, request, pk=None):
+        obj: ExcuseRequest = self.get_object()
+        if obj.status != "PENDING_JUSTIFICATION":
+            return Response({"detail": "لا يمكن الإرسال من هذه الحالة."}, status=status.HTTP_400_BAD_REQUEST)
+        obj.status = "UNDER_REVIEW"
+        obj.save(update_fields=["status", "updated_at"])
+        # سجل تدقيق
+        try:
+            ExcuseAuditLog.objects.create(excuse=obj, actor=request.user, action="SUBMIT", snapshot={})
+        except Exception:
+            pass
+        return Response({"ok": True, "status": obj.status})
+
+    @action(detail=True, methods=["post"], url_path="review")
+    def review(self, request, pk=None):
+        obj: ExcuseRequest = self.get_object()
+        if not self._can_review(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        obj.status = "UNDER_REVIEW"
+        obj.reviewed_by = request.user
+        obj.save(update_fields=["status", "reviewed_by", "updated_at"])
+        try:
+            ExcuseAuditLog.objects.create(excuse=obj, actor=request.user, action="REVIEW", snapshot={})
+        except Exception:
+            pass
+        return Response({"ok": True, "status": obj.status})
+
+    @action(detail=True, methods=["post"], url_path="approve")
+    def approve(self, request, pk=None):
+        obj: ExcuseRequest = self.get_object()
+        if not self._can_convert(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        reason = str(request.data.get("reason") or "").strip()
+        obj.approve(request.user, reason)
+        return Response({"ok": True, "status": obj.status})
+
+    @action(detail=True, methods=["post"], url_path="reject")
+    def reject(self, request, pk=None):
+        obj: ExcuseRequest = self.get_object()
+        if not self._can_review(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        reason = str(request.data.get("reason") or "").strip()
+        obj.reject(request.user, reason)
+        return Response({"ok": True, "status": obj.status})
+
+    @action(detail=True, methods=["post"], url_path="request-correction")
+    def request_correction(self, request, pk=None):
+        obj: ExcuseRequest = self.get_object()
+        if not self._can_request_correction(request.user):
+            return Response({"detail": "صلاحية غير كافية."}, status=status.HTTP_403_FORBIDDEN)
+        obj.status = "NEEDS_CORRECTION"
+        obj.decision_reason = str(request.data.get("reason") or "").strip()
+        obj.reviewed_by = request.user
+        obj.save(update_fields=["status", "decision_reason", "reviewed_by", "updated_at"])
+        try:
+            ExcuseAuditLog.objects.create(
+                excuse=obj,
+                actor=request.user,
+                action="REQUEST_CORRECTION",
+                reason=obj.decision_reason,
+                snapshot={},
+            )
+        except Exception:
+            pass
+        return Response({"ok": True, "status": obj.status})
+
+    @action(detail=True, methods=["post"], url_path="attachments")
+    def add_attachment(self, request, pk=None):
+        obj: ExcuseRequest = self.get_object()
+        # سياسة المرفقات: تمنع بعد قرار نهائي (قبول/رفض)
+        if obj.status in {"APPROVED_EXCUSE", "REJECTED_EXCUSE"}:
+            return Response(
+                {"detail": "لا يمكن إضافة مرفقات بعد اتخاذ قرار نهائي على الطلب."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        payload = request.data or {}
+        data = {
+            "excuse": str(obj.id),
+            "category": payload.get("category") or "EXCUSE_DOC",
+            "url": payload.get("url"),
+            "checksum": payload.get("checksum") or "",
+            "origin": payload.get("origin") or "",
+        }
+        ser = ExcuseAttachmentSerializer(data=data)
+        ser.is_valid(raise_exception=True)
+        att = ExcuseAttachment.objects.create(
+            excuse=obj,
+            category=ser.validated_data["category"],
+            url=ser.validated_data["url"],
+            checksum=ser.validated_data.get("checksum") or "",
+            origin=ser.validated_data.get("origin") or "",
+            uploaded_by=request.user,
+        )
+        # سجل تدقيق للمرفق
+        try:
+            ExcuseAuditLog.objects.create(
+                excuse=obj,
+                actor=request.user,
+                action="ATTACHMENT_ADD",
+                snapshot={"attachment_id": str(att.id), "url": att.url, "category": att.category},
+            )
+        except Exception:
+            pass
+        out = ExcuseAttachmentSerializer(att).data
+        return Response(out, status=status.HTTP_201_CREATED)

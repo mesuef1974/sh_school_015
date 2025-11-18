@@ -223,8 +223,8 @@ LANGUAGES = (
 LOCALE_PATHS = [
     (BASE_DIR / "locale").as_posix(),
 ]
-# Use local timezone for Saudi Arabia so admin and API-localized outputs reflect correct local time
-TIME_ZONE = "Asia/Riyadh"
+# Time zone from environment with sensible default (Asia/Riyadh per requirements)
+TIME_ZONE = os.getenv("DJANGO_TIME_ZONE", "Asia/Riyadh")
 USE_I18N = True
 # Keep timezone-aware datetimes; DB stores UTC while Django converts to TIME_ZONE for display
 USE_TZ = True
@@ -298,11 +298,13 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
+_jwt_min = int(os.getenv("JWT_ACCESS_TOKEN_LIFETIME_MIN", "60") or 60)
+_jwt_days = int(os.getenv("JWT_REFRESH_TOKEN_LIFETIME_DAYS", "1") or 1)
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
-    "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": True,
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=_jwt_min),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=_jwt_days),
+    "ROTATE_REFRESH_TOKENS": os.getenv("JWT_ROTATE_REFRESH_TOKENS", "true").lower() in {"1", "true", "yes", "on"},
+    "BLACKLIST_AFTER_ROTATION": os.getenv("JWT_BLACKLIST_AFTER_ROTATION", "true").lower() in {"1", "true", "yes", "on"},
     "UPDATE_LAST_LOGIN": False,
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
@@ -364,6 +366,34 @@ CACHES = {
         "TIMEOUT": 600,  # 10 minutes
     },
 }
+
+# Email (backend + default sender) from environment for development
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "dev@example.local")
+
+# Security/cookie headers from environment (development defaults per requirements)
+SECURE_COOKIES = os.getenv("SECURE_COOKIES", "false").lower() in {"1", "true", "yes", "on"}
+SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", str(SECURE_COOKIES)).lower() in {"1", "true", "yes", "on"}
+CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", str(SECURE_COOKIES)).lower() in {"1", "true", "yes", "on"}
+CSRF_COOKIE_HTTPONLY = os.getenv("CSRF_COOKIE_HTTPONLY", "true").lower() in {"1", "true", "yes", "on"}
+SESSION_COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "Lax")
+
+# Referrer-Policy is handled by SecurityHeadersMiddleware via env DJANGO_REFERRER_POLICY.
+# Map REFERRER_POLICY (from .env) to DJANGO_REFERRER_POLICY if the latter is not set.
+if os.getenv("REFERRER_POLICY") and not os.getenv("DJANGO_REFERRER_POLICY"):
+    os.environ["DJANGO_REFERRER_POLICY"] = os.getenv("REFERRER_POLICY", "strict-origin-when-cross-origin")
+
+# CSRF trusted origins and CORS allowed origins from environment (comma-separated)
+_csrf_env = os.getenv("CSRF_TRUSTED_ORIGINS") or os.getenv("DJANGO_TRUSTED_ORIGINS") or ""
+if _csrf_env:
+    CSRF_TRUSTED_ORIGINS = [x.strip() for x in _csrf_env.split(",") if x.strip()]
+
+_cors_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+if _cors_env:
+    CORS_ALLOWED_ORIGINS = [x.strip() for x in _cors_env.split(",") if x.strip()]
+
+# Request ID header for tracing
+REQUEST_ID_HEADER = os.getenv("REQUEST_ID_HEADER", "X-Request-ID")
 
 # --- Discipline module configurable policies (can be overridden via environment) ---
 # Review SLA in hours (time allowed for wing supervisor review after submit)

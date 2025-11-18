@@ -1,5 +1,8 @@
 from rest_framework import serializers
 from .models import Violation, Incident, BehaviorLevel
+from .models import Absence, ExcuseRequest, ExcuseAttachment
+from .models import Action
+from .models import IncidentAttachment
 from typing import Any, Dict
 
 
@@ -69,6 +72,12 @@ class IncidentSerializer(serializers.ModelSerializer):
         )
 
     def create(self, validated_data):
+        # الحقول المساعدة القادمة من الواجهة (ليست حقول نموذج) يجب عدم تمريرها إلى ORM
+        # لأنها ستسبب TypeError: Incident() got unexpected keyword arguments
+        # نحتفظ بها محليًا لاستخدام مستقبلي (ربط بالحصة/المادة) دون تعطيل الحفظ.
+        _class_id = validated_data.pop("class_id", None)
+        _period_number = validated_data.pop("period_number", None)
+
         violation = validated_data["violation"]
         validated_data["severity"] = violation.severity
         # committee flag inherited, but may be escalated later on submit
@@ -81,6 +90,20 @@ class IncidentSerializer(serializers.ModelSerializer):
         from datetime import timedelta
 
         data = super().to_representation(instance)
+        # عرض حالة حديثة متوافقة: إبقاء القيمة الخام كما هي، وإضافة status_display كحقل مشتق.
+        try:
+            raw_status = data.get("status") or getattr(instance, "status", "") or ""
+            normalized = str(raw_status)
+            # خرائط التوافق: under_review → review، open → draft
+            if raw_status == "under_review":
+                normalized = "review"
+            elif raw_status == "open":
+                # open التاريخية تُعرض كـ draft لواجهات المستخدم الجديدة
+                normalized = "draft"
+            # لا تغييرات لبقية القيم (draft/submitted/review/action_required/in_committee/resolved/closed)
+            data["status_display"] = normalized
+        except Exception:
+            data["status_display"] = data.get("status")
         try:
             data["student_name"] = getattr(getattr(instance, "student", None), "full_name", None)
         except Exception:
@@ -399,6 +422,15 @@ class IncidentSerializer(serializers.ModelSerializer):
             data["proposed_actions"] = []
             data["proposed_sanctions"] = []
             data["proposed_summary"] = None
+        # حقول مشتقة: repeat_index + suggested_actions (لا تُخزّن في قاعدة البيانات)
+        try:
+            data["repeat_index"] = compute_repeat_index(instance)
+        except Exception:
+            data["repeat_index"] = 1
+        try:
+            data["suggested_actions"] = suggest_actions_for(instance)
+        except Exception:
+            data["suggested_actions"] = []
         return data
 
 
@@ -645,3 +677,190 @@ class IncidentFullSerializer(IncidentSerializer):
             }
 
     # ملاحظة: تم دمج إرجاع committee_panel_obj ضمن to_representation أعلاه.
+
+    # ===================== Serializers للحضور والأعذار (Phase 1) =====================
+
+
+class AbsenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Absence
+        fields = (
+            "id",
+            "student",
+            "date",
+            "type",
+            "period",
+            "status",
+            "source",
+            "notes",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("created_at", "updated_at")
+
+
+class ExcuseAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExcuseAttachment
+        fields = ("id", "excuse", "category", "url", "checksum", "origin", "uploaded_by", "uploaded_at")
+        read_only_fields = ("uploaded_by", "uploaded_at")
+
+
+class ExcuseRequestSerializer(serializers.ModelSerializer):
+    absences = serializers.PrimaryKeyRelatedField(queryset=Absence.objects.all(), many=True)
+    attachments = ExcuseAttachmentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = ExcuseRequest
+        fields = (
+            "id",
+            "absences",
+            "submitted_by",
+            "status",
+            "reviewed_by",
+            "decision_reason",
+            "decided_at",
+            "created_at",
+            "updated_at",
+            "attachments",
+        )
+        read_only_fields = ("status", "reviewed_by", "decided_at", "created_at", "updated_at")
+
+    def create(self, validated_data):
+        absences = validated_data.pop("absences", [])
+        req = ExcuseRequest.objects.create(**validated_data)
+        if absences:
+            req.absences.set(absences)
+        return req
+
+
+# ===================== Serializers للإجراءات (Phase 2) =====================
+class ActionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Action
+        fields = (
+            "id",
+            "incident",
+            "type",
+            "assigned_to",
+            "due_at",
+            "completed_at",
+            "requires_guardian_signature",
+            "doc_required",
+            "doc_received_at",
+            "notes",
+            "meta",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("created_at", "updated_at", "completed_at")
+
+
+class IncidentAttachmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IncidentAttachment
+        fields = (
+            "id",
+            "incident",
+            "action",
+            "kind",
+            "file",
+            "mime",
+            "size",
+            "sha256",
+            "created_by",
+            "created_at",
+            "meta",
+        )
+        read_only_fields = ("mime", "size", "sha256", "created_by", "created_at")
+
+
+# ===================== ملحق: حقول مشتقة للواقعة (repeat_index + suggested_actions) =====================
+def compute_repeat_index(instance) -> int:
+    """احسب رقم التكرار لنفس المخالفة لنفس الطالب ضمن نافذة زمنية policy.window_days.
+    التكرار = عدد الوقائع السابقة المشابهة + 1 (لهذه الواقعة).
+    """
+    try:
+        from datetime import timedelta
+        from django.conf import settings as dj_settings
+        from .models import Incident
+
+        if not getattr(instance, "occurred_at", None):
+            return 1
+        viol = getattr(instance, "violation", None)
+        # Policy precedence: Violation.policy.window_days -> settings.DISCIPLINE_REPEAT_WINDOW_D -> 365
+        window_days = 365
+        try:
+            pol = getattr(viol, "policy", None) or {}
+            policy_days = int(pol.get("window_days") or 0)
+            if policy_days > 0:
+                window_days = policy_days
+            else:
+                window_days = int(getattr(dj_settings, "DISCIPLINE_REPEAT_WINDOW_D", 365) or 365)
+        except Exception:
+            try:
+                window_days = int(getattr(dj_settings, "DISCIPLINE_REPEAT_WINDOW_D", 365) or 365)
+            except Exception:
+                window_days = 365
+        start_dt = instance.occurred_at - timedelta(days=window_days)
+        cnt = (
+            Incident.objects.filter(
+                student_id=getattr(instance, "student_id", None),
+                violation_id=getattr(instance, "violation_id", None),
+                occurred_at__lt=instance.occurred_at,
+                occurred_at__gte=start_dt,
+            )
+            .only("id")
+            .count()
+        )
+        return int(cnt) + 1
+    except Exception:
+        return 1
+
+
+def suggest_actions_for(instance) -> list:
+    """Suggest a list of action type codes based on violation severity and repeat index.
+
+    Mapping derived from the roadmap and policy document. Minimal, stateless, and
+    easy to test. Returns a list of Action.TYPE_CHOICES values.
+    """
+    try:
+        deg = int(
+            getattr(instance, "severity", None) or getattr(getattr(instance, "violation", None), "severity", 0) or 0
+        )
+    except Exception:
+        deg = 0
+    try:
+        n = int(compute_repeat_index(instance))
+    except Exception:
+        n = 1
+
+    # Degree 1
+    if deg == 1:
+        if n <= 1:
+            return ["VERBAL_NOTICE"]
+        if n == 2:
+            return ["WRITTEN_NOTICE"]
+        if n == 3:
+            return ["WRITTEN_WARNING", "COUNSELING_SESSION"]
+        return ["BEHAVIOR_CONTRACT"]
+
+    # Degree 2
+    if deg == 2:
+        if n <= 1:
+            return ["WRITTEN_WARNING", "BEHAVIOR_CONTRACT"]
+        if n == 2:
+            return ["WRITTEN_WARNING", "GUARDIAN_MEETING"]
+        return ["COMMITTEE_REFERRAL", "SUSPENSION"]
+
+    # Degree 3
+    if deg == 3:
+        if n <= 1:
+            return ["COMMITTEE_REFERRAL"]
+        return ["SUSPENSION", "RESTITUTION"]
+
+    # Degree 4
+    if deg >= 4:
+        return ["COMMITTEE_REFERRAL", "EXTERNAL_NOTIFICATION"]
+
+    return []
