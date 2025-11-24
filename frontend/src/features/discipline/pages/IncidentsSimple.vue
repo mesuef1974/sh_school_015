@@ -214,19 +214,11 @@ function arCountLabel(n: number){
   return 'مخالفة'; // generic for >10
 }
 
-// Show only the latest incident per student (items are already sorted DESC by backend)
-const displayedItems = computed(() => {
-  const seen = new Set<string>();
-  const out: any[] = [];
-  for (const it of items.value) {
-    const sid = (it && (String(it.student||''))) || '';
-    if (!sid) { out.push(it); continue; }
-    if (seen.has(sid)) continue; // already captured a newer one
-    seen.add(sid);
-    out.push(it);
-  }
-  return out;
-});
+// عرض جميع السجلات كما أعادها الخادم بدون دمج حسب الطالب
+// ملاحظة: كان هناك منطق سابق يدمج السجلات بحيث يظهر أحدث سجل لكل طالب فقط،
+// وهذا تَسَبَّب في ظهور عدد أقل من الصفوف (مثلاً 6 في القاعدة مقابل 4 في الصفحة).
+// لتجنّب الالتباس، نعرض القائمة كما هي.
+const displayedItems = computed(() => items.value);
 
 // Modal state for showing details
 const details = ref<{ visible: boolean; kind: 'actions'|'sanctions'; item: any|null }>({ visible: false, kind: 'actions', item: null });

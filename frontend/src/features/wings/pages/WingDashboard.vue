@@ -480,7 +480,8 @@ const shortcuts = computed(() => {
   const tMonitor = getTileByTo("/attendance/wing/monitor");
   const tMissing = getTileByTo("/wing/attendance/missing");
   const tIncidents = getTileByTo("/wing/incidents");
-  const tReports = getTileByTo("/wing/reports");
+  // استخدم المسار الصحيح لصفحة تقارير الجناح
+  const tReports = getTileByTo("/attendance/wing/reports");
   return [
     {
       key: "attendance_today",
@@ -502,9 +503,10 @@ const shortcuts = computed(() => {
     },
     {
       key: "reports",
-      label: tReports?.title || "تقارير",
+      label: tReports?.title || "تقارير الحضور والغياب",
       icon: tReports?.icon || "solar:chart-2-bold-duotone",
-      to: { name: "wing-reports" },
+      // اسم المسار الصحيح حسب تعريف الراوتر
+      to: { name: "wing-attendance-reports" },
     },
   ];
 });

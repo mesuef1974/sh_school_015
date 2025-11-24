@@ -63,7 +63,7 @@ $attempts = [math]::Ceiling(($MaxWaitSeconds * 1000) / 500)
 for ($i = 0; $i -lt $attempts; $i++) {
   # Re-read origin selection on every iteration to follow serve_https dynamic choice
   if (Test-Path -Path $originFile) {
-    try {
+    try {`1
       $originStr = (Get-Content -Path $originFile -ErrorAction Stop | Select-Object -First 1)
       if ($originStr -and $originStr -ne $lastOrigin) {
         $u = [Uri]$originStr

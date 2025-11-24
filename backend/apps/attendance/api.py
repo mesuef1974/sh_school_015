@@ -18,6 +18,8 @@ from .serializers import ExitEventSerializer, StudentBriefSerializer
 from .services.attendance import bulk_save_attendance
 from .services.word_table import render_table_docx
 from .timing import resolve_lesson_time
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDay, TruncWeek, TruncMonth
 
 logger = logging.getLogger(__name__)
 
@@ -1892,6 +1894,628 @@ class WingSupervisorViewSet(viewsets.ViewSet):
             summary["scope"] = "wings"
         return Response(summary)
 
+    # ========================= Reports (Classes/Wings/School) =========================
+    def _parse_grouping(self, request: Request):
+        """Return (group_by, bucket_func, single_date, from_dt, to_dt) from query params.
+        Supports:
+          - date=YYYY-MM-DD (single day)
+          - from=YYYY-MM-DD&to=YYYY-MM-DD (inclusive range)
+        group_by in {day, week, month, term} (default: day)
+        """
+        gb = (request.query_params.get("group_by") or "day").strip().lower()
+        if gb not in {"day", "week", "month", "term"}:
+            gb = "day"
+        if gb == "day":
+            bucket = TruncDay
+        elif gb == "week":
+            bucket = TruncWeek
+        elif gb == "month":
+            bucket = TruncMonth
+        else:
+            # term grouping handled specially (no DB function bucket)
+            bucket = None  # type: ignore
+
+        # Prefer explicit date if provided; otherwise use range
+        dt, err = _parse_date_or_400(request.query_params.get("date"))
+        if dt is not None and not err:
+            return gb, bucket, dt, None, None
+        rng = _parse_range_or_400(request.query_params.get("from"), request.query_params.get("to"))
+        if isinstance(rng, tuple):
+            return gb, bucket, None, rng[0], rng[1]
+        # Fallback to today if parsing failed
+        return gb, bucket, timezone.localdate(), None, None
+
+    def _visible_wing_ids(self, request: Request) -> list[int]:
+        """Resolve wing IDs that the current user is allowed to see, honoring optional wing_id param
+        for superusers or when wing matches user's wings."""
+        staff, wing_ids = self._get_staff_and_wing_ids(request.user)
+        try:
+            wing_id_q = request.query_params.get("wing_id")
+            wing_id_int = int(wing_id_q) if wing_id_q else None
+        except Exception:
+            wing_id_int = None
+        if wing_id_int is not None:
+            is_super = bool(getattr(request.user, "is_superuser", False))
+            if is_super or (wing_id_int in (wing_ids or [])):
+                wing_ids = [wing_id_int]
+            else:
+                wing_ids = []
+        return list(wing_ids or [])
+
+    @action(detail=False, methods=["get"], url_path="reports/classes")
+    def reports_classes(self, request: Request) -> Response:
+        """حساب تقرير الحضور/الغياب لكل صف ضمن أجنحة المستخدم (يومي/أسبوعي/شهري).
+        الاستجابة: عناصر تحتوي مفاتيح مثل: class_id, class_name, wing_id, date_bucket, total_students,
+        absent_total, absent_excused, absent_unexcused, absent_pending(0 حاليًا), present, present_pct, absent_pct
+        """
+        from school.models import AttendanceRecord, Class, Student, Term  # type: ignore
+        from discipline.models import Absence  # type: ignore
+
+        # صلاحيات عرض التقارير
+        user = request.user
+        if not (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("attendance.report_view")
+        ):
+            raise PermissionDenied("صلاحية غير كافية لعرض التقارير")
+
+        gb, bucket, single_dt, from_dt, to_dt = self._parse_grouping(request)
+        wing_ids = self._visible_wing_ids(request)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"items": []})
+
+        # Scope classes by wing permissions and build a proper map including wing_id
+        class_q = Class.objects.all()
+        if hasattr(Class, "wing_id"):
+            class_q = class_q.filter(wing_id__in=wing_ids) if wing_ids else class_q.none()
+            class_map = {cid: (name, wid) for cid, name, wid in class_q.values_list("id", "name", "wing_id")}
+        else:
+            class_map = {cid: (name, None) for cid, name in class_q.values_list("id", "name")}
+        class_ids = list(class_map.keys())
+
+        # Total students per class (active only if field exists)
+        stu_q = Student.objects.filter(class_fk_id__in=class_ids)
+        try:
+            stu_q = stu_q.filter(is_active=True)
+        except Exception:
+            try:
+                stu_q = stu_q.filter(active=True)
+            except Exception:
+                pass
+        totals = {cid: cnt for cid, cnt in stu_q.values_list("class_fk_id").annotate(cnt=Count("id"))}
+
+        # Attendance records scoped to date or range and classes
+        rec_qs = AttendanceRecord.objects.all()
+        if single_dt is not None:
+            rec_qs = rec_qs.filter(date=single_dt)
+        else:
+            rec_qs = rec_qs.filter(date__gte=from_dt, date__lte=to_dt)
+        # Source gating (supervisor-approved) if field exists
+        try:
+            rec_qs = rec_qs.filter(source="supervisor")
+        except Exception:
+            pass
+        if class_ids:
+            rec_qs = rec_qs.filter(**{f"{_CLASS_FK_ID}__in": class_ids})
+
+        # Term grouping special handling
+        term_mode = gb == "term"
+        include_pending = (request.query_params.get("include_pending") or "").strip().lower() in {"1", "true", "yes"}
+        items = []
+        if term_mode:
+            # Build term buckets intersecting the requested date(s)
+            if single_dt is not None:
+                term_q = Term.objects.filter(start_date__lte=single_dt, end_date__gte=single_dt)
+            else:
+                term_q = Term.objects.filter(end_date__gte=from_dt, start_date__lte=to_dt)
+            terms = list(term_q.order_by("start_date").values("id", "name", "start_date", "end_date"))
+            for t in terms:
+                t_from = t["start_date"]
+                t_to = t["end_date"]
+                t_rec = rec_qs.filter(date__gte=t_from, date__lte=t_to)
+                base_vals = t_rec.values(_CLASS_FK_ID)
+                agg = base_vals.annotate(
+                    absent_excused=Count("student_id", filter=Q(status="excused"), distinct=True),
+                    absent_unexcused=Count("student_id", filter=Q(status__in=["absent", "runaway"]), distinct=True),
+                )
+                # حساب الأعذار المعلّقة إن طُلب
+                pending_map: dict[int, int] = {}
+                if include_pending:
+                    pending_statuses = [
+                        "PENDING_JUSTIFICATION",
+                        "UNDER_REVIEW",
+                        "NEEDS_CORRECTION",
+                    ]
+                    pend_qs = (
+                        Absence.objects.filter(date__gte=t_from, date__lte=t_to, student__class_fk_id__in=class_ids)
+                        .filter(excuse_requests__status__in=pending_statuses)
+                        .values("student__class_fk_id")
+                        .annotate(pending=Count("student_id", distinct=True))
+                    )
+                    for r in pend_qs:
+                        pending_map[int(r.get("student__class_fk_id") or 0)] = int(r.get("pending") or 0)
+
+                for row in agg[:100000]:
+                    cid = row.get(_CLASS_FK_ID)
+                    if cid not in class_map:
+                        continue
+                    cls_name, wing_id = class_map[cid]
+                    total_students = int(totals.get(cid, 0))
+                    exc = int(row.get("absent_excused") or 0)
+                    unx = int(row.get("absent_unexcused") or 0)
+                    abs_total = exc + unx
+                    present = max(total_students - abs_total, 0)
+                    present_pct = float(round((present / total_students) * 100, 2)) if total_students else 0.0
+                    absent_pct = float(round((abs_total / total_students) * 100, 2)) if total_students else 0.0
+                    date_bucket = f"{t['name']}"
+                    pending = int(pending_map.get(int(cid or 0), 0)) if include_pending else 0
+                    items.append(
+                        {
+                            "class_id": cid,
+                            "class_name": cls_name,
+                            "wing_id": wing_id,
+                            "date_bucket": date_bucket,
+                            "total_students": total_students,
+                            "absent_total": abs_total,
+                            "absent_excused": exc,
+                            "absent_unexcused": unx,
+                            "absent_pending": pending,
+                            "present": present,
+                            "present_pct": present_pct,
+                            "absent_pct": absent_pct,
+                        }
+                    )
+        else:
+            # Instantiate the truncation expression once, do NOT call it again like bucket_expr("date")
+            bucket_expr = bucket("date")
+            base_vals = rec_qs.values(_CLASS_FK_ID, bucket_expr)
+            agg = base_vals.annotate(
+                absent_excused=Count("student_id", filter=Q(status="excused"), distinct=True),
+                absent_unexcused=Count("student_id", filter=Q(status__in=["absent", "runaway"]), distinct=True),
+            )
+            # خريطة الأعذار المعلّقة لكل (class_id, bucket)
+            pending_map: dict[tuple[int, str], int] = {}
+            if include_pending:
+                pending_statuses = [
+                    "PENDING_JUSTIFICATION",
+                    "UNDER_REVIEW",
+                    "NEEDS_CORRECTION",
+                ]
+                abs_q = Absence.objects.filter(student__class_fk_id__in=class_ids)
+                if single_dt is not None:
+                    abs_q = abs_q.filter(date=single_dt)
+                else:
+                    abs_q = abs_q.filter(date__gte=from_dt, date__lte=to_dt)
+                pend_vals = (
+                    abs_q.filter(excuse_requests__status__in=pending_statuses)
+                    .values("student__class_fk_id", bucket_expr)
+                    .annotate(pending=Count("student_id", distinct=True))
+                )
+                for r in pend_vals:
+                    cid = int(r.get("student__class_fk_id") or 0)
+                    db = r.get("date__trunc") or r.get("date__week") or r.get("date__month")
+                    try:
+                        db_s = db.isoformat()
+                    except Exception:
+                        db_s = str(db)
+                    pending_map[(cid, db_s)] = int(r.get("pending") or 0)
+            for row in agg[:100000]:  # safety cap
+                cid = row.get(_CLASS_FK_ID)
+                if cid not in class_map:
+                    continue
+                cls_name, wing_id = class_map[cid]
+                total_students = int(totals.get(cid, 0))
+                exc = int(row.get("absent_excused") or 0)
+                unx = int(row.get("absent_unexcused") or 0)
+                abs_total = exc + unx
+                present = max(total_students - abs_total, 0)
+                present_pct = float(round((present / total_students) * 100, 2)) if total_students else 0.0
+                absent_pct = float(round((abs_total / total_students) * 100, 2)) if total_students else 0.0
+                date_bucket = row.get("date__trunc") or row.get("date__week") or row.get("date__month")
+                # Normalize bucket to ISO string (YYYY-MM-DD)
+                try:
+                    date_bucket = date_bucket.isoformat()
+                except Exception:
+                    date_bucket = str(date_bucket)
+                pending = int(pending_map.get((int(cid or 0), str(date_bucket)), 0)) if include_pending else 0
+                items.append(
+                    {
+                        "class_id": cid,
+                        "class_name": cls_name,
+                        "wing_id": wing_id,
+                        "date_bucket": date_bucket,
+                        "total_students": total_students,
+                        "absent_total": abs_total,
+                        "absent_excused": exc,
+                        "absent_unexcused": unx,
+                        "absent_pending": pending,
+                        "present": present,
+                        "present_pct": present_pct,
+                        "absent_pct": absent_pct,
+                    }
+                )
+        # Stable ordering by bucket then class
+        items.sort(key=lambda x: (x.get("date_bucket") or "", str(x.get("class_name") or "")))
+        return Response({"items": items, "group_by": gb})
+
+    @action(detail=False, methods=["get"], url_path="reports/wings")
+    def reports_wings(self, request: Request) -> Response:
+        """تقرير الحضور/الغياب مجمّعًا على مستوى الجناح (يومي/أسبوعي/شهري) ضمن صلاحيات المستخدم."""
+        from school.models import AttendanceRecord, Class, Student, Term  # type: ignore
+        from discipline.models import Absence  # type: ignore
+
+        # صلاحيات
+        user = request.user
+        if not (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("attendance.report_view")
+        ):
+            raise PermissionDenied("صلاحية غير كافية لعرض التقارير")
+
+        gb, bucket, single_dt, from_dt, to_dt = self._parse_grouping(request)
+        wing_ids = self._visible_wing_ids(request)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"items": []})
+
+        # Student totals per wing (based on class membership)
+        cls_q = Class.objects.all()
+        if hasattr(Class, "wing_id"):
+            cls_q = cls_q.filter(wing_id__in=wing_ids) if wing_ids else cls_q.none()
+        class_ids_by_wing: dict[int, list[int]] = {}
+        for cid, wid in cls_q.values_list("id", "wing_id"):
+            class_ids_by_wing.setdefault(int(wid or 0), []).append(int(cid))
+
+        stu_q = Student.objects.filter(class_fk_id__in=[c for ids in class_ids_by_wing.values() for c in ids])
+        try:
+            stu_q = stu_q.filter(is_active=True)
+        except Exception:
+            try:
+                stu_q = stu_q.filter(active=True)
+            except Exception:
+                pass
+        totals_by_wing: dict[int, int] = {}
+        for wid, cnt in stu_q.values_list("class_fk__wing_id").annotate(cnt=Count("id")):
+            totals_by_wing[int(wid or 0)] = int(cnt or 0)
+
+        rec_qs = AttendanceRecord.objects.all()
+        if single_dt is not None:
+            rec_qs = rec_qs.filter(date=single_dt)
+        else:
+            rec_qs = rec_qs.filter(date__gte=from_dt, date__lte=to_dt)
+        try:
+            rec_qs = rec_qs.filter(source="supervisor")
+        except Exception:
+            pass
+        if class_ids_by_wing:
+            rec_qs = rec_qs.filter(**{f"{_CLASS_FK_ID}__in": [c for ids in class_ids_by_wing.values() for c in ids]})
+
+        include_pending = (request.query_params.get("include_pending") or "").strip().lower() in {"1", "true", "yes"}
+        items = []
+        if gb == "term":
+            if single_dt is not None:
+                term_q = Term.objects.filter(start_date__lte=single_dt, end_date__gte=single_dt)
+            else:
+                term_q = Term.objects.filter(end_date__gte=from_dt, start_date__lte=to_dt)
+            terms = list(term_q.order_by("start_date").values("id", "name", "start_date", "end_date"))
+            for t in terms:
+                t_from = t["start_date"]
+                t_to = t["end_date"]
+                t_rec = rec_qs.filter(date__gte=t_from, date__lte=t_to)
+                vals = t_rec.values(f"{_CLASS_FK_ID}__wing_id")
+                agg = vals.annotate(
+                    absent_excused=Count("student_id", filter=Q(status="excused"), distinct=True),
+                    absent_unexcused=Count("student_id", filter=Q(status__in=["absent", "runaway"]), distinct=True),
+                )
+                # pending per wing during term
+                pending_map: dict[int, int] = {}
+                if include_pending:
+                    pending_statuses = [
+                        "PENDING_JUSTIFICATION",
+                        "UNDER_REVIEW",
+                        "NEEDS_CORRECTION",
+                    ]
+                    pend_vals = (
+                        Absence.objects.filter(
+                            date__gte=t_from,
+                            date__lte=t_to,
+                            student__class_fk__wing_id__in=list(class_ids_by_wing.keys()),
+                        )
+                        .filter(excuse_requests__status__in=pending_statuses)
+                        .values("student__class_fk__wing_id")
+                        .annotate(pending=Count("student_id", distinct=True))
+                    )
+                    for r in pend_vals:
+                        widk = int(r.get("student__class_fk__wing_id") or 0)
+                        pending_map[widk] = int(r.get("pending") or 0)
+
+                for row in agg[:100000]:
+                    wid = int(row.get(f"{_CLASS_FK_ID}__wing_id") or 0)
+                    total_students = int(totals_by_wing.get(wid, 0))
+                    exc = int(row.get("absent_excused") or 0)
+                    unx = int(row.get("absent_unexcused") or 0)
+                    abs_total = exc + unx
+                    present = max(total_students - abs_total, 0)
+                    present_pct = float(round((present / total_students) * 100, 2)) if total_students else 0.0
+                    absent_pct = float(round((abs_total / total_students) * 100, 2)) if total_students else 0.0
+                    pending = int(pending_map.get(wid, 0)) if include_pending else 0
+                    items.append(
+                        {
+                            "wing_id": wid,
+                            "date_bucket": f"{t['name']}",
+                            "total_students": total_students,
+                            "absent_total": abs_total,
+                            "absent_excused": exc,
+                            "absent_unexcused": unx,
+                            "absent_pending": pending,
+                            "present": present,
+                            "present_pct": present_pct,
+                            "absent_pct": absent_pct,
+                        }
+                    )
+        else:
+            bucket_expr = bucket("date")
+            # Attach wing via Class relation
+            vals = rec_qs.values(f"{_CLASS_FK_ID}__wing_id", bucket_expr)
+            agg = vals.annotate(
+                absent_excused=Count("student_id", filter=Q(status="excused"), distinct=True),
+                absent_unexcused=Count("student_id", filter=Q(status__in=["absent", "runaway"]), distinct=True),
+            )
+            # pending map per (wing_id, bucket)
+            pending_map: dict[tuple[int, str], int] = {}
+            if include_pending:
+                pending_statuses = [
+                    "PENDING_JUSTIFICATION",
+                    "UNDER_REVIEW",
+                    "NEEDS_CORRECTION",
+                ]
+                abs_q = Absence.objects.filter(student__class_fk__wing_id__in=list(class_ids_by_wing.keys()))
+                if single_dt is not None:
+                    abs_q = abs_q.filter(date=single_dt)
+                else:
+                    abs_q = abs_q.filter(date__gte=from_dt, date__lte=to_dt)
+                pend_vals = (
+                    abs_q.filter(excuse_requests__status__in=pending_statuses)
+                    .values("student__class_fk__wing_id", bucket_expr)
+                    .annotate(pending=Count("student_id", distinct=True))
+                )
+                for r in pend_vals:
+                    widk = int(r.get("student__class_fk__wing_id") or 0)
+                    db = r.get("date__trunc") or r.get("date__week") or r.get("date__month")
+                    try:
+                        db_s = db.isoformat()
+                    except Exception:
+                        db_s = str(db)
+                    pending_map[(widk, db_s)] = int(r.get("pending") or 0)
+            for row in agg[:100000]:
+                wid = int(row.get(f"{_CLASS_FK_ID}__wing_id") or 0)
+                total_students = int(totals_by_wing.get(wid, 0))
+                exc = int(row.get("absent_excused") or 0)
+                unx = int(row.get("absent_unexcused") or 0)
+                abs_total = exc + unx
+                present = max(total_students - abs_total, 0)
+                present_pct = float(round((present / total_students) * 100, 2)) if total_students else 0.0
+                absent_pct = float(round((abs_total / total_students) * 100, 2)) if total_students else 0.0
+                date_bucket = row.get("date__trunc") or row.get("date__week") or row.get("date__month")
+                try:
+                    date_bucket = date_bucket.isoformat()
+                except Exception:
+                    date_bucket = str(date_bucket)
+                pending = int(pending_map.get((wid, str(date_bucket)), 0)) if include_pending else 0
+                items.append(
+                    {
+                        "wing_id": wid,
+                        "date_bucket": date_bucket,
+                        "total_students": total_students,
+                        "absent_total": abs_total,
+                        "absent_excused": exc,
+                        "absent_unexcused": unx,
+                        "absent_pending": pending,
+                        "present": present,
+                        "present_pct": present_pct,
+                        "absent_pct": absent_pct,
+                    }
+                )
+        items.sort(key=lambda x: (x.get("date_bucket") or "", int(x.get("wing_id") or 0)))
+        return Response({"items": items, "group_by": gb})
+
+    @action(detail=False, methods=["get"], url_path="reports/school")
+    def reports_school(self, request: Request) -> Response:
+        """تقرير الحضور/الغياب للمدرسة كاملة (ضمن نطاق أجنحة المستخدم) بحسب التجميع الزمني."""
+        from school.models import AttendanceRecord, Class, Student, Term  # type: ignore
+        from discipline.models import Absence  # type: ignore
+
+        # صلاحيات
+        user = request.user
+        if not (
+            getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+            or user.has_perm("attendance.report_view")
+        ):
+            raise PermissionDenied("صلاحية غير كافية لعرض التقارير")
+
+        gb, bucket, single_dt, from_dt, to_dt = self._parse_grouping(request)
+        wing_ids = self._visible_wing_ids(request)
+        if not wing_ids and not getattr(request.user, "is_superuser", False):
+            return Response({"items": []})
+
+        # Resolve class IDs within allowed wings
+        cls_q = Class.objects.all()
+        if hasattr(Class, "wing_id"):
+            cls_q = cls_q.filter(wing_id__in=wing_ids) if wing_ids else cls_q.none()
+        class_ids = list(cls_q.values_list("id", flat=True))
+
+        # Total students across allowed wings
+        stu_q = Student.objects.filter(class_fk_id__in=class_ids)
+        try:
+            stu_q = stu_q.filter(is_active=True)
+        except Exception:
+            try:
+                stu_q = stu_q.filter(active=True)
+            except Exception:
+                pass
+        total_students = int(stu_q.count())
+
+        rec_qs = AttendanceRecord.objects.all()
+        if single_dt is not None:
+            rec_qs = rec_qs.filter(date=single_dt)
+        else:
+            rec_qs = rec_qs.filter(date__gte=from_dt, date__lte=to_dt)
+        try:
+            rec_qs = rec_qs.filter(source="supervisor")
+        except Exception:
+            pass
+        if class_ids:
+            rec_qs = rec_qs.filter(**{f"{_CLASS_FK_ID}__in": class_ids})
+
+        include_pending = (request.query_params.get("include_pending") or "").strip().lower() in {"1", "true", "yes"}
+        items = []
+        if gb == "term":
+            if single_dt is not None:
+                term_q = Term.objects.filter(start_date__lte=single_dt, end_date__gte=single_dt)
+            else:
+                term_q = Term.objects.filter(end_date__gte=from_dt, start_date__lte=to_dt)
+            terms = list(term_q.order_by("start_date").values("id", "name", "start_date", "end_date"))
+            for t in terms:
+                t_from = t["start_date"]
+                t_to = t["end_date"]
+                t_rec = rec_qs.filter(date__gte=t_from, date__lte=t_to)
+                vals = t_rec.values("date")  # dummy
+                agg = vals.annotate(
+                    absent_excused=Count("student_id", filter=Q(status="excused"), distinct=True),
+                    absent_unexcused=Count("student_id", filter=Q(status__in=["absent", "runaway"]), distinct=True),
+                )
+                # Single row per term (aggregate over all)
+                exc = 0
+                unx = 0
+                # Pending map (single number per term for school)
+                pending = 0
+                if include_pending:
+                    pending_statuses = [
+                        "PENDING_JUSTIFICATION",
+                        "UNDER_REVIEW",
+                        "NEEDS_CORRECTION",
+                    ]
+                    pend_q = (
+                        Absence.objects.filter(student__class_fk_id__in=class_ids, date__gte=t_from, date__lte=t_to)
+                        .filter(excuse_requests__status__in=pending_statuses)
+                        .values("student_id")
+                        .distinct()
+                    )
+                    pending = int(pend_q.count())
+
+                for row in agg[:1]:
+                    exc = int(row.get("absent_excused") or 0)
+                    unx = int(row.get("absent_unexcused") or 0)
+                    abs_total = exc + unx
+                    present = max(total_students - abs_total, 0)
+                    present_pct = float(round((present / total_students) * 100, 2)) if total_students else 0.0
+                    absent_pct = float(round((abs_total / total_students) * 100, 2)) if total_students else 0.0
+                    items.append(
+                        {
+                            "date_bucket": f"{t['name']}",
+                            "total_students": total_students,
+                            "absent_total": abs_total,
+                            "absent_excused": exc,
+                            "absent_unexcused": unx,
+                            "absent_pending": pending,
+                            "present": present,
+                            "present_pct": present_pct,
+                            "absent_pct": absent_pct,
+                        }
+                    )
+        else:
+            bucket_expr = bucket("date")
+            vals = rec_qs.values(bucket_expr)
+            agg = vals.annotate(
+                absent_excused=Count("student_id", filter=Q(status="excused"), distinct=True),
+                absent_unexcused=Count("student_id", filter=Q(status__in=["absent", "runaway"]), distinct=True),
+            )
+            # pending per bucket for school
+            pending_map: dict[str, int] = {}
+            if include_pending:
+                pending_statuses = [
+                    "PENDING_JUSTIFICATION",
+                    "UNDER_REVIEW",
+                    "NEEDS_CORRECTION",
+                ]
+                abs_q = Absence.objects.filter(student__class_fk_id__in=class_ids)
+                if single_dt is not None:
+                    abs_q = abs_q.filter(date=single_dt)
+                else:
+                    abs_q = abs_q.filter(date__gte=from_dt, date__lte=to_dt)
+                pend_vals = (
+                    abs_q.filter(excuse_requests__status__in=pending_statuses)
+                    .values(bucket_expr)
+                    .annotate(pending=Count("student_id", distinct=True))
+                )
+                for r in pend_vals:
+                    db = r.get("date__trunc") or r.get("date__week") or r.get("date__month")
+                    try:
+                        db_s = db.isoformat()
+                    except Exception:
+                        db_s = str(db)
+                    pending_map[db_s] = int(r.get("pending") or 0)
+            for row in agg[:100000]:
+                exc = int(row.get("absent_excused") or 0)
+                unx = int(row.get("absent_unexcused") or 0)
+                abs_total = exc + unx
+                present = max(total_students - abs_total, 0)
+                present_pct = float(round((present / total_students) * 100, 2)) if total_students else 0.0
+                absent_pct = float(round((abs_total / total_students) * 100, 2)) if total_students else 0.0
+                date_bucket = row.get("date__trunc") or row.get("date__week") or row.get("date__month")
+                try:
+                    date_bucket = date_bucket.isoformat()
+                except Exception:
+                    date_bucket = str(date_bucket)
+                pending = int(pending_map.get(str(date_bucket), 0)) if include_pending else 0
+                items.append(
+                    {
+                        "date_bucket": date_bucket,
+                        "total_students": total_students,
+                        "absent_total": abs_total,
+                        "absent_excused": exc,
+                        "absent_unexcused": unx,
+                        "absent_pending": pending,
+                        "present": present,
+                        "present_pct": present_pct,
+                        "absent_pct": absent_pct,
+                    }
+                )
+        items.sort(key=lambda x: (x.get("date_bucket") or "",))
+        return Response({"items": items, "group_by": gb})
+
+    @action(detail=False, methods=["get"], url_path="reports/terms")
+    def reports_terms(self, request: Request) -> Response:
+        """إرجاع حدود الفصول الدراسية (Terms) لخيارات التجميع الفصلي."""
+        try:
+            from school.models import Term  # type: ignore
+
+            qs = Term.objects.all().order_by("start_date")
+            items = [
+                {
+                    "id": int(getattr(t, "id", 0)),
+                    "name": getattr(t, "name", None),
+                    "start_date": getattr(t, "start_date", None),
+                    "end_date": getattr(t, "end_date", None),
+                }
+                for t in qs[:50]
+            ]
+            # Normalize dates to ISO
+            for it in items:
+                try:
+                    it["start_date"] = it["start_date"].isoformat()
+                except Exception:
+                    it["start_date"] = str(it["start_date"]) if it["start_date"] else None
+                try:
+                    it["end_date"] = it["end_date"].isoformat()
+                except Exception:
+                    it["end_date"] = str(it["end_date"]) if it["end_date"] else None
+            return Response({"items": items})
+        except Exception as e:
+            return Response({"detail": f"failed: {e}"}, status=500)
+
     @action(detail=False, methods=["get"], url_path="daily-absences")
     def daily_absences(self, request: Request) -> Response:
         """Return general daily absence status per student for the supervisor's wing(s).
@@ -2089,7 +2713,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         resp["Content-Disposition"] = f"attachment; filename=wing-daily-absences-{dt_str}.csv"
         return resp
 
-    @action(detail=False, methods=["get"], url_path="daily-absences/export\.docx")
+    @action(detail=False, methods=["get"], url_path=r"daily-absences/export\.docx")
     def daily_absences_export_docx(self, request: Request) -> HttpResponse:
         """Export the general daily absence classification as Word (DOCX)."""
         resp_json = self.daily_absences(request).data  # type: ignore
@@ -2435,7 +3059,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         resp["Content-Disposition"] = f"attachment; filename=wing-entered-{dt_str}.csv"
         return resp
 
-    @action(detail=False, methods=["get"], url_path="entered/export\.docx")
+    @action(detail=False, methods=["get"], url_path=r"entered/export\.docx")
     def entered_export_docx(self, request: Request) -> HttpResponse:
         """Export entered class-periods (supervisor-entered, locked) as DOCX."""
         data = self.entered(request).data  # type: ignore
@@ -2576,7 +3200,7 @@ class WingSupervisorViewSet(viewsets.ViewSet):
         resp["Content-Disposition"] = f"attachment; filename=wing-missing-{dt_str}.csv"
         return resp
 
-    @action(detail=False, methods=["get"], url_path="missing/export\.docx")
+    @action(detail=False, methods=["get"], url_path=r"missing/export\.docx")
     def missing_export_docx(self, request: Request) -> HttpResponse:
         """Export missing class-periods (not yet supervisor-entered) as DOCX."""
         data = self.missing(request).data  # type: ignore

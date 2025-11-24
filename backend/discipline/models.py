@@ -461,6 +461,8 @@ class ExcuseRequest(models.Model):
     )
     decision_reason = models.TextField(blank=True)
     decided_at = models.DateTimeField(null=True, blank=True)
+    # آخر موعد لتقديم/استكمال العذر وفق «أيام العمل» (يُحتسب تلقائيًا)
+    due_at = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     # Local apps
     "school",
     "apps.attendance",
-    "discipline",
+    # Use full dotted path to avoid ambiguity when importing as backend.discipline
+    "backend.discipline",
 ]
 
 MIDDLEWARE = [
@@ -120,41 +121,43 @@ from urllib.parse import urlparse
 def _db_from_env() -> dict:
     """
     Build DATABASES["default"] from environment variables.
+    Policy: PostgreSQL ONLY (no SQLite fallback in any environment).
     Priority:
-      1) DATABASE_URL (supports postgres[ql] and sqlite schemes)
+      1) DATABASE_URL (must be postgres/postgresql)
       2) PG_* or DB_* variables (Postgres)
-      3) Sensible defaults: in DEBUG -> SQLite (backend/db.sqlite3), else Postgres.
+      3) Sane secure defaults to Postgres on localhost
     """
     url = os.getenv("DATABASE_URL", "").strip()
     if url:
         u = urlparse(url)
         scheme = (u.scheme or "").lower()
         if scheme in {"sqlite", "sqlite3"}:
-            # Examples:
-            #   sqlite:///:memory:
-            #   sqlite:///relative/path.db
-            #   sqlite:////absolute/path.db
-            path = u.path or ""
-            if path in {"", "/"}:
-                name = ":memory:"
-            else:
-                # urlparse adds a leading '/'; remove only one for relative paths
-                if path.startswith("///"):
-                    # sqlite:////C:/path -> urlparse path '///C:/path'
-                    name = path.lstrip("/")
-                else:
-                    name = path[1:] if path.startswith("/") else path
-            return {
-                "ENGINE": "django.db.backends.sqlite3",
-                "NAME": name,
-            }
-        # Treat any other/unknown scheme as Postgres-compatible
+            raise RuntimeError("SQLite is disabled for this platform. Please configure PostgreSQL via DATABASE_URL.")
+        # Enforce Postgres-only policy explicitly
+        if scheme not in {"postgres", "postgresql", "postgis"}:
+            raise RuntimeError(
+                f"Unsupported DB scheme '{scheme}'. Only Postgres is allowed (postgres/postgresql/postgis)."
+            )
         engine = "django.db.backends.postgresql"
         name = u.path.lstrip("/") or os.getenv("DB_NAME") or os.getenv("PG_DB") or "sh_school"
-        user = u.username or os.getenv("DB_USER") or os.getenv("PG_USER") or "postgres"
-        password = u.password or os.getenv("DB_PASSWORD") or os.getenv("PG_PASSWORD") or "postgres"
-        host = u.hostname or os.getenv("DB_HOST") or os.getenv("PG_HOST") or "127.0.0.1"
-        port_val = u.port or os.getenv("DB_PORT") or os.getenv("PG_PORT") or "5432"
+        user = u.username or os.getenv("DB_USER") or os.getenv("PG_USER") or os.getenv("POSTGRES_USER") or "postgres"
+        password = (
+            u.password
+            or os.getenv("DB_PASSWORD")
+            or os.getenv("PG_PASSWORD")
+            or os.getenv("POSTGRES_PASSWORD")
+            or "postgres"
+        )
+        host = u.hostname or os.getenv("DB_HOST") or os.getenv("PG_HOST") or os.getenv("POSTGRES_HOST") or "127.0.0.1"
+        # Support docker-compose env var PG_HOST_PORT when running local infra
+        port_val = (
+            u.port
+            or os.getenv("DB_PORT")
+            or os.getenv("PG_PORT")
+            or os.getenv("PG_HOST_PORT")
+            or os.getenv("POSTGRES_PORT")
+            or "5432"
+        )
         port = str(port_val)
         return {
             "ENGINE": engine,
@@ -163,14 +166,18 @@ def _db_from_env() -> dict:
             "PASSWORD": password,
             "HOST": host,
             "PORT": port,
+            "OPTIONS": {
+                # Fail fast when DB isn't reachable to avoid CLI hangs during migrate
+                "connect_timeout": int(os.getenv("PG_CONNECT_TIMEOUT", "5") or 5),
+            },
         }
 
     # No DATABASE_URL -> use PG_* then DB_* if provided; otherwise default
-    pg_db = os.getenv("PG_DB") or os.getenv("DB_NAME")
-    pg_user = os.getenv("PG_USER") or os.getenv("DB_USER")
-    pg_password = os.getenv("PG_PASSWORD") or os.getenv("DB_PASSWORD")
-    pg_host = os.getenv("PG_HOST") or os.getenv("DB_HOST")
-    pg_port = os.getenv("PG_PORT") or os.getenv("DB_PORT")
+    pg_db = os.getenv("PG_DB") or os.getenv("DB_NAME") or os.getenv("POSTGRES_DB")
+    pg_user = os.getenv("PG_USER") or os.getenv("DB_USER") or os.getenv("POSTGRES_USER")
+    pg_password = os.getenv("PG_PASSWORD") or os.getenv("DB_PASSWORD") or os.getenv("POSTGRES_PASSWORD")
+    pg_host = os.getenv("PG_HOST") or os.getenv("DB_HOST") or os.getenv("POSTGRES_HOST")
+    pg_port = os.getenv("PG_PORT") or os.getenv("DB_PORT") or os.getenv("PG_HOST_PORT") or os.getenv("POSTGRES_PORT")
 
     if any([pg_db, pg_user, pg_password, pg_host, pg_port]):
         return {
@@ -180,17 +187,12 @@ def _db_from_env() -> dict:
             "PASSWORD": pg_password or "postgres",
             "HOST": pg_host or "127.0.0.1",
             "PORT": str(pg_port or "5432"),
+            "OPTIONS": {
+                "connect_timeout": int(os.getenv("PG_CONNECT_TIMEOUT", "5") or 5),
+            },
         }
 
-    # Sensible default: use PostgreSQL unless explicitly overridden via DJANGO_DEFAULT_DB or DATABASE_URL.
-    default_engine = os.getenv("DJANGO_DEFAULT_DB", "postgres").lower()
-    if default_engine in {"sqlite", "sqlite3"}:
-        name = os.getenv("SQLITE_NAME") or str(BASE_DIR / "db.sqlite3")
-        return {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": name,
-        }
-    # Default to Postgres
+    # Default to Postgres (SQLite is not allowed)
     return {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": "sh_school",
@@ -198,6 +200,9 @@ def _db_from_env() -> dict:
         "PASSWORD": "postgres",
         "HOST": "127.0.0.1",
         "PORT": "5432",
+        "OPTIONS": {
+            "connect_timeout": int(os.getenv("PG_CONNECT_TIMEOUT", "5") or 5),
+        },
     }
 
 
@@ -240,6 +245,11 @@ STATICFILES_DIRS = [
 # WhiteNoise: In development, use staticfiles finders (no collectstatic needed)
 if DEBUG:
     WHITENOISE_USE_FINDERS = True
+
+# ================= Attendance/Absence policy defaults =================
+# مهلة تقديم العذر (أيام عمل) وقالب أسبوع العمل. قابلة للتهيئة عبر متغيرات البيئة.
+ATTENDANCE_EXCUSE_GRACE_DAYS = int(os.getenv("ATTENDANCE_EXCUSE_GRACE_DAYS", "3") or 3)
+ATTENDANCE_WORKWEEK = os.getenv("ATTENDANCE_WORKWEEK", "SUN-THU").strip() or "SUN-THU"
 
 # Unified auth URLs
 # Redirect login_required to the unified login page

@@ -247,8 +247,13 @@ async function onLogout() {
 .identity-stage-bg {
   position: fixed;
   inset: 0;
-  z-index: 0;
+  /* كانت بقيمة 0 فتغطي الهيدر والفوتر لأنهما خارج مكوّن الصفحة.
+     إنزال الخلفية إلى طبقة سالبة يضمن ظهور الهيدر والفوتر فوقها. */
+  z-index: -1;
   pointer-events: none;
+  /* لنجعل خلفية صفحة «ملفي» مثل باقي الصفحات التي تستخدم خلفية body العامة،
+     نعطّل الخلفية المخصصة هنا بالكامل. */
+  display: none;
   /* solid maroon base with golden arabesque overlay */
   background-color: var(--maron-primary);
   background-image: url("/assets/img/arabesque_gs.svg");

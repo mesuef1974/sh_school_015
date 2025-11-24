@@ -30,7 +30,7 @@ INSTALLED_APPS = [
     "apps.school",
     "apps.api",
     # Discipline module (incident lifecycle)
-    "discipline",
+    "backend.discipline",
 ]
 
 MIDDLEWARE = [

@@ -518,6 +518,45 @@ export async function getExitEvents(params: {
   }[];
 }
 
+// ============ Attendance Reports (Wing Supervisor) ============
+export async function getAttendanceReportClasses(params: {
+  date?: string; from?: string; to?: string; group_by?: 'day'|'week'|'month'|'term'; wing_id?: number;
+}) {
+  const res = await api.get('/attendance/wing/reports/classes', { params });
+  return res.data as { group_by: string; items: Array<{
+    class_id: number; class_name?: string|null; wing_id?: number|null; date_bucket: string;
+    total_students: number; absent_total: number; absent_excused: number; absent_unexcused: number; absent_pending: number;
+    present: number; present_pct: number; absent_pct: number;
+  }> };
+}
+
+export async function getAttendanceReportWings(params: {
+  date?: string; from?: string; to?: string; group_by?: 'day'|'week'|'month'|'term'; wing_id?: number;
+}) {
+  const res = await api.get('/attendance/wing/reports/wings', { params });
+  return res.data as { group_by: string; items: Array<{
+    wing_id: number; date_bucket: string;
+    total_students: number; absent_total: number; absent_excused: number; absent_unexcused: number; absent_pending: number;
+    present: number; present_pct: number; absent_pct: number;
+  }> };
+}
+
+export async function getAttendanceReportSchool(params: {
+  date?: string; from?: string; to?: string; group_by?: 'day'|'week'|'month'|'term'; wing_id?: number;
+}) {
+  const res = await api.get('/attendance/wing/reports/school', { params });
+  return res.data as { group_by: string; items: Array<{
+    date_bucket: string;
+    total_students: number; absent_total: number; absent_excused: number; absent_unexcused: number; absent_pending: number;
+    present: number; present_pct: number; absent_pct: number;
+  }> };
+}
+
+export async function getAttendanceTerms() {
+  const res = await api.get('/attendance/wing/reports/terms');
+  return res.data as { items: Array<{ id: number; name: string; start_date: string; end_date: string }> };
+}
+
 // ---- Wing Supervisor APIs (use relative /api to leverage Vite proxy and avoid CORS) ----
 export async function getWingMe() {
   const res = await api.get("/v1/wing/me/");

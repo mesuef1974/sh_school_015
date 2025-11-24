@@ -709,6 +709,8 @@ class ExcuseAttachmentSerializer(serializers.ModelSerializer):
 class ExcuseRequestSerializer(serializers.ModelSerializer):
     absences = serializers.PrimaryKeyRelatedField(queryset=Absence.objects.all(), many=True)
     attachments = ExcuseAttachmentSerializer(many=True, read_only=True)
+    # إظهار/قبول due_at اختياريًا، وسيُحتسب تلقائيًا عند عدم التمرير
+    due_at = serializers.DateField(required=False, allow_null=True)
 
     class Meta:
         model = ExcuseRequest
@@ -720,6 +722,7 @@ class ExcuseRequestSerializer(serializers.ModelSerializer):
             "reviewed_by",
             "decision_reason",
             "decided_at",
+            "due_at",
             "created_at",
             "updated_at",
             "attachments",
@@ -728,6 +731,27 @@ class ExcuseRequestSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         absences = validated_data.pop("absences", [])
+        # احسب due_at بناءً على «أيام العمل» إذا لم يمرَّر من العميل
+        if not validated_data.get("due_at"):
+            try:
+                from django.conf import settings as dj_settings
+                from apps.common.date_utils import add_business_days  # type: ignore
+
+                grace = int(getattr(dj_settings, "ATTENDANCE_EXCUSE_GRACE_DAYS", 3) or 3)
+                workweek = getattr(dj_settings, "ATTENDANCE_WORKWEEK", "SUN-THU") or "SUN-THU"
+                # استخدم أقصى موعد من تواريخ الغياب ضمن النطاق بعد إضافة مهلة «أيام العمل»
+                if absences:
+                    max_due = None
+                    for a in absences:
+                        d = getattr(a, "date", None)
+                        if d:
+                            due = add_business_days(d, grace, workweek=workweek)
+                            max_due = due if (max_due is None or due > max_due) else max_due
+                    if max_due:
+                        validated_data["due_at"] = max_due
+            except Exception:
+                # في حال حدوث أي خطأ، نتجاهل الاحتساب لعدم تعطيل الإنشاء
+                pass
         req = ExcuseRequest.objects.create(**validated_data)
         if absences:
             req.absences.set(absences)

@@ -9,13 +9,18 @@
         role="navigation"
         aria-label="التنقل الرئيسي"
       >
-        <div class="brand-images d-flex align-items-center">
+        <RouterLink
+          class="brand-images d-flex align-items-center"
+          :to="{ name: 'home' }"
+          aria-label="الذهاب إلى الصفحة الرئيسية"
+          title="الصفحة الرئيسية"
+        >
           <img
             src="https://127.0.0.1:8443/static/img/logo02.png?v=20251027-01"
-            alt="شعار"
-            style="height: 44px; width: auto; display: block"
+            alt="شعار المدرسة"
+            style="height: 44px; width: auto; display: block; cursor: pointer"
           />
-        </div>
+        </RouterLink>
         <span class="flex-fill"></span>
         <RouterLink
           v-if="!isHome"

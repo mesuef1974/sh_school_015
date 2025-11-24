@@ -156,6 +156,51 @@ urlpatterns = [
         WingSupervisorViewSet.as_view({"get": "weekly_summary_export_docx"}),
         name="wing-weekly-summary-export-docx-no-slash",
     ),
+    # ----- Stable aliases (non-versioned) for Wing reports to match frontend calls -----
+    # Classes report
+    path(
+        "api/attendance/wing/reports/classes/",
+        WingSupervisorViewSet.as_view({"get": "reports_classes"}),
+        name="wing-reports-classes",
+    ),
+    path(
+        "api/attendance/wing/reports/classes",
+        WingSupervisorViewSet.as_view({"get": "reports_classes"}),
+        name="wing-reports-classes-no-slash",
+    ),
+    # Wings report
+    path(
+        "api/attendance/wing/reports/wings/",
+        WingSupervisorViewSet.as_view({"get": "reports_wings"}),
+        name="wing-reports-wings",
+    ),
+    path(
+        "api/attendance/wing/reports/wings",
+        WingSupervisorViewSet.as_view({"get": "reports_wings"}),
+        name="wing-reports-wings-no-slash",
+    ),
+    # School report
+    path(
+        "api/attendance/wing/reports/school/",
+        WingSupervisorViewSet.as_view({"get": "reports_school"}),
+        name="wing-reports-school",
+    ),
+    path(
+        "api/attendance/wing/reports/school",
+        WingSupervisorViewSet.as_view({"get": "reports_school"}),
+        name="wing-reports-school-no-slash",
+    ),
+    # Terms helper
+    path(
+        "api/attendance/wing/reports/terms/",
+        WingSupervisorViewSet.as_view({"get": "reports_terms"}),
+        name="wing-reports-terms",
+    ),
+    path(
+        "api/attendance/wing/reports/terms",
+        WingSupervisorViewSet.as_view({"get": "reports_terms"}),
+        name="wing-reports-terms-no-slash",
+    ),
     path("", include("school.urls")),
     # Friendly docs endpoints (development only)
     path("index", RedirectView.as_view(url="/docs/", permanent=False)),

@@ -277,13 +277,17 @@ const collapsedCount = computed(() => collapsedItems.value.length);
 .breadcrumb__dropdown {
   position: absolute;
   top: 21px;
-  inset-inline-end: 0;
+  /* افتح للداخل في واجهة RTL: ثبت عند بداية السطر (يمين في RTL) بدل نهاية السطر */
+  inset-inline-start: 0;
   background: #113e50;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 8px;
   min-width: 150px;
   padding: 6px;
   z-index: 10;
+  /* حماية من الخروج خارج الشاشة */
+  max-width: min(70vw, 360px);
+  overflow: auto;
 }
 .breadcrumb__dropdown a {
   color: #e6f4f1;

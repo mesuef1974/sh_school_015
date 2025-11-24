@@ -106,6 +106,12 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "مراقبة حضور الجناح" },
   },
   {
+    path: "/attendance/wing/reports",
+    name: "wing-attendance-reports",
+    component: () => import("../features/wings/pages/WingAttendanceReports.vue"),
+    meta: { requiresAuth: true, requiredRoles: ["wing_supervisor"], titleAr: "تقارير الحضور والغياب" },
+  },
+  {
     path: "/subject/dashboard",
     name: "subject-dashboard",
     component: () => import("../features/subject/pages/SubjectDashboard.vue"),
