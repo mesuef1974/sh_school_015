@@ -27,7 +27,7 @@ def test_action_attachment_upload_updates_doc_received_and_enforces_perms(client
     except Exception as e:
         pytest.skip(f"تعذر إنشاء Student: {e}")
 
-    from backend.discipline.models import BehaviorLevel, Violation, Incident, Action
+    from discipline.models import BehaviorLevel, Violation, Incident, Action
 
     lvl, _ = BehaviorLevel.objects.get_or_create(code=2, defaults={"name": "الدرجة الثانية", "description": ""})
     viol, _ = Violation.objects.get_or_create(
@@ -64,7 +64,7 @@ def test_action_attachment_upload_updates_doc_received_and_enforces_perms(client
 
     # 1) Normal user cannot upload (403)
     client.login(username="rep", password="x")
-    url = f"/api/discipline/incidents/{inc.id}/actions/{action.id}/attachments/"
+    url = f"/api/v1/discipline/incidents/{inc.id}/actions/{action.id}/attachments/"
     resp = client.post(url)
     assert resp.status_code == 403
     client.logout()

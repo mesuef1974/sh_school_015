@@ -131,18 +131,126 @@ function Start-Postgres {
     }
 
     # Run Postgres pinned to 16, explicit POSTGRES_USER and password
-    $runArgs = @(
-        'run','--name', $containerName,
-        '-e', "POSTGRES_USER=$pgUser",
-        '-e', "POSTGRES_PASSWORD=$pgPass",
-        '-e', "POSTGRES_DB=$pgDb",
-        '-p', "${pgPort}:5432",
-        '-v', ($volumeName + ':/var/lib/postgresql/data'),
-        '-d', 'postgres:16'
-    )
+    # Bind to loopback only to avoid Windows restrictions on 0.0.0.0 for some high ports
+    function New-RunArgs([int]$HostPort){
+        return @(
+            'run','--name', $containerName,
+            '-e', "POSTGRES_USER=$pgUser",
+            '-e', "POSTGRES_PASSWORD=$pgPass",
+            '-e', "POSTGRES_DB=$pgDb",
+            '-p', ("127.0.0.1:{0}:5432" -f $HostPort),
+            '-v', ($volumeName + ':/var/lib/postgresql/data'),
+            '-d', 'postgres:16'
+        )
+    }
 
-    Write-Host "Starting Postgres container with: user=$pgUser db=$pgDb port=$pgPort"
-    & docker @runArgs
+    function Invoke-DockerRun([int]$HostPort){
+        $args = New-RunArgs -HostPort $HostPort
+        Write-Host "Starting Postgres container with: user=$pgUser db=$pgDb port=$HostPort (bind 127.0.0.1)"
+        $global:LASTEXITCODE = 0
+        $out = & docker @args 2>&1
+        return @{ code = $LASTEXITCODE; output = ($out | Out-String) }
+    }
+
+    $res = Invoke-DockerRun -HostPort ([int]$pgPort)
+    if ($res.code -ne 0) {
+        $msg = ($res.output | Out-String)
+        if ($msg -match 'ports are not available' -or $msg -match 'bind' -or $msg -match 'forbidden by its access permissions') {
+            Write-Warning "[db_up] Port bind failed on $pgPort. Trying alternate ports on 127.0.0.1 ..."
+            # Try a small range of alternates
+            $alts = @(55432,55433,55434,55435,55436,55437,55438)
+            $started = $false
+            foreach ($p in $alts) {
+                if ($p -eq [int]$pgPort) { continue }
+                if (Test-HostPortBusy -Port $p) { continue }
+                try { Set-Content -Path $RuntimePortFile -Value $p -Encoding ASCII } catch { }
+                $pgPort = [string]$p
+                # ensure any previous failed container (created without port) is removed
+                try { & docker rm -f $containerName | Out-Null } catch {}
+                Start-Sleep -Milliseconds 200
+                $tryRes = Invoke-DockerRun -HostPort $p
+                if ($tryRes.code -eq 0) { $started = $true; break }
+            }
+            if (-not $started) {
+                Write-Warning "[db_up] All alternate ports failed. Falling back to Docker auto-assign (-P)."
+                # Remove any leftover container
+                try { & docker rm -f $containerName | Out-Null } catch {}
+                Start-Sleep -Milliseconds 200
+                # Run with --publish-all (Docker chooses a free host port)
+                $autoArgs = @(
+                    'run','--name', $containerName,
+                    '-e', "POSTGRES_USER=$pgUser",
+                    '-e', "POSTGRES_PASSWORD=$pgPass",
+                    '-e', "POSTGRES_DB=$pgDb",
+                    '-P',
+                    '-v', ($volumeName + ':/var/lib/postgresql/data'),
+                    '-d', 'postgres:16'
+                )
+                Write-Host "Starting Postgres container with Docker auto-assigned port (-P)"
+                $global:LASTEXITCODE = 0
+                $autoOut = & docker @autoArgs 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Error "Docker failed to start Postgres even with -P. Error: $autoOut"
+                    exit 1
+                }
+                # Discover mapped port and persist it
+                Start-Sleep -Milliseconds 300
+                $portLine = & cmd /c "docker port $containerName 5432/tcp 2>&1"
+                if ($portLine) {
+                    # docker port output looks like: 0.0.0.0:55555 or 127.0.0.1:55555
+                    $matched = ($portLine | Select-String -Pattern '([\d\.]+):(\d+)' -AllMatches)
+                    if ($matched -and $matched.Matches.Count -ge 1) {
+                        $hostPort = $matched.Matches[0].Groups[2].Value
+                        if ($hostPort) {
+                            try { Set-Content -Path $RuntimePortFile -Value $hostPort -Encoding ASCII } catch { }
+                            $script:pgPort = [string]$hostPort
+                            Write-Host ("[db_up] Using auto-assigned host port {0}" -f $hostPort) -ForegroundColor DarkGray
+                            $started = $true
+                        }
+                    }
+                }
+                if (-not $started) {
+                    # Try without specifying container port to get any mapping lines
+                    $allPorts = & cmd /c "docker port $containerName 2>&1"
+                    if ($allPorts) {
+                        $matched2 = ($allPorts | Select-String -Pattern '5432/tcp -> ([\d\.]+):(\d+)' -AllMatches)
+                        if ($matched2 -and $matched2.Matches.Count -ge 1) {
+                            $hostPort = $matched2.Matches[0].Groups[2].Value
+                            if ($hostPort) {
+                                try { Set-Content -Path $RuntimePortFile -Value $hostPort -Encoding ASCII } catch { }
+                                $script:pgPort = [string]$hostPort
+                                Write-Host ("[db_up] Using auto-assigned host port {0} (docker port)" -f $hostPort) -ForegroundColor DarkGray
+                                $started = $true
+                            }
+                        }
+                    }
+                }
+                if (-not $started) {
+                    # Try docker inspect as a fallback
+                    $inspect = & cmd /c "docker inspect $containerName --format {{json .NetworkSettings.Ports}} 2>&1"
+                    $hostPort = $null
+                    try {
+                        $obj = $inspect | ConvertFrom-Json
+                        if ($obj.'5432/tcp') {
+                            foreach ($entry in $obj.'5432/tcp') { if ($entry.HostPort) { $hostPort = $entry.HostPort; break } }
+                        }
+                    } catch {}
+                    if ($hostPort) {
+                        try { Set-Content -Path $RuntimePortFile -Value $hostPort -Encoding ASCII } catch { }
+                        $script:pgPort = [string]$hostPort
+                        Write-Host ("[db_up] Using auto-assigned host port {0} (inspect)" -f $hostPort) -ForegroundColor DarkGray
+                        $started = $true
+                    } else {
+                        Write-Error "Docker started with -P but the host port could not be determined. Raw: $portLine | $inspect"
+                        exit 1
+                    }
+                }
+            }
+        } else {
+            Write-Error "Docker failed to start Postgres: $msg"
+            exit 1
+        }
+    }
 
     # Wait until ready or detect common init error
     Write-Host "Waiting for Postgres to accept connections ..."

@@ -35,9 +35,33 @@ if ($Latest) {
     Write-Host ("Selected latest backup: {0}" -f $FilePath) -ForegroundColor Cyan
 }
 
-# Validate input file (after resolving -Latest)
+# Auto-select a backup when no -FilePath provided (quality of life):
+# 1) Prefer a file named 'backup_sh_school.dump' in project root
+# 2) Otherwise, pick the latest supported file from 'backups' directory (if exists)
+if (-not $FilePath -and -not $Latest) {
+    try {
+        $defaultRootFile = Join-Path $Root 'backup_sh_school.dump'
+        if (Test-Path -LiteralPath $defaultRootFile) {
+            $FilePath = (Resolve-Path -LiteralPath $defaultRootFile).Path
+            Write-Host ("تم اختيار النسخة الاحتياطية الافتراضية: {0}" -f $FilePath) -ForegroundColor Cyan
+        } else {
+            $autoBackupDir = if ($BackupDir -and $BackupDir.Trim() -ne '') { $BackupDir } else { Join-Path $Root 'backups' }
+            if (Test-Path -LiteralPath $autoBackupDir) {
+                $supported = @('*.dump','*.backup','*.tar','*.sql','*.sql.gz')
+                $files = Get-ChildItem -LiteralPath $autoBackupDir -File -Include $supported -ErrorAction SilentlyContinue
+                if ($files -and $files.Count -gt 0) {
+                    $latestFile = $files | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                    $FilePath = $latestFile.FullName
+                    Write-Host ("تم اختيار أحدث نسخة تلقائيًا من المجلد '{0}': {1}" -f $autoBackupDir, $FilePath) -ForegroundColor Cyan
+                }
+            }
+        }
+    } catch {}
+}
+
+# Validate input file (after resolving -Latest/auto)
 if (-not $FilePath -or -not (Test-Path -LiteralPath $FilePath)) {
-    Write-Error ("Backup file not found: {0}" -f ($FilePath ?? '(null)'))
+    Write-Error ("Backup file not found: {0}. مرّر مسار الملف، أو استخدم -Latest لاختيار أحدث نسخة، أو ضع ملفًا باسم backup_sh_school.dump في مجلد المشروع." -f ($FilePath ?? '(null)'))
     exit 1
 }
 

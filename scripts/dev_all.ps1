@@ -63,7 +63,7 @@ $attempts = [math]::Ceiling(($MaxWaitSeconds * 1000) / 500)
 for ($i = 0; $i -lt $attempts; $i++) {
   # Re-read origin selection on every iteration to follow serve_https dynamic choice
   if (Test-Path -Path $originFile) {
-    try {`1
+    try {
       $originStr = (Get-Content -Path $originFile -ErrorAction Stop | Select-Object -First 1)
       if ($originStr -and $originStr -ne $lastOrigin) {
         $u = [Uri]$originStr
@@ -95,12 +95,15 @@ if ($backendReady) {
   Write-Host 'Backend is up - starting frontend (Vite) ...' -ForegroundColor Cyan
 } else {
   if (-not $ForceFrontend) {
-    Write-Host 'Backend not confirmed yet - not starting frontend. Re-run with -ForceFrontend or increase -MaxWaitSeconds.' -ForegroundColor DarkYellow
-    exit 1
+    Write-Host 'Backend not confirmed yet - starting frontend anyway. Tip: you can increase wait with -MaxWaitSeconds or use -ForceFrontend to skip this check.' -ForegroundColor DarkYellow
   } else {
     Write-Host 'Backend not confirmed yet - starting frontend anyway due to -ForceFrontend.' -ForegroundColor DarkYellow
   }
 }
+
+# Quick dev tip: default admin credentials and how to create your own user
+Write-Host "Tip: Default admin account is 'mesuef' with password 'Admin@12345'." -ForegroundColor DarkGray
+Write-Host "To create or update your own admin quickly, run: pwsh -File scripts\\ensure_superuser.ps1 --username YOUR_NAME --password 'StrongPass123!' --email 'you@example.local'" -ForegroundColor DarkGray
 
 # Start frontend Vite dev server
 Write-Host 'Starting frontend (Vite dev server) ...' -ForegroundColor Cyan

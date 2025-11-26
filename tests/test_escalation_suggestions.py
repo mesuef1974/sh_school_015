@@ -30,8 +30,8 @@ from django.utils import timezone
 )
 def test_suggest_actions_mapping_matches_policy(degree, n, expected):
     from django.apps import apps
-    from backend.discipline.models import BehaviorLevel, Violation, Incident
-    from backend.discipline.serializers import suggest_actions_for
+    from discipline.models import BehaviorLevel, Violation, Incident
+    from discipline.serializers import suggest_actions_for
 
     # Prepare student
     Student = apps.get_model("school", "Student")
@@ -98,8 +98,8 @@ def test_suggest_actions_mapping_matches_policy(degree, n, expected):
 @pytest.mark.django_db
 def test_compute_repeat_index_respects_policy_window_over_env(settings):
     from django.apps import apps
-    from backend.discipline.models import BehaviorLevel, Violation, Incident
-    from backend.discipline.serializers import compute_repeat_index
+    from discipline.models import BehaviorLevel, Violation, Incident
+    from discipline.serializers import compute_repeat_index
 
     # Force global repeat window to a large number but set violation.policy.window_days to 10
     settings.DISCIPLINE_REPEAT_WINDOW_D = 365
@@ -174,7 +174,7 @@ def test_compute_repeat_index_respects_policy_window_over_env(settings):
 
 def test_suggest_actions_handles_missing_occurred_at_and_unknown_degree():
     from types import SimpleNamespace
-    from backend.discipline.serializers import suggest_actions_for
+    from discipline.serializers import suggest_actions_for
 
     # Unknown degree -> []
     ns0 = SimpleNamespace(severity=0, occurred_at=None, violation=None, student_id=None, violation_id=None)

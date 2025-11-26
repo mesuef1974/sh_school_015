@@ -45,7 +45,7 @@ INSTALLED_APPS = [
     "school",
     "apps.attendance",
     # Use full dotted path to avoid ambiguity when importing as backend.discipline
-    "backend.discipline",
+    "discipline.apps.DisciplineConfig",
 ]
 
 MIDDLEWARE = [

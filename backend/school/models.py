@@ -529,6 +529,25 @@ class AttendancePolicy(models.Model):
 
 
 class AttendanceRecord(models.Model):
+    class Status(models.TextChoices):
+        PRESENT = "present", "حاضر"
+        LATE = "late", "متأخر"
+        ABSENT = "absent", "غائب"
+        RUNAWAY = "runaway", "هروب"
+        EXCUSED = "excused", "إذن خروج"
+        LEFT_EARLY = "left_early", "انصراف مبكر"
+
+    class RunawayReasons(models.TextChoices):
+        NO_SHOW = "no_show", "لم يحضر"
+        LEFT_UNRETURNED = "left_and_not_returned", "خرج ولم يعد"
+
+    class ExcuseTypes(models.TextChoices):
+        MEDICAL = "medical", "طبي"
+        OFFICIAL = "official", "رسمي"
+        FAMILY = "family", "عائلي"
+        TRANSPORT = "transport", "مواصلات"
+        OTHER = "other", "أخرى"
+
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     classroom = models.ForeignKey(Class, on_delete=models.CASCADE)
     subject = models.ForeignKey(Subject, on_delete=models.PROTECT)
@@ -543,22 +562,23 @@ class AttendanceRecord(models.Model):
 
     status = models.CharField(
         max_length=20,
-        choices=[
-            ("present", "حاضر"),
-            ("late", "متأخر"),
-            ("absent", "غائب"),
-            ("runaway", "هروب"),
-            ("excused", "إذن خروج"),
-            ("left_early", "انصراف مبكر"),
-        ],
+        choices=Status.choices,
     )
     late_minutes = models.PositiveSmallIntegerField(default=0)
     early_minutes = models.PositiveSmallIntegerField(default=0)
 
-    runaway_reason = models.CharField(max_length=30, blank=True)  # no_show | left_and_not_returned
+    runaway_reason = models.CharField(
+        max_length=30,
+        blank=True,
+        choices=RunawayReasons.choices,
+    )
 
     # Generic excuse fields (legacy)
-    excuse_type = models.CharField(max_length=20, blank=True)  # medical|official|family|transport|other
+    excuse_type = models.CharField(
+        max_length=20,
+        blank=True,
+        choices=ExcuseTypes.choices,
+    )
     excuse_note = models.CharField(max_length=300, blank=True)
 
     # Unified human-readable note column (stores free notes and exit permission text)
@@ -794,6 +814,62 @@ class AttendanceLateEvent(models.Model):
 
     def __str__(self) -> str:
         return f"{self.student} – {self.date} P{self.period_number} تأخر {self.late_mmss}"
+
+
+class AttendanceRecordArchive(models.Model):
+    """
+    A model to archive old attendance records to keep the main table small and fast.
+    This model has the same fields as AttendanceRecord, but without foreign key constraints
+    to avoid issues when original records are deleted.
+    """
+
+    student_id = models.BigIntegerField(db_index=True)
+    classroom_id = models.BigIntegerField(db_index=True)
+    subject_id = models.BigIntegerField()
+    teacher_id = models.BigIntegerField(db_index=True)
+    term_id = models.BigIntegerField()
+
+    date = models.DateField(db_index=True)
+    day_of_week = models.PositiveSmallIntegerField()
+    period_number = models.PositiveSmallIntegerField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    status = models.CharField(max_length=20)
+    late_minutes = models.PositiveSmallIntegerField(default=0)
+    early_minutes = models.PositiveSmallIntegerField(default=0)
+
+    runaway_reason = models.CharField(max_length=30, blank=True)
+    excuse_type = models.CharField(max_length=20, blank=True)
+    excuse_note = models.CharField(max_length=300, blank=True)
+    note = models.CharField(max_length=300, blank=True)
+
+    exit_reasons = models.CharField(max_length=200, blank=True, default="")
+    exit_left_at = models.DateTimeField(null=True, blank=True)
+    exit_returned_at = models.DateTimeField(null=True, blank=True)
+
+    source = models.CharField(max_length=20, default="teacher")
+    locked = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField()
+    updated_at = models.DateTimeField()
+
+    # Add the original ID for reference
+    original_id = models.BigIntegerField(unique=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["student_id", "date"]),
+            models.Index(fields=["classroom_id", "date"]),
+            models.Index(fields=["teacher_id", "date"]),
+            models.Index(fields=["date", "status"]),
+            models.Index(fields=["term_id", "student_id", "status"]),
+        ]
+        verbose_name = "أرشيف سجل حضور حصة"
+        verbose_name_plural = "أرشيف سجلات حضور الحصص"
+
+    def __str__(self) -> str:
+        return f"Archive: {self.student_id} – {self.date} P{self.period_number}: {self.status}"
 
 
 class StudentLateSummary(Student):

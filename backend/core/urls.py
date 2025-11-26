@@ -133,7 +133,7 @@ urlpatterns = [
     ),
     # API v1 (new apps)
     path("api/v1/", include("apps.attendance.urls")),
-    path("api/v1/", include("discipline.urls")),
+    path("api/", include("discipline.urls")),
     # Stable alias for Wing students DOCX export (works with/without trailing slash)
     path(
         "api/v1/wing/students/export.docx/",

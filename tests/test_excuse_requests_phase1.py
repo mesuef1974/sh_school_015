@@ -13,7 +13,7 @@ def test_excuse_approve_idempotent_and_updates_absences():
     reviewer = User.objects.create_user(username="rev", password="x", is_staff=True)
 
     # Lazy-import models to avoid app-registry issues
-    from backend.discipline.models import Absence, ExcuseRequest
+    from discipline.models import Absence, ExcuseRequest
     from django.apps import apps
 
     # Create a minimal student via apps registry (school.Student)
@@ -64,7 +64,7 @@ def test_attachment_blocked_after_final_decision(client):
     user = User.objects.create_user(username="u1", password="p1", is_staff=True)
     client.login(username="u1", password="p1")
 
-    from backend.discipline.models import Absence, ExcuseRequest
+    from discipline.models import Absence, ExcuseRequest
     from django.apps import apps
 
     Student = apps.get_model("school", "Student")
@@ -113,7 +113,7 @@ def test_permissions_required_for_review_and_approve(client):
     except Exception as e:
         pytest.skip(f"تعذر إنشاء Student: {e}")
 
-    from backend.discipline.models import Absence
+    from discipline.models import Absence
 
     absn = Absence.objects.create(student=s, date=timezone.now().date(), type="FULL_DAY", status="UNEXCUSED")
 

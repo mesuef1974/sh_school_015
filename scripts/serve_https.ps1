@@ -78,18 +78,21 @@ function Invoke-DjangoMigrateIfNeeded {
 function Ensure-Superuser {
   param([hashtable]$DotEnv)
   try {
-    if ($DotEnv -and $DotEnv['DJANGO_SUPERUSER_USERNAME']) {
+    if ($DotEnv -and $DotEnv['DJANGO_SUPERUSER_USERNAME'] -and $DotEnv['DJANGO_SUPERUSER_PASSWORD']) {
       $env:DJANGO_SUPERUSER_USERNAME = $DotEnv['DJANGO_SUPERUSER_USERNAME']
+      $env:DJANGO_SUPERUSER_PASSWORD = $DotEnv['DJANGO_SUPERUSER_PASSWORD']
       if ($DotEnv['DJANGO_SUPERUSER_EMAIL'])    { $env:DJANGO_SUPERUSER_EMAIL    = $DotEnv['DJANGO_SUPERUSER_EMAIL'] }
-      if ($DotEnv['DJANGO_SUPERUSER_PASSWORD']) { $env:DJANGO_SUPERUSER_PASSWORD = $DotEnv['DJANGO_SUPERUSER_PASSWORD'] }
       Write-Host ("Ensuring superuser '{0}' from .env ..." -f $DotEnv['DJANGO_SUPERUSER_USERNAME']) -ForegroundColor DarkGray
       python backend\manage.py ensure_superuser | Out-Null
     } else {
-      Write-Host "Ensuring fallback superuser 'mesuef' (flags only) ..." -ForegroundColor DarkGray
-      python backend\manage.py ensure_superuser --username mesuef | Out-Null
+      # Fallback to a known default user and password if .env is not configured.
+      $fallbackUser = 'mesuef'
+      $fallbackPass = 'Admin@12345' # Use the password found in README.md
+      Write-Host "Ensuring fallback superuser '$fallbackUser' with a default password..." -ForegroundColor DarkGray
+      python backend\manage.py ensure_superuser --username $fallbackUser --password $fallbackPass --email "$fallbackUser@example.com" | Out-Null
     }
   } catch {
-    Write-Host ("ensure_superuser skipped: {0}" -f $_.Exception.Message) -ForegroundColor DarkGray
+    Write-Host ("ensure_superuser failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkRed
   }
 }
 

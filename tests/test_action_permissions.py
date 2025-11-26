@@ -23,7 +23,7 @@ def test_actions_list_and_create_require_permissions(client):
     except Exception as e:
         pytest.skip(f"تعذر إنشاء Student: {e}")
 
-    from backend.discipline.models import BehaviorLevel, Violation, Incident
+    from discipline.models import BehaviorLevel, Violation, Incident
 
     lvl, _ = BehaviorLevel.objects.get_or_create(code=1, defaults={"name": "الدرجة الأولى", "description": ""})
     viol, _ = Violation.objects.get_or_create(
@@ -59,7 +59,7 @@ def test_actions_list_and_create_require_permissions(client):
     viewer.user_permissions.add(perm_view)
     creator.user_permissions.add(perm_view, perm_create)
 
-    url = f"/api/discipline/incidents/{inc.id}/actions/"
+    url = f"/api/v1/discipline/incidents/{inc.id}/actions/"
 
     # Normal: cannot list or create
     client.login(username="u_norm", password="x")
@@ -106,7 +106,7 @@ def test_action_complete_requires_permission(client):
     except Exception as e:
         pytest.skip(f"تعذر إنشاء Student: {e}")
 
-    from backend.discipline.models import BehaviorLevel, Violation, Incident, Action
+    from discipline.models import BehaviorLevel, Violation, Incident, Action
 
     lvl, _ = BehaviorLevel.objects.get_or_create(code=2, defaults={"name": "الدرجة الثانية", "description": ""})
     viol, _ = Violation.objects.get_or_create(
@@ -135,7 +135,7 @@ def test_action_complete_requires_permission(client):
     )
     act = Action.objects.create(incident=inc, type="WRITTEN_WARNING")
 
-    url = f"/api/discipline/incidents/{inc.id}/actions/{act.id}/complete/"
+    url = f"/api/v1/discipline/incidents/{inc.id}/actions/{act.id}/complete/"
 
     # No permission -> 403
     client.login(username="worker1", password="x")

@@ -20,8 +20,8 @@ function setAccessToken(token?: string) {
 }
 
 export async function login(data: LoginPayload): Promise<TokenPair> {
-  // Prefer the unified endpoint
-  const resp = await httpNoCreds.post("/v1/auth/login/", data);
+  // Use relative path so it is prefixed by baseURL (/api) from http.ts
+  const resp = await httpNoCreds.post("v1/auth/login/", data);
   const tokens = (resp.data || {}) as TokenPair;
   if (tokens.access) setAccessToken(tokens.access);
   return tokens;
@@ -29,14 +29,14 @@ export async function login(data: LoginPayload): Promise<TokenPair> {
 
 export async function logout(): Promise<void> {
   try {
-    await http.post("/v1/auth/logout/", {});
+    await http.post("v1/auth/logout/", {});
   } finally {
     setAccessToken(undefined);
   }
 }
 
 export async function refresh(): Promise<TokenPair | void> {
-  const resp = await httpNoCreds.post("/v1/auth/refresh/", {});
+  const resp = await httpNoCreds.post("v1/auth/refresh/", {});
   const tokens = (resp.data || {}) as TokenPair;
   if (tokens?.access) setAccessToken(tokens.access);
   return tokens;

@@ -27,7 +27,7 @@ def test_notify_guardian_requires_permission(client, settings):
         pytest.skip(f"تعذر إنشاء Student: {e}")
 
     # Minimal violation degree 1
-    from backend.discipline.models import BehaviorLevel, Violation, Incident
+    from discipline.models import BehaviorLevel, Violation, Incident
 
     lvl, _ = BehaviorLevel.objects.get_or_create(code=1, defaults={"name": "الدرجة الأولى", "description": ""})
     viol, _ = Violation.objects.get_or_create(
@@ -91,7 +91,7 @@ def test_notify_guardian_sla_met_and_unmet(client, settings):
     caller = User.objects.create_user(username="caller_sla", password="y")
 
     # Grant permission
-    from backend.discipline.models import Incident
+    from discipline.models import Incident
 
     ct_incident = ContentType.objects.get(app_label="discipline", model="incident")
     perm = Permission.objects.get(content_type=ct_incident, codename="incident_notify_guardian")
@@ -111,7 +111,7 @@ def test_notify_guardian_sla_met_and_unmet(client, settings):
 
     # Reporter and violation
     reporter = User.objects.create_user(username="rep_sla", password="x")
-    from backend.discipline.models import BehaviorLevel, Violation
+    from discipline.models import BehaviorLevel, Violation
 
     lvl, _ = BehaviorLevel.objects.get_or_create(code=1, defaults={"name": "الدرجة الأولى", "description": ""})
     viol, _ = Violation.objects.get_or_create(
@@ -193,7 +193,7 @@ def test_notify_guardian_degree_3_4_no_sla_enforcement(client, settings):
 
     # Reporter and violation severity 3
     reporter = User.objects.create_user(username="rep_high", password="x")
-    from backend.discipline.models import BehaviorLevel, Violation, Incident
+    from discipline.models import BehaviorLevel, Violation, Incident
 
     lvl, _ = BehaviorLevel.objects.get_or_create(code=3, defaults={"name": "الدرجة الثالثة", "description": ""})
     viol, _ = Violation.objects.get_or_create(

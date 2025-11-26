@@ -24,17 +24,24 @@ Write-Host "Ensuring superuser '$Username' ..." -ForegroundColor Cyan
 python backend\manage.py ensure_superuser @argsList
 
 # Force activate + super flags just in case (idempotent)
-$py = @'
+$pyUsername = "'$Username'"
+$pyMakeSuper = if ($MakeSuper) { 'True' } else { 'False' }
+
+$py = @"
 from django.contrib.auth import get_user_model
-u = get_user_model().objects.filter(username=%(u)r).first()
+User = get_user_model()
+username = $pyUsername
+make_super = $pyMakeSuper
+
+u = User.objects.filter(username=username).first()
 if not u:
-    print('User not found: %(u)s')
+    print(f'User not found: {username}')
 else:
     changed = False
     if not u.is_active:
         u.is_active = True
         changed = True
-    if %(make_super)s:
+    if make_super:
         if not u.is_staff:
             u.is_staff = True
             changed = True
@@ -43,12 +50,10 @@ else:
             changed = True
     if changed:
         u.save(update_fields=['is_active','is_staff','is_superuser'])
-        print('User flags updated for', u.username)
+        print(f'User flags updated for {u.username}')
     else:
-        print('User flags OK for', u.username)
-'@
-
-$py = $py -f @{ u = $Username; make_super = $(if ($MakeSuper) { 'True' } else { 'False' }) }
+        print(f'User flags OK for {u.username}')
+"@
 
 # Execute the Python snippet using Django shell (PowerShell does not support Bash-style heredocs like <<)
 $runtimeDir = Join-Path $Root 'backend\.runtime'

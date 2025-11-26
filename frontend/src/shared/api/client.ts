@@ -113,7 +113,8 @@ async function refreshAccessToken(): Promise<string | null> {
     // Prefer HttpOnly cookie on server. If not available yet, fallback to stored refresh (temporary)
     const storedRefresh = localStorage.getItem("sh_school_refresh");
     const body = storedRefresh ? { refresh: storedRefresh } : {};
-    const res = await axios.post("/api/token/refresh/", body, { withCredentials: true });
+    // Use unified v1 auth refresh endpoint via the shared axios instance (baseURL=/api)
+    const res = await api.post("/v1/auth/refresh/", body);
     const data = res.data as { access?: string };
     if (data?.access) {
       return data.access;
@@ -317,7 +318,8 @@ export async function flushAttendanceQueueNow() {
 }
 
 export async function login(username: string, password: string) {
-  const res = await axios.post("/api/token/", { username, password }, { withCredentials: true });
+  // Use unified v1 auth endpoint and the shared axios instance (baseURL=/api)
+  const res = await api.post("/v1/auth/login/", { username, password });
   const data = res.data as { access: string; refresh?: string };
   // Store access in-memory (preferred)
   setAccessToken(data.access);
@@ -334,7 +336,8 @@ export async function logout() {
   try {
     const refresh = localStorage.getItem("sh_school_refresh");
     const body = refresh ? { refresh } : {};
-    await api.post("/logout/", body);
+    // Unified logout endpoint under /api/v1/auth/logout/
+    await api.post("/v1/auth/logout/", body);
   } catch {
     // ignore errors on logout to be resilient
   } finally {

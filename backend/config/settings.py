@@ -1,6 +1,8 @@
 from pathlib import Path
 import os
 from dotenv import load_dotenv
+import dj_database_url
+from datetime import timedelta
 
 # Load environment variables
 load_dotenv()
@@ -23,6 +25,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third party apps
     "rest_framework",
+    "rest_framework_simplejwt",
     "corsheaders",
     "drf_spectacular",
     # Local apps
@@ -30,7 +33,7 @@ INSTALLED_APPS = [
     "apps.school",
     "apps.api",
     # Discipline module (incident lifecycle)
-    "backend.discipline",
+    "discipline.apps.DisciplineConfig",
 ]
 
 MIDDLEWARE = [
@@ -49,17 +52,34 @@ MIDDLEWARE = [
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Database settings
+# --- Database settings ---
+
+# Default database configuration
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME", "sh_school_db"),
-        "USER": os.getenv("DB_USER", "postgres"),
-        "PASSWORD": os.getenv("DB_PASSWORD", "your_password"),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+        "NAME": "sh_school",
+        "USER": "postgres",
+        "PASSWORD": "password",
+        "HOST": "localhost",
+        "PORT": "5432",
     }
 }
+
+# Override with DATABASE_URL if it is set
+if "DATABASE_URL" in os.environ:
+    DATABASES["default"] = dj_database_url.config(conn_max_age=600)
+else:
+    # Fallback for local dev: try to read the port from the runtime file
+    # This ensures we connect to the correct Docker instance.
+    try:
+        runtime_port_file = BASE_DIR / ".runtime" / "pg_port.txt"
+        if runtime_port_file.exists():
+            port = runtime_port_file.read_text().strip()
+            if port.isdigit():
+                DATABASES["default"]["PORT"] = port
+    except Exception:
+        pass  # Ignore errors and use default
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -95,7 +115,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # REST Framework settings
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
 }
+
+# Simple JWT settings
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+}
+
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
